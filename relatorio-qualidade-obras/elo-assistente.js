@@ -56,11 +56,18 @@
   const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
   const ELO_STOCK_IA_PENDING_PLAN_KEY = "obraReport.stockIa.pendingLaunchPlan";
   const ELO_PENDING_STOCK_RELEASE_KEY = "obraReport.elo.pendingStockRelease";
+  const ELO_PENDING_STOCK_ENTRY_KEY = "obraReport.elo.pendingStockEntry";
+  const ELO_PENDING_STOCK_EXIT_KEY = "obraReport.elo.pendingStockExit";
+  const ELO_PENDING_STOCK_TRANSFER_KEY = "obraReport.elo.pendingStockTransfer";
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
-    const baseUrl = configuredBaseUrl || "http://localhost:3000";
+    const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") ||
+      window.location.protocol === "file:";
+    const baseUrl = isLocalPage && !window.ELO_API_BASE_URL
+      ? "http://localhost:3000"
+      : (configuredBaseUrl || "http://localhost:3000");
 
     return baseUrl + path;
   }
@@ -463,22 +470,6 @@
     return buildEloCoreCasualConversationAnswer_(question);
   }
 
-  function buildEloLiveDataCapabilityAnswer_(question) {
-    const text = normalizeText(question || "");
-    if (!/\b(?:voce|você|vc|elo)\b[\s\S]{0,40}\b(?:pesquisa|pesquisar|internet|online|web)\b/.test(text) &&
-        !/\b(?:pesquisa|internet|online|web)\b[\s\S]{0,40}\b(?:voce|você|vc|elo)\b/.test(text)) return null;
-    const answer = "Sim. Quando uma pergunta depende de informação atual, posso consultar fontes online antes de responder.";
-    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "live_data_capability" };
-  }
-  function handleEloLiveDataCapability_(question) {
-    const response = buildEloLiveDataCapabilityAnswer_(question);
-    if (!response) return false;
-    const answer = formatResponse(response);
-    appendAssistantMessage(question, answer, false, response);
-    saveConversation(question, answer);
-    rememberSessionTurn(question, response, answer);
-    return true;
-  }
   function handleEloCorePureConversationalAnswer_(question) {
     const response = buildEloCorePureConversationalAnswer_(question);
     if (!response) return false;
@@ -594,28 +585,7 @@
       /\b(?:so|apenas)\b[\s\S]{0,36}\b(?:conversar|bater papo|papo|conversa)\b/.test(text);
   }
 
-  function isEloSportsScheduleLiveSearchIntent_(text) {
-    const sportsScheduleSubject = /\b(?:jogo|jogos|partida|partidas|rodada|agenda de jogos|programacao esportiva|copa do mundo|copa|selecao|campeonato|mundial)\b/.test(text);
-    const sportsScheduleTime = /\b(?:proximo|proximos|proxima|proximas|amanha|semana|esta semana|quando|agenda|programacao)\b/.test(text);
-    const technicalNextStep = /\bproxim[oa]s?\b[\s\S]{0,36}\b(?:passo|etapa|servico|sequencia|item|orcamento|obra|concretagem|execucao)\b/.test(text);
-    return sportsScheduleSubject && sportsScheduleTime && !technicalNextStep;
-  }
-  function getEloLiveDataContext_() {
-    const live = ELO_SESSION_MEMORY.lastLiveDataRoute;
-    return live && typeof live === "object" ? live : {};
-  }
-  function classifyEloLiveDataNeed_(message) {
-    if (window.EloLiveDataRouter && typeof window.EloLiveDataRouter.classifyLiveDataNeed === "function") {
-      try {
-        return window.EloLiveDataRouter.classifyLiveDataNeed(message, getEloLiveDataContext_());
-      } catch (error) {}
-    }
-    return null;
-  }
-
   function hasEloSemanticLiveSearchIntent_(message) {
-    const routed = classifyEloLiveDataNeed_(message);
-    if (routed && routed.needsLiveData) return true;
     const text = canonicalizeEloSemanticText_(message);
     if (!text || hasEloSemanticConversationNegation_(text)) return false;
     if (/\bdiferenca\s+entre\s+clima\s+e\s+tempo\b/.test(text)) return false;
@@ -624,7 +594,6 @@
     const hasExternalSubject = new RegExp("\\b(?:" + subjectPattern + ")\\b").test(text) || /\b(?:clima|tempo|temperatura|previsao)\b[\s\S]{0,24}\b(?:em|para)\b/.test(text);
     if (explicitSearch && hasExternalSubject) return true;
     if (/\b(?:que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao)\b/.test(text) && !hasExternalSubject) return false;
-    if (isEloSportsScheduleLiveSearchIntent_(text)) return true;
     const temporalPattern = "hoje|agora|atual|atuais|atualmente|ultimas|tempo real";
     if (new RegExp("\\b(?:" + temporalPattern + ")\\b[\\s\\S]{0,70}\\b(?:" + subjectPattern + ")\\b").test(text)) return true;
     if (new RegExp("\\b(?:" + subjectPattern + ")\\b[\\s\\S]{0,70}\\b(?:" + temporalPattern + ")\\b").test(text)) return true;
@@ -680,8 +649,6 @@
         return { intent: "conversa_geral", route: "chat", reason: "short_continuation_without_active_context", context: context };
       }
     }
-    const liveDataRoute = classifyEloLiveDataNeed_(raw);
-    if (liveDataRoute && liveDataRoute.needsLiveData) return { intent: "busca_atual", route: "web-search", reason: liveDataRoute.reason || "semantic_live_search", context: context, liveData: liveDataRoute };
     if (hasEloSemanticLiveSearchIntent_(raw)) return { intent: "busca_atual", route: "web-search", reason: "semantic_live_search", context: context };
     if (isEloSemanticCadistaIntent_(text)) return { intent: "cadista", route: "technical", reason: "cadista_intent", context: context };
     if (isEloSemanticBudgetOrQuantIntent_(text)) return { intent: "orcamento_quantitativo", route: "technical", reason: "budget_or_quantitative_intent", context: context };
@@ -861,43 +828,16 @@
     }));
     return buildEloCommandBridgeAnswer_(result);
   }
-  const ELO_WEB_SEARCH_ACTION_TEMPLATE_ = { label: "Pesquise" };
   function needsLiveSearch(userText) {
     return classifyEloSemanticRoute_(userText).intent === "busca_atual";
   }
   function buildEloWebSearchRouteResponse_(question) {
     if (!needsLiveSearch(question)) return null;
     const query = sanitizeUserText(question);
-    const liveData = classifyEloLiveDataNeed_(query) || {};
-    return { route: "web_search", needsLiveSearch: true, shortAnswer: "Vou consultar e te respondo direto.", fullAnswer: "Vou consultar e te respondo direto.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: null, webSearchQuery: liveData.searchQuery || query, liveData: liveData };
+    return { route: "web_search", needsLiveSearch: true, shortAnswer: "Vou consultar e te respondo direto.", fullAnswer: "Vou consultar e te respondo direto.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "meta_web_search", action: { type: "meta_web_search", label: "Pesquisar agora", query: query, sourceQuestion: query }, webSearchQuery: query };
   }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
-  function requestEloWebSearchAnswer_(question, liveData) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); const classifiedLiveData = liveData || classifyEloLiveDataNeed_(question) || {}; const query = sanitizeUserText(classifiedLiveData.searchQuery || question); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: query }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
-  function formatEloLiveDateTimeAnswer_(liveData) {
-    const route = liveData || {};
-    const now = new Date();
-    const options = { weekday: "long", day: "2-digit", month: "long", year: "numeric" };
-    if (route.timeZone) options.timeZone = route.timeZone;
-    const dateText = new Intl.DateTimeFormat("pt-BR", options).format(now);
-    const prefix = route.locationLabel ? "No " + route.locationLabel + ", hoje é " : "Hoje é ";
-    return prefix + dateText + ".";
-  }
-  function buildEloLiveDataDirectAnswer_(question, liveData) {
-    if (!liveData || liveData.category !== "date_time") return null;
-    const answer = formatEloLiveDateTimeAnswer_(liveData);
-    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "live_date_time", liveData: liveData };
-  }
-  function rememberEloLiveDataRoute_(liveData) {
-    if (!liveData || !liveData.category || liveData.category === "none") return;
-    ELO_SESSION_MEMORY.lastLiveDataRoute = {
-      category: liveData.category,
-      location: sanitizeUserText(liveData.location || ""),
-      timeZone: sanitizeUserText(liveData.timeZone || ""),
-      locationLabel: sanitizeUserText(liveData.locationLabel || ""),
-      fetchedAt: new Date().toISOString()
-    };
-  }
-
+  function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
   function getEloObraBossDailyQuestionType_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return "";
@@ -2287,7 +2227,7 @@
       };
     }
 
-    match = raw.match(/(?:prefiro|gosto que você|responda sempre|quero respostas?)\s+([^\n]{6,180})/i);
+    match = raw.match(/(?:prefiro|gosto que você|responda sempre|quero respostas?)\s+([^\\n]{6,180})/i);
     if (match) {
       return {
         category: "preference",
@@ -2297,7 +2237,7 @@
       };
     }
 
-    match = raw.match(/(?:lembre que|guarde que|decidimos que)\s+([^\n]{8,220})/i);
+    match = raw.match(/(?:lembre que|guarde que|decidimos que)\s+([^\\n]{8,220})/i);
     if (match) {
       return {
         category: text.indexOf("decidimos") >= 0 ? "decision" : "technical_context",
@@ -2390,7 +2330,80 @@
   function buildEloOpeningMessage_() {
     return "Oi, tudo bem?";
   }
+
+  function normalizeEloSocialFastPathText_(message) {
+    return normalizeText(String(message || "")
+      .replace(/^\s*elo\s*[,;:\-]*\s*/i, "")
+      .replace(/\bvc\b/gi, "voce")
+      .replace(/\bcê\b/gi, "voce"))
+      .replace(/[?!.,;:]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function hasEloPendingActionForSocialFastPath_() {
+    return !!(
+      getEloMusicPendingCandidate_ && getEloMusicPendingCandidate_() ||
+      isEloRdoPreviewActive_ && isEloRdoPreviewActive_() ||
+      hasEloBudgetRoutePending_ && hasEloBudgetRoutePending_() ||
+      ELO_SESSION_MEMORY.activeResidentialBudgetState ||
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 ||
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active
+    );
+  }
+
+  function buildEloSocialFastPathAnswer_(message, options) {
+    const opts = options || {};
+    const text = normalizeEloSocialFastPathText_(message);
+    if (!text) return null;
+
+    const shortContinuation = /^(?:sim|s|nao|não|ok|pode|continue|continuar|continua|pode continuar)$/.test(text);
+    if (!opts.ignorePending && shortContinuation && hasEloPendingActionForSocialFastPath_()) return null;
+
+    const profile = getUserProfile ? getUserProfile() : null;
+    const name = profile && profile.userName ? ", " + profile.userName.split(/\s+/)[0] : "";
+    let answer = "";
+    let intent = "social_fast_path";
+
+    if (/^(?:tudo|tudo bem|tudo certo|bem|bem e voce|tudo e voce|tranquilo|de boa|otimo|otima|estou bem|to bem|ta tudo bem)$/.test(text)) {
+      answer = "Tudo certo por aqui.";
+      intent = "social_greeting_reply_no_loop";
+    } else if (/^(?:oi|ola|olá|oie|opa|bom dia|boa tarde|boa noite|salve|alo|alô)$/.test(text)) {
+      const greeting = /bom dia/.test(text) ? "Bom dia" : /boa tarde/.test(text) ? "Boa tarde" : /boa noite/.test(text) ? "Boa noite" : "Oi";
+      answer = greeting + name + ". Estou pronto.";
+      intent = "cumprimento_instantaneo";
+    } else if (/^(?:obrigado|obrigada|muito obrigado|muito obrigada|valeu|show obrigado|perfeito obrigado)$/.test(text)) {
+      answer = "Disponha.";
+      intent = "agradecimento_instantaneo";
+    } else if (/^(?:sim|s|ok|pode|pode continuar|continue|continuar|continua)$/.test(text)) {
+      answer = "Certo.";
+      intent = "confirmacao_instantanea";
+    } else if (/^(?:nao|não|n)$/.test(text)) {
+      answer = "Tudo bem.";
+      intent = "negacao_instantanea";
+    } else {
+      return null;
+    }
+
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "",
+      canSave: false,
+      fastPath: intent === "cumprimento_instantaneo" ? "greeting" : "SOCIAL_FAST_PATH",
+      socialFastPath: true,
+      responseType: "conversational",
+      brain: "conversational",
+      route: "local_social",
+      language: "pt",
+      sessionTheme: "conversa",
+      sessionIntent: intent
+    };
+  }
+
   function buildEloQuickGreetingAnswer_(message) {
+    const socialFastPath = buildEloSocialFastPathAnswer_(message);
+    if (socialFastPath) return socialFastPath;
     const raw = String(message || "").replace(/^\s*elo\s*[,;:\-]*\s*/i, "").replace(/\s+/g, " ").trim();
     if (!raw) return null;
     if (raw === "OI" || raw === "Oi" || raw === "oi") {
@@ -2433,6 +2446,8 @@
     try {
       appendMessage("user", cleanQuestion);
       appendAssistantMessage(cleanQuestion, answer, false, quickGreeting);
+      ELO_UI.socialFastPathMetrics = { fastPath: quickGreeting.fastPath || "SOCIAL_FAST_PATH", responseMs: 0 };
+      recordEloCoreReliabilityEvent_("SOCIAL_FAST_PATH", { intent: quickGreeting.sessionIntent || "", responseMs: 0 });
       rememberSessionTurn(cleanQuestion, quickGreeting, answer);
       clearProductAttachmentPreview();
     } finally {
@@ -4525,7 +4540,7 @@
     const facts = safe.facts || {};
     const isTechnicalCompositionDocument = safe.documentType === "technical_composition";
     const documentTitle = isTechnicalCompositionDocument ? safe.title || "Orcamento tecnico composto" : "ELO Or?amentista V2";
-    const documentTypeLabel = isTechnicalCompositionDocument ? "or?amento t?cnico composto" : "or\u00e7amento residencial preliminar";
+    const documentTypeLabel = isTechnicalCompositionDocument ? "or?amento t?cnico composto" : "or?amento residencial preliminar";
     const documentSummary = isTechnicalCompositionDocument ? "Or?amento t?cnico composto gerado a partir de quantitativos, insumos e composi??es pendentes de valida??o oficial." : "Or?amento residencial preliminar gerado a partir do estado t?cnico padronizado do ELO Or?amentista V2.";
     const documentUf = formatEloBudgetV2Scalar_(facts.state || facts.uf || facts.estado || "BA").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || "BA";
     const documentNumber = /^ELO-[A-Z]{2}-\d{4}-\d{6}$/.test(budgetId) ? budgetId : "ELO-" + documentUf + "-" + new Date().getFullYear() + "-000001";
@@ -5820,7 +5835,7 @@
     const source = ELO_SESSION_MEMORY.lastTechnicalPackage;
     if (!source || !source.answer) {
       const project = getActiveEloWorkProject_();
-      const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+      const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\\\\n]{2,80})/i);
       const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
       const date = new Date().toLocaleDateString("pt-BR");
       const markdownLines = [
@@ -5882,7 +5897,7 @@
     const compositions = extractEloProposalSection_(sourceText, ["Composições oficiais utilizadas", "Composicoes oficiais utilizadas", "Composições utilizadas", "Composicoes utilizadas", "Composições encontradas", "Composicoes encontradas"]) || "Nenhuma composição oficial foi localizada ou selecionada no pacote de origem.";
     const costs = extractEloProposalSection_(sourceText, ["Custos encontrados", "Custos"]) || "Somente serão exibidos valores quando houver preço real na base técnica carregada. Nenhum valor foi estimado.";
     const pending = extractEloProposalSection_(sourceText, ["Pendências técnicas", "Pendencias tecnicas", "Composições não localizadas", "Composicoes nao localizadas", "Observações técnicas", "Observacoes tecnicas", "Avisos profissionais"]) || "Confirmar projeto, memorial, composições oficiais faltantes, aço estrutural e responsabilidade técnica profissional.";
-    const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+    const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\\\\n]{2,80})/i);
     const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
     const date = new Date().toLocaleDateString("pt-BR");
     const markdownLines = [
@@ -6143,92 +6158,10 @@
     };
   }
 
-  function hasExplicitRdoAsContext_(message) {
-    const text = normalizeText(message || "");
-    if (!/\brdo\b/.test(text)) return false;
-    return /evidencia\s+complementar|evidência\s+complementar|como\s+evidencia|como\s+evidência|apenas\s+como\s+contexto|somente\s+como\s+contexto|rdo\s+(?:e|é)\s+(?:somente|apenas)\s+contexto|sem\s+tratar\s+rdo\s+como\s+pedido\s+principal/.test(text);
-  }
-
   function isEloRdoOperationalQuestion_(message) {
     const text = normalizeText(message || "");
-    const pathologyAnalysis = /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:patologia|fissura|trinca|rachadura|infiltra|umidade|exsuda|afundamento)\b/.test(text);
-    const budgetOrRepairRequest = /\b(?:quanto[\s\S]{0,30}custa|custo|preco|orcamento|composi..o|composicao|reparar|reparo)\b/.test(text);
-    if (pathologyAnalysis || budgetOrRepairRequest || hasExplicitRdoAsContext_(message)) return false;
     return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
-
-  function isEloPavementNonconformityTechnicalReport_(message) {
-    const text = normalizeText(message || "");
-    if (!text) return false;
-    const hasTechnicalDocument = /\b(?:relatorio[ ]+tecnico|parecer[ ]+tecnico)\b/.test(text);
-    const hasNonconformity = /\b(?:nao[ ]+conformidade|inconformidade)\b/.test(text);
-    const hasPavementContext = /\b(?:pavimentacao|pavimenta..o|pavimento|asfalto|asfaltico)\b/.test(text);
-    const hasFieldEvidence = /\b(?:evidencia[ ]+de[ ]+campo|evid.ncia[ ]+de[ ]+campo|vistoria[ ]+de[ ]+campo|inspe..o[ ]+de[ ]+campo)\b/.test(text);
-    return hasTechnicalDocument && hasNonconformity && hasPavementContext && hasFieldEvidence;
-  }
-
-  function isEloUndocumentedOperationalAllegationNoticeRequest_(message) {
-    const text = normalizeText(message || "");
-    if (!text) return false;
-    const hasAllegation = /\b(?:alegacao|alega..o|alega|alegada|alegado|alegaram|foi[ ]+alegad[ao]|construtora[ ]+alega)\b/.test(text);
-    const hasMissingRecord = /\b(?:nao|n.o)[ ]+(?:documentad[ao]|registrad[ao]|consta|ha[ ]+registro)\b|\bsem[ ]+(?:registro|comprovacao|comprova..o)\b/.test(text);
-    const hasOperationalContext = /\b(?:libera..o|liberacao)[ ]+(?:precoce|antecipad[ao])\b|\babertura[ ]+ao[ ]+tr.fego\b|\btr.fego\b|\bexecu..o\b|\bservi.o\b|\bobra\b/.test(text);
-    const hasDocumentRequest = /\bnotifica..o\b|\bcomo[ ]+(?:registrar|consignar|relatar|mencionar)\b|\brelatar[ ]+tecnicamente\b/.test(text);
-    return hasAllegation && hasMissingRecord && hasOperationalContext && hasDocumentRequest;
-  }
-
-  function isEloComplexInspectionTechnicalRequest_(message) {
-    const text = normalizeText(message || "");
-    if (!text) return false;
-    const rawText = String(message || "").toLowerCase();
-    const rawInspectionFallback = /\brdo\b/.test(rawText) && /notifica|inconformidade|sei|fiscal|\bbm\b|boletim de medi|evidencia complementar|nao quero resumo|não quero resumo|foco nas inconformidades/.test(rawText) && /ensaio|densidade|92[ ]*%|96[ ]*%|exsuda|afundamento|trilha|fissura|trinca|rachadura|contrato exige|massa|inconformidade/.test(rawText);
-    const hasRdoTechnicalEvaluation = /\brdo\b/.test(text) && /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:ensaio|densidade|compacta..o|controle[ ]+tecnol.gico|resultado)\b/.test(text) && /\b(?:insuficiente|abaixo|inferior|nao[ ]+conforme|inadequad|requisito|exigido|m.nimo)\b/.test(text);
-    const hasInspectionContext = /\b(?:fiscal|fiscalizacao|fiscaliza..o|inconformidade|nao[ ]+conformidade|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|boletim[ ]+de[ ]+medi..o|\bbm\b|medicao|medi..o|contratual|contratada|contrato|especifica..o|controle[ ]+tecnol.gico|obra[ ]+p.blica)\b/.test(text);
-    const hasTechnicalEvidence = /\b(?:ensaio|compacta..o|densidade|dmt|cbuq|asfalt|pavimenta|exsuda..o|ligante|trilhas?[ ]+de[ ]+roda|afundamento|patologia|fissura|trinca|rachadura|bm|rdo|contrato|especifica..o[ ]+t.cnica|resultado|amostra|massa|trecho)\b/.test(text);
-    const hasActionRequest = /\b(?:analise|analisa|avalie|avaliar|compare|comparar|recomende|recomendar|redija|redigir|redigindo|elabore|elaborar|prepare|preparar|fazer|orientar|atue[ ]+como[ ]+fiscal|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|constar[ ]+no[ ]+sei|para[ ]+sei|conclus.o[ ]+t.cnica)\b/.test(text);
-    const hasPavementTechnicalConclusion = /\b(?:pavimento|asfalto|asfaltico|asfáltico)\b/.test(text) && /\b(?:exsuda..o|afundamento)\b/.test(text) && /\b(?:conclus.o[ ]+t.cnica|avalia..o[ ]+t.cnica|parecer[ ]+preliminar)\b/.test(text);
-    const hasPavementWheelTrackTechnicalEvaluation = /\b(?:pavimento|asfalto|asfaltico|trecho[ ]+asfaltico)\b/.test(text) && /\b(?:trilhas?[ ]+de[ ]+roda|afundamento[ ]+em[ ]+trilha[ ]+de[ ]+roda|deforma..o[ ]+em[ ]+trilha[ ]+de[ ]+roda)\b/.test(text) && /\b(?:avalie|avaliar|avalia..o[ ]+t.cnica|hipoteses[ ]+tecnicas|hip.teses[ ]+t.cnicas|providencias|provid.ncias|parecer[ ]+preliminar)\b/.test(text);
-    const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades|custo|preco|orcamento|composi..o|composicao|reparar)\b/.test(text);
-    const hasExplicitRdoAsContext = hasExplicitRdoAsContext_(message);
-    return rawInspectionFallback || hasRdoTechnicalEvaluation || isEloUndocumentedOperationalAllegationNoticeRequest_(message) || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || isEloPavementNonconformityTechnicalReport_(message) || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
-  }
-
-  function buildEloComplexInspectionTechnicalAnswer_(message) {
-    if (!isEloComplexInspectionTechnicalRequest_(message)) return null;
-    const text = normalizeText(message || "");
-    const rawText = String(message || "").toLowerCase();
-    const hasCbuq = /\bcbuq\b/.test(text) || /\bcbuq\b/.test(rawText);
-    const hasPavementNonconformityTechnicalReport = isEloPavementNonconformityTechnicalReport_(message);
-    const hasUndocumentedOperationalAllegation = isEloUndocumentedOperationalAllegationNoticeRequest_(message);
-    const hasCompaction = (/92\s*%/.test(text) && /96\s*%/.test(text)) || (/92\s*%/.test(rawText) && /96\s*%/.test(rawText));
-    const hasMeasuredCbuq = /1[\.]?200[ ]*(?:m|metros?)?/.test(text) || /1[\.]?200[ ]*(?:m|metros?)?/.test(rawText);
-    const hasTrafficRdoGap = /rdo/.test(text) && /nao\s+ha\s+registro|n.o\s+h.\s+registro|nao\s+consta|n.o\s+consta|nao\s+documentad|n.o\s+documentad/.test(text);
-    const affectedStretch = /150[ ]*(?:m|metros?)\b/i.test(String(message || "")) ? "150 m" : "trecho informado no relato";
-    const pathologyTerms = [];
-    if (/exsuda/.test(text) || /exsuda/.test(rawText)) pathologyTerms.push("exsudacao de ligante betuminoso");
-    if (/trilhas?[ ]+de[ ]+roda|afundamento/.test(text) || /trilhas?[ ]+de[ ]+roda|afundamento/.test(rawText)) pathologyTerms.push("trilhas de roda/afundamento plastico prematuro");
-    if (/fissura|trinca|rachadura/.test(text) || /fissura|trinca|rachadura/.test(rawText)) pathologyTerms.push("fissura/trinca/rachadura");
-    const opening = /\bola|bom\s+dia|como\s+est/.test(text)
-      ? "Sobre a conversa inicial: eu nao acompanho uma semana como uma pessoa nem tenho memoria verificavel de casos reais processados. O desafio tecnico aqui e justamente separar fato, evidencia, alegacao e providencia sem inventar norma."
-      : "";
-    const facts = [];
-    if (hasPavementNonconformityTechnicalReport) facts.push("- Documento solicitado: relatorio/parecer tecnico de nao conformidade em pavimentacao com evidencia de campo.");
-    if (hasPavementNonconformityTechnicalReport) facts.push("- Objeto da constatacao: pavimentacao/asfalto indicado no relato, com conclusao preliminar dependente da caracterizacao da evidencia.");
-    if (hasCbuq) facts.push("- Obra publica de pavimentacao asfaltica/drenagem com CBUQ mencionado no relato.");
-    if (hasMeasuredCbuq) facts.push("- Boletim de Medicao informado: execucao de 1.200 m de CBUQ.");
-    if (hasCompaction) facts.push("- Ensaio informado: densidade in situ media de 92% da DMT, abaixo do minimo contratual informado de 96%.");
-    if (hasCompaction) facts.push("- Diferenca objetiva: 4 pontos percentuais abaixo do limite contratual informado.");
-    if (hasUndocumentedOperationalAllegation) facts.push("- Ha alegacao operacional sem registro/documento comprovatorio informado no relato.");
-    if (pathologyTerms.length) facts.push("- Manifestacoes observadas: " + pathologyTerms.join(" e ") + ".");
-    facts.push("- Extensao/trecho citado: " + affectedStretch + ".");
-    if (hasTrafficRdoGap) facts.push("- A liberacao precoce do trafego foi alegada, mas nao consta/documenta no RDO conforme o relato.");
-    if (!facts.length) facts.push("- O relato indica possivel nao conformidade tecnica a ser formalizada com base nas evidencias disponiveis.");
-    const referenceLine = /\bbm\b|boletim[ ]+de[ ]+medi|ensaio|controle[ ]+tecnol.gico|\brdo\b/.test(text) ? "Relato de fiscalizacao, Boletim de Medicao, ensaio de controle tecnologico e RDO mencionados no prompt. Nao foi informado numero de contrato, processo SEI, clausula, norma DNIT ou ABNT especifica." : "Relato tecnico informado pelo usuario. Nao foi informado BM, RDO, ensaio, contrato, processo SEI, clausula, norma DNIT ou ABNT especifica.";
-    const evidenceLines = hasCompaction ? ["- O parametro de 96% deve ser tratado como exigencia contratual informada no cenario.", "- O resultado de 92% indica nao atendimento ao limite contratual informado, sujeito a verificacao documental do ensaio e da rastreabilidade do trecho."] : ["- A avaliacao deve ser preliminar, dependente de vistoria, fotos, delimitacao do trecho e ensaios quando cabiveis.", "- Nao e possivel fechar causa definitiva apenas pelo relato textual."];
-    const answer = [opening, "ASSUNTO", "Notificacao tecnica de nao conformidade / registro para instrucao em SEI.", "", "REFERENCIA", referenceLine, "", "FATO INFORMADO", facts.join("\n"), "", "EVIDENCIA", evidenceLines.join("\n"), "", "ALEGACAO NAO DOCUMENTADA", (hasTrafficRdoGap || hasUndocumentedOperationalAllegation) ? "- Registre a alegacao como declaracao da parte, informando que nao foi localizado registro/documento contemporaneo que a comprove. Nao afirme que a liberacao ocorreu nem atribua responsabilidade sem evidencia." : "- Nao foi informada alegacao documentada no relato; nao presuma causa, responsavel ou justificativa sem evidencias complementares.", "", "HIPOTESE TECNICA", "- As manifestacoes observadas podem estar associadas a compactacao inadequada, instabilidade da mistura, suporte insuficiente das camadas inferiores, excesso ou migracao de ligante, temperatura/processo executivo ou solicitacao precoce do revestimento. A causa definitiva depende de verificacoes e ensaios complementares.", "", "PROVIDENCIAS RECOMENDADAS", "- Delimitar o trecho afetado e vincular as evidencias ao BM, RDO, fotos e ensaios quando existirem.", "- Solicitar manifestacao formal da contratada e plano de acao corretivo tecnicamente fundamentado.", "- Avaliar ensaios complementares e, quando tecnicamente indicado, fresagem e recomposicao do trecho nao conforme.", "- Avaliar ressalva/suspensao da parcela correspondente ate comprovacao de conformidade, conforme contrato e procedimento administrativo aplicavel.", "", "CONCLUSAO", "Com os dados fornecidos, ha indicio relevante de nao conformidade tecnica e documental. A notificacao deve exigir comprovacao, correcao ou plano de acao, sem presumir medida punitiva, desconto definitivo ou norma externa nao informada."].filter(Boolean).join("\n");
-    return { shortAnswer: hasUndocumentedOperationalAllegation ? "Preparei uma orientacao prudente para registrar a alegacao nao documentada." : "Preparei uma minuta tecnica de fiscalizacao sem tratar o RDO como tarefa principal.", fullAnswer: answer, nextAction: "Revise dados de contrato, processo, prazo e anexos antes de protocolar.", canSave: true, sessionTheme: "fiscalizacao_tecnica", sessionIntent: "technical_nonconformity_notice" };
-  }
-
 
   function isEloStockOperationalQuestion_(message) {
     const text = normalizeText(message || "");
@@ -7023,7 +6956,6 @@
 
   function rememberSessionTurn(question, response, answer) {
     const safeResponse = response && typeof response === "object" ? response : {};
-    if (safeResponse.liveData) rememberEloLiveDataRoute_(safeResponse.liveData);
     const normalizedQuestion = normalizeText(question);
     const detectedTheme = safeResponse.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
     const detectedIntent = safeResponse.sessionIntent || detectConversationIntent(normalizedQuestion);
@@ -7485,6 +7417,10 @@
   // ELO_TRANSPORT_API
   // The backend is the primary answer source. Local fallback only runs when this call is unavailable.
   function requestEloOnlineAnswer(question, attachments) {
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
+      return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
+    }
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
     }
@@ -10745,7 +10681,7 @@
     const cleanText = sanitizeLibraryText(rawText, 8000);
     const normalized = normalizeText(cleanText);
     const profile = normalizeInitialProfile(null);
-    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\n]{2,80})/i);
+    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\\\\n]{2,80})/i);
     if (match && match[1]) {
       profile.nome = sanitizeLibraryText(match[1], 80).replace(/[.,;:]+$/g, "");
     }
@@ -10766,20 +10702,20 @@
     if (profession) {
       profile.profissao = profession[1];
     } else {
-      match = cleanText.match(/\bsou\s+([^.\n]{4,80})/i);
+      match = cleanText.match(/\bsou\s+([^.\\\\n]{4,80})/i);
       if (match && match[1] && !hasAnyTerm(normalizeText(match[1]), ["desenvolvendo", "trabalhando com", "com pressa"])) {
         profile.profissao = sanitizeLibraryText(match[1], 120).replace(/[.,;:]+$/g, "");
       }
     }
 
-    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\n]{3,120})/i);
+    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\\\\n]{3,120})/i);
     if (match && match[1]) {
       profile.empresa = sanitizeLibraryText(match[1], 160).replace(/[.,;:]+$/g, "");
     } else if (hasAnyTerm(normalized, ["empresa propria", "empresa própria", "tenho empresa"])) {
       profile.empresa = "empresa própria";
     }
 
-    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\n]{3,100})/i);
+    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\\\\n]{3,100})/i);
     if (match && match[1]) {
       profile.cidade = sanitizeLibraryText(match[1], 140).replace(/[.,;:]+$/g, "");
     }
@@ -10809,12 +10745,12 @@
     profile.projetos = knownProjects.filter(function (project) {
       return normalized.indexOf(normalizeText(project)) >= 0;
     });
-    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\n]{3,100})/i);
+    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\\\\n]{3,100})/i);
     if (projectMatch && projectMatch[1]) {
       profile.projetos = mergeUniqueTextItems(profile.projetos, extractImportantTitle(projectMatch[1]));
     }
 
-    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\n]{4,180})/gi) || [];
+    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\\\\n]{4,180})/gi) || [];
     profile.objetivos = objectiveMatches.map(function (item) {
       return item.replace(/^(meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+/i, "").replace(/[.,;:]+$/g, "");
     });
@@ -10825,7 +10761,7 @@
       profile.objetivos = mergeUniqueTextItems(profile.objetivos, "desenvolvimento de software");
     }
 
-    const preferenceMatches = cleanText.match(/(?:prefiro|gosto de)\s+([^.\n]{4,180})/gi) || [];
+    const preferenceMatches = cleanText.match(/(?:prefiro|gosto de)\s+([^.\\\\n]{4,180})/gi) || [];
     profile.preferencias = preferenceMatches.map(function (item) {
       return item.replace(/^(prefiro|gosto de)\s+/i, "").replace(/[.,;:]+$/g, "");
     });
@@ -14640,7 +14576,7 @@
     if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
       return "user_name_question";
     }
-    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "qual o seu nome", "qual e o seu nome", "qual é o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual é o nome do elo", "seu nome e qual", "seu nome é qual", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
+    if (hasAnyTerm(text, ["quem e voce", "quem é você", "o que e voce", "o que é você", "quem e o elo", "quem é o elo", "elo core"])) {
       return "elo_identity";
     }
     if (detectDayClosingRequest(message)) {
@@ -16871,15 +16807,6 @@
     return /\b(?:planta|desenhar|desenhe|desenho|layout|distribuicao\s+dos\s+ambientes|croqui|projeto\s+arquitetonico|fachada|corte|implantacao)\b/.test(text);
   }
 
-  function isEloTechnicalObjectOnlyCadistaConflict_(message) {
-    const text = normalizeText(message || "");
-    const hasGraphicAction = /\b(?:desenhe|desenhar|desenho|crie|criar|gere|gerar|modele|modelar|projete|projetar|layout|planta\s+baixa|croqui|dxf|dwg|cadista)\b/.test(text);
-    if (hasGraphicAction) return false;
-    const hasTechnicalObject = /\b(?:fachada|esquadria|porta|janela|parede|planta)\b/.test(text);
-    const hasTechnicalIssue = isEloConstructionPathologyQuestion_(message) || /\b(?:nao\s+conformidade|inconformidade|falha|defeito|problema|avaliar|avalie|analise|analisar|diagnostico|verifique|verificar|explique|fiscalize|fiscalizar)\b/.test(text);
-    return hasTechnicalObject && hasTechnicalIssue;
-  }
-
   function hasEloResidentialBudgetIntent_(message) {
     const text = normalizeText(message || "");
     return /\b(?:orcamento|or.amento|orcar|custo|preco|quanto\s+custa|quantitativo|eap|composi..o|composicao|sinapi|orse|bdi|valor\s+da\s+obra|estimar\s+o\s+custo)\b/.test(text);
@@ -16908,7 +16835,6 @@
   function isEloResidentialDesignOnlyRequest_(message) {
     const text = normalizeText(message || "");
     if (!hasEloCadistaDesignIntent_(message)) return false;
-    if (isEloTechnicalObjectOnlyCadistaConflict_(message)) return false;
     if (/\borcamento\s+ativo\b/.test(text) && /\b(?:ver|mostrar|abrir|fazer|gerar)\b[\s\S]{0,40}\bplanta\b/.test(text)) return true;
     return !hasEloResidentialBudgetIntent_(message);
   }
@@ -21056,32 +20982,15 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
-  function hasEloRecentWallContinuationContext_() {
-    const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
-    if (!estimate) return false;
-    const recentText = normalizeText([
-      ELO_SESSION_MEMORY.activeConversationTopic || "",
-      ELO_SESSION_MEMORY.lastTheme || "",
-      ELO_SESSION_MEMORY.lastIntent || "",
-      ELO_SESSION_MEMORY.lastQuestion || "",
-      ELO_SESSION_MEMORY.lastAnswer || "",
-      ELO_SESSION_MEMORY.lastRecommendation || ""
-    ].join(" "));
-    return /\b(?:elo_operacional_parede|orcamento_parede|lista_materiais_parede|retomar_orcamento_parede|parede|alvenaria|bloco)\b/.test(recentText);
-  }
   function buildEloWallContinuationAnswer_(message) {
     const text = normalizeText(message);
     const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
     if (!estimate) {
       return null;
     }
-    const wantsBudgetContinuation = /^(?:o\s+)?or.amento[\s,]*(?:faca|fa.a|faz|fazer|pode\s+fazer|continue|continua|finalize|finaliza|gere|gerar)?\s*$/.test(text) ||
-      /^(?:faca|fa.a|faz|fazer|pode\s+fazer|continue|continua|finalize|finaliza|pode\s+gerar|gere|gerar)(?:\s+o)?\s+or.amento\s*$/.test(text) ||
-      /\b(?:elo\s+)?nao\s+(?:criou|gerou|montou|fez)\s+(?:o\s+)?or.amento\b/.test(text) ||
-      /^(?:pode\s+fazer|continue|continua)$/.test(text);
     const wantsLabor = /mao\s*de\s*obra|m.o|servico|pedreiro|quanto\s+cobrar|preco\s+do\s+servico|pre.o\s+do\s+servico/.test(text);
     const wantsLoss = /perda|perdas|desperdicio|desperd.cio|quebra|sobra|10\s*(?:%|por cento)|15\s*(?:%|por cento)/.test(text);
-    const wantsBudget = wantsBudgetContinuation || hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
+    const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
     const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade"]) || text === "sim";
     if (wantsLabor) {
       if (!isEloPreliminaryEstimateAuthorized_(message)) {
@@ -21141,28 +21050,7 @@ function isEloResidentialNewPipelineEnabled_() {
       };
     }
     if (wantsBudget || wantsDetail) {
-      if (estimate.preliminaryAuthorized !== true && !isEloPreliminaryEstimateAuthorized_(message)) {
-        if (wantsBudgetContinuation) {
-          rememberEloWallEstimate_(estimate);
-          return {
-            shortAnswer: "Retomei o orcamento da parede anterior.",
-            fullAnswer: [
-              "Retomada do orcamento da parede",
-              "",
-              "Mantive os dados ja calculados da parede anterior, sem inventar preco unitario.",
-              "",
-              formatEloWallEstimateLines_(estimate).join("\n"),
-              "",
-              "Precos pendentes:",
-              "- Nao apliquei preco unitario, BDI, frete, impostos ou total financeiro sem base confirmada.",
-              "- Para transformar em valor, informe SINAPI/ORSE/composicao validada ou autorize estimativa nao oficial separadamente."
-            ].join("\n"),
-            nextAction: "Informe a base de preco oficial ou autorize explicitamente estimativa nao oficial.",
-            canSave: true,
-            sessionTheme: "elo_operacional_parede",
-            sessionIntent: "retomar_orcamento_parede"
-          };
-        }
+      if (!isEloPreliminaryEstimateAuthorized_(message)) {
         return buildEloMissingTechnicalCompositionResponse_(message);
       }
       estimate.preliminaryAuthorized = true;
@@ -21235,15 +21123,28 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
-  function getEloOperationalAlmoxBalances_() {
+  function getEloOperationalAlmoxBalances_(options) {
     const bridge = window.ObraReportOperationalStock;
     if (!bridge || typeof bridge.getAlmoxBalances !== "function") {
       return [];
     }
     try {
-      return bridge.getAlmoxBalances().filter(Boolean);
+      return bridge.getAlmoxBalances(options || {}).filter(Boolean);
     } catch (error) {
       console.warn("Nao foi possivel consultar saldo operacional do Almoxarifado.", error);
+      return [];
+    }
+  }
+
+  function getEloOperationalAlmoxEnvironments_() {
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.getAlmoxEnvironments !== "function") {
+      return [];
+    }
+    try {
+      return bridge.getAlmoxEnvironments().filter(Boolean);
+    } catch (error) {
+      console.warn("Nao foi possivel consultar ambientes operacionais do Almoxarifado.", error);
       return [];
     }
   }
@@ -21291,10 +21192,20 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function buildEloStockReadonlyWriteBlockedAnswer_(message) {
     if (!isEloStockReadonlyWriteRequest_(message)) return null;
+    if (isEloStockExitWriteRequest_(message)) {
+      return {
+        shortAnswer: "Saida pelo ELO ainda nao esta habilitada.",
+        fullAnswer: "Saida pelo ELO ainda nao esta habilitada nesta etapa. Nenhum movimento foi criado.",
+        nextAction: "Use o Stock/Almoxarifado manual para saidas enquanto esta etapa nao for liberada.",
+        canSave: false,
+        sessionTheme: "stock_full_readonly",
+        sessionIntent: "stock_full_exit_blocked"
+      };
+    }
     return {
-      shortAnswer: "Consigo consultar o estoque. A movimentação pelo ELO ainda não está habilitada.",
-      fullAnswer: "Consigo consultar o estoque. A movimentação pelo ELO ainda não está habilitada.",
-      nextAction: "Abra o Stock/Almoxarifado para registrar entradas, saídas ou ajustes.",
+      shortAnswer: "Consigo consultar o estoque. Esta movimentacao pelo ELO ainda nao esta habilitada.",
+      fullAnswer: "Consigo consultar o estoque. Esta movimentacao pelo ELO ainda nao esta habilitada.",
+      nextAction: "Abra o Stock/Almoxarifado para registrar a movimentacao manualmente.",
       canSave: false,
       sessionTheme: "stock_full_readonly",
       sessionIntent: "stock_full_write_blocked"
@@ -21304,7 +21215,7 @@ function isEloResidentialNewPipelineEnabled_() {
   function isEloStockLowQuestion_(message) {
     const text = normalizeText(message || "");
     if (isEloStockConceptQuestion_(message)) return false;
-    return /\b(abaixo|baixo|baixos|baixa|atencao|aten..o|minimo|m.nimo|reposicao|reposi..o)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
+    return /\b(abaixo|baixo|baixos|baixa|atencao|aten..o|minimo|m.nimo|reposicao|reposi..o|acabando|acabar|faltando|falta)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
   }
 
   function isEloStockZeroQuestion_(message) {
@@ -21339,7 +21250,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return true;
     }
     if (/^quanto\s+.+\s+(?:ainda\s+)?tem\??$/.test(text)) {
-      return !!findEloStockBalanceByQuestion_(message, getEloOperationalAlmoxBalances_()).item;
+      return !!findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message)).item;
     }
     return false;
   }
@@ -21386,38 +21297,68 @@ function isEloResidentialNewPipelineEnabled_() {
     return normalizeEloStockCode_(item && (item.sku || item.fiscalCode || item.code));
   }
 
-  function findEloStockBalanceByQuestion_(message, balances) {
-    const query = extractEloStockBalanceQuery_(message);
-    const queryCode = normalizeEloStockCode_(query);
-    if (!query && !queryCode) {
+  function getEloStockEnvironmentId_(item) {
+    return sanitizeUserText(item && (item.environmentId || item.stockEnvironmentId || item.organizationId) || "");
+  }
+
+  function getEloStockEnvironmentLabel_(item) {
+    const environmentId = getEloStockEnvironmentId_(item);
+    if (!environmentId) return "";
+    const environment = getEloOperationalAlmoxEnvironments_().find(function (candidate) {
+      const candidateId = sanitizeUserText(candidate && (candidate.id || candidate.environmentId) || "");
+      return candidateId === environmentId;
+    }) || null;
+    return sanitizeUserText(environment && (environment.name || environment.environmentName || environment.label) || environmentId);
+  }
+
+  function findEloStockBalanceByQuery_(query, balances) {
+    const cleanQuery = sanitizeUserText(query || "").trim();
+    const queryCode = normalizeEloStockCode_(cleanQuery);
+    if (!cleanQuery && !queryCode) {
       return { status: "missing_query", item: null, matches: [] };
     }
 
     const bySku = queryCode ? (balances || []).filter(function (balance) {
       return getEloStockItemCode_(balance) === queryCode;
     }) : [];
-    if (bySku.length === 1) return { status: "found", item: bySku[0], matches: bySku, query: query, source: "sku" };
-    if (bySku.length > 1) return { status: "ambiguous", item: null, matches: bySku, query: query, source: "sku" };
+    if (bySku.length === 1) return { status: "found", item: bySku[0], matches: bySku, query: cleanQuery, source: "sku" };
+    if (bySku.length > 1) return { status: "ambiguous", item: null, matches: bySku, query: cleanQuery, source: "sku" };
 
-    const normalizedQuery = normalizeEloStockBalanceTerm_(query);
+    const normalizedQuery = normalizeEloStockBalanceTerm_(cleanQuery);
     const exactName = (balances || []).filter(function (balance) {
       return normalizeEloStockBalanceTerm_(balance && balance.name) === normalizedQuery;
     });
-    if (exactName.length === 1) return { status: "found", item: exactName[0], matches: exactName, query: query, source: "name_exact" };
-    if (exactName.length > 1) return { status: "ambiguous", item: null, matches: exactName, query: query, source: "name_exact" };
+    if (exactName.length === 1) return { status: "found", item: exactName[0], matches: exactName, query: cleanQuery, source: "name_exact" };
+    if (exactName.length > 1) return { status: "ambiguous", item: null, matches: exactName, query: cleanQuery, source: "name_exact" };
 
     const partial = (balances || []).map(function (balance) {
-      return { balance: balance, score: scoreEloStockBalanceMatch_(query, balance) };
+      return { balance: balance, score: scoreEloStockBalanceMatch_(cleanQuery, balance) };
     }).filter(function (entry) {
       return entry.score > 0;
     }).sort(function (a, b) {
       return b.score - a.score || String(a.balance && a.balance.name || "").localeCompare(String(b.balance && b.balance.name || ""));
     });
-    if (!partial.length) return { status: "not_found", item: null, matches: [], query: query };
+    if (!partial.length) return { status: "not_found", item: null, matches: [], query: cleanQuery };
     const bestScore = partial[0].score;
     const bestMatches = partial.filter(function (entry) { return entry.score === bestScore; }).map(function (entry) { return entry.balance; });
-    if (bestMatches.length === 1) return { status: "found", item: bestMatches[0], matches: bestMatches, query: query, source: "name_partial" };
-    return { status: "ambiguous", item: null, matches: bestMatches, query: query, source: "name_partial" };
+    if (bestMatches.length === 1) return { status: "found", item: bestMatches[0], matches: bestMatches, query: cleanQuery, source: "name_partial" };
+    return { status: "ambiguous", item: null, matches: bestMatches, query: cleanQuery, source: "name_partial" };
+  }
+
+  function findEloStockBalanceByQueryInCurrentTenant_(query) {
+    const activeBalances = getEloOperationalAlmoxBalances_();
+    const activeResolution = findEloStockBalanceByQuery_(query, activeBalances);
+    if (activeResolution.status !== "not_found") {
+      return Object.assign({}, activeResolution, { scope: "active_environment", balances: activeBalances });
+    }
+
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const allResolution = findEloStockBalanceByQuery_(query, allBalances);
+    return Object.assign({}, allResolution, { scope: "all_environments", balances: allBalances });
+  }
+
+  function findEloStockBalanceByQuestion_(message, balances) {
+    return findEloStockBalanceByQuery_(extractEloStockBalanceQuery_(message), balances);
   }
 
   function formatEloStockQuantity_(value) {
@@ -21430,25 +21371,31 @@ function isEloResidentialNewPipelineEnabled_() {
     const lines = ["Encontrei " + matches.length + " produtos:"];
     matches.forEach(function (item) {
       const sku = item.sku || item.fiscalCode ? " (SKU " + (item.sku || item.fiscalCode) + ")" : "";
-      lines.push("- " + (item.name || "Produto sem nome") + sku);
+      const environment = getEloStockEnvironmentLabel_(item);
+      lines.push("- " + (item.name || "Produto sem nome") + sku + (environment ? " — Ambiente: " + environment : ""));
     });
     lines.push("", "Qual deles?");
     return {
       shortAnswer: "Encontrei mais de um produto. Qual deles?",
       fullAnswer: lines.join("\n"),
-      nextAction: "Responda com o nome completo ou SKU.",
+      nextAction: "Responda com o nome completo, SKU ou ambiente/obra.",
       canSave: false,
       sessionTheme: "stock_full_readonly",
       sessionIntent: "stock_full_ambiguous"
     };
   }
 
+  function formatEloStockResolvedEnvironmentLine_(item, resolution) {
+    if (!resolution || resolution.scope !== "all_environments") return "";
+    const environment = getEloStockEnvironmentLabel_(item);
+    return environment ? "Ambiente afetado: " + environment : "";
+  }
+
   function buildEloStockBalanceAnswer_(message) {
     if (!isEloStockBalanceQuestion_(message)) {
       return null;
     }
-    const balances = getEloOperationalAlmoxBalances_();
-    const match = findEloStockBalanceByQuestion_(message, balances);
+    const match = findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message));
     if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
     if (!match.item) {
       return {
@@ -21469,6 +21416,8 @@ function isEloResidentialNewPipelineEnabled_() {
       ? "SKU " + (item.sku || item.fiscalCode)
       : (item.name || "Item");
     const lines = [prefix + ": " + quantity + " " + unit + (match.source === "sku" ? "." : " em estoque.")];
+    const environmentLine = formatEloStockResolvedEnvironmentLine_(item, match);
+    if (environmentLine) lines.push(environmentLine + ".");
     if (minimum > 0) lines.push("Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit + ".");
     if (Number(item.balance || item.realBalance || 0) <= 0) lines.push("Status: zerado/crítico.");
     else if (minimum > 0 && Number(item.balance || item.realBalance || 0) <= minimum) lines.push("Status: baixo/atenção.");
@@ -21482,25 +21431,73 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
+  function getEloStockNumber_(value) {
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    const parsed = Number(String(value == null ? "" : value).replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function getEloStockMinimumValue_(item) {
+    if (!item) return 0;
+    if (item.minimumStock != null && item.minimumStock !== "") return getEloStockNumber_(item.minimumStock);
+    if (item.minStock != null && item.minStock !== "") return getEloStockNumber_(item.minStock);
+    return 0;
+  }
+
+  function getEloStockBalanceValue_(item) {
+    if (!item) return 0;
+    if (item.balance != null && item.balance !== "") return getEloStockNumber_(item.balance);
+    if (item.realBalance != null && item.realBalance !== "") return getEloStockNumber_(item.realBalance);
+    if (item.currentStock != null && item.currentStock !== "") return getEloStockNumber_(item.currentStock);
+    return 0;
+  }
+
+  function classifyEloStockMinimumStatus_(balance, minimum) {
+    if (balance <= 0) return "ZERADO";
+    if (minimum > 0 && balance < minimum) return "ABAIXO DO MÍNIMO";
+    if (minimum > 0 && balance === minimum) return "NO MÍNIMO";
+    return "OK";
+  }
+
+  function formatEloStockMinimumLine_(item) {
+    const balance = getEloStockBalanceValue_(item);
+    const minimum = getEloStockMinimumValue_(item);
+    const missing = Math.max(minimum - balance, 0);
+    const status = classifyEloStockMinimumStatus_(balance, minimum);
+    const name = item && item.name || "Produto";
+    const unit = item && item.unit || "un";
+    const balanceText = status === "ZERADO"
+      ? "ZERADO"
+      : "saldo " + formatEloStockQuantity_(balance) + " " + unit;
+    return "- " + name + " — " + balanceText + " — mínimo " + formatEloStockQuantity_(minimum) + " — faltam " + formatEloStockQuantity_(missing);
+  }
+
   function buildEloStockLowAnswer_(message) {
     if (!isEloStockLowQuestion_(message) && !isEloStockZeroQuestion_(message)) return null;
     const balances = getEloOperationalAlmoxBalances_();
-    const zeros = balances.filter(function (item) { return Number(item.balance || item.realBalance || 0) <= 0; });
-    const lows = balances.filter(function (item) {
-      const balance = Number(item.balance || item.realBalance || 0);
-      const minimum = Number(item.minimumStock || 0);
-      return balance > 0 && minimum > 0 && balance <= minimum;
-    });
     const wantsOnlyZero = isEloStockZeroQuestion_(message) && !isEloStockLowQuestion_(message);
+    const candidates = balances.filter(function (item) {
+      const balance = getEloStockBalanceValue_(item);
+      const minimum = getEloStockMinimumValue_(item);
+      if (balance <= 0) return true;
+      if (minimum <= 0) return false;
+      return balance <= minimum;
+    }).sort(function (a, b) {
+      const order = { "ZERADO": 0, "ABAIXO DO MÍNIMO": 1, "NO MÍNIMO": 2, OK: 3 };
+      const statusA = classifyEloStockMinimumStatus_(getEloStockBalanceValue_(a), getEloStockMinimumValue_(a));
+      const statusB = classifyEloStockMinimumStatus_(getEloStockBalanceValue_(b), getEloStockMinimumValue_(b));
+      return order[statusA] - order[statusB] || String(a && a.name || "").localeCompare(String(b && b.name || ""));
+    });
+    const items = wantsOnlyZero ? candidates.filter(function (item) {
+      return getEloStockBalanceValue_(item) <= 0;
+    }) : candidates;
     const lines = [];
     if (!balances.length) lines.push("Não encontrei produtos no estoque atual.");
-    else if (wantsOnlyZero) {
-      lines.push(zeros.length ? "Produtos zerados/críticos:" : "Não encontrei produto zerado no estoque atual.");
-      zeros.slice(0, 12).forEach(function (item) { lines.push("- " + (item.name || "Produto") + ": " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
-    } else {
-      lines.push("Zerado/crítico: " + zeros.length + ". Baixo/atenção: " + lows.length + ".");
-      zeros.slice(0, 8).forEach(function (item) { lines.push("- Zerado: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
-      lows.slice(0, 8).forEach(function (item) { lines.push("- Baixo: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un") + " (mín. " + formatEloStockQuantity_(item.minimumStock || 0) + ")"); });
+    else if (!items.length) lines.push(wantsOnlyZero ? "Nenhum item está zerado no estoque atual." : "Nenhum item está abaixo do estoque mínimo.");
+    else {
+      lines.push(wantsOnlyZero ? "Itens zerados:" : "Itens que precisam de reposição:");
+      items.slice(0, 12).forEach(function (item) { lines.push(formatEloStockMinimumLine_(item)); });
+      lines.push("Total: " + items.length + " " + (items.length === 1 ? "item." : "itens."));
     }
     return {
       shortAnswer: lines[0],
@@ -21511,7 +21508,6 @@ function isEloResidentialNewPipelineEnabled_() {
       sessionIntent: wantsOnlyZero ? "stock_full_zerados" : "stock_full_baixo_estoque"
     };
   }
-
   function getEloStockMovementTypeLabel_(movement) {
     const type = normalizeText(movement && movement.type || "");
     if (type === "entrada") return "Entrada";
@@ -21533,6 +21529,181 @@ function isEloResidentialNewPipelineEnabled_() {
     return "- " + parts.join(" — ");
   }
 
+
+  function getEloLocalDateKey_(offsetDays) {
+    const date = new Date();
+    date.setDate(date.getDate() + Number(offsetDays || 0));
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
+  function parseEloStockMovementDayQuery_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    const asksMovement = /\b(movimentacoes|movimentacao|movimentos|historico|entradas|entrada|saidas|saida|saiu|entraram|entrou)\b/.test(text);
+    const asksDate = /\b(hoje|ontem)\b/.test(text);
+    const asksStock = /\b(estoque|stock|almoxarifado|movimentacoes|movimentacao|movimentos|entradas|entrada|saidas|saida|saiu|entraram|entrou)\b/.test(text);
+    if (!asksMovement || !asksDate || !asksStock) return null;
+    let type = "";
+    if (/\b(saidas|saida|saiu)\b/.test(text)) type = "saida";
+    else if (/\b(entradas|entrada|entraram|entrou)\b/.test(text)) type = "entrada";
+    const dateKey = /\bontem\b/.test(text) ? getEloLocalDateKey_(-1) : getEloLocalDateKey_(0);
+    const label = /\bontem\b/.test(text) ? "ontem" : "hoje";
+    return { type: type, dateKey: dateKey, label: label };
+  }
+
+  function getEloStockMovementDateKey_(movement) {
+    const direct = sanitizeUserText(movement && (movement.movementDate || movement.date) || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
+    const sortKey = sanitizeUserText(movement && (movement.sortKey || movement.movementDateTime || movement.createdAt || movement.dateTime) || "");
+    const match = sortKey.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : "";
+  }
+
+  function getEloStockMovementTimeLabel_(movement) {
+    const direct = sanitizeUserText(movement && movement.movementTime || "");
+    if (/^\d{2}:\d{2}/.test(direct)) return direct.slice(0, 5);
+    const sortKey = sanitizeUserText(movement && (movement.sortKey || movement.movementDateTime || movement.createdAt) || "");
+    const isoMatch = sortKey.match(/T(\d{2}:\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    const display = sanitizeUserText(movement && movement.dateTime || "");
+    const displayMatch = display.match(/\b(\d{2}:\d{2})\b/);
+    return displayMatch ? displayMatch[1] : "horario nao informado";
+  }
+
+  function getEloStockMovementItemName_(movement) {
+    return sanitizeUserText(movement && (movement.itemName || movement.material || movement.name || movement.productName) || "Produto");
+  }
+
+  function isEloStockMovementInCurrentScope_(movement, balances) {
+    const itemId = sanitizeUserText(movement && (movement.itemId || movement.productId) || "");
+    const movementEnvironmentId = sanitizeUserText(movement && movement.environmentId || "");
+    const movementCompanyId = sanitizeUserText(movement && movement.companyId || "");
+    if (!itemId && !movementEnvironmentId && !movementCompanyId) return true;
+    return (balances || []).some(function (balance) {
+      const balanceItemId = sanitizeUserText(balance && (balance.itemId || balance.id || balance.productId) || "");
+      const balanceEnvironmentId = sanitizeUserText(balance && balance.environmentId || "");
+      const balanceCompanyId = sanitizeUserText(balance && balance.companyId || "");
+      if (itemId && balanceItemId && itemId === balanceItemId) return true;
+      if (movementCompanyId && balanceCompanyId && movementCompanyId !== balanceCompanyId) return false;
+      if (movementEnvironmentId && balanceEnvironmentId && movementEnvironmentId !== balanceEnvironmentId) return false;
+      return false;
+    });
+  }
+
+  function formatEloStockMovementDayLine_(movement) {
+    return "- " + getEloStockMovementItemName_(movement) + " — " + formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un") + " — " + getEloStockMovementTimeLabel_(movement);
+  }
+
+
+  function parseEloStockMovementResponsibleQuery_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || !/\bquem\b/.test(text)) return null;
+    const movementIntent = /\b(movimentou|movimentacao|movimentacoes|fez|registrou|deu|saida|saiu|entrada|entrou|baixa)\b/.test(text);
+    if (!movementIntent) return null;
+    let type = "";
+    if (/\b(saida|saiu|baixa|baixou)\b/.test(text)) type = "saida";
+    else if (/\b(entrada|entrou)\b/.test(text)) type = "entrada";
+    const dateKey = /\bontem\b/.test(text) ? getEloLocalDateKey_(-1) : /\bhoje\b/.test(text) ? getEloLocalDateKey_(0) : "";
+    const dateLabel = /\bontem\b/.test(text) ? "ontem" : /\bhoje\b/.test(text) ? "hoje" : "";
+    const wantsLast = /\b(ultima|ultimo|essa|esse)\b/.test(text);
+    let productQuery = "";
+    const productMatch = text.match(/\b(?:no|na|nos|nas|do|da|dos|das|de|em)\s+(.+)$/);
+    if (productMatch && !/\b(estoque|stock|almoxarifado|hoje|ontem|movimentacao|movimentacoes)$/.test(productMatch[1])) {
+      productQuery = cleanEloStockEntryProductQuery_(productMatch[1]);
+    }
+    return { type: type, dateKey: dateKey, dateLabel: dateLabel, wantsLast: wantsLast, productQuery: productQuery };
+  }
+
+  function getEloStockMovementResponsible_(movement) {
+    return sanitizeUserText(movement && (movement.responsible || movement.requestedBy || movement.userName || movement.createdByName || movement.createdByRole || "") || "");
+  }
+
+  function getEloStockMovementTypeLabelLower_(movement) {
+    const type = normalizeText(movement && movement.type || "");
+    if (type === "entrada") return "entrada";
+    if (type === "saida") return "saida";
+    return type || "movimentacao";
+  }
+
+  function formatEloStockMovementResponsibleLine_(movement) {
+    const responsible = getEloStockMovementResponsible_(movement);
+    const movementText = getEloStockMovementTypeLabelLower_(movement) + " de " + formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un") + " de " + getEloStockMovementItemName_(movement) + " — " + getEloStockMovementTimeLabel_(movement) + ".";
+    if (!responsible) return "Responsável não identificado no registro. " + movementText;
+    return responsible + " — " + movementText;
+  }
+
+  function filterEloStockResponsibleMovements_(query, balances) {
+    let productResolution = null;
+    if (query.productQuery) {
+      productResolution = findEloStockBalanceByQuery_(query.productQuery, balances);
+      if (productResolution.status === "ambiguous") return { ambiguous: productResolution, movements: [] };
+      if (!productResolution.item) return { missingProduct: true, movements: [] };
+    }
+    const productItemId = productResolution && productResolution.item ? getEloStockEntryItemId_(productResolution.item) : "";
+    const movements = getEloOperationalAlmoxMovements_().filter(function (movement) {
+      const type = normalizeText(movement && movement.type || "");
+      if (query.type && type !== query.type) return false;
+      if (query.dateKey && getEloStockMovementDateKey_(movement) !== query.dateKey) return false;
+      if (productItemId && getEloStockEntryItemId_(movement) !== productItemId) return false;
+      return isEloStockMovementInCurrentScope_(movement, balances);
+    }).sort(function (first, second) {
+      return String(second && (second.sortKey || second.movementDateTime || second.createdAt || second.dateTime || "")).localeCompare(String(first && (first.sortKey || first.movementDateTime || first.createdAt || first.dateTime || "")));
+    });
+    return { movements: movements };
+  }
+
+  function buildEloStockMovementResponsibleAnswer_(message) {
+    const query = parseEloStockMovementResponsibleQuery_(message);
+    if (!query) return null;
+    const balances = getEloOperationalAlmoxBalances_();
+    const filtered = filterEloStockResponsibleMovements_(query, balances);
+    if (filtered.ambiguous) return Object.assign({}, buildEloStockAmbiguityAnswer_(filtered.ambiguous), { sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" });
+    if (filtered.missingProduct) {
+      return { shortAnswer: "Nao encontrei esse produto no Stock.", fullAnswer: "Nao encontrei esse produto no Stock. Use o nome completo ou SKU do produto.", nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    const movements = filtered.movements || [];
+    if (!movements.length) {
+      const typeText = query.type === "saida" ? "saida" : query.type === "entrada" ? "entrada" : "movimentacao";
+      const dateText = query.dateLabel ? " " + query.dateLabel : "";
+      const productText = query.productQuery ? " para esse produto" : "";
+      const none = "Nenhuma " + typeText + productText + " encontrada" + dateText + ".";
+      return { shortAnswer: none, fullAnswer: none, nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    if (query.wantsLast || query.productQuery || !query.dateKey) {
+      const movement = movements[0];
+      const lines = ["Ultima movimentacao:", formatEloStockMovementResponsibleLine_(movement)];
+      return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    const lines = ["Responsaveis de " + query.dateLabel + ":"];
+    movements.slice(0, 20).forEach(function (movement) { lines.push("- " + formatEloStockMovementResponsibleLine_(movement)); });
+    lines.push("Total: " + movements.length + " " + (movements.length === 1 ? "movimentacao." : "movimentacoes."));
+    return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+  }
+
+  function buildEloStockMovementDayAnswer_(message) {
+    const query = parseEloStockMovementDayQuery_(message);
+    if (!query) return null;
+    const balances = getEloOperationalAlmoxBalances_();
+    const movements = getEloOperationalAlmoxMovements_().filter(function (movement) {
+      const type = normalizeText(movement && movement.type || "");
+      if (query.type && type !== query.type) return false;
+      if (getEloStockMovementDateKey_(movement) !== query.dateKey) return false;
+      return isEloStockMovementInCurrentScope_(movement, balances);
+    });
+    const typeLabel = query.type === "saida" ? "Saidas" : query.type === "entrada" ? "Entradas" : "Movimentacoes";
+    if (!movements.length) {
+      const none = "Nenhuma " + (query.type === "saida" ? "saida" : query.type === "entrada" ? "entrada" : "movimentacao") + " registrada " + query.label + ".";
+      return { shortAnswer: none, fullAnswer: none, nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movements_day" };
+    }
+    const lines = [typeLabel + " de " + query.label + ":"];
+    movements.slice(0, 20).forEach(function (movement) { lines.push(formatEloStockMovementDayLine_(movement)); });
+    lines.push("Total: " + movements.length + " " + (movements.length === 1 ? "movimentacao." : "movimentacoes."));
+    return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movements_day" };
+  }
+
   function buildEloStockHistoryAnswer_(message) {
     if (!isEloStockHistoryQuestion_(message) && !isEloStockLastExitsQuestion_(message)) return null;
     const movements = getEloOperationalAlmoxMovements_();
@@ -21545,8 +21716,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_ultimas_saidas" };
     }
 
-    const balances = getEloOperationalAlmoxBalances_();
-    const match = findEloStockBalanceByQuestion_(message, balances);
+    const match = findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message));
     if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
     if (!match.item) {
       return { shortAnswer: "Não encontrei esse item no estoque atual.", fullAnswer: "Não encontrei esse item no estoque atual. Confira o nome ou SKU e tente novamente.", nextAction: "Use o nome completo ou SKU do produto.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_historico" };
@@ -21558,13 +21728,822 @@ function isEloResidentialNewPipelineEnabled_() {
     return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_historico" };
   }
 
+  function parseEloStockEntryQuantity_(value) {
+    const number = Number(String(value || "").replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function normalizeEloStockEntryUnit_(value) {
+    const unit = normalizeText(value || "");
+    const map = {
+      un: "un", und: "un", unidade: "un", unidades: "un",
+      saco: "saco", sacos: "saco", lata: "lata", latas: "lata",
+      caixa: "caixa", caixas: "caixa", kg: "kg", quilo: "kg", quilos: "kg",
+      litro: "litro", litros: "litro", m: "m", metro: "m", metros: "m", m2: "m2", m3: "m3"
+    };
+    return map[unit] || unit;
+  }
+
+  function cleanEloStockEntryProductQuery_(value) {
+    return normalizeText(value || "")
+      .replace(/\b(?:no|na|nos|nas|ao|aos|para|pro|pra|estoque|almoxarifado|stock|full)\b/g, " ")
+      .replace(/[^a-z0-9\s._-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isEloStockExitWriteRequest_(message) {
+    const text = normalizeText(message || "");
+    return /\b(?:retire|retirar|baixe|baixar|dar\s+baixa|de\s+saida|d[êe]\s+saida|saida|saidas|sa.da|sa.das|registre\s+saida|registrar\s+saida)\b/.test(text);
+  }
+
+  function parseEloStockEntryCommand_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || /\b(?:cadastre|cadastrar|cadastro|crie|criar)\b/.test(text)) return null;
+    if (isEloStockExitWriteRequest_(message)) return null;
+
+    let match = text.match(/\b(?:registre|registrar|lance|lan[çc]ar)\s+(?:uma\s+)?entrada\s+de\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+de\s+(.+)$/);
+    if (!match) match = text.match(/\b(?:adicione|adicionar|inclua|incluir|lance|lan[çc]ar)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+de\s+(.+)$/);
+    if (!match) match = text.match(/\bderam\s+entrada\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+de\s+(.+)$/);
+    if (!match) return null;
+
+    const productQuery = cleanEloStockEntryProductQuery_(match[3]);
+    return {
+      type: "entrada",
+      quantity: parseEloStockEntryQuantity_(match[1]),
+      unit: normalizeEloStockEntryUnit_(match[2]),
+      originalUnit: sanitizeUserText(match[2]),
+      productQuery: productQuery,
+      sourceMessage: sanitizeUserText(message)
+    };
+  }
+
+  function isEloStockEntryConfirmation_(message) {
+    return /^(?:sim|confirmar|confirmo|pode\s+registrar|pode\s+lan[çc]ar|pode|registrar|registre|ok|correto|isso\s+mesmo)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloStockEntryCancel_(message) {
+    return /^(?:nao|não|cancelar|cancele|abortar|desistir|deixa|deixe|nao\s+registrar|não\s+registrar)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingStockEntry_() {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_STOCK_ENTRY_KEY) || "null");
+      return saved && typeof saved === "object" ? saved : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setEloPendingStockEntry_(entry) {
+    try {
+      if (entry) window.sessionStorage.setItem(ELO_PENDING_STOCK_ENTRY_KEY, JSON.stringify(entry));
+      else window.sessionStorage.removeItem(ELO_PENDING_STOCK_ENTRY_KEY);
+    } catch (error) {}
+  }
+
+  function isEloPendingStockEntryExpired_(entry) {
+    return !entry || !entry.createdAt || Date.now() - Number(entry.createdAt || 0) > 30 * 60 * 1000;
+  }
+
+  function createEloStockEntryOperationId_() {
+    return "elo_entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function getEloStockEntryItemId_(item) {
+    return sanitizeUserText(item && (item.itemId || item.id || item.productId) || "");
+  }
+
+  function buildEloStockEntryInvalidAnswer_(messageText, nextAction) {
+    return { shortAnswer: messageText, fullAnswer: messageText, nextAction: nextAction || "Revise produto, quantidade e unidade antes de tentar novamente.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_blocked" };
+  }
+
+  function buildEloStockEntryPreviewAnswer_(message) {
+    const command = parseEloStockEntryCommand_(message);
+    if (!command) return null;
+    if (!command.productQuery) return buildEloStockEntryInvalidAnswer_("Nao identifiquei o produto da entrada. Nenhum movimento foi criado.", "Informe produto, quantidade e unidade.");
+    if (!(command.quantity > 0)) return buildEloStockEntryInvalidAnswer_("Quantidade invalida para entrada. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
+
+    const resolution = findEloStockBalanceByQueryInCurrentTenant_(command.productQuery);
+    if (resolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(resolution), { sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_ambiguous" });
+    if (!resolution.item) return buildEloStockEntryInvalidAnswer_("Nao encontrei esse produto no Stock. Nenhum cadastro foi criado automaticamente.", "Use um SKU existente ou o nome cadastrado no Stock.");
+
+    const item = resolution.item;
+    const itemUnit = normalizeEloStockEntryUnit_(item.unit || "un");
+    if (command.unit && itemUnit && command.unit !== itemUnit) {
+      return buildEloStockEntryInvalidAnswer_("Unidade incompatível com o produto cadastrado. Nenhum movimento foi criado.", "Use a unidade cadastrada para " + (item.name || "o produto") + ": " + (item.unit || "un") + ".");
+    }
+    const balanceBefore = Number(item.balance || item.realBalance || 0);
+    const balanceAfter = balanceBefore + command.quantity;
+    const unit = item.unit || command.unit || "un";
+    const entry = {
+      id: createEloStockEntryOperationId_(),
+      status: "pending",
+      createdAt: Date.now(),
+      question: sanitizeUserText(message).slice(0, 500),
+      command: command,
+      item: { id: getEloStockEntryItemId_(item), itemId: getEloStockEntryItemId_(item), name: item.name || "Produto", sku: item.sku || item.fiscalCode || item.code || "", unit: unit, companyId: item.companyId || "", environmentId: item.environmentId || "" },
+      quantity: command.quantity,
+      unit: unit,
+      balanceBefore: balanceBefore,
+      balanceAfter: balanceAfter
+    };
+    setEloPendingStockEntry_(entry);
+    const lines = [
+      "Entrada no Stock",
+      "",
+      "Produto: " + (item.name || "Produto"),
+      formatEloStockResolvedEnvironmentLine_(item, resolution),
+      "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit,
+      "Saldo atual: " + formatEloStockQuantity_(balanceBefore) + " " + unit,
+      "Saldo previsto: " + formatEloStockQuantity_(balanceAfter) + " " + unit,
+      "",
+      "Confirmar?"
+    ];
+    return { shortAnswer: "Entrada pendente de confirmacao.", fullAnswer: lines.filter(Boolean).join("\n"), nextAction: "Responda sim, confirmar ou pode registrar para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_preview", stockEntry: entry };
+  }
+
+  function buildEloConfirmedStockEntryAnswer_(entry, result) {
+    const unit = result && result.unit || entry.unit || "un";
+    const before = Number(result && result.balanceBefore !== undefined ? result.balanceBefore : entry.balanceBefore || 0);
+    const after = Number(result && result.balanceAfter !== undefined ? result.balanceAfter : entry.balanceAfter || before + Number(entry.quantity || 0));
+    const movement = result && result.movement || result && result.movements && result.movements[0] || null;
+    const lines = [
+      "Entrada registrada no Stock.",
+      "Produto: " + (entry.item && entry.item.name || "Produto"),
+      "Quantidade: " + formatEloStockQuantity_(entry.quantity || 0) + " " + unit,
+      "Saldo anterior: " + formatEloStockQuantity_(before) + " " + unit,
+      "Novo saldo: " + formatEloStockQuantity_(after) + " " + unit
+    ];
+    if (movement && movement.id) lines.push("Movimento: " + movement.id + ".");
+    lines.push("Historico/Audit: movimento criado pelo fluxo real local do Stock.");
+    return lines.join("\n");
+  }
+
+  function buildEloStockEntryRemoteSyncBlockedAnswer_(entry, syncResult) {
+    const messageText = sanitizeUserText(syncResult && (syncResult.error || syncResult.message) || "stock_full_remote_sync_failed");
+    return {
+      shortAnswer: "Entrada pendente de sincronizacao remota.",
+      fullAnswer: "A entrada foi confirmada localmente, mas a sincronizacao remota falhou: " + messageText + ".\n\nIdempotencia: confirme novamente para tentar sincronizar a mesma operacao, sem criar nova entrada local.",
+      nextAction: "Responda confirmar para tentar sincronizar novamente a mesma entrada.",
+      canSave: false,
+      sessionTheme: "stock_full_entry",
+      sessionIntent: "stock_entry_remote_sync_failed",
+      stockEntry: entry
+    };
+  }
+
+  function finishEloStockEntryConfirmation_(entry, result, syncResult) {
+    const safeSync = syncResult || null;
+    if (safeSync && safeSync.ok !== true) {
+      entry.status = "remote_error";
+      entry.savedAt = Date.now();
+      entry.result = result;
+      entry.remoteSyncResult = safeSync;
+      setEloPendingStockEntry_(entry);
+      return buildEloStockEntryRemoteSyncBlockedAnswer_(entry, safeSync);
+    }
+    entry.status = "saved";
+    entry.savedAt = Date.now();
+    entry.result = result;
+    entry.remoteSyncResult = safeSync;
+    entry.confirmationText = buildEloConfirmedStockEntryAnswer_(entry, result);
+    setEloPendingStockEntry_(entry);
+    return { shortAnswer: "Entrada registrada no Stock.", fullAnswer: entry.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_confirmed", stockEntry: entry };
+  }
+  function buildEloStockEntryConfirmationAnswer_(message) {
+    const entry = getEloPendingStockEntry_();
+    if (!entry) return null;
+    if (!isEloStockEntryConfirmation_(message) && !isEloStockEntryCancel_(message)) return null;
+    if (isEloPendingStockEntryExpired_(entry)) {
+      setEloPendingStockEntry_(null);
+      return { shortAnswer: "A entrada pendente expirou.", fullAnswer: "A entrada pendente expirou por seguranca. Nenhum movimento foi criado.", nextAction: "Refaca o pedido de entrada.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_expired" };
+    }
+    if (isEloStockEntryCancel_(message)) {
+      setEloPendingStockEntry_(null);
+      return { shortAnswer: "Entrada cancelada.", fullAnswer: "Entrada cancelada. Nenhum movimento foi criado.", nextAction: "Quando quiser, peça uma nova entrada com produto, quantidade e unidade.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_cancelled" };
+    }
+    if (entry.status === "saved" && entry.confirmationText) {
+      return { shortAnswer: "Essa entrada ja foi registrada.", fullAnswer: entry.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova entrada.", nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_idempotent", stockEntry: entry };
+    }
+    if (entry.status === "remote_error") {
+      const bridge = window.ObraReportOperationalStock;
+      const movement = entry.result && (entry.result.movement || entry.result.movements && entry.result.movements[0]);
+      if (!bridge || typeof bridge.syncConfirmedMovement !== "function" || !movement) {
+        return buildEloStockEntryRemoteSyncBlockedAnswer_(entry, entry.remoteSyncResult || { error: "stock_full_remote_sync_unavailable" });
+      }
+      entry.status = "saving";
+      setEloPendingStockEntry_(entry);
+      return Promise.resolve(bridge.syncConfirmedMovement(movement, { type: "entrada" })).then(function (syncResult) {
+        return finishEloStockEntryConfirmation_(entry, entry.result, syncResult);
+      });
+    }
+    if (entry.status === "saving") {
+      return { shortAnswer: "Essa entrada ja esta sendo registrada.", fullAnswer: "Essa entrada ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_saving", stockEntry: entry };
+    }
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedEntry !== "function") {
+      return { shortAnswer: "Ponte do Stock indisponivel.", fullAnswer: "Nao consegui confirmar a entrada porque a ponte oficial do Stock nao esta disponivel nesta tela. Nenhum estoque foi movimentado.", nextAction: "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_bridge_missing", stockEntry: entry };
+    }
+    entry.status = "saving";
+    setEloPendingStockEntry_(entry);
+    const result = bridge.createConfirmedEntry({ entryId: entry.id, itemId: entry.item && entry.item.itemId, quantity: entry.quantity, unit: entry.unit, responsible: "ELO", reason: "Entrada confirmada pelo ELO", notes: "Origem ELO. Pedido: " + sanitizeUserText(entry.question || "") });
+    if (!result || result.ok !== true) {
+      entry.status = "pending";
+      setEloPendingStockEntry_(entry);
+      const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a entrada. Nenhum saldo foi movimentado.");
+      return { shortAnswer: "Entrada bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, quantidade e unidade antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_blocked", stockEntry: entry };
+    }
+    if (result.remoteSync) {
+      return Promise.resolve(result.remoteSync).then(function (syncResult) {
+        return finishEloStockEntryConfirmation_(entry, result, syncResult);
+      });
+    }
+    return finishEloStockEntryConfirmation_(entry, result, null);
+  }
+
+  function buildEloStockEntryAnswer_(message) {
+    return buildEloStockEntryConfirmationAnswer_(message) || buildEloStockEntryPreviewAnswer_(message);
+  }
+
+  function parseEloStockExitCommand_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || /\b(?:cadastre|cadastrar|cadastro|crie|criar)\b/.test(text)) return null;
+
+    let match = text.match(/\b(?:retire|retirar|baixe|baixar)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+)$/);
+    if (!match) match = text.match(/\b(?:registre|registrar|lance|lancar)\s+(?:uma\s+)?saida\s+de\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+)$/);
+    if (!match) match = text.match(/\b(?:de\s+baixa\s+em|dar\s+baixa\s+em|baixa\s+em)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+)$/);
+    if (!match) return null;
+
+    return {
+      action: "stock_exit",
+      quantity: parseEloStockEntryQuantity_(match[1]),
+      unit: normalizeEloStockEntryUnit_(match[2]),
+      originalUnit: sanitizeUserText(match[2]),
+      productQuery: cleanEloStockEntryProductQuery_(match[3]),
+      sourceMessage: sanitizeUserText(message)
+    };
+  }
+
+  function isEloStockExitConfirmation_(message) {
+    return /^(?:sim|confirmar|confirmo|pode\s+registrar|pode\s+baixar|pode\s+dar\s+baixa|pode|registrar|registre|ok|correto|isso\s+mesmo)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloStockExitCancel_(message) {
+    return /^(?:nao|não|cancelar|cancele|abortar|desistir|deixa|deixe|nao\s+registrar|não\s+registrar|nao\s+baixar|não\s+baixar)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingStockExit_() {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_STOCK_EXIT_KEY) || "null");
+      return saved && typeof saved === "object" ? saved : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setEloPendingStockExit_(exit) {
+    try {
+      if (exit) window.sessionStorage.setItem(ELO_PENDING_STOCK_EXIT_KEY, JSON.stringify(exit));
+      else window.sessionStorage.removeItem(ELO_PENDING_STOCK_EXIT_KEY);
+    } catch (error) {}
+  }
+
+  function isEloPendingStockExitExpired_(exit) {
+    return !exit || !exit.createdAt || Date.now() - Number(exit.createdAt || 0) > 30 * 60 * 1000;
+  }
+
+  function createEloStockExitOperationId_() {
+    return "elo_exit_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function buildEloStockExitInvalidAnswer_(messageText, nextAction, sessionIntent) {
+    return { shortAnswer: messageText, fullAnswer: messageText, nextAction: nextAction || "Revise produto, quantidade, unidade e saldo antes de tentar novamente.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: sessionIntent || "stock_exit_blocked" };
+  }
+
+  function buildEloStockExitInsufficientAnswer_(item, quantity, unit, balanceBefore) {
+    const missing = Math.max(Number(quantity || 0) - Number(balanceBefore || 0), 0);
+    const lines = [
+      "Saida bloqueada.",
+      "Saldo disponivel: " + formatEloStockQuantity_(balanceBefore) + " " + unit + ".",
+      "Quantidade solicitada: " + formatEloStockQuantity_(quantity) + " " + unit + ".",
+      "Faltam " + formatEloStockQuantity_(missing) + " " + unit + ".",
+      "Nenhuma movimentacao foi realizada."
+    ];
+    return { shortAnswer: "Saida bloqueada por saldo insuficiente.", fullAnswer: lines.join("\n"), nextAction: "Registre uma entrada ou solicite uma quantidade menor.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_insufficient", stockItem: item || null };
+  }
+
+  function findEloStockExitCurrentSnapshotItem_(items, itemId) {
+    return (items || []).find(function (item) {
+      return getEloStockEntryItemId_(item) === sanitizeUserText(itemId || "");
+    }) || null;
+  }
+
+  function findEloStockExitCurrentItem_(exit) {
+    const itemId = getEloStockEntryItemId_(exit && exit.item || {});
+    const balances = getEloOperationalAlmoxBalances_();
+    return findEloStockExitCurrentSnapshotItem_(balances, itemId) || findEloStockExitCurrentSnapshotItem_(getEloOperationalAlmoxBalances_({ allEnvironments: true }), itemId);
+  }
+
+  function buildEloStockExitPreviewAnswer_(message) {
+    const command = parseEloStockExitCommand_(message);
+    if (!command) return null;
+    if (!command.productQuery) return buildEloStockExitInvalidAnswer_("Nao identifiquei o produto da saida. Nenhum movimento foi criado.", "Informe produto, quantidade e unidade.");
+    if (!(command.quantity > 0)) return buildEloStockExitInvalidAnswer_("Quantidade invalida para saida. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
+
+    const resolution = findEloStockBalanceByQueryInCurrentTenant_(command.productQuery);
+    if (resolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(resolution), { sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_ambiguous" });
+    if (!resolution.item) return buildEloStockExitInvalidAnswer_("Nao encontrei esse produto no Stock. Nenhum cadastro foi criado automaticamente.", "Use um SKU existente ou o nome cadastrado no Stock.");
+
+    const item = resolution.item;
+    const itemUnit = normalizeEloStockEntryUnit_(item.unit || "un");
+    if (command.unit && itemUnit && command.unit !== itemUnit) {
+      return buildEloStockExitInvalidAnswer_("Unidade incompatível com o produto cadastrado. Nenhum movimento foi criado.", "Use a unidade cadastrada para " + (item.name || "o produto") + ": " + (item.unit || "un") + ".");
+    }
+    const balanceBefore = Number(item.balance || item.realBalance || 0);
+    const balanceAfter = balanceBefore - command.quantity;
+    const unit = item.unit || command.unit || "un";
+    if (balanceAfter < 0) return buildEloStockExitInsufficientAnswer_(item, command.quantity, unit, balanceBefore);
+
+    const exit = {
+      id: createEloStockExitOperationId_(),
+      action: "stock_exit",
+      status: "pending",
+      createdAt: Date.now(),
+      question: sanitizeUserText(message).slice(0, 500),
+      command: command,
+      item: { id: getEloStockEntryItemId_(item), itemId: getEloStockEntryItemId_(item), name: item.name || "Produto", sku: item.sku || item.fiscalCode || item.code || "", unit: unit, companyId: item.companyId || "", environmentId: item.environmentId || "" },
+      quantity: command.quantity,
+      unit: unit,
+      balanceBefore: balanceBefore,
+      balanceAfter: balanceAfter,
+      companyId: item.companyId || "",
+      environmentId: item.environmentId || ""
+    };
+    setEloPendingStockExit_(exit);
+    const lines = [
+      "Saida de estoque",
+      "",
+      "Produto: " + (item.name || "Produto"),
+      formatEloStockResolvedEnvironmentLine_(item, resolution),
+      "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit,
+      "Saldo atual: " + formatEloStockQuantity_(balanceBefore) + " " + unit,
+      "Saldo previsto: " + formatEloStockQuantity_(balanceAfter) + " " + unit,
+      "",
+      "Confirma a saida?"
+    ];
+    return { shortAnswer: "Saida pendente de confirmacao.", fullAnswer: lines.filter(Boolean).join("\n"), nextAction: "Responda sim, confirmar ou confirmo para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_preview", stockExit: exit };
+  }
+
+  function buildEloConfirmedStockExitAnswer_(exit, result) {
+    const unit = result && result.unit || exit.unit || "un";
+    const movement = result && result.movement || result && result.movements && result.movements[0] || null;
+    const beforeSnapshot = result && result.before || [];
+    const afterSnapshot = result && result.after || [];
+    const itemId = exit.item && exit.item.itemId || exit.item && exit.item.id || "";
+    const beforeItem = findEloStockExitCurrentSnapshotItem_(beforeSnapshot, itemId) || {};
+    const afterItem = findEloStockExitCurrentSnapshotItem_(afterSnapshot, itemId) || {};
+    const before = Number(beforeItem.balance !== undefined ? beforeItem.balance : beforeItem.realBalance !== undefined ? beforeItem.realBalance : exit.balanceBefore || 0);
+    const after = Number(afterItem.balance !== undefined ? afterItem.balance : afterItem.realBalance !== undefined ? afterItem.realBalance : movement && movement.balanceAfter !== undefined ? movement.balanceAfter : exit.balanceAfter || 0);
+    const lines = [
+      "Saida registrada no Stock.",
+      "Produto: " + (exit.item && exit.item.name || "Produto"),
+      "Quantidade: " + formatEloStockQuantity_(exit.quantity || 0) + " " + unit,
+      "Saldo anterior: " + formatEloStockQuantity_(before) + " " + unit,
+      "Novo saldo: " + formatEloStockQuantity_(after) + " " + unit
+    ];
+    if (movement && movement.id) lines.push("Movimento: " + movement.id + ".");
+    lines.push("Historico/Audit: movimento criado pelo fluxo real local do Stock.");
+    return lines.join("\n");
+  }
+
+  function buildEloStockExitRemoteSyncBlockedAnswer_(exit, syncResult) {
+    const messageText = sanitizeUserText(syncResult && (syncResult.error || syncResult.message) || "stock_full_remote_sync_failed");
+    return {
+      shortAnswer: "Saida pendente de sincronizacao remota.",
+      fullAnswer: "A saida foi confirmada localmente, mas a sincronizacao remota falhou: " + messageText + ".\n\nIdempotencia: confirme novamente para tentar sincronizar a mesma operacao, sem criar nova baixa local.",
+      nextAction: "Responda confirmar para tentar sincronizar novamente a mesma saida.",
+      canSave: false,
+      sessionTheme: "stock_full_exit",
+      sessionIntent: "stock_exit_remote_sync_failed",
+      stockExit: exit
+    };
+  }
+
+  function getEloStockExitRemoteSyncPromises_(result) {
+    const movements = Array.isArray(result && result.movements) ? result.movements : [];
+    return movements.map(function (movement) { return movement && movement.remoteSync; }).filter(Boolean);
+  }
+
+  function finishEloStockExitConfirmation_(exit, result, syncResults) {
+    const safeSyncResults = Array.isArray(syncResults) ? syncResults : [];
+    const failedSync = safeSyncResults.find(function (syncResult) { return syncResult && syncResult.ok !== true; }) || null;
+    if (failedSync) {
+      exit.status = "remote_error";
+      exit.savedAt = Date.now();
+      exit.result = result;
+      exit.remoteSyncResults = safeSyncResults;
+      setEloPendingStockExit_(exit);
+      return buildEloStockExitRemoteSyncBlockedAnswer_(exit, failedSync);
+    }
+    exit.status = "saved";
+    exit.savedAt = Date.now();
+    exit.result = result;
+    exit.remoteSyncResults = safeSyncResults;
+    exit.confirmationText = buildEloConfirmedStockExitAnswer_(exit, result);
+    setEloPendingStockExit_(exit);
+    const intent = result && result.duplicate ? "stock_exit_idempotent" : "stock_exit_confirmed";
+    return { shortAnswer: result && result.duplicate ? "Essa saida ja foi confirmada." : "Saida registrada no Stock.", fullAnswer: result && result.duplicate ? exit.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova baixa." : exit.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: intent, stockExit: exit };
+  }
+  function buildEloStockExitConfirmationAnswer_(message) {
+    const exit = getEloPendingStockExit_();
+    if (!exit) return null;
+    if (!isEloStockExitConfirmation_(message) && !isEloStockExitCancel_(message)) return null;
+    if (isEloPendingStockExitExpired_(exit)) {
+      setEloPendingStockExit_(null);
+      return { shortAnswer: "A saida pendente expirou.", fullAnswer: "A saida pendente expirou por seguranca. Nenhum movimento foi criado.", nextAction: "Refaca o pedido de saida.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_expired" };
+    }
+    if (isEloStockExitCancel_(message)) {
+      setEloPendingStockExit_(null);
+      return { shortAnswer: "Saida cancelada.", fullAnswer: "Saida cancelada. Nenhum movimento foi criado.", nextAction: "Quando quiser, peca uma nova saida com produto, quantidade e unidade.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_cancelled" };
+    }
+    if (exit.status === "saved" && exit.confirmationText) {
+      return { shortAnswer: "Essa saida ja foi confirmada.", fullAnswer: exit.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova baixa.", nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_idempotent", stockExit: exit };
+    }
+    if (exit.status === "saving") {
+      return { shortAnswer: "Essa saida ja esta sendo registrada.", fullAnswer: "Essa saida ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_saving", stockExit: exit };
+    }
+    if (exit.status === "remote_error") {
+      const retryBridge = window.ObraReportOperationalStock;
+      const retryResult = exit.result || {};
+      const retryMovements = Array.isArray(retryResult.movements) ? retryResult.movements : [];
+      if (!retryBridge || typeof retryBridge.syncConfirmedMovement !== "function" || !retryMovements.length) {
+        return buildEloStockExitRemoteSyncBlockedAnswer_(exit, exit.remoteSyncResults && exit.remoteSyncResults[0] || { error: "stock_full_remote_sync_unavailable" });
+      }
+      exit.status = "saving";
+      setEloPendingStockExit_(exit);
+      return Promise.all(retryMovements.map(function (movement) {
+        return Promise.resolve(retryBridge.syncConfirmedMovement(movement, { type: "saida" }));
+      })).then(function (syncResults) {
+        return finishEloStockExitConfirmation_(exit, retryResult, syncResults);
+      });
+    }
+
+    const currentItem = findEloStockExitCurrentItem_(exit);
+    if (!currentItem) {
+      setEloPendingStockExit_(null);
+      return buildEloStockExitInvalidAnswer_("O produto da saida pendente nao foi encontrado no Stock atual. Nenhum movimento foi criado.", "Refaca o preview da saida.", "stock_exit_revalidation_blocked");
+    }
+    if (exit.companyId && currentItem.companyId && sanitizeUserText(exit.companyId) !== sanitizeUserText(currentItem.companyId)) {
+      setEloPendingStockExit_(null);
+      return buildEloStockExitInvalidAnswer_("Empresa do produto mudou desde o preview. Nenhum movimento foi criado.", "Refaca o preview da saida.", "stock_exit_revalidation_blocked");
+    }
+    if (exit.environmentId && currentItem.environmentId && sanitizeUserText(exit.environmentId) !== sanitizeUserText(currentItem.environmentId)) {
+      setEloPendingStockExit_(null);
+      return buildEloStockExitInvalidAnswer_("Ambiente do produto mudou desde o preview. Nenhum movimento foi criado.", "Refaca o preview da saida.", "stock_exit_revalidation_blocked");
+    }
+    const currentUnit = normalizeEloStockEntryUnit_(currentItem.unit || "un");
+    const requestedUnit = normalizeEloStockEntryUnit_(exit.unit || "un");
+    if (requestedUnit && currentUnit && requestedUnit !== currentUnit) {
+      setEloPendingStockExit_(null);
+      return buildEloStockExitInvalidAnswer_("Unidade do produto mudou desde o preview. Nenhum movimento foi criado.", "Refaca o preview da saida.", "stock_exit_revalidation_blocked");
+    }
+    const currentBalance = Number(currentItem.balance || currentItem.realBalance || 0);
+    if (currentBalance < Number(exit.quantity || 0)) {
+      setEloPendingStockExit_(null);
+      const lines = [
+        "Saida bloqueada porque o saldo mudou desde o preview.",
+        "Saldo atual: " + formatEloStockQuantity_(currentBalance) + " " + (currentItem.unit || exit.unit || "un") + ".",
+        "Quantidade solicitada: " + formatEloStockQuantity_(exit.quantity || 0) + " " + (currentItem.unit || exit.unit || "un") + ".",
+        "Nenhuma movimentacao foi realizada.",
+        "Refaca o pedido para gerar um novo preview."
+      ];
+      return { shortAnswer: "Saida bloqueada por saldo insuficiente.", fullAnswer: lines.join("\n"), nextAction: "Refaca o preview da saida.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_balance_changed", stockExit: exit };
+    }
+
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedExit !== "function") {
+      return { shortAnswer: "Ponte do Stock indisponivel.", fullAnswer: "Nao consegui confirmar a saida porque a ponte oficial do Stock nao esta disponivel nesta tela. Nenhum estoque foi movimentado.", nextAction: "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_bridge_missing", stockExit: exit };
+    }
+
+    exit.status = "saving";
+    setEloPendingStockExit_(exit);
+    const result = bridge.createConfirmedExit({
+      releaseId: exit.id,
+      source: "elo",
+      requestedBy: "ELO",
+      environmentId: currentItem.environmentId || exit.environmentId || "",
+      items: [{ stockItemId: getEloStockEntryItemId_(currentItem), itemId: getEloStockEntryItemId_(currentItem), releaseQuantity: exit.quantity, quantity: exit.quantity, unit: exit.unit, material: currentItem.name || exit.item && exit.item.name || "Produto", name: currentItem.name || exit.item && exit.item.name || "Produto" }]
+    });
+    if (!result || result.ok !== true) {
+      exit.status = "pending";
+      setEloPendingStockExit_(exit);
+      const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a saida. Nenhum saldo foi movimentado.");
+      return { shortAnswer: "Saida bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, quantidade, unidade e saldo antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_blocked", stockExit: exit };
+    }
+    const remoteSyncPromises = getEloStockExitRemoteSyncPromises_(result);
+    if (remoteSyncPromises.length) {
+      return Promise.all(remoteSyncPromises.map(function (remoteSync) { return Promise.resolve(remoteSync); })).then(function (syncResults) {
+        return finishEloStockExitConfirmation_(exit, result, syncResults);
+      });
+    }
+    return finishEloStockExitConfirmation_(exit, result, []);
+  }
+
+  function buildEloStockExitAnswer_(message) {
+    return buildEloStockExitConfirmationAnswer_(message) || buildEloStockExitPreviewAnswer_(message);
+  }
+
+  function cleanEloStockTransferEnvironmentQuery_(value) {
+    return normalizeText(value || "")
+      .replace(/\b(?:do|da|dos|das|de|para|pro|pra|estoque|stock)\b/g, " ")
+      .replace(/[^a-z0-9\s._-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function parseEloStockTransferCommand_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || /\b(?:cadastre|cadastrar|cadastro|crie|criar)\b/.test(text)) return null;
+    let match = text.match(/\b(?:transfira|transferir|mande|mandar|envie|enviar)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+?)\s+(?:do|da|dos|das|de)\s+(.+?)\s+para\s+(.+)$/);
+    if (match) {
+      return { action: "stock_transfer", quantity: parseEloStockEntryQuantity_(match[1]), unit: normalizeEloStockEntryUnit_(match[2]), originalUnit: sanitizeUserText(match[2]), productQuery: cleanEloStockEntryProductQuery_(match[3]), sourceEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[4]), destinationEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[5]), sourceMessage: sanitizeUserText(message) };
+    }
+    match = text.match(/\b(?:mande|mandar|envie|enviar|transfira|transferir)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+?)\s+para\s+(.+)$/);
+    if (!match) return null;
+    return { action: "stock_transfer", quantity: parseEloStockEntryQuantity_(match[1]), unit: normalizeEloStockEntryUnit_(match[2]), originalUnit: sanitizeUserText(match[2]), productQuery: cleanEloStockEntryProductQuery_(match[3]), sourceEnvironmentQuery: "", destinationEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[4]), sourceMessage: sanitizeUserText(message) };
+  }
+
+  function isEloStockTransferConfirmation_(message) {
+    return /^(?:sim|confirmar|confirmo|pode\s+transferir|pode\s+registrar|pode|registrar|registre|ok|correto|isso\s+mesmo)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloStockTransferCancel_(message) {
+    return /^(?:nao|não|cancelar|cancele|abortar|desistir|deixa|deixe|nao\s+transferir|não\s+transferir|nao\s+registrar|não\s+registrar)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingStockTransfer_() {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_STOCK_TRANSFER_KEY) || "null");
+      return saved && typeof saved === "object" ? saved : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setEloPendingStockTransfer_(transfer) {
+    try {
+      if (transfer) window.sessionStorage.setItem(ELO_PENDING_STOCK_TRANSFER_KEY, JSON.stringify(transfer));
+      else window.sessionStorage.removeItem(ELO_PENDING_STOCK_TRANSFER_KEY);
+    } catch (error) {}
+  }
+
+  function isEloPendingStockTransferExpired_(transfer) {
+    return !transfer || !transfer.createdAt || Date.now() - Number(transfer.createdAt || 0) > 30 * 60 * 1000;
+  }
+
+  function createEloStockTransferOperationId_() {
+    return "elo_transfer_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function buildEloStockTransferInvalidAnswer_(messageText, nextAction, sessionIntent) {
+    return { shortAnswer: messageText, fullAnswer: messageText, nextAction: nextAction || "Revise produto, origem, destino, quantidade, unidade e saldo antes de tentar novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: sessionIntent || "stock_transfer_blocked" };
+  }
+
+  function getEloStockTransferEnvironmentName_(environment) {
+    return sanitizeUserText(environment && (environment.name || environment.environmentName || environment.unitName || environment.workName || environment.clientName || environment.id) || "Ambiente");
+  }
+
+  function scoreEloStockTransferEnvironment_(query, environment) {
+    const normalizedQuery = normalizeEloStockBalanceTerm_(query);
+    if (!normalizedQuery) return 0;
+    const fields = [environment && environment.id, environment && environment.name, environment && environment.environmentName, environment && environment.unitName, environment && environment.workName, environment && environment.clientName].map(normalizeEloStockBalanceTerm_).filter(Boolean);
+    if (fields.some(function (field) { return field === normalizedQuery; })) return 100;
+    if (fields.some(function (field) { return field.indexOf(normalizedQuery) >= 0 || normalizedQuery.indexOf(field) >= 0; })) return 80;
+    const words = normalizedQuery.split(/\s+/).filter(function (word) { return word && word.length > 1; });
+    if (!words.length) return 0;
+    if (!words.every(function (word) { return fields.some(function (field) { return field.indexOf(word) >= 0; }); })) return 0;
+    return words.length * 20;
+  }
+
+  function resolveEloStockTransferEnvironment_(query, environments) {
+    const cleanQuery = cleanEloStockTransferEnvironmentQuery_(query);
+    if (!cleanQuery) return { status: "missing", environment: null, matches: [] };
+    const ranked = (environments || []).map(function (environment) {
+      return { environment: environment, score: scoreEloStockTransferEnvironment_(cleanQuery, environment) };
+    }).filter(function (entry) { return entry.score > 0; }).sort(function (a, b) {
+      return b.score - a.score || getEloStockTransferEnvironmentName_(a.environment).localeCompare(getEloStockTransferEnvironmentName_(b.environment));
+    });
+    if (!ranked.length) return { status: "not_found", environment: null, matches: [], query: cleanQuery };
+    const bestScore = ranked[0].score;
+    const matches = ranked.filter(function (entry) { return entry.score === bestScore; }).map(function (entry) { return entry.environment; });
+    if (matches.length === 1) return { status: "found", environment: matches[0], matches: matches, query: cleanQuery };
+    return { status: "ambiguous", environment: null, matches: matches, query: cleanQuery };
+  }
+
+  function resolveEloStockTransferDestinationItem_(query, balances) {
+    const resolution = findEloStockBalanceByQuery_(query, balances || []);
+    if (resolution.status === "found" || resolution.status === "ambiguous") return resolution;
+    return { status: "not_found", item: null, matches: [], query: sanitizeUserText(query || "") };
+  }
+
+  function findEloStockTransferSnapshotItem_(items, itemId, environmentId) {
+    const id = sanitizeUserText(itemId || "");
+    const env = sanitizeUserText(environmentId || "");
+    return (items || []).find(function (item) {
+      return getEloStockEntryItemId_(item) === id && (!env || sanitizeUserText(item.environmentId || "") === env);
+    }) || null;
+  }
+
+  function findEloStockTransferDestinationItem_(sourceItem, destinationEnvironment, balances) {
+    const destinationEnvironmentId = sanitizeUserText(destinationEnvironment && (destinationEnvironment.id || destinationEnvironment.environmentId) || "");
+    const sourceSku = normalizeEloStockCode_(sourceItem && (sourceItem.sku || sourceItem.fiscalCode || sourceItem.code));
+    const sourceName = normalizeEloStockBalanceTerm_(sourceItem && sourceItem.name);
+    const sourceUnit = normalizeEloStockEntryUnit_(sourceItem && sourceItem.unit || "un");
+    return (balances || []).find(function (item) {
+      if (sanitizeUserText(item.environmentId || "") !== destinationEnvironmentId) return false;
+      const itemUnit = normalizeEloStockEntryUnit_(item.unit || "un");
+      if (sourceUnit && itemUnit && sourceUnit !== itemUnit) return false;
+      const itemSku = normalizeEloStockCode_(item.sku || item.fiscalCode || item.code);
+      if (sourceSku && itemSku && sourceSku === itemSku) return true;
+      return sourceName && normalizeEloStockBalanceTerm_(item.name) === sourceName;
+    }) || null;
+  }
+
+  function buildEloStockTransferPreviewAnswer_(message) {
+    const command = parseEloStockTransferCommand_(message);
+    if (!command) return null;
+    if (!command.productQuery) return buildEloStockTransferInvalidAnswer_("Nao identifiquei o produto da transferencia. Nenhum movimento foi criado.", "Informe produto, quantidade, unidade, origem e destino.");
+    if (!(command.quantity > 0)) return buildEloStockTransferInvalidAnswer_("Quantidade invalida para transferencia. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedTransfer !== "function") {
+      return buildEloStockTransferInvalidAnswer_("Ponte de transferencia do Stock indisponivel. Nenhum estoque foi movimentado.", "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", "stock_transfer_bridge_missing");
+    }
+    const environments = getEloOperationalAlmoxEnvironments_();
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const destinationResolution = resolveEloStockTransferEnvironment_(command.destinationEnvironmentQuery, environments);
+    let destinationItemResolution = null;
+    if (destinationResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de um destino compativel. Nenhum movimento foi criado.", "Informe o nome exato do ambiente de destino.", "stock_transfer_environment_ambiguous");
+    if (!destinationResolution.environment) {
+      destinationItemResolution = resolveEloStockTransferDestinationItem_(command.destinationEnvironmentQuery, allBalances);
+      if (destinationItemResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de um produto de destino compativel. Nenhum movimento foi criado.", "Informe o nome exato do produto destino.", "stock_transfer_destination_item_ambiguous");
+      if (!destinationItemResolution.item) return buildEloStockTransferInvalidAnswer_("Destino da transferencia nao encontrado. Nenhum movimento foi criado.", "Informe um ambiente/obra existente ou um produto destino cadastrado.", "stock_transfer_destination_missing");
+    }
+
+    let sourceEnvironment = null;
+    let sourceBalances = [];
+    if (command.sourceEnvironmentQuery) {
+      const sourceResolution = resolveEloStockTransferEnvironment_(command.sourceEnvironmentQuery, environments);
+      if (sourceResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de uma origem compativel. Nenhum movimento foi criado.", "Informe o nome exato do ambiente de origem.", "stock_transfer_environment_ambiguous");
+      if (!sourceResolution.environment) return buildEloStockTransferInvalidAnswer_("Origem da transferencia nao encontrada. Nenhum movimento foi criado.", "Informe um ambiente/obra existente.", "stock_transfer_source_missing");
+      sourceEnvironment = sourceResolution.environment;
+      sourceBalances = allBalances.filter(function (item) { return sanitizeUserText(item.environmentId || "") === sanitizeUserText(sourceEnvironment.id || sourceEnvironment.environmentId || ""); });
+    } else {
+      sourceBalances = getEloOperationalAlmoxBalances_();
+    }
+
+    const sourceResolution = findEloStockBalanceByQuery_(command.productQuery, sourceBalances);
+    if (sourceResolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(sourceResolution), { sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_ambiguous" });
+    if (!sourceResolution.item) return buildEloStockTransferInvalidAnswer_("Produto nao encontrado na origem. Nenhum movimento foi criado.", "Use um SKU existente ou o nome cadastrado na origem.", "stock_transfer_product_missing");
+    const sourceItem = sourceResolution.item;
+    if (!sourceEnvironment) {
+      sourceEnvironment = environments.find(function (environment) { return sanitizeUserText(environment.id || environment.environmentId || "") === sanitizeUserText(sourceItem.environmentId || ""); }) || { id: sourceItem.environmentId, name: sourceItem.environmentId || "Origem" };
+    }
+    const sourceEnvironmentId = sanitizeUserText(sourceEnvironment.id || sourceEnvironment.environmentId || sourceItem.environmentId || "");
+    let destinationItem = destinationItemResolution && destinationItemResolution.item || null;
+    let destinationEnvironment = destinationResolution.environment || null;
+    if (destinationItem && !destinationEnvironment) {
+      destinationEnvironment = environments.find(function (environment) { return sanitizeUserText(environment.id || environment.environmentId || "") === sanitizeUserText(destinationItem.environmentId || ""); }) || { id: destinationItem.environmentId || sourceEnvironmentId, name: destinationItem.name || "Destino", companyId: destinationItem.companyId || sourceItem.companyId || "" };
+    }
+    const destinationEnvironmentId = sanitizeUserText(destinationEnvironment && (destinationEnvironment.id || destinationEnvironment.environmentId) || destinationItem && destinationItem.environmentId || "");
+    const itemDestinationMode = Boolean(destinationItem);
+    if (itemDestinationMode && getEloStockEntryItemId_(sourceItem) === getEloStockEntryItemId_(destinationItem)) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha um produto destino diferente.", "stock_transfer_same_item");
+    if (sourceEnvironmentId && destinationEnvironmentId && sourceEnvironmentId === destinationEnvironmentId && !itemDestinationMode) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha ambientes diferentes.", "stock_transfer_same_environment");
+    if (sourceItem.companyId && destinationEnvironment && destinationEnvironment.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationEnvironment.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
+    if (sourceItem.companyId && destinationItem && destinationItem.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationItem.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
+
+    const itemUnit = normalizeEloStockEntryUnit_(sourceItem.unit || "un");
+    if (command.unit && itemUnit && command.unit !== itemUnit) return buildEloStockTransferInvalidAnswer_("Unidade incompatível com o produto cadastrado. Nenhum movimento foi criado.", "Use a unidade cadastrada para " + (sourceItem.name || "o produto") + ": " + (sourceItem.unit || "un") + ".");
+    if (!destinationItem) destinationItem = findEloStockTransferDestinationItem_(sourceItem, destinationEnvironment, allBalances);
+    if (!destinationItem) return buildEloStockTransferInvalidAnswer_("Produto correspondente nao encontrado no destino. Nenhum movimento foi criado.", "Cadastre o produto no destino antes de transferir.", "stock_transfer_destination_product_missing");
+    const balanceBefore = Number(sourceItem.balance || sourceItem.realBalance || 0);
+    const destinationBefore = Number(destinationItem.balance || destinationItem.realBalance || 0);
+    if (balanceBefore < command.quantity) return buildEloStockExitInsufficientAnswer_(sourceItem, command.quantity, sourceItem.unit || command.unit || "un", balanceBefore);
+    const unit = sourceItem.unit || command.unit || "un";
+    const transfer = { id: createEloStockTransferOperationId_(), action: "stock_transfer", status: "pending", createdAt: Date.now(), question: sanitizeUserText(message).slice(0, 500), command: command, item: { id: getEloStockEntryItemId_(sourceItem), itemId: getEloStockEntryItemId_(sourceItem), name: sourceItem.name || "Produto", sku: sourceItem.sku || sourceItem.fiscalCode || sourceItem.code || "", unit: unit, companyId: sourceItem.companyId || "", environmentId: sourceEnvironmentId }, destinationItem: { id: getEloStockEntryItemId_(destinationItem), itemId: getEloStockEntryItemId_(destinationItem), name: destinationItem.name || sourceItem.name || "Produto", unit: destinationItem.unit || unit, environmentId: destinationEnvironmentId }, sourceEnvironment: { id: sourceEnvironmentId, name: getEloStockTransferEnvironmentName_(sourceEnvironment), companyId: sourceEnvironment.companyId || sourceItem.companyId || "" }, destinationEnvironment: { id: destinationEnvironmentId, name: itemDestinationMode ? destinationItem.name || getEloStockTransferEnvironmentName_(destinationEnvironment) : getEloStockTransferEnvironmentName_(destinationEnvironment), companyId: destinationEnvironment && destinationEnvironment.companyId || destinationItem.companyId || sourceItem.companyId || "", type: itemDestinationMode ? "item" : "environment" }, quantity: command.quantity, unit: unit, sourceBalanceBefore: balanceBefore, sourceBalanceAfter: balanceBefore - command.quantity, destinationBalanceBefore: destinationBefore, destinationBalanceAfter: destinationBefore + command.quantity, companyId: sourceItem.companyId || "" };
+    setEloPendingStockTransfer_(transfer);
+    const lines = ["Transferência de estoque", "", "Produto: " + (sourceItem.name || "Produto"), "Origem: " + transfer.sourceEnvironment.name, "Destino: " + transfer.destinationEnvironment.name, "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit, "Saldo atual na origem: " + formatEloStockQuantity_(balanceBefore) + " " + unit, "Saldo previsto na origem: " + formatEloStockQuantity_(transfer.sourceBalanceAfter) + " " + unit, "Saldo atual no destino: " + formatEloStockQuantity_(destinationBefore) + " " + unit, "Saldo previsto no destino: " + formatEloStockQuantity_(transfer.destinationBalanceAfter) + " " + unit, "", "Confirma a transferência?"];
+    return { shortAnswer: "Transferencia pendente de confirmacao.", fullAnswer: lines.join("\n"), nextAction: "Responda sim, confirmar ou pode transferir para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_preview", stockTransfer: transfer };
+  }
+
+  function buildEloConfirmedStockTransferAnswer_(transfer, result) {
+    const unit = result && result.unit || transfer.unit || "un";
+    const lines = ["Transferencia registrada no Stock.", "Produto: " + (transfer.item && transfer.item.name || "Produto"), "Origem: " + (transfer.sourceEnvironment && transfer.sourceEnvironment.name || "Origem"), "Destino: " + (transfer.destinationEnvironment && transfer.destinationEnvironment.name || "Destino"), "Quantidade: " + formatEloStockQuantity_(transfer.quantity || 0) + " " + unit, "Saldo origem: " + formatEloStockQuantity_(result && result.sourceBalanceBefore !== undefined ? result.sourceBalanceBefore : transfer.sourceBalanceBefore || 0) + " -> " + formatEloStockQuantity_(result && result.sourceBalanceAfter !== undefined ? result.sourceBalanceAfter : transfer.sourceBalanceAfter || 0) + " " + unit, "Saldo destino: " + formatEloStockQuantity_(result && result.destinationBalanceBefore !== undefined ? result.destinationBalanceBefore : transfer.destinationBalanceBefore || 0) + " -> " + formatEloStockQuantity_(result && result.destinationBalanceAfter !== undefined ? result.destinationBalanceAfter : transfer.destinationBalanceAfter || 0) + " " + unit];
+    if (result && result.transferId) lines.push("Transfer ID: " + result.transferId + ".");
+    lines.push("Historico/Audit: saida e entrada vinculadas pelo fluxo real local do Stock.");
+    return lines.join("\n");
+  }
+
+  function buildEloStockTransferConfirmationAnswer_(message) {
+    const transfer = getEloPendingStockTransfer_();
+    if (!transfer) return null;
+    if (!isEloStockTransferConfirmation_(message) && !isEloStockTransferCancel_(message)) return null;
+    if (isEloPendingStockTransferExpired_(transfer)) {
+      setEloPendingStockTransfer_(null);
+      return { shortAnswer: "A transferencia pendente expirou.", fullAnswer: "A transferencia pendente expirou por seguranca. Nenhum movimento foi criado.", nextAction: "Refaca o pedido de transferencia.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_expired" };
+    }
+    if (isEloStockTransferCancel_(message)) {
+      setEloPendingStockTransfer_(null);
+      return { shortAnswer: "Transferencia cancelada.", fullAnswer: "Transferencia cancelada. Nenhum movimento foi criado.", nextAction: "Quando quiser, peca uma nova transferencia com produto, quantidade, origem e destino.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_cancelled" };
+    }
+    if (transfer.status === "saved" && transfer.confirmationText) {
+      return { shortAnswer: "Essa transferencia ja foi confirmada.", fullAnswer: transfer.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova transferencia.", nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_idempotent", stockTransfer: transfer };
+    }
+    if (transfer.status === "saving") return { shortAnswer: "Essa transferencia ja esta sendo registrada.", fullAnswer: "Essa transferencia ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_saving", stockTransfer: transfer };
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const currentSource = findEloStockTransferSnapshotItem_(allBalances, transfer.item && transfer.item.itemId, transfer.sourceEnvironment && transfer.sourceEnvironment.id);
+    const currentDestination = findEloStockTransferSnapshotItem_(allBalances, transfer.destinationItem && transfer.destinationItem.itemId, transfer.destinationEnvironment && transfer.destinationEnvironment.id);
+    if (!currentSource) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Produto da origem nao foi encontrado no Stock atual. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    if (!currentDestination) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Produto do destino nao foi encontrado no Stock atual. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    const currentUnit = normalizeEloStockEntryUnit_(currentSource.unit || "un");
+    const requestedUnit = normalizeEloStockEntryUnit_(transfer.unit || "un");
+    if (requestedUnit && currentUnit && requestedUnit !== currentUnit) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Unidade do produto mudou desde o preview. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    const currentBalance = Number(currentSource.balance || currentSource.realBalance || 0);
+    if (currentBalance < Number(transfer.quantity || 0)) {
+      setEloPendingStockTransfer_(null);
+      const lines = ["Transferencia bloqueada porque o saldo mudou desde o preview.", "Saldo atual na origem: " + formatEloStockQuantity_(currentBalance) + " " + (currentSource.unit || transfer.unit || "un") + ".", "Quantidade solicitada: " + formatEloStockQuantity_(transfer.quantity || 0) + " " + (currentSource.unit || transfer.unit || "un") + ".", "Nenhuma movimentacao foi realizada.", "Refaca o pedido para gerar um novo preview."];
+      return { shortAnswer: "Transferencia bloqueada por saldo insuficiente.", fullAnswer: lines.join("\n"), nextAction: "Refaca o preview da transferencia.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_balance_changed", stockTransfer: transfer };
+    }
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedTransfer !== "function") return { shortAnswer: "Ponte do Stock indisponivel.", fullAnswer: "Nao consegui confirmar a transferencia porque a ponte oficial do Stock nao esta disponivel nesta tela. Nenhum estoque foi movimentado.", nextAction: "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_bridge_missing", stockTransfer: transfer };
+    transfer.status = "saving";
+    setEloPendingStockTransfer_(transfer);
+    const result = bridge.createConfirmedTransfer({ transferId: transfer.id, source: "elo", requestedBy: "ELO", responsible: "ELO", sourceEnvironmentId: transfer.sourceEnvironment && transfer.sourceEnvironment.id, destinationEnvironmentId: transfer.destinationEnvironment && transfer.destinationEnvironment.id, sourceItemId: transfer.item && transfer.item.itemId, destinationItemId: transfer.destinationItem && transfer.destinationItem.itemId, quantity: transfer.quantity, unit: transfer.unit, notes: "Origem ELO. Pedido: " + sanitizeUserText(transfer.question || "") });
+    if (!result || result.ok !== true) {
+      transfer.status = "pending";
+      setEloPendingStockTransfer_(transfer);
+      const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a transferencia. Nenhum saldo foi movimentado.");
+      return { shortAnswer: "Transferencia bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, origem, destino, quantidade, unidade e saldo antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_blocked", stockTransfer: transfer };
+    }
+    transfer.status = "saved";
+    transfer.savedAt = Date.now();
+    transfer.result = result;
+    transfer.confirmationText = buildEloConfirmedStockTransferAnswer_(transfer, result);
+    setEloPendingStockTransfer_(transfer);
+    const intent = result.duplicate ? "stock_transfer_idempotent" : "stock_transfer_confirmed";
+    return { shortAnswer: result.duplicate ? "Essa transferencia ja foi confirmada." : "Transferencia registrada no Stock.", fullAnswer: result.duplicate ? transfer.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova transferencia." : transfer.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: intent, stockTransfer: transfer };
+  }
+
+  function buildEloStockTransferAnswer_(message) {
+    return buildEloStockTransferConfirmationAnswer_(message) || buildEloStockTransferPreviewAnswer_(message);
+  }
+
   function buildEloStockReadonlyAnswer_(message) {
+    const transfer = buildEloStockTransferAnswer_(message);
+    if (transfer) return transfer;
+    const entry = buildEloStockEntryAnswer_(message);
+    if (entry) return entry;
+    const exit = buildEloStockExitAnswer_(message);
+    if (exit) return exit;
     const blocked = buildEloStockReadonlyWriteBlockedAnswer_(message);
     if (blocked) return blocked;
     if (isEloStockConceptQuestion_(message)) return null;
-    return buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
+    return buildEloStockMovementResponsibleAnswer_(message) || buildEloStockMovementDayAnswer_(message) || buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
+
+  function isEloAsyncResponse_(response) {
+    return response && typeof response.then === "function";
+  }
+
+  function resolveEloAsyncResponseForChat_(question, responsePromise, options) {
+    const settings = options || {};
+    return Promise.resolve(responsePromise).then(function (response) {
+      const finalResponse = settings.applyBrainMarker ? applyEloBrainMarker_(question, response) : response;
+      const answer = formatResponse(finalResponse);
+      appendAssistantMessage(question, answer, finalResponse && finalResponse.canSave !== false, finalResponse);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, finalResponse, answer);
+      return finalResponse;
+    }).catch(function (error) {
+      const messageText = sanitizeUserText(error && error.message || "stock_full_async_response_failed");
+      const response = {
+        shortAnswer: "Operacao bloqueada.",
+        fullAnswer: messageText,
+        nextAction: "Revise o estado remoto do Stock e tente novamente.",
+        canSave: false,
+        sessionTheme: "stock_full",
+        sessionIntent: "stock_full_async_failed"
+      };
+      const answer = formatResponse(response);
+      appendAssistantMessage(question, answer, false, response);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, response, answer);
+      return response;
+    }).finally(function () {
+      clearProductAttachmentPreview();
+    });
+  }
   function parseEloStockProductCreateQuantity_(value) {
     const number = Number(String(value || "").replace(/\./g, "").replace(",", "."));
     return Number.isFinite(number) ? number : 0;
@@ -22375,9 +23354,6 @@ function isEloResidentialNewPipelineEnabled_() {
     const wantsReport = hasAnyTerm(text, ["relatorio", "laudo", "vistoria", "parecer", "descrever", "escrever"]) || /relat|laudo|vistoria|parecer|descrev|escrev/.test(text);
     const hasPathology = hasAnyTerm(text, ["infiltracao", "umidade", "mofo", "trinca", "fissura", "rachadura", "vazamento", "banheiro", "parede"]) || /infiltra|umidade|mofo|trinca|fissura|rachadura|vazamento|banheiro|parede/.test(text);
     const hasEvidenceRequest = /vistoria|fotos?|evidencia|evid.ncia|registro/.test(text);
-    if (isEloPavementNonconformityTechnicalReport_(message)) {
-      return null;
-    }
     if (!wantsReport || (!hasPathology && !hasEvidenceRequest)) {
       return null;
     }
@@ -22444,7 +23420,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function isEloConstructionTechnicalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|reparar|reparo|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|\baco\b|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
+    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|\baco\b|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
   }
 
   function extractEloGeometryPair_(message) {
@@ -22754,7 +23730,7 @@ function isEloResidentialNewPipelineEnabled_() {
         sessionIntent: "agradecimento"
       };
     }
-    if (/cadista|\bcad\b|\bdxf\b|\bplanta\b|planta\s+baixa|desenh(?:ar|e|o)|layout|croqui|fachada|corte|prancha|projeto\s+arquitetonico|projeto\s+arquitet.nico/.test(text) && !isEloTechnicalObjectOnlyCadistaConflict_(message) && !isEloResidentialBudgetBriefingQuestion_(message) && !isEloCompleteResidentialBudgetPriorityRequest_(message)) {
+    if (/cadista|\bcad\b|\bdxf\b|\bplanta\b|planta\s+baixa|desenh(?:ar|e|o)|layout|croqui|fachada|corte|prancha|projeto\s+arquitetonico|projeto\s+arquitet.nico/.test(text) && !isEloResidentialBudgetBriefingQuestion_(message) && !isEloCompleteResidentialBudgetPriorityRequest_(message)) {
       return {
         shortAnswer: "O CADISTA transforma dados de projeto em desenho tecnico.",
         fullAnswer: "Fluxo CADISTA/planta: vamos organizar terreno, ambientes, quartos, suite, garagem e premissas para projeto. Para gerar uma planta, preciso de terreno, programa de necessidades, pavimentos, recuos e saida desejada em PDF/DXF.",
@@ -22781,38 +23757,12 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   function isEloConstructionPathologyQuestion_(message) {
     const text = normalizeText(message || "");
-    return /trinca|fissura|rachadura|rachando|rachou|destacamento|destacando|eflorescencia|eflorescência|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
-  }
-
-  function hasEloExplicitNoCostIntent_(message) {
-    const text = normalizeText(message || "");
-    return /\b(?:sem[ ]+(?:abrir[ ]+)?(?:falar[ ]+de[ ]+)?(?:custo|preco|orcamento|composi..o|composicao)|nao[ ]+(?:(?:quero|preciso|abrir|fazer|gerar)[ ]+(?:de[ ]+)?)?(?:custo|preco|orcamento|composi..o|composicao))\b/.test(text);
-  }
-
-  function hasEloRdoPathologyEvaluationNoCostIntent_(message) {
-    const text = normalizeText(message || "");
-    const hasRdoContext = /\b(?:rdo[ ]+(?:fala|menciona|cita|registra|aponta)[ ]+de|segundo[ ]+o[ ]+rdo|consta[ ]+no[ ]+rdo)\b/.test(text);
-    const hasTechnicalRequest = /\b(?:analise|analisar|avalie|avaliar|avalia..o[ ]+t.cnica|diagnostico|causa|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text);
-    const hasNoBudgetOrComposition = /\b(?:sem[ ]+(?:abrir[ ]+)?(?:composi..o|composicao|orcamento|custo|preco)|nao[ ]+(?:(?:quero|preciso|abrir|fazer|gerar)[ ]+(?:de[ ]+)?)?(?:composi..o|composicao|orcamento|custo|preco))\b/.test(text);
-    return hasRdoContext && isEloConstructionPathologyQuestion_(message) && hasTechnicalRequest && hasNoBudgetOrComposition;
-  }
-
-  function hasEloPathologyEvaluationNoCostIntent_(message) {
-    const text = normalizeText(message || "");
-    return hasEloRdoPathologyEvaluationNoCostIntent_(message) || (hasEloExplicitNoCostIntent_(message) && isEloConstructionPathologyQuestion_(message) && /\b(?:avaliar|avalie|analise|analisar|diagnostico|causa|entender|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text));
-  }
-  function hasEloExplicitPathologyBeforeBudgetIntent_(message) {
-    const text = normalizeText(message || "");
-    const hasBudgetIntent = hasEloBudgetOrCompositionIntent_(message) || /\b(?:orcar|orcamento|custo|preco|valor|composi..o|composicao)\b/.test(text);
-    if (!isEloConstructionPathologyQuestion_(message) || !hasBudgetIntent) return false;
-    return /\b(?:mas[ ]+antes|antes)[ ]+(?:analise|analisar|avalie|avaliar|verifique|verificar|diagnostique|diagnosticar)\b/.test(text) ||
-      /\b(?:primeiro[ ]+(?:analise|analisar|avalie|avaliar|verifique|verificar)|(?:analise|analisar|avalie|avaliar|verifique|verificar)[\s\S]{0,40}\bprimeiro\b)\b/.test(text) ||
-      /\bantes[ ]+(?:de|do)[\s\S]{0,40}\b(?:orcar|orcamento|custo|composi..o|composicao)\b[\s\S]{0,80}\b(?:analise|analisar|avalie|avaliar|verifique|verificar)\b/.test(text);
+    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
   function hasEloBudgetOrCompositionIntent_(message) {
     const text = normalizeText(message || "");
-    return /quanto[\s\S]{0,30}custa[\s\S]{0,30}reparar|orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
+    return /orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
   }
 
 
@@ -23038,27 +23988,16 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
-  function isEloRdoPathologyDocumentRequest_(message) {
-    const text = normalizeText(message || "");
-    if (!/\brdos?\b/.test(text) || !isEloConstructionPathologyQuestion_(message)) return false;
-    const asksDocument = /\b(?:mostre|mostrar|resuma|resumir|compare|comparar|qual|quais|registro|registrada|registrado|ocorrencia|ocorr.ncia)\b/.test(text);
-    const asksTechnical = /\b(?:analise|analisar|avalie|avaliar|avalia..o[ ]+t.cnica|diagnostico|causa|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text);
-    return asksDocument && !asksTechnical && !hasEloBudgetOrCompositionIntent_(message);
-  }
-
   function buildEloConstructionPathologyAnswer_(message) {
-    const pathologyBeforeBudget = hasEloExplicitPathologyBeforeBudgetIntent_(message);
-    if (isEloRdoPathologyDocumentRequest_(message) || !isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !hasEloPathologyEvaluationNoCostIntent_(message) && !pathologyBeforeBudget)) {
+    if (!isEloConstructionPathologyQuestion_(message) || hasEloBudgetOrCompositionIntent_(message)) {
       return null;
     }
     const text = normalizeText(message || "");
     const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundação|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vão/.test(text);
-    const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando|eflorescencia|eflorescência/.test(text);
-    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso|destacamento|destacando/.test(text);
+    const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
+    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
     const causes = [];
-    if (/trinca|fissura|rachadura|rachando|rachou/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
-    if (/eflorescencia|eflorescência/.test(text)) causes.push("presença de sais solúveis", "transporte de umidade", "evaporação superficial");
-    if (/destacamento|destacando/.test(text)) causes.push("perda de aderência", "preparo inadequado da base", "incompatibilidade entre camadas", "umidade ou execução inadequada");
+    if (/trinca|fissura|rachadura/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
     if (moisture) causes.push("falha de impermeabilização", "entrada de água por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
     if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trás do revestimento");
     if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");
@@ -23072,12 +24011,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const answer = [
       "Triagem técnica",
       "Não dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.",
-      /\brdo\b/.test(text) ? "Vou tratar a menção do RDO apenas como contexto documental, não como inspeção física confirmada." : "",
       "",
       "Possíveis causas:",
       uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
       "",
-      pathologyBeforeBudget ? "Primeiro é necessário caracterizar tecnicamente a manifestação; depois, com diagnóstico e escopo de reparo definidos, o orçamento pode ser elaborado." : "",
       "O que verificar:",
       "- quando apareceu e se está aumentando;",
       "- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;",
@@ -23263,10 +24200,6 @@ function isEloResidentialNewPipelineEnabled_() {
       return buildCapabilitiesCardAnswer_();
     }
 
-    const explicitNoCostPathologyAnswer = hasEloPathologyEvaluationNoCostIntent_(cleanQuestion) ? buildEloConstructionPathologyAnswer_(cleanQuestion) : null;
-    if (explicitNoCostPathologyAnswer) {
-      return explicitNoCostPathologyAnswer;
-    }
     const genericPriceQuestionAnswer = buildEloGenericPriceQuestionAnswer_(cleanQuestion);
     if (genericPriceQuestionAnswer) {
       return genericPriceQuestionAnswer;
@@ -25314,18 +26247,26 @@ function isEloResidentialNewPipelineEnabled_() {
     speechSynthesisUtterance: null,
     speechSynthesisButton: null,
     speechSynthesisState: "idle",
+    neuralSpeechAudio: null,
+    ttsAudit: null,
+    autoTtsSequence: 0,
     openingMessageShown: false,
     attachmentStatus: null,
     localReportButton: null,
     lastLocalExecutionStockReport: null,
     attachments: [],
+    connectivity: null,
+    connectivityBadge: null,
     typingIndicator: null,
     activeRequestStartedAt: 0,
     contextLabel: null,
     suggestions: null,
     pendingSavePrompt: null,
     hasOpenedGreeting: false,
-    awaitingStandaloneName: false
+    awaitingStandaloneName: false,
+    currentVisualSubject: "",
+    currentVisualMedia: null,
+    socialFastPathMetrics: null
   };
 
   function buildWidget() {
@@ -25417,6 +26358,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     inputRow.addEventListener("submit", function (event) {
       event.preventDefault();
+      clearEloVoiceAutoSendTimer_();
       const question = ELO_UI.input.value;
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
         appendProductAttachmentNotice();
@@ -25731,10 +26673,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const routeOptions = options || {};
     const startedAt = Date.now();
     try {
-    const complexInspectionTechnicalResponse = buildEloComplexInspectionTechnicalAnswer_(question);
-    if (complexInspectionTechnicalResponse) {
-      return applyEloBrainMarker_(question, complexInspectionTechnicalResponse);
-    }
+    const socialFastPathResponse = buildEloSocialFastPathAnswer_(question);
+    if (socialFastPathResponse) return socialFastPathResponse;
+    const visualMediaResponse = buildEloVisualMediaResponse_(question);
+    if (visualMediaResponse) return visualMediaResponse;
     const operationalDocumentResponse = isEloOperationalDocumentRequest_(question) ? { shortAnswer: "Documentos da obra", fullAnswer: formatEloOperationalDocumentsAnswer_(question), nextAction: "Abra explicitamente um documento para regenerar a versao local.", canSave: false, sessionTheme: "operational_documents", sessionIntent: "operational_documents_readonly" } : null;
     if (operationalDocumentResponse) return operationalDocumentResponse;
     const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);
@@ -25745,6 +26687,9 @@ function isEloResidentialNewPipelineEnabled_() {
     if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
     const stockReadonlyPriorityResponse = buildEloStockReadonlyAnswer_(question);
     if (stockReadonlyPriorityResponse) {
+      if (isEloAsyncResponse_(stockReadonlyPriorityResponse)) {
+        return stockReadonlyPriorityResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
       return applyEloBrainMarker_(question, stockReadonlyPriorityResponse);
     }
     const operationalReleasePriorityResponse = (isEloStockReleaseRequest_(question) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(question || ""))) ? buildEloOperationalConstructionAnswer_(question) : null;
@@ -25785,10 +26730,6 @@ function isEloResidentialNewPipelineEnabled_() {
         return applyEloBrainMarker_(question, residentialBudgetV2ContinuationResponse);
       }
     }
-    const explicitNoCostPathologyPriorityResponse = hasEloPathologyEvaluationNoCostIntent_(question) ? buildEloConstructionPathologyAnswer_(question) : null;
-    if (explicitNoCostPathologyPriorityResponse) {
-      return applyEloBrainMarker_(question, explicitNoCostPathologyPriorityResponse);
-    }
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
@@ -25817,6 +26758,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (liveSearchPriorityResponse) {
       return applyEloBrainMarker_(question, liveSearchPriorityResponse);
     }
+    const stockEntryPriorityResponse = buildEloStockEntryAnswer_(question);
+    if (stockEntryPriorityResponse) {
+      if (isEloAsyncResponse_(stockEntryPriorityResponse)) {
+        return stockEntryPriorityResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
+      return applyEloBrainMarker_(question, stockEntryPriorityResponse);
+    }
     const commonIntentPriorityResponse = routeEloCoreIntents_(question, {});
     if (commonIntentPriorityResponse && !completeResidentialBudgetPriority && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
       return applyEloBrainMarker_(question, commonIntentPriorityResponse);
@@ -25835,6 +26783,9 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const stockBalanceResponse = buildEloStockReadonlyAnswer_(question);
     if (stockBalanceResponse) {
+      if (isEloAsyncResponse_(stockBalanceResponse)) {
+        return stockBalanceResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
       return applyEloBrainMarker_(question, stockBalanceResponse);
     }
     const wallCompleteV2PriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallCompleteV2Answer_(question);
@@ -26489,99 +27440,983 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
-  function formatEloMediaResolverStatus_(result) {
-    if (result && result.status === "needs_confirmation" && Array.isArray(result.options) && result.options.length) {
-      const names = result.options.slice(0, 3).map(function (track) {
-        return "'" + track.title + "'" + (track.artist ? " de " + track.artist : "");
-      });
-      return "Você quer " + names.join(" ou ") + "?";
-    }
-    return "Não consegui localizar essa música agora.";
+  const ELO_OFFLINE_CHAT_MESSAGE = "Estou sem conexão agora. Posso continuar com os recursos locais, mas essa consulta precisa de internet.";
+
+  function readEloNavigatorOnline_() {
+    if (!window.navigator || typeof window.navigator.onLine !== "boolean") return true;
+    return window.navigator.onLine !== false;
   }
 
-  function getEloMediaPlayIntent_(question) {
-    const text = normalizeText(question || "");
-    const hasPlayVerb = /\b(toque|toca|tocar|reproduza|reproduzir|coloque|coloca|play|ponha|bota|botar)\b/.test(text) || /\bquero ouvir\b/.test(text);
-    const isQuestion = /\b(quem|qual|quais|quando|onde|porque|por que|significado|historia|história|canta|cantou|compositor)\b/.test(text);
-    if (!hasPlayVerb || isQuestion) return null;
-    if (window.EloMusicResolver && typeof window.EloMusicResolver.hasMusicIntentForTest === "function") {
-      return window.EloMusicResolver.hasMusicIntentForTest(question) ? { type: "play" } : null;
-    }
-    return { type: "play" };
+  function isEloOnline_() {
+    return !ELO_UI.connectivity || ELO_UI.connectivity.online !== false;
   }
 
-  function runEloMediaResolvedPlay_(media, question, mediaMessage) {
-    const resolver = window.EloMusicResolver;
-    if (!resolver || typeof resolver.resolveCommand !== "function") {
-      updateEloMessage_(mediaMessage, "Não consegui localizar essa música agora.");
-      return;
+  function ensureEloConnectivityBadge_() {
+    if (ELO_UI.connectivityBadge || !window.document || !document.body) return ELO_UI.connectivityBadge;
+    const badge = createElement("div", "elo-offline-badge");
+    badge.setAttribute("role", "status");
+    badge.setAttribute("aria-live", "polite");
+    badge.hidden = true;
+    badge.textContent = "";
+    document.body.appendChild(badge);
+    ELO_UI.connectivityBadge = badge;
+    return badge;
+  }
+
+  function renderEloConnectivityBadge_(message) {
+    const badge = ensureEloConnectivityBadge_();
+    if (!badge) return;
+    const online = isEloOnline_();
+    badge.hidden = online && !message;
+    badge.textContent = sanitizeUserText(message || (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis."));
+    badge.classList.toggle("is-offline", !online);
+    badge.classList.toggle("is-online", online);
+    if (online && message) {
+      window.setTimeout(function () {
+        if (ELO_UI.connectivity && ELO_UI.connectivity.online === true) {
+          badge.hidden = true;
+          badge.textContent = "";
+        }
+      }, 3500);
     }
-    resolver.resolveCommand(question).then(function (resolved) {
-      if (!resolved || !resolved.ok || !resolved.track) {
-        updateEloMessage_(mediaMessage, formatEloMediaResolverStatus_(resolved));
-        return null;
+  }
+
+  function setEloConnectivityState_(online, reason) {
+    const nextOnline = online !== false;
+    ELO_UI.connectivity = {
+      online: nextOnline,
+      lastChangedAt: Date.now(),
+      reason: sanitizeUserText(reason || (nextOnline ? "online" : "offline"))
+    };
+    logEloMusicEvent_("CONNECTIVITY_STATE", ELO_UI.connectivity);
+    renderEloConnectivityBadge_(nextOnline ? "Conexão restaurada" : "");
+    return ELO_UI.connectivity;
+  }
+
+  function initEloConnectivity_() {
+    if (ELO_UI.connectivity && ELO_UI.connectivity.initialized) return ELO_UI.connectivity;
+    setEloConnectivityState_(readEloNavigatorOnline_(), "initial");
+    ELO_UI.connectivity.initialized = true;
+    if (window.addEventListener) {
+      window.addEventListener("online", function () { setEloConnectivityState_(true, "online_event"); });
+      window.addEventListener("offline", function () { setEloConnectivityState_(false, "offline_event"); });
+    }
+    renderEloConnectivityBadge_();
+    return ELO_UI.connectivity;
+  }
+
+  function appendEloOfflineChatResponse_(question) {
+    removeTypingIndicator();
+    const response = {
+      shortAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      fullAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      nextAction: "Tente novamente quando a conexão voltar.",
+      canSave: false,
+      sessionTheme: "offline"
+    };
+    logEloMusicEvent_("OFFLINE_RESPONSE", { kind: "chat", fetchCalls: 0, question: sanitizeUserText(question).slice(0, 120) });
+    appendAssistantMessage(question, ELO_OFFLINE_CHAT_MESSAGE, false, response);
+    clearProductAttachmentPreview();
+    return response;
+  }
+
+  const ELO_MUSIC_INDEX_STORAGE_KEY = "elo_music_entity_index_v1";
+  const ELO_MUSIC_PENDING_CONFIRMATION_MS = 90000;
+  const ELO_MUSIC_RESOLVE_TIMEOUT_MS = 4500;
+  const ELO_VOICE_AUTO_SEND_MS = 3000;
+  const ELO_MUSIC_CONFIRM_THRESHOLD = 0.44;
+  const ELO_MUSIC_AUTO_THRESHOLD = 0.82;
+  const ELO_MUSIC_VERY_HIGH_THRESHOLD = 0.86;
+  const ELO_MUSIC_BOOTSTRAP_CANDIDATES_ = [
+    { id: "known:sultans-of-swing", title: "Sultans of Swing", artist: "Dire Straits", relevance: 0.98, source: "bootstrap" },
+    { id: "known:galinha-pintadinha", title: "Galinha Pintadinha", artist: "", relevance: 0.92, source: "bootstrap" },
+    { id: "known:dire-straits", title: "Dire Straits", artist: "", relevance: 0.88, source: "bootstrap" },
+    { id: "known:beethoven", title: "Beethoven", artist: "", relevance: 0.82, source: "bootstrap" },
+    { id: "known:clair-de-lune", title: "Clair de Lune", artist: "Claude Debussy", relevance: 0.82, source: "bootstrap" }
+  ];
+  let ELO_MUSIC_PENDING_CANDIDATE_ = null;
+
+  function logEloMusicEvent_(name, payload) {
+    try {
+      if (window.console && typeof window.console.info === "function") window.console.info(name, payload || {});
+    } catch (error) {}
+  }
+
+  function normalizeEloMusicQueryText_(value) {
+    return normalizeText(value || "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\b(?:elo|toque|toca|tocar|coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play|musica|música|som|uma|um|a|o)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeEloSubmittedTextForRouting_(message) {
+    return sanitizeUserText(message || "")
+      .replace(/[,.!?;:]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const ELO_WAKE_ALIASES_ = ["elo", "ello", "ellen", "hello", "e lo"];
+  const ELO_MUSIC_VERB_ALIASES_ = ["toque", "toca", "tocar", "talk", "truque", "troque"];
+
+  function readEloWakeAliasForRouting_(message) {
+    const text = normalizeEloSubmittedTextForRouting_(message);
+    const normalized = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    for (let index = 0; index < ELO_WAKE_ALIASES_.length; index += 1) {
+      const alias = ELO_WAKE_ALIASES_[index];
+      const normalizedAlias = normalizeText(alias).replace(/\s+/g, " ").trim();
+      if (normalized === normalizedAlias) return { alias: alias, rest: "", matched: true };
+      if (normalized.indexOf(normalizedAlias + " ") === 0) {
+        return { alias: alias, rest: text.slice(normalizedAlias.length).trim(), matched: true };
       }
-      const playFn = typeof media.playTrack === "function" ? media.playTrack : media.play;
-      return playFn.call(media, resolved.track, { mount: mediaMessage, track: resolved.track }).then(function (result) {
-        updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta." : "Tocando " + resolved.track.title + ".");
-      });
-    }).catch(function () {
-      updateEloMessage_(mediaMessage, "Não consegui localizar essa música agora.");
+    }
+    return { alias: "", rest: text, matched: false };
+  }
+
+  function stripEloWakePrefixForRouting_(message) {
+    return readEloWakeAliasForRouting_(message).rest
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeEloRoutingLogText_(message) {
+    return normalizeText(message || "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function scoreEloMusicVerb_(value) {
+    const verb = normalizeEloMusicQueryText_(value).split(" ")[0] || "";
+    if (!verb) return 0;
+    const verbs = ["toque", "toca", "tocar", "coloque", "coloca", "poe", "ponha", "bota", "reproduza", "play"];
+    return verbs.reduce(function (best, candidate) {
+      return Math.max(best, similarityEloMusic_(verb, candidate), similarityEloMusic_(phoneticEloMusic_(verb), phoneticEloMusic_(candidate)));
+    }, 0);
+  }
+
+  function normalizeEloMusicVerbAlias_(value) {
+    const verb = normalizeText(value || "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().split(" ")[0] || "";
+    if (!verb) return null;
+    if (ELO_MUSIC_VERB_ALIASES_.indexOf(verb) >= 0) {
+      return { verb: verb, canonical: "toque", alias: verb !== "toque" && verb !== "toca" && verb !== "tocar", exact: true };
+    }
+    return null;
+  }
+
+  function getEloMusicCatalogCandidateForIntent_(query) {
+    const candidates = getEloMusicStaticCandidates_().filter(function (candidate) {
+      return (candidate.source === "catalog" || candidate.source === "elo-music-catalog") && candidate.videoId && candidate.playable === true && candidate.embeddable === true;
+    });
+    const decision = chooseEloMusicCandidate_(query, candidates);
+    return decision && decision.best ? { decision: decision, candidate: decision.best.candidate, score: decision.best.combinedScore } : null;
+  }
+
+  function parseEloMusicPlayIntent_(message) {
+    const wake = readEloWakeAliasForRouting_(message);
+    const routeText = wake.rest.replace(/\s+/g, " ").trim();
+    const exact = routeText.match(/^(\S+)\s+(.+)$/i);
+    const verbAlias = exact ? normalizeEloMusicVerbAlias_(exact[1]) : null;
+    if (verbAlias) {
+      const query = normalizeEloMusicQueryText_(exact[2]);
+      if (!query) return null;
+      if (wake.matched) logEloMusicEvent_("WAKE_ALIAS_MATCH", { alias: wake.alias, routeText: routeText });
+      logEloMusicEvent_("MUSIC_VERB_ALIAS", { verb: sanitizeUserText(exact[1]), canonical: verbAlias.canonical, alias: verbAlias.alias });
+      logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: sanitizeUserText(exact[1]), score: 1, exact: true, alias: verbAlias.alias });
+      logEloMusicEvent_("MUSIC_QUERY", { query: query, rawQuery: sanitizeUserText(exact[2]).trim() });
+      const catalogMatch = getEloMusicCatalogCandidateForIntent_(query);
+      logEloMusicEvent_("CATALOG_CANDIDATE", { query: query, label: catalogMatch && getEloMusicCandidateLabel_(catalogMatch.candidate), combinedScore: catalogMatch && catalogMatch.score });
+      logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: (wake.matched && wake.alias !== "elo") || verbAlias.alias, query: query });
+      return { intent: "PLAY", rawQuery: sanitizeUserText(exact[2]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: (wake.matched && wake.alias !== "elo") || verbAlias.alias, wakeAlias: wake.alias, verbAlias: verbAlias.verb };
+    }
+    const exactLegacy = routeText.match(/^(?:coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play)\s+(.+)$/i);
+    if (exactLegacy) {
+      const query = normalizeEloMusicQueryText_(exactLegacy[1]);
+      if (!query) return null;
+      logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: routeText.split(/\s+/)[0] || "", score: 1, exact: true });
+      logEloMusicEvent_("MUSIC_QUERY", { query: query, rawQuery: sanitizeUserText(exactLegacy[1]).trim() });
+      logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: false, query: query });
+      return { intent: "PLAY", rawQuery: sanitizeUserText(exactLegacy[1]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: false };
+    }
+    const loose = routeText.match(/^(\S+)\s+(.+)$/i);
+    if (!loose) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "no_music_verb" });
+      return null;
+    }
+    const verbScore = scoreEloMusicVerb_(loose[1]);
+    logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: sanitizeUserText(loose[1]), score: verbScore, exact: false });
+    if (verbScore < 0.58) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "weak_music_verb", verbScore: verbScore });
+      return null;
+    }
+    const query = normalizeEloMusicQueryText_(loose[2]);
+    if (!query) return null;
+    const catalogMatch = getEloMusicCatalogCandidateForIntent_(query);
+    logEloMusicEvent_("CATALOG_CANDIDATE", { query: query, label: catalogMatch && getEloMusicCandidateLabel_(catalogMatch.candidate), combinedScore: catalogMatch && catalogMatch.score });
+    const validatedCatalogHit = catalogMatch && catalogMatch.candidate && catalogMatch.candidate.videoId && catalogMatch.candidate.playable === true && catalogMatch.candidate.embeddable === true;
+    const recoveryThreshold = validatedCatalogHit ? 0.7 : ELO_MUSIC_AUTO_THRESHOLD;
+    if (!catalogMatch || catalogMatch.score < recoveryThreshold) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "weak_catalog_candidate", verbScore: verbScore, combinedScore: catalogMatch && catalogMatch.score, recoveryThreshold: recoveryThreshold });
+      return null;
+    }
+    logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: true, query: query, verbScore: verbScore, combinedScore: catalogMatch.score, candidate: getEloMusicCandidateLabel_(catalogMatch.candidate) });
+    return { intent: "PLAY", rawQuery: sanitizeUserText(loose[2]).trim(), query: query, routeText: routeText, verbScore: verbScore, recovered: true, catalogCandidate: catalogMatch.candidate };
+  }
+
+  function readEloMusicIndex_() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(ELO_MUSIC_INDEX_STORAGE_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeEloMusicIndex_(items) {
+    try {
+      window.localStorage.setItem(ELO_MUSIC_INDEX_STORAGE_KEY, JSON.stringify((items || []).slice(-80)));
+    } catch (error) {}
+  }
+
+  function getEloMusicCandidateLabel_(candidate) {
+    const title = sanitizeUserText(candidate && (candidate.title || candidate.name || candidate.track || candidate.label || candidate.query || "")).trim();
+    const artist = sanitizeUserText(candidate && (candidate.artist || candidate.author || candidate.channel || candidate.creator || "")).trim();
+    return sanitizeUserText(title + (artist ? " - " + artist : "")).trim();
+  }
+
+  function normalizeEloMusicCandidate_(candidate, source) {
+    if (!candidate) return null;
+    if (typeof candidate === "string") candidate = { title: candidate };
+    const label = getEloMusicCandidateLabel_(candidate);
+    if (!label) return null;
+    return Object.assign({}, candidate, {
+      title: sanitizeUserText(candidate.title || candidate.name || candidate.track || candidate.label || label).trim(),
+      artist: sanitizeUserText(candidate.artist || candidate.author || candidate.channel || candidate.creator || "").trim(),
+      normalizedTitle: normalizeEloMusicQueryText_(candidate.normalizedTitle || candidate.title || candidate.name || candidate.track || candidate.label || label),
+      normalizedLabel: normalizeEloMusicQueryText_(candidate.normalizedLabel || label),
+      source: candidate.source || source || "resolver"
     });
   }
 
-  function getEloMediaIntentGlobal_(question) {
-    const text = normalizeText(question || "");
-    const mentionsMusic = /\b(musica|música|som|audio|áudio)\b/.test(text);
-    if (/\b(pause|pausa|pausar)\b/.test(text) && mentionsMusic) return { type: "pause" };
-    if (/\b(continue|continuar|retome|retomar)\b/.test(text) && mentionsMusic) return { type: "resume" };
-    if (/\b(pare|parar|stop)\b/.test(text) && mentionsMusic) return { type: "stop" };
-    return getEloMediaPlayIntent_(question);
+  function collectEloMusicArray_(value, source) {
+    if (!value) return [];
+    const raw = Array.isArray(value) ? value : Array.isArray(value.results) ? value.results : Array.isArray(value.candidates) ? value.candidates : Array.isArray(value.items) ? value.items : [value];
+    return raw.map(function (item) { return normalizeEloMusicCandidate_(item, source); }).filter(Boolean);
   }
 
-  function tryHandleEloMediaCommand_(question, attachments) {
-    const intent = getEloMediaIntentGlobal_(question);
-    if (!intent || (attachments && attachments.length)) return false;
-    const media = window.EloMedia;
-    appendMessage("user", question);
-    if (ELO_UI.input) {
-      ELO_UI.input.value = "";
-      refreshEloInputHeight_();
-    }
-    if (!media) {
-      appendMessage("assistant", "Não consegui carregar o player de música agora.", { messageType: "media_status", suppressTts: true });
-      return true;
-    }
-    if (intent.type === "pause") {
-      if (typeof media.pause === "function") media.pause();
-      appendMessage("assistant", "Música pausada.", { messageType: "media_status", suppressTts: true });
-      return true;
-    }
-    if (intent.type === "resume") {
-      if (typeof media.resume === "function") media.resume();
-      appendMessage("assistant", "Continuando a música.", { messageType: "media_status", suppressTts: true });
-      return true;
-    }
-    if (intent.type === "stop") {
-      if (typeof media.stop === "function") media.stop();
-      appendMessage("assistant", "Música parada.", { messageType: "media_status", suppressTts: true });
-      return true;
-    }
-    if (intent.type === "play") {
-      const mediaMessage = appendMessage("assistant", "Localizando música...", { messageType: "media_status", suppressTts: true });
-      runEloMediaResolvedPlay_(media, question, mediaMessage);
-      return true;
-    }
-    return false;
+  function getEloMusicStaticCandidates_() {
+    const local = readEloMusicIndex_().map(function (item) { return normalizeEloMusicCandidate_(item, "local_index"); }).filter(Boolean);
+    const catalog = [];
+    [window.EloMusicCatalog, window.ELO_MUSIC_CATALOG, window.EloMusicLibrary].forEach(function (source) {
+      if (!source) return;
+      catalog.push.apply(catalog, collectEloMusicArray_(Array.isArray(source) ? source : source.items || source.candidates || source.tracks, "catalog"));
+    });
+    const bootstrap = ELO_MUSIC_BOOTSTRAP_CANDIDATES_.map(function (item) { return normalizeEloMusicCandidate_(item, "bootstrap"); }).filter(Boolean);
+    return catalog.concat(local, bootstrap);
   }
 
-  function askElo(question, attachments) {
+  function getEloMusicResolver_() {
+    return window.EloMusicResolver || window.ELO_MUSIC_RESOLVER || window.EloMediaResolver || null;
+  }
+
+  function withEloMusicTimeout_(promise) {
+    return new Promise(function (resolve) {
+      let finished = false;
+      const timer = window.setTimeout(function () {
+        if (finished) return;
+        finished = true;
+        resolve({ timeout: true, candidates: [] });
+      }, ELO_MUSIC_RESOLVE_TIMEOUT_MS);
+      Promise.resolve(promise).then(function (value) {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        resolve({ timeout: false, candidates: collectEloMusicArray_(value, "resolver") });
+      }).catch(function (error) {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        resolve({ timeout: false, error: error, candidates: [] });
+      });
+    });
+  }
+
+  function requestEloMusicCandidates_(query) {
+    const resolver = getEloMusicResolver_();
+    const staticCandidates = getEloMusicStaticCandidates_();
+
+    function requestResolverCandidates() {
+      if (!resolver) return Promise.resolve(staticCandidates);
+      const methods = ["resolve", "search", "find", "getCandidates", "query"];
+      for (let index = 0; index < methods.length; index += 1) {
+        const method = methods[index];
+        if (typeof resolver[method] === "function") {
+          try {
+            const value = resolver[method](query, { intent: "PLAY" });
+            if (!value || typeof value.then !== "function") return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(value, "resolver")));
+            return withEloMusicTimeout_(value).then(function (result) {
+              if (result.timeout) logEloMusicEvent_("MUSIC_DECISION", { decision: "ERROR", reason: "resolver_timeout" });
+              return staticCandidates.concat(result.candidates || []);
+            });
+          } catch (error) {
+            return Promise.resolve(staticCandidates);
+          }
+        }
+      }
+      return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(resolver.candidates || resolver.items || resolver.tracks, "resolver")));
+    }
+
+    const offlineLibrary = window.EloOfflineMediaLibrary;
+    if (offlineLibrary && typeof offlineLibrary.find === "function") {
+      const ready = typeof offlineLibrary.init === "function" ? offlineLibrary.init() : Promise.resolve();
+      return Promise.resolve(ready).then(function () {
+        const local = offlineLibrary.find(query);
+        if (local) return collectEloMusicArray_(local, "LOCAL_CLASSICAL").concat(staticCandidates);
+        if (!isEloOnline_()) {
+          logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+          return staticCandidates;
+        }
+        return requestResolverCandidates();
+      }).catch(function () {
+        if (!isEloOnline_()) {
+          logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+          return staticCandidates;
+        }
+        return requestResolverCandidates();
+      });
+    }
+
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+      return Promise.resolve(staticCandidates);
+    }
+    return requestResolverCandidates();
+  }
+
+  function levenshteinEloMusic_(a, b) {
+    a = String(a || "");
+    b = String(b || "");
+    if (a === b) return 0;
+    if (!a) return b.length;
+    if (!b) return a.length;
+    const row = [];
+    for (let i = 0; i <= b.length; i += 1) row[i] = i;
+    for (let i = 1; i <= a.length; i += 1) {
+      let previous = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j += 1) {
+        const temp = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = temp;
+      }
+    }
+    return row[b.length];
+  }
+
+  function similarityEloMusic_(a, b) {
+    a = String(a || "");
+    b = String(b || "");
+    const max = Math.max(a.length, b.length, 1);
+    return Math.max(0, 1 - (levenshteinEloMusic_(a, b) / max));
+  }
+
+  function tokensEloMusic_(text) {
+    return normalizeEloMusicQueryText_(text).split(" ").filter(function (item) { return item.length > 1; });
+  }
+
+  function tokenScoreEloMusic_(query, candidate) {
+    const queryTokens = tokensEloMusic_(query);
+    const candidateTokens = tokensEloMusic_(candidate);
+    if (!queryTokens.length || !candidateTokens.length) return 0;
+    let score = 0;
+    queryTokens.forEach(function (queryToken, index) {
+      let best = 0;
+      candidateTokens.forEach(function (candidateToken, candidateIndex) {
+        let current = similarityEloMusic_(queryToken, candidateToken);
+        if (queryToken[0] && candidateToken[0] && queryToken[0] === candidateToken[0]) current += 0.04;
+        if (index === candidateIndex) current += 0.04;
+        best = Math.max(best, Math.min(1, current));
+      });
+      score += best;
+    });
+    return Math.min(1, score / Math.max(queryTokens.length, candidateTokens.length));
+  }
+
+  function stableTokenScoreEloMusic_(query, candidate) {
+    const queryTokens = tokensEloMusic_(query);
+    const candidateTokens = tokensEloMusic_(candidate);
+    if (!queryTokens.length || !candidateTokens.length) return 0;
+    const candidateSet = new Set(candidateTokens);
+    const shared = queryTokens.filter(function (token) { return candidateSet.has(token); }).length;
+    return Math.min(1, shared / Math.max(1, Math.min(queryTokens.length, candidateTokens.length)));
+  }
+  function phoneticEloMusic_(text) {
+    return normalizeEloMusicQueryText_(text)
+      .replace(/ph/g, "f")
+      .replace(/ght/g, "t")
+      .replace(/ck/g, "k")
+      .replace(/qu/g, "k")
+      .replace(/[ckq]/g, "k")
+      .replace(/ch|sh/g, "x")
+      .replace(/lh/g, "li")
+      .replace(/nh/g, "ni")
+      .replace(/ç/g, "s")
+      .replace(/ce|ci/g, "se")
+      .replace(/ss/g, "s")
+      .replace(/z/g, "s")
+      .replace(/ge|gi|j/g, "x")
+      .replace(/y/g, "i")
+      .replace(/w/g, "u")
+      .replace(/th/g, "t")
+      .replace(/oo/g, "u")
+      .replace(/ou/g, "u")
+      .replace(/ee/g, "i")
+      .replace(/g/g, "x")
+      .replace(/(.)\1+/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function scoreEloMusicCandidate_(query, candidate) {
+    const normalizedQuery = normalizeEloMusicQueryText_(query);
+    const label = candidate.normalizedLabel || normalizeEloMusicQueryText_(getEloMusicCandidateLabel_(candidate));
+    const title = candidate.normalizedTitle || label;
+    const aliases = Array.isArray(candidate.aliases) ? candidate.aliases.map(normalizeEloMusicQueryText_).filter(Boolean) : [];
+    const scoreTexts = [label, title].concat(aliases);
+    const bestText = scoreTexts.reduce(function (best, item) { return Math.max(best, similarityEloMusic_(normalizedQuery, item)); }, 0);
+    const tokenScore = scoreTexts.reduce(function (best, item) { return Math.max(best, tokenScoreEloMusic_(normalizedQuery, item)); }, 0);
+    const stableTokenScore = scoreTexts.reduce(function (best, item) { return Math.max(best, stableTokenScoreEloMusic_(normalizedQuery, item)); }, 0);
+    const phoneticQuery = phoneticEloMusic_(normalizedQuery);
+    const phoneticScore = scoreTexts.reduce(function (best, item) { return Math.max(best, similarityEloMusic_(phoneticQuery, phoneticEloMusic_(item))); }, 0);
+    const contextScore = candidate.source === "LOCAL_CLASSICAL" ? 0.12 : candidate.source === "local_index" ? 0.08 : candidate.source === "resolver" ? 0.06 : candidate.source === "bootstrap" ? 0.04 : 0.03;
+    const relevance = Math.max(0, Math.min(1, Number(candidate.relevance || candidate.score || candidate.popularity || 0))) * 0.06;
+    const combinedScore = Math.min(1, bestText * 0.28 + tokenScore * 0.28 + phoneticScore * 0.20 + stableTokenScore * 0.18 + contextScore + relevance);
+    return { candidate: candidate, textualScore: bestText, tokenScore: tokenScore, stableTokenScore: stableTokenScore, phoneticScore: phoneticScore, combinedScore: combinedScore };
+  }
+
+  function chooseEloMusicCandidate_(query, candidates) {
+    const unique = [];
+    const seen = new Set();
+    (candidates || []).forEach(function (candidate) {
+      const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+      if (!normalized) return;
+      const keys = [normalized.normalizedLabel, normalized.normalizedTitle, normalized.id, normalized.url, getEloMusicCandidateLabel_(normalized)]
+        .map(function (key) { return String(key || '').toLowerCase().trim(); })
+        .filter(Boolean);
+      if (keys.some(function (key) { return seen.has(key); })) return;
+      keys.forEach(function (key) { seen.add(key); });
+      unique.push(normalized);
+    });
+    logEloMusicEvent_("MUSIC_CANDIDATE_COUNT", { count: unique.length });
+    logEloMusicEvent_("CANDIDATES", { items: unique.slice(0, 12).map(function (candidate) { return { label: getEloMusicCandidateLabel_(candidate), source: candidate.source }; }) });
+    const scored = unique.map(function (candidate) {
+      const score = scoreEloMusicCandidate_(query, candidate);
+      logEloMusicEvent_("MUSIC_CANDIDATE", { label: getEloMusicCandidateLabel_(candidate), source: candidate.source });
+      logEloMusicEvent_("TEXT_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.textualScore });
+      logEloMusicEvent_("TOKEN_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.tokenScore });
+      logEloMusicEvent_("PHONETIC_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.phoneticScore });
+      logEloMusicEvent_("COMBINED_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.combinedScore });
+      return score;
+    }).sort(function (a, b) { return b.combinedScore - a.combinedScore; });
+    logEloMusicEvent_("THRESHOLD_AUTO", { value: ELO_MUSIC_AUTO_THRESHOLD, veryHigh: ELO_MUSIC_VERY_HIGH_THRESHOLD });
+    logEloMusicEvent_("THRESHOLD_CONFIRM", { value: ELO_MUSIC_CONFIRM_THRESHOLD });
+    const best = scored[0];
+    if (!best || best.combinedScore < ELO_MUSIC_CONFIRM_THRESHOLD) return { decision: "NO_MATCH", scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    const normalizedQuery = normalizeEloMusicQueryText_(query);
+    const exact = normalizedQuery === best.candidate.normalizedTitle || normalizedQuery === best.candidate.normalizedLabel;
+    const second = scored[1] || null;
+    const scoreGap = second ? best.combinedScore - second.combinedScore : 1;
+    const dominant = best.combinedScore >= ELO_MUSIC_AUTO_THRESHOLD && scoreGap >= 0.12;
+    if (exact) return { decision: "EXACT", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.combinedScore >= ELO_MUSIC_VERY_HIGH_THRESHOLD || dominant) return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.combinedScore >= ELO_MUSIC_AUTO_THRESHOLD && scoreGap >= 0.06 && best.stableTokenScore >= 0.5) return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.candidate && best.candidate.videoId && best.candidate.playable === true && best.candidate.embeddable === true && best.combinedScore >= 0.7 && scoreGap >= 0.12) {
+      return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD, validatedCatalogAuto: 0.7 } };
+    }
+    return { decision: "ASK_CONFIRMATION", best: best, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+  }
+
+  function rememberEloMusicCandidate_(candidate, alias) {
+    const normalized = normalizeEloMusicCandidate_(candidate, "local_index");
+    if (!normalized) return;
+    const index = readEloMusicIndex_().filter(function (item) {
+      return normalizeEloMusicQueryText_(getEloMusicCandidateLabel_(item)) !== normalized.normalizedLabel;
+    });
+    normalized.aliases = Array.from(new Set([].concat(normalized.aliases || [], alias ? [normalizeEloMusicQueryText_(alias)] : []))).filter(Boolean).slice(-12);
+    index.push({ title: normalized.title, artist: normalized.artist, id: normalized.id, url: normalized.url, normalizedTitle: normalized.normalizedTitle, normalizedLabel: normalized.normalizedLabel, aliases: normalized.aliases, source: "local_index" });
+    writeEloMusicIndex_(index);
+  }
+
+  function setEloMusicPendingCandidate_(candidate, query) {
+    ELO_MUSIC_PENDING_CANDIDATE_ = candidate ? { candidate: candidate, query: query, expiresAt: Date.now() + ELO_MUSIC_PENDING_CONFIRMATION_MS } : null;
+  }
+
+  function getEloMusicPendingCandidate_() {
+    if (!ELO_MUSIC_PENDING_CANDIDATE_) return null;
+    if (Date.now() > ELO_MUSIC_PENDING_CANDIDATE_.expiresAt) {
+      ELO_MUSIC_PENDING_CANDIDATE_ = null;
+      return null;
+    }
+    return ELO_MUSIC_PENDING_CANDIDATE_;
+  }
+
+  function isEloMusicConfirmationYes_(message) {
+    return /^(?:sim|isso|essa|esse|pode tocar|e essa|é essa|correto|confirma|confirmo|toca|toque)$/i.test(normalizeText(message || "").trim());
+  }
+
+  function isEloMusicConfirmationNo_(message) {
+    return /^(?:nao|não|nao e essa|não é essa|outra|outro|errou)$/i.test(normalizeText(message || "").trim());
+  }
+
+  function callEloMusicPlayHandler_(resolver, candidate, query) {
+    const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+    if (!normalized) return Promise.resolve(false);
+    const methods = resolver ? ["play", "playCandidate", "execute", "select"] : [];
+    for (let index = 0; index < methods.length; index += 1) {
+      const method = methods[index];
+      if (typeof resolver[method] === "function") {
+        logEloMusicEvent_("MUSIC_PLAYER_START", { handler: method, candidate: getEloMusicCandidateLabel_(normalized) });
+        return Promise.resolve(resolver[method](normalized, { query: query, intent: "PLAY" })).then(function (result) {
+          rememberEloMusicCandidate_(normalized, query);
+          return result === false ? false : true;
+        });
+      }
+    }
+    if (typeof normalized.play === "function") {
+      logEloMusicEvent_("MUSIC_PLAYER_START", { handler: "candidate.play", candidate: getEloMusicCandidateLabel_(normalized) });
+      return Promise.resolve(normalized.play()).then(function (result) {
+        rememberEloMusicCandidate_(normalized, query);
+        return result === false ? false : true;
+      });
+    }
+    return Promise.resolve(false);
+  }
+
+  function resolveEloMusicCorrectedCandidate_(resolver, candidate, query) {
+    const correctedQuery = sanitizeUserText((candidate && (candidate.title || candidate.name || candidate.track || candidate.label)) || getEloMusicCandidateLabel_(candidate)).trim();
+    if (!resolver || !correctedQuery) return Promise.resolve(null);
+    const methods = ["resolve", "search", "find", "getCandidates", "query"];
+    for (let index = 0; index < methods.length; index += 1) {
+      const method = methods[index];
+      if (typeof resolver[method] === "function") {
+        logEloMusicEvent_("MUSIC_RESOLVER_START", { handler: method, query: correctedQuery, originalQuery: query });
+        try {
+          const value = resolver[method](correctedQuery, { intent: "PLAY", correctedFrom: query, candidate: candidate });
+          return Promise.resolve(value).then(function (result) {
+            const candidates = collectEloMusicArray_(result, "resolver");
+            const resolvedChoice = candidates.length > 1 ? chooseEloMusicCandidate_(correctedQuery, candidates) : null;
+            const resolved = resolvedChoice && resolvedChoice.decision !== "NO_MATCH" && resolvedChoice.best ? resolvedChoice.best.candidate : candidates[0] || normalizeEloMusicCandidate_(result, "resolver");
+            logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: candidates.length || (resolved ? 1 : 0), candidate: resolved && getEloMusicCandidateLabel_(resolved) });
+            return resolved || null;
+          }).catch(function (error) {
+            logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: 0, error: sanitizeUserText(error && error.message).slice(0, 120) });
+            return null;
+          });
+        } catch (error) {
+          logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: 0, error: sanitizeUserText(error && error.message).slice(0, 120) });
+          return Promise.resolve(null);
+        }
+      }
+    }
+    return Promise.resolve(null);
+  }
+
+  function executeEloMusicCandidate_(candidate, query, options) {
+    const resolver = getEloMusicResolver_();
+    const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+    if (!normalized) return Promise.resolve(false);
+    if (!isEloOnline_() && normalized.source !== "LOCAL_CLASSICAL") {
+      logEloMusicEvent_("MUSIC_OFFLINE_BLOCKED", { query: query, candidate: getEloMusicCandidateLabel_(normalized), status: normalized.validationStatus || "" });
+      return Promise.resolve(false);
+    }
+    logEloMusicEvent_("MUSIC_EXECUTE_START", { query: query, candidate: getEloMusicCandidateLabel_(normalized), source: normalized.source });
+    const needsRealResolution = options && options.forceResolve === true || normalized.source === "bootstrap" || normalized.source === "local_index" || normalized.source === "catalog" || normalized.source === "elo-music-catalog" || !normalized.videoId || /^known:/i.test(String(normalized.id || ""));
+    if (needsRealResolution) {
+      return resolveEloMusicCorrectedCandidate_(resolver, normalized, query).then(function (resolvedCandidate) {
+        if (!resolvedCandidate) return false;
+        return callEloMusicPlayHandler_(resolver, resolvedCandidate, query);
+      });
+    }
+    return callEloMusicPlayHandler_(resolver, normalized, query).then(function (executed) {
+      if (executed) return true;
+      return resolveEloMusicCorrectedCandidate_(resolver, normalized, query).then(function (resolvedCandidate) {
+        if (!resolvedCandidate) return false;
+        return callEloMusicPlayHandler_(resolver, resolvedCandidate, query);
+      });
+    });
+  }
+
+  function buildEloMusicNotFoundAnswer_() {
+    return "Não consegui localizar essa música agora.";
+  }
+
+  function handleEloMusicConfirmation_(message, options) {
+    const pending = getEloMusicPendingCandidate_();
+    if (!pending) return Promise.resolve({ handled: false });
+    if (isEloMusicConfirmationNo_(message)) {
+      setEloMusicPendingCandidate_(null);
+      if (options && options.append) appendMessage("assistant", "Qual é o nome?");
+      return Promise.resolve({ handled: true, decision: "REJECTED" });
+    }
+    if (!isEloMusicConfirmationYes_(message)) return Promise.resolve({ handled: false });
+    setEloMusicPendingCandidate_(null);
+    return executeEloMusicCandidate_(pending.candidate, pending.query).then(function (executed) {
+      if (options && options.append) appendMessage("assistant", executed ? "Tocando " + getEloMusicCandidateLabel_(pending.candidate) + "." : buildEloMusicNotFoundAnswer_());
+      return { handled: true, decision: executed ? "CONFIRMED" : "NO_HANDLER", candidate: pending.candidate };
+    });
+  }
+
+  function handleEloMusicQuery_(message, options) {
+    return handleEloMusicConfirmation_(message, options).then(function (confirmation) {
+      if (confirmation.handled) return confirmation;
+      const parsed = parseEloMusicPlayIntent_(message);
+      if (!parsed) { logEloMusicEvent_("CHAT_FALLTHROUGH", { music: false }); return { handled: false, decision: null }; }
+      logEloMusicEvent_("MUSIC_QUERY_RAW", { query: parsed.rawQuery });
+      logEloMusicEvent_("MUSIC_QUERY_NORMALIZED", { query: parsed.query });
+      logEloMusicEvent_("CHAT_FALLTHROUGH", { music: true, count: 0 });
+      return requestEloMusicCandidates_(parsed.query).then(function (candidates) {
+        const localCandidates = (candidates || []).filter(function (candidate) { return candidate && candidate.source === "LOCAL_CLASSICAL"; });
+        if (localCandidates.length) {
+          const localDecision = chooseEloMusicCandidate_(parsed.query, localCandidates);
+          logEloMusicEvent_("MUSIC_DECISION", { decision: localDecision.decision, query: parsed.query, candidate: localDecision.best && getEloMusicCandidateLabel_(localDecision.best.candidate), source: "LOCAL_CLASSICAL", score: localDecision.best && localDecision.best.combinedScore });
+          if (localDecision.best && localDecision.decision !== "NO_MATCH") {
+            return executeEloMusicCandidate_(localDecision.best.candidate, parsed.query, { forceResolve: false }).then(function (executed) {
+              if (options && options.append && executed) appendMessage("assistant", "Tocando " + getEloMusicCandidateLabel_(localDecision.best.candidate) + ".");
+              return { handled: true, decision: executed ? localDecision.decision : "NO_HANDLER", candidate: localDecision.best.candidate, score: localDecision.best.combinedScore };
+            });
+          }
+        }
+        const decision = chooseEloMusicCandidate_(parsed.query, candidates);
+        logEloMusicEvent_("MUSIC_DECISION", { decision: decision.decision, query: parsed.query, candidate: decision.best && getEloMusicCandidateLabel_(decision.best.candidate), score: decision.best && decision.best.combinedScore, scoreGap: decision.scoreGap, secondCandidate: decision.second && getEloMusicCandidateLabel_(decision.second.candidate), thresholdAuto: ELO_MUSIC_AUTO_THRESHOLD, thresholdConfirm: ELO_MUSIC_CONFIRM_THRESHOLD });
+        if (decision.decision === "NO_MATCH") {
+          if (options && options.append) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
+          return { handled: true, decision: "NO_MATCH", candidates: candidates };
+        }
+        if (!isEloOnline_() && decision.best && decision.best.candidate && decision.best.candidate.source !== "LOCAL_CLASSICAL") {
+          if (options && options.append) appendMessage("assistant", "Encontrei " + getEloMusicCandidateLabel_(decision.best.candidate) + ", mas preciso de conexão para reproduzir.");
+          logEloMusicEvent_("MUSIC_DECISION", { decision: "OFFLINE", query: parsed.query, candidate: getEloMusicCandidateLabel_(decision.best.candidate), status: decision.best.candidate.validationStatus || "" });
+          return { handled: true, decision: "OFFLINE", candidate: decision.best.candidate, score: decision.best.combinedScore, offline: true };
+        }
+        if (decision.decision === "ASK_CONFIRMATION") {
+          setEloMusicPendingCandidate_(decision.best.candidate, parsed.query);
+          if (options && options.append) appendMessage("assistant", "Você quis dizer " + getEloMusicCandidateLabel_(decision.best.candidate) + "?");
+          return { handled: true, decision: "ASK_CONFIRMATION", candidate: decision.best.candidate, score: decision.best.combinedScore };
+        }
+        return executeEloMusicCandidate_(decision.best.candidate, parsed.query, { forceResolve: decision.decision === "AUTO_CORRECTED" }).then(function (executed) {
+          if (options && options.append && !executed) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
+          return { handled: true, decision: executed ? decision.decision : "NO_HANDLER", candidate: decision.best.candidate, score: decision.best.combinedScore };
+        });
+      });
+    });
+  }
+  const ELO_MEDIA_STATE_IDLE = "IDLE";
+  const ELO_MEDIA_STATE_PLAYING = "PLAYING";
+  const ELO_MEDIA_STATE_PAUSED = "PAUSED";
+  const ELO_MEDIA_STATE_BUFFERING = "BUFFERING";
+  const ELO_MEDIA_STATE_ERROR = "MEDIA_ERROR";
+  const ELO_MEDIA_STATE_UNKNOWN = "UNKNOWN";
+  let ELO_MEDIA_PLAYER_SOURCE_ = window.EloMediaPlayer && window.EloMediaPlayer.__eloControlBridgeApi !== true ? window.EloMediaPlayer : null;
+
+  function normalizeEloMediaState_(value) {
+    const text = String(value || "").toUpperCase();
+    if (/^(PLAYING|PLAY|1)$/.test(text)) return ELO_MEDIA_STATE_PLAYING;
+    if (/^(BUFFERING|BUFFER|3)$/.test(text)) return ELO_MEDIA_STATE_BUFFERING;
+    if (/^(MEDIA_ERROR|ERROR|-1)$/.test(text)) return ELO_MEDIA_STATE_ERROR;
+    if (/^(PAUSED|PAUSE|2)$/.test(text)) return ELO_MEDIA_STATE_PAUSED;
+    if (/^(IDLE|STOPPED|STOP|ENDED|0)$/.test(text)) return ELO_MEDIA_STATE_IDLE;
+    return ELO_MEDIA_STATE_UNKNOWN;
+  }
+
+  function logEloMediaEvent_(name, payload) {
+    try {
+      if (window.console && typeof window.console.info === "function") window.console.info(name, payload || {});
+    } catch (error) {}
+  }
+
+  function readEloExistingMediaState_() {
+    const source = ELO_MEDIA_PLAYER_SOURCE_;
+    if (source) {
+      try {
+        if (typeof source.getState === "function") return normalizeEloMediaState_(source.getState());
+        if (typeof source.isPlaying === "function" && source.isPlaying()) return ELO_MEDIA_STATE_PLAYING;
+        if (typeof source.isPaused === "function" && source.isPaused()) return ELO_MEDIA_STATE_PAUSED;
+        const sourceState = normalizeEloMediaState_(source.state || source.status);
+        if (sourceState !== ELO_MEDIA_STATE_UNKNOWN) return sourceState;
+      } catch (error) {}
+    }
+    if (document && document.body) {
+      const bodyState = normalizeEloMediaState_(document.body.dataset.eloMediaState || document.body.dataset.mediaState);
+      if (bodyState !== ELO_MEDIA_STATE_UNKNOWN) return bodyState;
+    }
+    return ELO_MEDIA_STATE_UNKNOWN;
+  }
+
+  function getEloMediaControlText_(element) {
+    if (!element) return "";
+    return normalizeEloMediaCommandText_([
+      element.textContent,
+      element.getAttribute && element.getAttribute("aria-label"),
+      element.getAttribute && element.getAttribute("title"),
+      element.dataset && (element.dataset.eloMediaAction || element.dataset.mediaAction || element.dataset.action)
+    ].filter(Boolean).join(" "));
+  }
+
+  function isEloMediaControlVisible_(element) {
+    if (!element || element.disabled || element.getAttribute && element.getAttribute("aria-disabled") === "true") return false;
+    if (element.hidden) return false;
+    const style = element.style || {};
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function scoreEloMediaControl_(element, action) {
+    const text = getEloMediaControlText_(element);
+    const dataAction = normalizeEloMediaCommandText_(element && element.dataset && (element.dataset.eloMediaAction || element.dataset.mediaAction || element.dataset.action));
+    const expected = action === "resume" ? ["continuar", "continue", "retomar", "retome"] :
+      action === "pause" ? ["pausar", "pause", "pausa"] :
+        action === "stop" ? ["parar", "pare", "stop"] :
+          ["tocar", "play"];
+    if (dataAction === action || (action === "resume" && dataAction === "continue")) return 100;
+    for (let index = 0; index < expected.length; index += 1) {
+      if (text === expected[index]) return 90;
+      if (text.indexOf(expected[index]) >= 0) return 60;
+    }
+    if ((action === "play" || action === "resume") && /(?:^|\s)(?:▶|play)(?:\s|$)/.test(text)) return 50;
+    if (action === "pause" && /(?:Ⅱ|\|\||pause)/.test(text)) return 50;
+    if (action === "stop" && /(?:■|stop)/.test(text)) return 50;
+    return 0;
+  }
+
+  function findEloMediaControl_(action) {
+    if (!document || typeof document.querySelectorAll !== "function") return null;
+    const controls = Array.prototype.slice.call(document.querySelectorAll("button,[role='button'],[data-elo-media-action],[data-media-action],[data-action]"));
+    let best = null;
+    let bestScore = 0;
+    controls.forEach(function (control) {
+      if (!isEloMediaControlVisible_(control)) return;
+      const score = scoreEloMediaControl_(control, action);
+      if (score > bestScore) {
+        best = control;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
+  function describeEloMediaHandler_(control) {
+    if (!control) return "none";
+    if (typeof control.onclick === "function") return "button.onclick";
+    return "button.click";
+  }
+
+  function executeEloMediaControl_(action) {
+    const control = findEloMediaControl_(action);
+    const handler = describeEloMediaHandler_(control);
+    logEloMediaEvent_("MEDIA_HANDLER_SELECTED", { action: action, handler: handler });
+    if (!control) {
+      const source = ELO_MEDIA_PLAYER_SOURCE_;
+      const sourceMethod = action === "resume" ? "resume" : action;
+      if (source && typeof source[sourceMethod] === "function") {
+        try {
+          const result = source[sourceMethod]();
+          return { executed: result === false ? false : true, handler: "source." + sourceMethod, state: readEloExistingMediaState_() };
+        } catch (error) {
+          logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: false, error: sanitizeUserText(error && error.message).slice(0, 120) });
+        }
+      }
+      return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+    }
+    try {
+      if (typeof control.onclick === "function") control.onclick.call(control);
+      else if (typeof control.click === "function") control.click();
+      else return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+      return { executed: true, handler: handler, state: readEloExistingMediaState_() };
+    } catch (error) {
+      logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: false, error: sanitizeUserText(error && error.message).slice(0, 120) });
+      return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+    }
+  }
+
+  function ensureEloMediaPlayerApi_() {
+    const current = window.EloMediaPlayer;
+    if (current && current.__eloControlBridgeApi === true) return current;
+    if (current && current.__eloControlBridgeApi !== true) ELO_MEDIA_PLAYER_SOURCE_ = current;
+    const api = {
+      __eloControlBridgeApi: true,
+      getSource: function () { return ELO_MEDIA_PLAYER_SOURCE_; },
+      getState: readEloExistingMediaState_,
+      isActive: function () {
+        const state = readEloExistingMediaState_();
+        return state === ELO_MEDIA_STATE_PLAYING || state === ELO_MEDIA_STATE_PAUSED || state === ELO_MEDIA_STATE_BUFFERING || !!(findEloMediaControl_("pause") || findEloMediaControl_("resume") || findEloMediaControl_("stop") || findEloMediaControl_("play"));
+      },
+      play: function () { return executeEloMediaControl_("play"); },
+      pause: function () { return executeEloMediaControl_("pause"); },
+      resume: function () { return executeEloMediaControl_("resume"); },
+      stop: function () { return executeEloMediaControl_("stop"); }
+    };
+    window.EloMediaPlayer = api;
+    return api;
+  }
+
+  function normalizeEloMediaCommandText_(message) {
+    return normalizeText(message || "")
+      .replace(/[^a-z0-9+\s▶Ⅱ■]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^elo\s+/, "")
+      .trim();
+  }
+
+  function detectEloMediaCommandAction_(message) {
+    const text = normalizeEloMediaCommandText_(message);
+    if (!text) return null;
+    if (/^(?:pare temporariamente|para temporariamente|pare por enquanto|para por enquanto)$/.test(text)) return "pause";
+    if (/^(?:pause|pausa|pausar|da uma pausa|de uma pausa)$/.test(text)) return "pause";
+    if (/^(?:continue|continua|continuar|retome|retoma|volte|volta)$/.test(text)) return "resume";
+    if (/^(?:tocar|toca|toque)$/.test(text)) return "play";
+    if (/^(?:pare|para|parar|pare a musica|para a musica)$/.test(text)) return "stop";
+    return null;
+  }
+
+  function extractEloVisualMediaSubject_(message, type) {
+    let text = normalizeEloSocialFastPathText_(message);
+    if (!text) return "";
+    if (/^(?:renderize aqui|renderiza aqui|mostre aqui|mostrar aqui|abra aqui|abre aqui)$/.test(text)) {
+      return sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    }
+    text = text
+      .replace(/\b(?:me\s+)?(?:mostre|mostrar|ver|quero\s+ver|abra|abre|abrir|renderize|renderiza|mande|manda)\b/g, " ")
+      .replace(/\b(?:aqui|uma|um|de|da|do|foto|imagem|video|vídeo|player|renderizar|conteudo|conteúdo)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text && type === "image") text = sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    return sanitizeUserText(text).slice(0, 90);
+  }
+
+  function detectEloVisualMediaIntent_(message) {
+    const text = normalizeEloSocialFastPathText_(message);
+    if (!text) return null;
+    const wantsVideo = /\b(?:video|vídeo)\b/.test(text) && /\b(?:abra|abre|abrir|mostre|mostrar|quero ver|ver)\b/.test(text);
+    if (wantsVideo) {
+      const subject = extractEloVisualMediaSubject_(message, "video");
+      return subject ? { type: "video", subject: subject, intent: "VIDEO_SEARCH" } : null;
+    }
+    const wantsImage = /\b(?:imagem|foto)\b/.test(text) && /\b(?:mostre|mostrar|ver|quero ver|renderize|renderiza|abra|abre|abrir)\b/.test(text);
+    const wantsReferentRender = /^(?:renderize aqui|renderiza aqui|mostre aqui|mostrar aqui|abra aqui|abre aqui)$/.test(text) && sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    if (wantsImage || wantsReferentRender) {
+      const subject = extractEloVisualMediaSubject_(message, "image");
+      return subject ? { type: "image", subject: subject, intent: wantsReferentRender ? "VISUAL_REFERENT" : "IMAGE_INTENT" } : null;
+    }
+    return null;
+  }
+
+  function buildEloVisualMediaResponse_(message) {
+    const intent = detectEloVisualMediaIntent_(message);
+    if (!intent) return null;
+    const subject = intent.subject || "conteudo visual";
+    const encoded = encodeURIComponent(subject);
+    const media = intent.type === "video"
+      ? {
+        type: "video",
+        title: "Video: " + subject,
+        source: "YouTube",
+        src: "https://www.youtube.com/embed?listType=search&list=" + encoded,
+        href: "https://www.youtube.com/results?search_query=" + encoded
+      }
+      : {
+        type: "image",
+        title: "Imagem: " + subject,
+        source: "Unsplash",
+        src: "https://source.unsplash.com/900x620/?" + encoded,
+        fallbackSrc: "https://images.unsplash.com/photo-1583512603805-3cc6b41f3edb?auto=format&fit=crop&w=900&q=80"
+      };
+    ELO_UI.currentVisualSubject = subject;
+    ELO_UI.currentVisualMedia = media;
+    return {
+      shortAnswer: intent.type === "video" ? "Video carregado." : "Imagem carregada.",
+      fullAnswer: "",
+      nextAction: "",
+      canSave: false,
+      route: "local_media",
+      fastPath: intent.intent,
+      sessionTheme: "midia_inline",
+      sessionIntent: intent.type === "video" ? "video_search_inline" : "image_inline_render",
+      visualMedia: media,
+      skipLongTts: true
+    };
+  }
+
+  function handleEloVisualMediaRequest_(cleanQuestion) {
+    const startedAt = nowEloPerformance_();
+    const response = buildEloVisualMediaResponse_(cleanQuestion);
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    const answer = formatResponse(response);
+    appendAssistantMessage(cleanQuestion, answer, false, response);
+    saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
+    recordEloCoreReliabilityEvent_(response.fastPath || "media_inline", { subject: response.visualMedia && response.visualMedia.title, responseMs: Math.round(nowEloPerformance_() - startedAt) });
+    clearProductAttachmentPreview();
+    return true;
+  }
+
+  function handleEloMediaCommand_(message) {
+    logEloMediaEvent_("MEDIA_COMMAND_RAW", { message: sanitizeUserText(message).slice(0, 120) });
+    logEloMediaEvent_("MEDIA_COMMAND_NORMALIZED", { message: normalizeEloMediaCommandText_(message) });
+    const action = detectEloMediaCommandAction_(message);
+    if (!action) return { handled: false, action: null };
+    logEloMediaEvent_("MEDIA_COMMAND_ACTION", { action: action });
+    const player = ensureEloMediaPlayerApi_();
+    const stateBefore = player.getState();
+    logEloMediaEvent_("MEDIA_STATE_BEFORE", { action: action, state: stateBefore });
+    const mediaActive = player.isActive();
+    if (!mediaActive) {
+      logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "no_real_media_control", state: stateBefore });
+      return { handled: false, action: action, state: stateBefore };
+    }
+
+    const result = action === "pause" ? player.pause() :
+      action === "resume" ? player.resume() :
+        action === "play" ? player.play() :
+          player.stop();
+    logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: result.executed === true, handler: result.handler });
+    if (!result.executed) {
+      logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "handler_not_executed", state: result.state });
+      return { handled: false, action: action, state: result.state, handler: result.handler };
+    }
+    markEloInteraction_("elo:media:" + action);
+    logEloMediaEvent_("MEDIA_STATE_AFTER", { action: action, state: result.state });
+    logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: true, state: result.state, handler: result.handler });
+    return { handled: true, action: action, state: result.state, handler: result.handler };
+  }
+  function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
       return;
     }
+    stopEloSpeechOutput_();
     const attachedFiles = Array.prototype.slice.call(attachments || []);
-    if (tryHandleEloMediaCommand_(cleanQuestion, attachedFiles)) {
+    const submitSource = sanitizeUserText(source || ELO_UI.lastSubmitSource || "manual");
+    const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
+    const routeQuestion = stripEloWakePrefixForRouting_(cleanQuestion);
+    const musicIntent = parseEloMusicPlayIntent_(routeQuestion);
+    logEloMusicEvent_("SUBMIT_SOURCE", { source: submitSource });
+    logEloMusicEvent_("SUBMIT_NORMALIZED", { text: normalizeEloRoutingLogText_(normalizedSubmit) });
+    logEloMusicEvent_("WAKE_PREFIX_STRIPPED", { text: normalizeEloRoutingLogText_(routeQuestion) });
+    logEloMusicEvent_("ROUTER_ENTER", { source: submitSource, hasAttachments: attachedFiles.length > 0 });
+    logEloMusicEvent_("MUSIC_INTENT_MATCH", { matched: !!musicIntent, query: musicIntent && musicIntent.query });
+    if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
+      appendMessage("user", cleanQuestion);
+      handleEloMusicQuery_(routeQuestion, { append: true }).finally(function () {
+        clearProductAttachmentPreview();
+      });
+      return;
+    }
+    if (!attachedFiles.length && handleEloMediaCommand_(routeQuestion).handled) {
+      clearProductAttachmentPreview();
+      return;
+    }
+    if (!attachedFiles.length && handleEloVisualMediaRequest_(routeQuestion)) {
       return;
     }
     if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
@@ -26597,6 +28432,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const localStockReadonly = !attachedFiles.length ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
     if (localStockReadonly) {
       appendMessage("user", cleanQuestion);
+      if (isEloAsyncResponse_(localStockReadonly)) {
+        resolveEloAsyncResponseForChat_(cleanQuestion, localStockReadonly);
+        return;
+      }
       appendAssistantMessage(cleanQuestion, formatResponse(localStockReadonly), false, localStockReadonly);
       clearProductAttachmentPreview();
       return;
@@ -26643,6 +28482,11 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
       generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
+      return;
+    }
+
+    if (!isEloOnline_()) {
+      appendEloOfflineChatResponse_(cleanQuestion);
       return;
     }
 
@@ -26712,16 +28556,6 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       if (effectiveSemanticRoute.intent === "conversa_geral") {
-        const wallContinuationCommandBridgeBypassResponse = hasEloRecentWallContinuationContext_() ? buildEloWallContinuationAnswer_(cleanQuestion) : null;
-        if (wallContinuationCommandBridgeBypassResponse) {
-          const wallContinuationAnswer = formatResponse(wallContinuationCommandBridgeBypassResponse);
-          appendAssistantMessage(cleanQuestion, wallContinuationAnswer, wallContinuationCommandBridgeBypassResponse.canSave !== false, wallContinuationCommandBridgeBypassResponse);
-          saveConversation(cleanQuestion, wallContinuationAnswer);
-          rememberSessionTurn(cleanQuestion, wallContinuationCommandBridgeBypassResponse, wallContinuationAnswer);
-          clearProductAttachmentPreview();
-          removeTypingIndicator();
-          return;
-        }
         const commandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (commandBridgeResponse) {
           const commandBridgeAnswer = formatResponse(commandBridgeResponse);
@@ -26738,26 +28572,6 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const liveSearchResponse = effectiveSemanticRoute.intent === "busca_atual" ? buildEloWebSearchRouteResponse_(cleanQuestion) : null;
       if (liveSearchResponse) {
-
-        if (liveSearchResponse.action && liveSearchResponse.action.type === "meta_web_search") {
-          const liveSearchAnswer = formatResponse(liveSearchResponse);
-          appendAssistantMessage(cleanQuestion, liveSearchAnswer, false, liveSearchResponse);
-          saveConversation(cleanQuestion, liveSearchAnswer);
-          rememberSessionTurn(cleanQuestion, liveSearchResponse, liveSearchAnswer);
-          clearProductAttachmentPreview();
-          removeTypingIndicator();
-          return;
-        }
-        const directLiveDataResponse = buildEloLiveDataDirectAnswer_(cleanQuestion, liveSearchResponse.liveData);
-        if (directLiveDataResponse) {
-          const directAnswer = formatResponse(directLiveDataResponse);
-          appendAssistantMessage(cleanQuestion, directAnswer, false, directLiveDataResponse);
-          saveConversation(cleanQuestion, directAnswer);
-          rememberSessionTurn(cleanQuestion, directLiveDataResponse, directAnswer);
-          clearProductAttachmentPreview();
-          removeTypingIndicator();
-          return;
-        }
         requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
           const finalAnswer = sanitizeEloMultilineText_(searchAnswer) || "Nao consegui consultar informacoes em tempo real agora.";
           const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: finalAnswer, fullAnswer: finalAnswer, action: null });
@@ -26825,25 +28639,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const liveSearchResponse = effectiveSemanticRoute.intent === "busca_atual" ? buildEloWebSearchRouteResponse_(cleanQuestion) : null;
     if (liveSearchResponse) {
-      if (liveSearchResponse.action && liveSearchResponse.action.type === "meta_web_search") {
-        const liveSearchAnswer = formatResponse(liveSearchResponse);
-        appendAssistantMessage(cleanQuestion, liveSearchAnswer, false, liveSearchResponse);
-        saveConversation(cleanQuestion, liveSearchAnswer);
-        rememberSessionTurn(cleanQuestion, liveSearchResponse, liveSearchAnswer);
-        clearProductAttachmentPreview();
-        return;
-      }
       showTypingIndicator();
-      const directLiveDataResponse = buildEloLiveDataDirectAnswer_(cleanQuestion, liveSearchResponse.liveData);
-      if (directLiveDataResponse) {
-        const directAnswer = formatResponse(directLiveDataResponse);
-        appendAssistantMessage(cleanQuestion, directAnswer, false, directLiveDataResponse);
-        saveConversation(cleanQuestion, directAnswer);
-        rememberSessionTurn(cleanQuestion, directLiveDataResponse, directAnswer);
-        clearProductAttachmentPreview();
-        removeTypingIndicator();
-        return;
-      }
       requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
         const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: searchAnswer, fullAnswer: searchAnswer, action: null });
         appendAssistantMessage(cleanQuestion, searchAnswer, false, searchResponse);
@@ -26954,6 +28750,19 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
 
+    const stockEntryConfirmationResponse = buildEloStockEntryAnswer_(cleanQuestion);
+    if (stockEntryConfirmationResponse) {
+      if (isEloAsyncResponse_(stockEntryConfirmationResponse)) {
+        resolveEloAsyncResponseForChat_(cleanQuestion, stockEntryConfirmationResponse);
+        return;
+      }
+      const entryAnswer = formatResponse(stockEntryConfirmationResponse);
+      appendAssistantMessage(cleanQuestion, entryAnswer, false, stockEntryConfirmationResponse);
+      saveConversation(cleanQuestion, entryAnswer);
+      rememberSessionTurn(cleanQuestion, stockEntryConfirmationResponse, entryAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
     const stockReleaseConfirmationResponse = buildEloStockReleaseConfirmationAnswer_(cleanQuestion);
     if (stockReleaseConfirmationResponse) {
       const releaseAnswer = formatResponse(stockReleaseConfirmationResponse);
@@ -27187,11 +28996,6 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
 
-    if (!attachedFiles.length && handleEloLiveDataCapability_(cleanQuestion)) {
-      clearProductAttachmentPreview();
-      removeTypingIndicator();
-      return;
-    }
     if (!attachedFiles.length && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
       removeTypingIndicator();
       return;
@@ -27402,6 +29206,16 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function isEloAutoTtsSpeakableResponse_(text) {
+    const clean = sanitizeUserText(text || "");
+    if (!isEloVoiceModeSpeakableResponse_(clean)) return false;
+    if (/^\s*(?:tocando|pausando|continuando|parando|parei|pausado|continuado)\b/i.test(clean)) return false;
+    if (/^\s*(?:qual é o nome\?|voce quis dizer|você quis dizer)\b/i.test(clean)) return false;
+    if (/^\s*(?:nao encontrei essa musica|não encontrei essa música|nao consegui tocar|não consegui tocar)\b/i.test(clean)) return false;
+    if (/^\s*(?:music_play|music_pause|music_stop|music_status|status)\b/i.test(clean)) return false;
+    return true;
+  }
+
   function submitEloVoiceModeTranscript_() {
     if (!ELO_UI.voiceModeEnabled || ELO_UI.voiceModeSubmitting || ELO_UI.voiceModeRecognitionSubmitted || !ELO_UI.form || !ELO_UI.input) return false;
     const text = sanitizeUserText(ELO_UI.input.value || "");
@@ -27418,12 +29232,8 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
-  function isEloMessageTtsSuppressed_(message) {
-    return !!(message && message.dataset && message.dataset.eloSuppressTts === "true");
-  }
-
   function maybeSpeakEloVoiceModeResponse_(message, text) {
-    if (isEloMessageTtsSuppressed_(message) || !ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
+    if (!ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
     ELO_UI.voiceModeAwaitingResponse = false;
     const button = message && message.querySelector ? message.querySelector(".elo-speech-button") : null;
     const started = speakEloText_(text, button);
@@ -27433,6 +29243,18 @@ function isEloResidentialNewPipelineEnabled_() {
       setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
     }
     return started;
+  }
+
+  function maybeAutoSpeakEloResponse_(message, text) {
+    if (!message || ELO_UI.replayingCoreHistory || !isEloAutoTtsSpeakableResponse_(text)) return false;
+    if (message.dataset && message.dataset.eloAutoTtsDone === "true") return false;
+    const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
+    if (message.dataset) {
+      ELO_UI.autoTtsSequence += 1;
+      message.dataset.eloAutoTtsDone = "true";
+      message.dataset.eloAutoTtsSequence = String(ELO_UI.autoTtsSequence);
+    }
+    return speakEloText_(text, button, { auto: true });
   }
   function setEloSpeechButtonState_(button, speaking) {
     if (!button) return;
@@ -27478,36 +29300,113 @@ function isEloResidentialNewPipelineEnabled_() {
       null;
   }
 
-  function getEloVoiceClient_() {
-    const voice = window.EloVoice;
-    return voice && typeof voice.speak === "function" && typeof voice.stop === "function" ? voice : null;
+  function getEloTtsEndpoint_() {
+    return sanitizeUserText(window.ELO_TTS_ENDPOINT || getEloBackendEndpoint_("/api/elo/tts"));
   }
 
-  function hasEloSpeechOutputSupport_() {
-    return !!getEloVoiceClient_() || !!(getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_());
+  function getEloAudioConstructor_() {
+    return window.Audio || null;
+  }
+
+  function setEloTtsAudit_(audit) {
+    ELO_UI.ttsAudit = Object.assign({
+      mode: "unknown",
+      provider: "",
+      endpoint: "",
+      voice: "",
+      rate: 1,
+      pitch: 1,
+      playbackRate: 1,
+      preservesPitch: true,
+      fallback: false,
+      fallbackReason: ""
+    }, audit || {});
+    logEloMusicEvent_("TTS_AUDIT", {
+      TTS_MODE: ELO_UI.ttsAudit.mode,
+      TTS_PROVIDER: ELO_UI.ttsAudit.provider,
+      TTS_ENDPOINT: ELO_UI.ttsAudit.endpoint,
+      TTS_VOICE: ELO_UI.ttsAudit.voice,
+      TTS_RATE: ELO_UI.ttsAudit.rate,
+      TTS_PITCH: ELO_UI.ttsAudit.pitch,
+      TTS_FALLBACK_REASON: ELO_UI.ttsAudit.fallbackReason,
+      playbackRate: ELO_UI.ttsAudit.playbackRate,
+      preservesPitch: ELO_UI.ttsAudit.preservesPitch
+    });
+    return ELO_UI.ttsAudit;
+  }
+
+  function normalizeEloTtsPayload_(data) {
+    if (!data) return null;
+    const audioUrl = sanitizeUserText(data.audioUrl || data.url || data.audio_url || "");
+    const audioBase64 = sanitizeUserText(data.audioBase64 || data.audio || data.audioContent || "");
+    return {
+      audioUrl: audioUrl || (audioBase64 ? "data:audio/mpeg;base64," + audioBase64 : ""),
+      provider: sanitizeUserText(data.provider || data.ttsProvider || "neural"),
+      voice: sanitizeUserText(data.voice || data.ttsVoice || window.ELO_TTS_VOICE || "elo-neural")
+    };
+  }
+
+  function playEloNeuralSpeechAudio_(payload, button) {
+    const AudioCtor = getEloAudioConstructor_();
+    if (!AudioCtor || !payload || !payload.audioUrl) return Promise.resolve(false);
+    const audio = new AudioCtor(payload.audioUrl);
+    ELO_UI.neuralSpeechAudio = audio;
+    audio.playbackRate = 1;
+    audio.preservesPitch = true;
+    audio.mozPreservesPitch = true;
+    audio.webkitPreservesPitch = true;
+    audio.onended = function () { resetEloSpeechButton_(button); };
+    audio.onerror = function () { resetEloSpeechButton_(button); };
+    setEloTtsAudit_({ mode: "neural", provider: payload.provider, endpoint: getEloTtsEndpoint_(), voice: payload.voice, playbackRate: audio.playbackRate, preservesPitch: audio.preservesPitch !== false, fallback: false });
+    const played = typeof audio.play === "function" ? audio.play() : true;
+    return Promise.resolve(played).then(function () { return true; });
+  }
+
+  function requestEloNeuralSpeech_(speechText, button) {
+    const endpoint = getEloTtsEndpoint_();
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "tts" });
+      return Promise.resolve(false);
+    }
+    if (!window.fetch || !endpoint) return Promise.resolve(false);
+    return window.fetch(endpoint, {
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()),
+      body: JSON.stringify({ text: speechText, voice: sanitizeUserText(window.ELO_TTS_VOICE || "") })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) throw new Error(data.error || "tts_request_failed");
+        const payload = normalizeEloTtsPayload_(data);
+        if (!payload || !payload.audioUrl) throw new Error("tts_audio_missing");
+        return playEloNeuralSpeechAudio_(payload, button);
+      });
+    });
   }
 
   function stopEloSpeechOutput_() {
-    const voice = getEloVoiceClient_();
-    if (voice) {
-      try { voice.stop(); } catch (error) {}
-    }
     const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    if (ELO_UI.neuralSpeechAudio && typeof ELO_UI.neuralSpeechAudio.pause === "function") {
+      try { ELO_UI.neuralSpeechAudio.pause(); } catch (error) {}
+    }
+    ELO_UI.neuralSpeechAudio = null;
     resetEloSpeechButton_();
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
     return true;
   }
 
-  function speakEloTextWithBrowserFallback_(speechText, button) {
+  function speakEloTextFallback_(speechText, button, reason) {
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
     if (!synthesis || !Utterance) {
-      resetEloSpeechButton_(button);
-      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Sem voz";
+        button.title = "Leitura em voz alta nao suportada neste navegador";
+      }
+      setEloTtsAudit_({ mode: "unavailable", provider: "none", endpoint: getEloTtsEndpoint_(), fallback: true, fallbackReason: reason || "speech_unavailable" });
       return false;
     }
-    if (typeof synthesis.cancel === "function") synthesis.cancel();
     const utterance = new Utterance(speechText);
     const voice = chooseEloPortugueseVoice_(synthesis);
     if (voice) utterance.voice = voice;
@@ -27522,58 +29421,48 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.speechSynthesisUtterance = utterance;
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
+    setEloTtsAudit_({ mode: "speechSynthesis", provider: "browser", endpoint: getEloTtsEndpoint_(), voice: voice && voice.name || "", rate: utterance.rate, pitch: utterance.pitch, fallback: true, fallbackReason: reason || "neural_unavailable" });
     setEloSpeechButtonState_(button, true);
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
     synthesis.speak(utterance);
     return true;
   }
 
-  function speakEloText_(text, button) {
-    const voice = getEloVoiceClient_();
-    const synthesis = getEloSpeechSynthesis_();
-    const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
-    if (!voice && (!synthesis || !Utterance)) {
-      if (button) {
-        button.disabled = true;
-        button.textContent = "Sem voz";
-        button.title = "Leitura em voz alta nao suportada neste navegador";
-      }
-      return false;
-    }
+  function speakEloText_(text, button, options) {
     if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       stopEloVoiceInput_();
       if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
     }
-    if (voice) {
-      try { voice.stop(); } catch (error) {}
-    }
+    const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
     resetEloSpeechButton_();
     const speechText = cleanEloTextForSpeech_(text);
     if (!speechText) return false;
-    if (!voice) return speakEloTextWithBrowserFallback_(speechText, button);
-    ELO_UI.speechSynthesisUtterance = null;
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
     setEloSpeechButtonState_(button, true);
-    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Gerando voz.");
-    voice.speak(speechText, { voice: "alloy" }).then(function () {
-      if (ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);
-    }).catch(function () {
-      if (!speakEloTextWithBrowserFallback_(speechText, button) && ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    requestEloNeuralSpeech_(speechText, button).then(function (ok) {
+      if (ok) return true;
+      return speakEloTextFallback_(speechText, button, isEloOnline_() ? "neural_unavailable" : "offline");
+    }).catch(function (error) {
+      return speakEloTextFallback_(speechText, button, sanitizeUserText(error && error.message).slice(0, 120) || "neural_failed");
     });
     return true;
   }
 
   function appendEloSpeechAction_(message, text) {
-    if (isEloMessageTtsSuppressed_(message) || !message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
-    const supported = hasEloSpeechOutputSupport_();
+    if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
+    const synthesis = getEloSpeechSynthesis_();
+    const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
+    const hasNeural = !!(window.fetch && getEloAudioConstructor_());
+    const hasFallback = !!(synthesis && Utterance);
     const actions = createElement("div", "elo-message-actions elo-speech-actions");
-    const button = createElement("button", "elo-inline-button elo-speech-button", supported ? "Ouvir" : "Sem voz");
+    const button = createElement("button", "elo-inline-button elo-speech-button", hasNeural || hasFallback ? "Ouvir" : "Sem voz");
     button.type = "button";
     button.dataset.eloSpeechText = String(text || "");
-    if (!supported) {
+    if (!hasNeural && !hasFallback) {
       button.disabled = true;
       button.title = "Leitura em voz alta nao suportada neste navegador";
       button.setAttribute("aria-label", "Leitura em voz alta nao suportada neste navegador");
@@ -27588,11 +29477,11 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function refreshEloSpeechAction_(message, text) {
-    if (!message || isEloMessageTtsSuppressed_(message)) return false;
+    if (!message) return false;
     const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
     if (button) {
       button.dataset.eloSpeechText = String(text || "");
-      if (button.disabled && hasEloSpeechOutputSupport_()) {
+      if (button.disabled && ((window.fetch && getEloAudioConstructor_()) || (getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_()))) {
         button.disabled = false;
         setEloSpeechButtonState_(button, false);
         button.addEventListener("click", function () { speakEloText_(button.dataset.eloSpeechText || "", button); });
@@ -27643,6 +29532,48 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function clearEloVoiceAutoSendTimer_() {
+    if (ELO_UI.voiceAutoSendTimer) {
+      window.clearTimeout(ELO_UI.voiceAutoSendTimer);
+      ELO_UI.voiceAutoSendTimer = null;
+    }
+  }
+
+  function dispatchEloVoiceAutoSend_(version) {
+    if (!ELO_UI.form || !ELO_UI.input) return false;
+    if (ELO_UI.voiceAutoSendDispatchedVersion === version) return false;
+    const text = sanitizeUserText(ELO_UI.input.value || "");
+    if (!text) return false;
+    logEloMusicEvent_("VOICE_RAW", { text: ELO_UI.voiceLastTranscript || text });
+    logEloMusicEvent_("VOICE_SUBMIT_RAW", { text: ELO_UI.voiceLastTranscript || text });
+    logEloMusicEvent_("VOICE_SUBMIT_VALUE", { text: text });
+    ELO_UI.lastSubmitSource = "voice_auto_send";
+    ELO_UI.voiceAutoSendDispatchedVersion = version;
+    ELO_UI.voiceModeSubmitting = true;
+    ELO_UI.voiceModeRecognitionSubmitted = true;
+    ELO_UI.voiceModeAwaitingResponse = !!ELO_UI.voiceModeEnabled;
+    setEloVoiceState_("idle", "Transcricao enviada.");
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("responding", "Modo Voz: Respondendo.");
+    const SubmitEventCtor = typeof SubmitEvent === "function" ? SubmitEvent : (typeof Event === "function" ? Event : null);
+    const event = SubmitEventCtor ? new SubmitEventCtor("submit", { bubbles: true, cancelable: true }) : { type: "submit", bubbles: true, cancelable: true, defaultPrevented: false, preventDefault: function () { this.defaultPrevented = true; } };
+    ELO_UI.form.dispatchEvent(event);
+    window.setTimeout(function () { ELO_UI.voiceModeSubmitting = false; }, 0);
+    return true;
+  }
+
+  function scheduleEloVoiceAutoSend_(reason) {
+    if (!ELO_UI.input || !sanitizeUserText(ELO_UI.input.value || "")) return false;
+    clearEloVoiceAutoSendTimer_();
+    ELO_UI.voiceAutoSendVersion += 1;
+    const version = ELO_UI.voiceAutoSendVersion;
+    setEloVoiceState_(ELO_UI.voiceState === "listening" ? "listening" : "idle", "Enviando ao terminar de falar...");
+    if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("listening", "Modo Voz: Enviando ao terminar de falar.");
+    ELO_UI.voiceAutoSendTimer = window.setTimeout(function () {
+      ELO_UI.voiceAutoSendTimer = null;
+      dispatchEloVoiceAutoSend_(version);
+    }, ELO_VOICE_AUTO_SEND_MS);
+    return true;
+  }
   function startEloVoiceInput_() {
     const Recognition = getEloSpeechRecognitionConstructor_();
     if (!Recognition) {
@@ -27681,8 +29612,9 @@ function isEloResidentialNewPipelineEnabled_() {
       }).join(" ");
       const hasFinalTranscript = results.some(function (result) { return !!(result && result.isFinal); });
       if (writeEloVoiceTranscriptToInput_(transcript)) {
+        ELO_UI.voiceLastTranscript = sanitizeUserText(transcript);
         setEloVoiceState_("listening", "Ouvindo... transcricao no campo.");
-        if (hasFinalTranscript && ELO_UI.voiceModeEnabled) submitEloVoiceModeTranscript_();
+        scheduleEloVoiceAutoSend_(hasFinalTranscript ? "final" : "partial");
       }
     };
     recognition.onerror = function (event) {
@@ -27692,9 +29624,10 @@ function isEloResidentialNewPipelineEnabled_() {
     };
     recognition.onend = function () {
       if (ELO_UI.voiceState === "listening") {
-        const doneMessage = ELO_UI.voiceHadTranscript ? "Transcricao pronta para editar e enviar." : "Escuta finalizada sem texto.";
+        const doneMessage = ELO_UI.voiceHadTranscript ? "Enviando ao terminar de falar..." : "Escuta finalizada sem texto.";
         setEloVoiceState_("idle", doneMessage);
-        if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript && ELO_UI.voiceModeRecognitionSubmitted ? "Modo Voz: Respondendo." : "Modo Voz: Parado.");
+        if (ELO_UI.voiceHadTranscript) scheduleEloVoiceAutoSend_("end");
+        if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript ? "Modo Voz: aguardando silencio para enviar." : "Modo Voz: Parado.");
       }
       ELO_UI.voiceRecognition = null;
     };
@@ -27709,6 +29642,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function stopEloVoiceInput_() {
+    clearEloVoiceAutoSendTimer_();
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       ELO_UI.voiceRecognition.stop();
       return true;
@@ -28036,7 +29970,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (message && message.classList && message.classList.contains("assistant")) {
       refreshEloSpeechAction_(message, text);
-      maybeSpeakEloVoiceModeResponse_(message, text);
+      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
     }
     scrollEloConversationToBottom_({ force: shouldStick });
   }
@@ -28167,20 +30101,12 @@ function isEloResidentialNewPipelineEnabled_() {
     return avatar;
   }
 
-  function appendMessage(kind, text, options) {
-    options = options || {};
+  function appendMessage(kind, text) {
     const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
     }
     const message = createElement("article", "elo-message " + kind);
-    if (options.messageType) {
-      message.dataset.eloMessageType = String(options.messageType);
-      message.classList.add("elo-message--" + String(options.messageType).replace(/[^a-z0-9_-]/gi, "-"));
-    }
-    if (options.suppressTts === true) {
-      message.dataset.eloSuppressTts = "true";
-    }
     if (kind === "assistant" && /^\s*analisando\b/i.test(sanitizeUserText(text || ""))) {
       message.classList.add("is-analyzing");
     }
@@ -28189,9 +30115,9 @@ function isEloResidentialNewPipelineEnabled_() {
       message.appendChild(createEloMascotAvatar_());
     }
     message.appendChild(bubble);
-    if (kind === "assistant" && !isEloMessageTtsSuppressed_(message)) {
+    if (kind === "assistant") {
       appendEloSpeechAction_(message, text);
-      maybeSpeakEloVoiceModeResponse_(message, text);
+      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
     }
     ELO_UI.messages.appendChild(message);
     setEloCoreWelcomeVisible_();
@@ -28485,6 +30411,49 @@ function isEloResidentialNewPipelineEnabled_() {
     });
   }
 
+  function appendEloInlineMedia_(message, media) {
+    if (!message || !media) return null;
+    const card = createElement("figure", "elo-inline-media-card");
+    card.setAttribute("data-elo-media-type", media.type || "");
+    if (media.title) card.appendChild(createElement("figcaption", "elo-inline-media-title", media.title));
+    if (media.type === "video") {
+      const frame = createElement("iframe", "elo-inline-video");
+      frame.src = media.src || "";
+      frame.title = media.title || "Video";
+      frame.loading = "lazy";
+      frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+      frame.allowFullscreen = true;
+      card.appendChild(frame);
+      if (media.href) {
+        const link = createElement("a", "elo-inline-media-link", "Abrir busca de video");
+        link.href = media.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        card.appendChild(link);
+      }
+    } else {
+      const image = createElement("img", "elo-inline-image");
+      image.src = media.src || "";
+      image.alt = media.alt || media.title || "Imagem solicitada";
+      image.loading = "lazy";
+      image.referrerPolicy = "no-referrer";
+      image.onerror = function () {
+        if (media.fallbackSrc && image.src !== media.fallbackSrc) {
+          image.src = media.fallbackSrc;
+          return;
+        }
+        card.classList.add("is-error");
+        image.remove();
+        card.appendChild(createElement("p", "elo-inline-media-error", "Nao consegui carregar essa imagem agora."));
+      };
+      card.appendChild(image);
+      if (media.source) card.appendChild(createElement("span", "elo-inline-media-source", media.source));
+    }
+    message.appendChild(card);
+    scrollEloConversationToBottom_({ force: true });
+    return card;
+  }
+
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
@@ -28507,6 +30476,10 @@ function isEloResidentialNewPipelineEnabled_() {
       });
       fullButton.classList.add("elo-secondary-response-action");
       actions.appendChild(fullButton);
+    }
+
+    if (response && response.visualMedia) {
+      appendEloInlineMedia_(message, response.visualMedia);
     }
 
     if (response && response.localDocumentResult) {
@@ -28534,7 +30507,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (response && response.action && response.action.type === "meta_web_search") {
       const searchAction = response.action;
-      const searchButton = createElement("button", "elo-inline-button", searchAction.label || ELO_WEB_SEARCH_ACTION_TEMPLATE_.label);
+      const searchButton = createElement("button", "elo-inline-button", searchAction.label || "Pesquise");
       searchButton.type = "button";
       searchButton.setAttribute("data-elo-action-type", "meta_web_search");
       searchButton.setAttribute("data-query", searchAction.query || "");
@@ -28554,7 +30527,7 @@ function isEloResidentialNewPipelineEnabled_() {
           appendMessage("system", "Nao consegui consultar informacoes em tempo real agora.");
         }).finally(function () {
           removeTypingIndicator();
-          searchButton.textContent = searchAction.label || ELO_WEB_SEARCH_ACTION_TEMPLATE_.label;
+          searchButton.textContent = searchAction.label || "Pesquise";
         });
       });
       actions.appendChild(searchButton);
@@ -30825,58 +32798,14 @@ function isEloResidentialNewPipelineEnabled_() {
       });
     }
 
-    function getEloMediaIntent_(question) {
-      const text = normalizeText(question || "");
-      const mentionsMusic = /\b(musica|música|som|audio|áudio)\b/.test(text);
-      if (/\b(pause|pausa|pausar)\b/.test(text) && mentionsMusic) return { type: "pause" };
-      if (/\b(continue|continuar|retome|retomar)\b/.test(text) && mentionsMusic) return { type: "resume" };
-      if (/\b(pare|parar|stop)\b/.test(text) && mentionsMusic) return { type: "stop" };
-      return getEloMediaPlayIntent_(question);
-    }
-
-    function handleEloMediaCommand_(question) {
-      const intent = getEloMediaIntent_(question);
-      if (!intent || ELO_UI.attachments.length) return false;
-      const media = window.EloMedia;
-      ELO_UI.input.value = "";
-      refreshEloInputHeight_();
-      appendMessage("user", question);
-      if (!media) {
-        appendMessage("assistant", "Não consegui carregar o player de música agora.", { messageType: "media_status", suppressTts: true });
-        return true;
-      }
-      if (intent.type === "pause") {
-        if (typeof media.pause === "function") media.pause();
-        appendMessage("assistant", "Música pausada.", { messageType: "media_status", suppressTts: true });
-        return true;
-      }
-      if (intent.type === "resume") {
-        if (typeof media.resume === "function") media.resume();
-        appendMessage("assistant", "Continuando a música.", { messageType: "media_status", suppressTts: true });
-        return true;
-      }
-      if (intent.type === "stop") {
-        if (typeof media.stop === "function") media.stop();
-        appendMessage("assistant", "Música parada.", { messageType: "media_status", suppressTts: true });
-        return true;
-      }
-      if (intent.type === "play") {
-        const mediaMessage = appendMessage("assistant", "Localizando música...", { messageType: "media_status", suppressTts: true });
-        runEloMediaResolvedPlay_(media, question, mediaMessage);
-        return true;
-      }
-      return false;
-    }
-
-    function submitMinimalQuestion() {
+    function submitMinimalQuestion(source) {
       const question = ELO_UI.input.value;
-      if (handleEloMediaCommand_(question)) return;
       const attachmentIntent = detectAttachmentIntent(question);
 
       if (attachmentIntent.type === "image") {
         ELO_UI.input.value = "";
         if (isEloReportPdfGenerationRequest_(question) || isEloRdoPreviewActive_() || isEloRdoPreviewIntent_(question)) {
-          askElo(question || "Fotos do RDO", ELO_UI.attachments);
+          askElo(question || "Fotos do RDO", ELO_UI.attachments, source);
         } else if (isEloImageTextOnlyRequest_(question) && !isEloImageTextAndVisualRequest_(question)) {
           analyzeEloImageTextOnlyAttachment_(question, attachmentIntent.file);
         } else {
@@ -30886,9 +32815,9 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
-        askElo("Elo, leia este anexo.", ELO_UI.attachments);
+        askElo("Elo, leia este anexo.", ELO_UI.attachments, source);
       } else {
-        askElo(question, ELO_UI.attachments);
+        askElo(question, ELO_UI.attachments, source);
       }
       ELO_UI.input.value = "";
     }
@@ -30897,7 +32826,10 @@ function isEloResidentialNewPipelineEnabled_() {
       form.dataset.eloEngineBound = "true";
       form.addEventListener("submit", function (event) {
         event.preventDefault();
-        submitMinimalQuestion();
+        logEloMusicEvent_("SUBMIT_HANDLER_ENTER", { source: ELO_UI.lastSubmitSource || "manual" });
+        clearEloVoiceAutoSendTimer_();
+        submitMinimalQuestion(ELO_UI.lastSubmitSource || "manual");
+        ELO_UI.lastSubmitSource = "";
       });
     }
 
@@ -30916,7 +32848,8 @@ function isEloResidentialNewPipelineEnabled_() {
       input.addEventListener("keydown", function (event) {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
-          submitMinimalQuestion();
+          clearEloVoiceAutoSendTimer_();
+          submitMinimalQuestion("enter");
         }
       });
     }
@@ -30928,6 +32861,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (historyButton && !historyButton.dataset.eloCoreBound) { historyButton.dataset.eloCoreBound = "true"; historyButton.addEventListener("click", showEloCoreHistory_); }
     if (memoryButton && !memoryButton.dataset.eloCoreBound) { memoryButton.dataset.eloCoreBound = "true"; memoryButton.addEventListener("click", showEloCoreMemoryPanel_); }
     maybeStartEloBudgetRoute_();
+    initEloConnectivity_();
     showEloOpeningMessage_();
     setEloCoreWelcomeVisible_();
     initEloCorePersistence_();
@@ -30943,6 +32877,9 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    buildSocialFastPathForTest: buildEloSocialFastPathAnswer_,
+    detectVisualMediaIntentForTest: detectEloVisualMediaIntent_,
+    buildVisualMediaResponseForTest: buildEloVisualMediaResponse_,
     appendAssistantMessageForTest: appendAssistantMessage,
     detectRdoPreviewIntentForTest: isEloRdoPreviewIntent_,
     extractRdoPreviewDataForTest: extractEloRdoPreviewData_,
@@ -30981,10 +32918,21 @@ function isEloResidentialNewPipelineEnabled_() {
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
-    classifyLiveDataForTest: classifyEloLiveDataNeed_,
-    buildLiveDataDirectAnswerForTest: buildEloLiveDataDirectAnswer_,
-    buildLiveDataCapabilityForTest: buildEloLiveDataCapabilityAnswer_,
     parseStockProductCreateCommandForTest: parseEloStockProductCreateCommand_,
+    parseStockEntryCommandForTest: parseEloStockEntryCommand_,
+    buildStockEntryAnswerForTest: buildEloStockEntryAnswer_,
+    getPendingStockEntryForTest: getEloPendingStockEntry_,
+    clearPendingStockEntryForTest: function () { setEloPendingStockEntry_(null); },
+    parseStockExitCommandForTest: parseEloStockExitCommand_,
+    buildStockExitAnswerForTest: buildEloStockExitAnswer_,
+    getPendingStockExitForTest: getEloPendingStockExit_,
+    clearPendingStockExitForTest: function () { setEloPendingStockExit_(null); },
+    parseStockTransferCommandForTest: parseEloStockTransferCommand_,
+    buildStockTransferAnswerForTest: buildEloStockTransferAnswer_,
+    getPendingStockTransferForTest: getEloPendingStockTransfer_,
+    clearPendingStockTransferForTest: function () { setEloPendingStockTransfer_(null); },
+    buildStockMovementDayAnswerForTest: buildEloStockMovementDayAnswer_,
+    buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     needsLiveSearchForTest: needsLiveSearch,
@@ -31021,8 +32969,20 @@ function isEloResidentialNewPipelineEnabled_() {
     clearLocalConversationForTest: clearEloCoreLocalConversationState_,
     setCoreMessagesElementForTest: function (element) { ELO_UI.messages = element; },
     setCorePanelElementForTest: function (element) { ELO_UI.panel = element; },
+    isOnlineForTest: isEloOnline_,
+    setConnectivityForTest: setEloConnectivityState_,
+    initConnectivityForTest: initEloConnectivity_,
+    getConnectivityForTest: function () { return ELO_UI.connectivity ? Object.assign({}, ELO_UI.connectivity) : null; },
+    getConnectivityBadgeForTest: function () { return ELO_UI.connectivityBadge; },
+    hasTypingIndicatorForTest: function () { return !!ELO_UI.typingIndicator; },
+    buildOfflineChatResponseForTest: appendEloOfflineChatResponse_,
     getVoiceStateForTest: function () { return ELO_UI.voiceState; },
     getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
+    getVoiceAutoSendMsForTest: function () { return ELO_VOICE_AUTO_SEND_MS; },
+    setVoiceComposerForTest: function (form, input) { ELO_UI.form = form; ELO_UI.input = input; },
+    scheduleVoiceAutoSendForTest: scheduleEloVoiceAutoSend_,
+    dispatchVoiceAutoSendForTest: dispatchEloVoiceAutoSend_,
+    clearVoiceAutoSendForTest: clearEloVoiceAutoSendTimer_,
     setVoiceModeEnabledForTest: setEloVoiceModeEnabled_,
     startVoiceInputForTest: startEloVoiceInput_,
     stopVoiceInputForTest: stopEloVoiceInput_,
@@ -31032,6 +32992,19 @@ function isEloResidentialNewPipelineEnabled_() {
     speakTextForTest: speakEloText_,
     stopSpeechOutputForTest: stopEloSpeechOutput_,
     choosePortugueseVoiceForTest: chooseEloPortugueseVoice_,
+    getTtsAuditForTest: function () { return ELO_UI.ttsAudit ? Object.assign({}, ELO_UI.ttsAudit) : null; },
+    getTtsEndpointForTest: getEloTtsEndpoint_,
+    detectMusicPlayIntentForTest: parseEloMusicPlayIntent_,
+    stripWakePrefixForRoutingForTest: stripEloWakePrefixForRouting_,
+    normalizeMusicQueryForTest: normalizeEloMusicQueryText_,
+    scoreMusicCandidateForTest: scoreEloMusicCandidate_,
+    chooseMusicCandidateForTest: chooseEloMusicCandidate_,
+    handleMusicQueryForTest: handleEloMusicQuery_,
+    getPendingMusicCandidateForTest: getEloMusicPendingCandidate_,
+    clearPendingMusicCandidateForTest: function () { setEloMusicPendingCandidate_(null); },
+    detectMediaCommandForTest: detectEloMediaCommandAction_,
+    handleMediaCommandForTest: handleEloMediaCommand_,
+    getMediaPlayerStateForTest: function () { return ensureEloMediaPlayerApi_().getState(); },
     appendMessageForLayoutTest: appendMessage,
     buildOpeningMessageForTest: buildEloOpeningMessage_,
     buildQuickGreetingAnswerForTest: buildEloQuickGreetingAnswer_,
@@ -31054,3 +33027,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 })();
+
+
+
+

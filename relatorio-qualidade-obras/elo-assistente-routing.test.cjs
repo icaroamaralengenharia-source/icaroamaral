@@ -2306,3 +2306,859 @@ test('ELO cria sugestao de saida e confirma baixa no bridge do Almoxarifado', ()
   other.buildResponseForTest('Confirme a saida.');
   assert.equal(otherCalls[0].workId, 'obra-b-work');
 });
+function createMediaButtonControl(label, action, stateAfter, calls, document) {
+  const button = createElement('button');
+  button.textContent = label;
+  button.dataset.eloMediaAction = action;
+  button.onclick = function () {
+    calls.push(label);
+    document.body.dataset.eloMediaState = stateAfter;
+  };
+  button.click = function () {
+    if (typeof this.onclick === 'function') this.onclick();
+  };
+  return button;
+}
+
+function installMediaButtonControls(context, calls) {
+  context.document.body.dataset.eloMediaState = 'PLAYING';
+  const controls = [
+    createMediaButtonControl('▶ Tocar', 'play', 'PLAYING', calls, context.document),
+    createMediaButtonControl('Ⅱ Pausar', 'pause', 'PAUSED', calls, context.document),
+    createMediaButtonControl('▶ Continuar', 'resume', 'PLAYING', calls, context.document),
+    createMediaButtonControl('■ Parar', 'stop', 'IDLE', calls, context.document)
+  ];
+  context.document.querySelectorAll = function () { return controls; };
+  return controls;
+}
+
+test('ELO media command: pause continue pare e tocar usam onclick dos botoes reais', () => {
+  const calls = [];
+  let backendCalls = 0;
+  const { elo, context } = loadEloContext({
+    fetch() { backendCalls += 1; return Promise.reject(new Error('backend should not be called')); }
+  });
+  installMediaButtonControls(context, calls);
+
+  assert.equal(elo.detectMediaCommandForTest('ELO, pause'), 'pause');
+  const pauseResult = elo.handleMediaCommandForTest('Pause');
+  assert.equal(pauseResult.handled, true);
+  assert.equal(pauseResult.action, 'pause');
+  assert.equal(pauseResult.handler, 'button.onclick');
+  assert.equal(pauseResult.state, 'PAUSED');
+  assert.equal(elo.getMediaPlayerStateForTest(), 'PAUSED');
+
+  const resumeResult = elo.handleMediaCommandForTest('Continue');
+  assert.equal(resumeResult.handled, true);
+  assert.equal(resumeResult.action, 'resume');
+  assert.equal(resumeResult.handler, 'button.onclick');
+  assert.equal(resumeResult.state, 'PLAYING');
+
+  const stopResult = elo.handleMediaCommandForTest('Pare');
+  assert.equal(stopResult.handled, true);
+  assert.equal(stopResult.action, 'stop');
+  assert.equal(stopResult.handler, 'button.onclick');
+  assert.equal(stopResult.state, 'IDLE');
+
+  const playResult = elo.handleMediaCommandForTest('Tocar');
+  assert.equal(playResult.handled, true);
+  assert.equal(playResult.action, 'play');
+  assert.equal(playResult.handler, 'button.onclick');
+  assert.equal(playResult.state, 'PLAYING');
+
+  assert.deepEqual(calls, ['Ⅱ Pausar', '▶ Continuar', '■ Parar', '▶ Tocar']);
+  assert.equal(backendCalls, 0);
+});
+
+test('ELO media command: ask intercepta antes de pensando e backend', () => {
+  const calls = [];
+  let backendCalls = 0;
+  const { elo, context } = loadEloContext({
+    fetch() { backendCalls += 1; return Promise.reject(new Error('backend should not be called')); }
+  });
+  installMediaButtonControls(context, calls);
+
+  elo.ask('Pause');
+  elo.ask('Continue');
+  elo.ask('Pare');
+
+  assert.deepEqual(calls, ['Ⅱ Pausar', '▶ Continuar', '■ Parar']);
+  assert.equal(backendCalls, 0);
+  assert.equal(context.window.document.body.textContent.includes('Elo está pensando'), false);
+});
+
+test('ELO media command: cinco ciclos preservam a mesma API ponte e os mesmos controles', () => {
+  const calls = [];
+  const { elo, context } = loadEloContext();
+  const controls = installMediaButtonControls(context, calls);
+
+  assert.equal(elo.handleMediaCommandForTest('pausa').handled, true);
+  const bridge = context.window.EloMediaPlayer;
+  assert.equal(elo.handleMediaCommandForTest('retome').handled, true);
+  for (let index = 1; index < 5; index += 1) {
+    assert.equal(elo.handleMediaCommandForTest('pausa').handled, true);
+    assert.equal(elo.handleMediaCommandForTest('retome').handled, true);
+  }
+
+  assert.equal(context.window.EloMediaPlayer, bridge);
+  assert.deepEqual(context.document.querySelectorAll(), controls);
+  assert.equal(calls.length, 10);
+  assert.equal(calls.filter((item) => item === 'Ⅱ Pausar').length, 5);
+  assert.equal(calls.filter((item) => item === '▶ Continuar').length, 5);
+  assert.equal(elo.getMediaPlayerStateForTest(), 'PLAYING');
+});
+
+test('ELO media command: sem botao real nao bloqueia chat normal', () => {
+  const { elo } = loadEloContext();
+
+  assert.equal(elo.detectMediaCommandForTest('quem foi Renato Russo'), null);
+  assert.equal(elo.detectMediaCommandForTest('ELO, toque Sultans of Swing'), null);
+  const idlePause = elo.handleMediaCommandForTest('Pause');
+  assert.equal(idlePause.handled, false);
+  assert.equal(idlePause.action, 'pause');
+  assert.equal(idlePause.state, 'UNKNOWN');
+  const regularChat = elo.handleMediaCommandForTest('quanto é cinco mais cinco');
+  assert.equal(regularChat.handled, false);
+  assert.equal(regularChat.action, null);
+});
+
+function createMusicResolverFixture(playCalls) {
+  const candidates = [
+    { id: 'sultans', title: 'Sultans of Swing', artist: 'Dire Straits', relevance: 1 },
+    { id: 'dire', title: 'Dire Straits', artist: '', relevance: 0.92 },
+    { id: 'galinha', title: 'Galinha Pintadinha', artist: '', relevance: 0.9 },
+    { id: 'beethoven', title: 'Beethoven', artist: '', relevance: 0.86 },
+    { id: 'clair', title: 'Clair de Lune', artist: 'Claude Debussy', relevance: 0.84 }
+  ];
+  function search(query = '', options = {}) {
+    if (!options || !options.correctedFrom) return [];
+    const text = String(query || '').toLowerCase();
+    if (text.includes('galinha')) return candidates.filter((candidate) => candidate.id === 'galinha');
+    if (text.includes('dire straits') && !text.includes('sultans')) return candidates.filter((candidate) => candidate.id === 'dire');
+    if (text.includes('beethoven')) return candidates.filter((candidate) => candidate.id === 'beethoven');
+    if (text.includes('clair')) return candidates.filter((candidate) => candidate.id === 'clair');
+    if (text.includes('sultans') || text.includes('swing')) return candidates.filter((candidate) => candidate.id === 'sultans');
+    return candidates;
+  }
+  return {
+    resolve: search,
+    search,
+    play(candidate) { playCalls.push(candidate.title || candidate.name); return true; }
+  };
+}
+
+async function runMusicCase(message) {
+  const playCalls = [];
+  const { elo } = loadEloContext({ window: { EloMusicResolver: createMusicResolverFixture(playCalls) } });
+  const result = await elo.handleMusicQueryForTest(message);
+  return { result, playCalls, elo };
+}
+
+test('ELO music fuzzy: casos focais corrigem ou pedem confirmacao com candidatos reais', async () => {
+  const cases = [
+    ['toque Sultans of Swing', 'Sultans of Swing'],
+    ['toque shootas of swing', 'Sultans of Swing'],
+    ['toque sutas of swing', 'Sultans of Swing'],
+    ['toque Southern of Swing', 'Sultans of Swing'],
+    ['toque supplans of swing', 'Sultans of Swing'],
+    ['toque Sultan of String', 'Sultans of Swing'],
+    ['toque Dire Streets', 'Dire Straits'],
+    ['toque chalinha pintadinha', 'Galinha Pintadinha'],
+    ['toque xalinha piuntadinha', 'Galinha Pintadinha'],
+    ['toque galina pintadinha', 'Galinha Pintadinha'],
+    ['toque betovem', 'Beethoven'],
+    ['toque clear de luna', 'Clair de Lune']
+  ];
+
+  for (const [message, expectedTitle] of cases) {
+    const { result, playCalls } = await runMusicCase(message);
+    assert.equal(result.handled, true, message);
+    assert.match(['EXACT', 'AUTO_CORRECTED', 'ASK_CONFIRMATION'].join('|'), new RegExp(result.decision), message);
+    assert.equal(result.candidate.title, expectedTitle, message);
+    if (result.decision !== 'ASK_CONFIRMATION') assert.equal(playCalls.at(-1), expectedTitle, message);
+  }
+});
+
+test('ELO music fuzzy: abacaxi hidraulico e martelo azul nao geram falso positivo', async () => {
+  for (const message of ['toque abacaxi hidráulico', 'toque martelo azul']) {
+    const { result, playCalls } = await runMusicCase(message);
+
+    assert.equal(result.handled, true, message);
+    assert.equal(result.decision, 'NO_MATCH', message);
+    assert.equal(playCalls.length, 0, message);
+  }
+});
+
+test('ELO music fuzzy: confirmacao pendente com sim executa candidato', async () => {
+  const playCalls = [];
+  const { elo } = loadEloContext({ window: { EloMusicResolver: createMusicResolverFixture(playCalls) } });
+  const candidates = [
+    { title: 'Galinha Pintadinha', relevance: 0.9 },
+    { title: 'Sultans of Swing', artist: 'Dire Straits', relevance: 1 }
+  ];
+  const ambiguous = ['xalinha pinda', 'galina pinda', 'xalinha pinta', 'galinha pista']
+    .map((query) => ({ query, choice: elo.chooseMusicCandidateForTest(query, candidates) }))
+    .find((item) => item.choice.decision === 'ASK_CONFIRMATION');
+  assert.ok(ambiguous, 'precisa existir faixa media para voce quis dizer');
+
+  const first = await elo.handleMusicQueryForTest('toque ' + ambiguous.query);
+  assert.equal(first.handled, true);
+  assert.equal(first.decision, 'ASK_CONFIRMATION');
+  assert.equal(elo.getPendingMusicCandidateForTest().candidate.title, 'Galinha Pintadinha');
+
+  const confirmation = await elo.handleMusicQueryForTest('sim');
+  assert.equal(confirmation.handled, true);
+  assert.equal(confirmation.decision, 'CONFIRMED');
+  assert.equal(playCalls.at(-1), 'Galinha Pintadinha');
+  assert.equal(elo.getPendingMusicCandidateForTest(), null);
+});
+test('ELO music fuzzy: casos fisicos locais dominantes autocorrigem direto', async () => {
+  const playCalls = [];
+  const { elo } = loadEloContext({ window: { EloMusicResolver: createMusicResolverFixture(playCalls) } });
+
+  const shootas = await elo.handleMusicQueryForTest('toque shootas of swing');
+  assert.equal(shootas.handled, true);
+  assert.equal(shootas.decision, 'AUTO_CORRECTED');
+  assert.equal(shootas.candidate.title, 'Sultans of Swing');
+
+  const chalinha = await elo.handleMusicQueryForTest('toque chalinha pintadinha');
+  assert.equal(chalinha.handled, true);
+  assert.equal(chalinha.decision, 'AUTO_CORRECTED');
+  assert.equal(chalinha.candidate.title, 'Galinha Pintadinha');
+  assert.deepEqual(playCalls, ['Sultans of Swing', 'Galinha Pintadinha']);
+});
+
+test('ELO music routing: wake prefix com pontuacao preserva shootas xalinha e no match', async () => {
+  const playCalls = [];
+  const { elo } = loadEloContext({ window: { EloMusicResolver: createMusicResolverFixture(playCalls) } });
+
+  const shootas = await elo.handleMusicQueryForTest('ELO, toque, shootas of swing.');
+  assert.equal(shootas.handled, true);
+  assert.equal(shootas.decision, 'AUTO_CORRECTED');
+  assert.equal(shootas.candidate.title, 'Sultans of Swing');
+
+  const xalinha = await elo.handleMusicQueryForTest('ELO, toque, xalinha pintadinha.');
+  assert.equal(xalinha.handled, true);
+  assert.equal(xalinha.decision, 'AUTO_CORRECTED');
+  assert.equal(xalinha.candidate.title, 'Galinha Pintadinha');
+
+  const abacaxi = await elo.handleMusicQueryForTest('ELO, toque, abacaxi hidráulico.');
+  assert.equal(abacaxi.handled, true);
+  assert.equal(abacaxi.decision, 'NO_MATCH');
+  assert.deepEqual(playCalls, ['Sultans of Swing', 'Galinha Pintadinha']);
+});
+
+
+test('ELO voice auto-send: silencio dispara submit uma vez e clique simultaneo nao duplica', () => {
+  const timers = [];
+  const clearCalls = [];
+  const { elo } = loadEloContext({
+    window: {
+      setTimeout(fn, ms) { const timer = { fn, ms, canceled: false }; timers.push(timer); return timer; },
+      clearTimeout(timer) { clearCalls.push(timer); if (timer) timer.canceled = true; }
+    }
+  });
+  let dispatchCount = 0;
+  const input = { value: 'ELO, eu acho que é melhor fazermos login pra você se lembrar das minhas coisas' };
+  const form = { dispatchEvent(event) { dispatchCount += 1; if (event && event.preventDefault) event.preventDefault(); input.value = ''; return true; } };
+  elo.setVoiceComposerForTest(form, input);
+
+  assert.equal(elo.getVoiceAutoSendMsForTest(), 3000);
+  assert.equal(elo.scheduleVoiceAutoSendForTest('partial'), true);
+  assert.equal(timers.at(-1).ms, 3000);
+  assert.equal(elo.scheduleVoiceAutoSendForTest('partial'), true);
+  assert.equal(clearCalls.length >= 1, true);
+  timers.filter((timer) => !timer.canceled).forEach((timer) => timer.fn());
+  assert.equal(dispatchCount, 1);
+
+  assert.equal(elo.dispatchVoiceAutoSendForTest(2), false);
+  assert.equal(dispatchCount, 1);
+});test('ELO music routing: string fisica com wake e pontuacao entra no intent musical', () => {
+  const { elo } = loadEloContext();
+  const physical = 'ELO, toque, Sultans of Swing.';
+  const intent = elo.detectMusicPlayIntentForTest(physical);
+
+  assert.equal(elo.stripWakePrefixForRoutingForTest(physical), 'toque Sultans of Swing');
+  assert.ok(intent);
+  assert.equal(intent.rawQuery, 'Sultans of Swing');
+  assert.equal(intent.query, 'sultans of swing');
+});
+
+test('ELO voice auto-send: submit real roteia wake musical antes do chat generico', async () => {
+  const events = [];
+  const calls = [];
+  let backendCalls = 0;
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/sultans of swing/i.test(query)) return { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits' };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id || candidate.title]); return true; }
+  };
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo, context } = loadEloContext({
+    window: { EloMusicResolver: resolver, console: fakeConsole },
+    fetch() { backendCalls += 1; return Promise.reject(new Error('chat fallthrough')); }
+  });
+  const listeners = {};
+  const formParent = createElement('div');
+  formParent.insertBefore = function (child) { this.children.push(child); child.parentNode = this; return child; };
+  formParent.querySelector = function () { return null; };
+  const form = createElement('form');
+  form.dataset = {};
+  form.parentNode = formParent;
+  form.addEventListener = function (type, handler) { listeners[type] = handler; };
+  form.insertBefore = function (child) { this.children.unshift(child); return child; };
+  form.dispatchEvent = function (event) { if (listeners.submit) listeners.submit(event); return true; };
+  const input = createElement('textarea');
+  input.dataset = {};
+  input.value = 'ELO, toque, Sultans of Swing.';
+  const panel = createElement('section');
+  panel.dataset = {};
+  const messages = createElement('div');
+  const nodes = new Map([
+    ['.elo-input-row', form],
+    ['.elo-input', input],
+    ['.elo-standalone-panel', panel],
+    ['.elo-messages', messages]
+  ]);
+  context.document.querySelector = function (selector) { return nodes.get(selector) || null; };
+  context.document.querySelectorAll = function () { return []; };
+
+  assert.equal(elo.mountMinimal({ panel: '.elo-standalone-panel', messages: '.elo-messages', form: '.elo-input-row', input: '.elo-input' }), true);
+  assert.equal(elo.dispatchVoiceAutoSendForTest(1), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const byName = (name) => events.filter((event) => event.name === name).map((event) => event.payload);
+  assert.equal(byName('VOICE_SUBMIT_VALUE').at(-1).text, 'ELO, toque, Sultans of Swing.');
+  assert.equal(byName('SUBMIT_SOURCE').at(-1).source, 'voice_auto_send');
+  assert.equal(byName('SUBMIT_NORMALIZED').at(-1).text, 'elo toque sultans of swing');
+  assert.equal(byName('WAKE_PREFIX_STRIPPED').at(-1).text, 'toque sultans of swing');
+  assert.equal(byName('MUSIC_INTENT_MATCH').at(-1).matched, true);
+  assert.equal(byName('MUSIC_INTENT_MATCH').at(-1).query, 'sultans of swing');
+  assert.ok(byName('MUSIC_EXECUTE_START').length >= 1);
+  assert.ok(byName('MUSIC_PLAYER_START').length >= 1);
+  assert.equal(byName('CHAT_FALLTHROUGH').filter((payload) => payload.music === true).at(-1).count, 0);
+  assert.deepEqual(calls, [
+    ['resolve', 'sultans of swing', ''],
+    ['resolve', 'Sultans of Swing', 'sultans of swing'],
+    ['play', 'sultans-video']
+  ]);
+  assert.equal(backendCalls, 0);
+});
+
+test('ELO music execute: autocorrect textual resolve titulo corrigido e nao cai no chat', async () => {
+  const calls = [];
+  let backendCalls = 0;
+  const resolver = {
+    resolve(query) {
+      calls.push(['resolve', query]);
+      if (/galinha pintadinha/i.test(query)) return { id: 'galinha-video', title: 'Galinha Pintadinha', artist: 'Galinha Pintadinha' };
+      if (/sultans of swing/i.test(query)) return { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits' };
+      return null;
+    },
+    play(candidate) {
+      calls.push(['play', candidate.id || candidate.title]);
+      return true;
+    }
+  };
+  const { elo } = loadEloContext({
+    window: { EloMusicResolver: resolver },
+    fetch() { backendCalls += 1; return Promise.reject(new Error('chat fallthrough')); }
+  });
+
+  const galinha = await elo.handleMusicQueryForTest('toque xalinha pintadinha');
+  assert.equal(galinha.handled, true);
+  assert.equal(galinha.decision, 'AUTO_CORRECTED');
+  assert.equal(galinha.candidate.title, 'Galinha Pintadinha');
+
+  const sultans = await elo.handleMusicQueryForTest('toque shootas of swing');
+  assert.equal(sultans.handled, true);
+  assert.equal(sultans.decision, 'AUTO_CORRECTED');
+  assert.equal(sultans.candidate.title, 'Sultans of Swing');
+
+  assert.deepEqual(calls, [
+    ['resolve', 'xalinha pintadinha'],
+    ['resolve', 'Galinha Pintadinha'],
+    ['play', 'galinha-video'],
+    ['resolve', 'shootas of swing'],
+    ['resolve', 'Sultans of Swing'],
+    ['play', 'sultans-video']
+  ]);
+  assert.equal(backendCalls, 0);
+});
+
+test('ELO music execute: autocorrect vindo do resolver re-resolve titulo corrigido antes do player', async () => {
+  const calls = [];
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/xalinha pintadinha/i.test(query)) return { id: 'resolver-shadow', title: 'Galinha Pintadinha', artist: '' };
+      if (/galinha pintadinha/i.test(query)) return { id: 'galinha-video', title: 'Galinha Pintadinha', artist: 'Galinha Pintadinha' };
+      return null;
+    },
+    play(candidate) {
+      calls.push(['play', candidate.id || candidate.title]);
+      return true;
+    }
+  };
+  const { elo } = loadEloContext({ window: { EloMusicResolver: resolver } });
+
+  const result = await elo.handleMusicQueryForTest('toque xalinha pintadinha');
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'AUTO_CORRECTED');
+  assert.equal(result.candidate.title, 'Galinha Pintadinha');
+  assert.deepEqual(calls, [
+    ['resolve', 'xalinha pintadinha', ''],
+    ['resolve', 'Galinha Pintadinha', 'xalinha pintadinha'],
+    ['play', 'galinha-video']
+  ]);
+});
+test('ELO music fuzzy: candidato duplicado do resolver nao reduz gap do autocorrect', async () => {
+  const calls = [];
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/shootas of swing/i.test(query)) return { id: 'resolver-shadow-sultans', title: 'Sultans of Swing', artist: 'Dire Straits' };
+      if (/sultans of swing/i.test(query)) return { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits' };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id || candidate.title]); return true; }
+  };
+  const { elo } = loadEloContext({ window: { EloMusicResolver: resolver } });
+
+  const result = await elo.handleMusicQueryForTest('toque shootas of swing');
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'AUTO_CORRECTED');
+  assert.equal(result.candidate.title, 'Sultans of Swing');
+  assert.deepEqual(calls, [
+    ['resolve', 'shootas of swing', ''],
+    ['resolve', 'Sultans of Swing', 'shootas of swing'],
+    ['play', 'sultans-video']
+  ]);
+});
+test('ELO music execute: resolver sem play resolve corrigido antes de falhar musical', async () => {
+  const resolveCalls = [];
+  const { elo } = loadEloContext({
+    window: {
+      EloMusicResolver: {
+        resolve(query) { resolveCalls.push(query); return { id: 'galinha-video', title: 'Galinha Pintadinha' }; }
+      }
+    }
+  });
+
+  const result = await elo.handleMusicQueryForTest('toque xalinha pintadinha');
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'NO_HANDLER');
+  assert.deepEqual(resolveCalls, ['xalinha pintadinha', 'Galinha Pintadinha']);
+});
+
+test('ELO music routing: recupera verbo deformado para Dream On sem fuzzy global', async () => {
+  const events = [];
+  const calls = [];
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/dream on/i.test(query)) return { id: 'aerosmith-dream-on', title: 'Dream On', artist: 'Aerosmith', videoId: 'kR4zpS-ky9o', playable: true, embeddable: true };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id || candidate.title]); return true; }
+  };
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: { EloMusicResolver: resolver, console: fakeConsole },
+    fetch() { throw new Error('chat fallthrough'); }
+  });
+
+  for (const message of ['ELO, toque Dream On', 'ELO truque Dream om', 'ELO toque Drim On']) {
+    const result = await elo.handleMusicQueryForTest(message);
+    assert.equal(result.handled, true, message);
+    assert.match(result.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/, message);
+    assert.equal(result.candidate.title, 'Dream On', message);
+    if (result.decision === 'ASK_CONFIRMATION') {
+      assert.equal(result.candidate.playable === false || result.candidate.embeddable === false || result.candidate.validationStatus === 'PENDING', true, message);
+    }
+  }
+
+  const nope = await elo.handleMusicQueryForTest('abacaxi hidráulico');
+  assert.equal(nope.handled, false);
+  assert.ok(events.some((event) => event.name === 'MUSIC_VERB_SCORE' && /truque/i.test(event.payload.verb)));
+  assert.ok(events.some((event) => event.name === 'MUSIC_DECISION' && /Dream On/.test(String(event.payload.candidate || ''))));
+  assert.ok(events.some((event) => event.name === 'MUSIC_INTENT' && event.payload.recovered === true));
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
+  assert.ok(calls.some((call) => call[0] === 'play' && call[1] === 'aerosmith-dream-on'));
+});
+
+test('ELO music routing: recupera wake Ellen e verbo talk para Dream On', async () => {
+  const events = [];
+  const calls = [];
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/dream on/i.test(query)) return { id: 'aerosmith-dream-on', title: 'Dream On', artist: 'Aerosmith', videoId: 'kR4zpS-ky9o', playable: true, embeddable: true };
+      if (/sultans of swing/i.test(query)) return { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits', videoId: '8Pa9x9fZBtY', playable: true, embeddable: true };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id || candidate.title]); return true; }
+  };
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: { EloMusicResolver: resolver, console: fakeConsole },
+    fetch() { throw new Error('chat fallthrough'); }
+  });
+
+  const normal = await elo.handleMusicQueryForTest('ELO, toque Dream On');
+  assert.equal(normal.handled, true);
+  assert.equal(normal.candidate.title, 'Dream On');
+
+  const talk = await elo.handleMusicQueryForTest('Ellen, talk Dream On');
+  assert.equal(talk.handled, true);
+  assert.match(talk.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/);
+  assert.equal(talk.candidate.title, 'Dream On');
+
+  const sultans = await elo.handleMusicQueryForTest('Ellen, toque Sultans of Swing');
+  assert.equal(sultans.handled, true);
+  assert.equal(sultans.candidate.title, 'Sultans of Swing');
+
+  assert.ok(events.some((event) => event.name === 'WAKE_ALIAS_MATCH' && event.payload.alias === 'ellen'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_VERB_ALIAS' && event.payload.verb === 'talk'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_QUERY' && event.payload.query === 'dream on'));
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
+  assert.ok(calls.some((call) => call[0] === 'play' && call[1] === 'aerosmith-dream-on'));
+});
+
+test('ELO music routing: verbo alias sem candidato forte vira NO_MATCH sem inventar', async () => {
+  const events = [];
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: { console: fakeConsole }
+  });
+
+  const result = await elo.handleMusicQueryForTest('talk abacaxi hidráulico');
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'NO_MATCH');
+  assert.ok(events.some((event) => event.name === 'MUSIC_VERB_ALIAS' && event.payload.verb === 'talk'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_DECISION' && event.payload.decision === 'NO_MATCH'));
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
+});
+
+test('ELO offline: estado de conectividade e badge respondem a eventos', () => {
+  const listeners = {};
+  const { elo } = loadEloContext({
+    window: {
+      navigator: { onLine: true },
+      addEventListener(type, handler) { listeners[type] = handler; }
+    }
+  });
+  elo.setCoreMessagesElementForTest(createElement('div'));
+  assert.equal(elo.initConnectivityForTest().online, true);
+  assert.equal(elo.isOnlineForTest(), true);
+
+  elo.setConnectivityForTest(false, 'test');
+  const badge = elo.getConnectivityBadgeForTest();
+  assert.equal(elo.isOnlineForTest(), false);
+  assert.equal(badge.hidden, false);
+  assert.match(badge.textContent, /ELO offline/);
+
+  listeners.online();
+  assert.equal(elo.isOnlineForTest(), true);
+  assert.equal(elo.getConnectivityForTest().reason, 'online_event');
+});
+
+test('ELO offline: chat remoto responde sem fetch e sem spinner eterno', () => {
+  let fetchCalls = 0;
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    window: { navigator: { onLine: false } },
+    fetch() { fetchCalls += 1; throw new Error('fetch should not run offline'); }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setConnectivityForTest(false, 'test');
+
+  elo.ask('ELO, me explique concreto protendido');
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+  assert.equal(messages.children.length >= 2, true);
+});
+
+test('ELO offline: TTS nao chama neural e usa speechSynthesis normalizado', async () => {
+  let fetchCalls = 0;
+  let speechCalls = 0;
+  let utterance = null;
+  const { elo } = loadEloContext({
+    window: {
+      navigator: { onLine: false },
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak(value) { speechCalls += 1; utterance = value; } },
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; }
+    },
+    fetch() { fetchCalls += 1; return Promise.reject(new Error('offline')); }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  assert.equal(elo.speakTextForTest('quem foi Renato Russo'), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(fetchCalls, 0);
+  assert.equal(speechCalls, 1);
+  assert.equal(audit.mode, 'speechSynthesis');
+  assert.equal(audit.fallback, true);
+  assert.equal(audit.fallbackReason, 'offline');
+  assert.equal(utterance.rate, 1);
+  assert.equal(utterance.pitch, 1);
+});
+
+test('ELO offline: musica resolve catalogo sem provider play ou chat', async () => {
+  const events = [];
+  let providerCalls = 0;
+  let playCalls = 0;
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: {
+      navigator: { onLine: false },
+      console: fakeConsole,
+      EloMusicResolver: {
+        resolve() { providerCalls += 1; throw new Error('provider should not run offline'); },
+        play() { playCalls += 1; return true; }
+      }
+    },
+    fetch() { throw new Error('chat should not run offline'); }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  const take = await elo.handleMusicQueryForTest('ELO, toque Take on Me');
+  const dream = await elo.handleMusicQueryForTest('ELO, toque Dream On');
+  const pending = await elo.handleMusicQueryForTest('ELO, toque Fly Like an Eagle');
+  const nope = await elo.handleMusicQueryForTest('ELO, toque abacaxi hidráulico');
+
+  assert.equal(take.handled, true);
+  assert.equal(take.decision, 'OFFLINE');
+  assert.equal(take.candidate.title, 'Take on Me');
+  assert.equal(take.candidate.validationStatus, 'ACTIVE');
+  assert.equal(dream.candidate.validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(pending.candidate.validationStatus, 'PENDING');
+  assert.equal(nope.decision, 'NO_MATCH');
+  assert.equal(providerCalls, 0);
+  assert.equal(playCalls, 0);
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).length >= 3, true);
+});
+
+test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis', async () => {
+  const events = [];
+  const audioInstances = [];
+  let speechCalls = 0;
+  function Audio(url) {
+    this.url = url;
+    this.playbackRate = 0.5;
+    audioInstances.push(this);
+    this.play = () => Promise.resolve(true);
+  }
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo } = loadEloContext({
+    window: {
+      console: fakeConsole,
+      Audio,
+      ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'pt-BR ruim', lang: 'pt-BR' }]; }, speak() { speechCalls += 1; } },
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; }
+    },
+    fetch(url, options = {}) {
+      assert.equal(String(url), 'https://tts.test/api/elo/tts');
+      assert.equal(options.method, 'POST');
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:elo-neural', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
+    }
+  });
+
+  assert.equal(elo.speakTextForTest('quanto é cinco mais cinco'), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(audit.mode, 'neural');
+  assert.equal(audit.provider, 'openai-tts');
+  assert.equal(audit.voice, 'elo-neural-ptbr');
+  assert.equal(audit.playbackRate, 1);
+  assert.equal(audit.preservesPitch, true);
+  assert.equal(audit.fallback, false);
+  assert.equal(audioInstances[0].playbackRate, 1);
+  assert.equal(audioInstances[0].preservesPitch, true);
+  assert.equal(speechCalls, 0);
+  assert.ok(events.some((event) => event.name === 'TTS_AUDIT' && event.payload.TTS_MODE === 'neural'));
+});
+
+test('ELO TTS web: fallback speechSynthesis auditado com rate e pitch normais', async () => {
+  let utterance = null;
+  let speechCalls = 0;
+  const { elo } = loadEloContext({
+    window: {
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak(value) { speechCalls += 1; utterance = value; } },
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; }
+    },
+    fetch() { return Promise.reject(new Error('tts offline')); }
+  });
+
+  assert.equal(elo.speakTextForTest('quem foi Renato Russo'), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(audit.mode, 'speechSynthesis');
+  assert.equal(audit.fallback, true);
+  assert.equal(audit.rate, 1);
+  assert.equal(audit.pitch, 1);
+  assert.equal(utterance.rate, 1);
+  assert.equal(utterance.pitch, 1);
+  assert.equal(speechCalls, 1);
+});
+
+test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
+  const audioInstances = [];
+  let fetchCalls = 0;
+  function Audio(url) {
+    this.url = url;
+    this.playbackRate = 0.5;
+    audioInstances.push(this);
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch(url, options = {}) {
+      fetchCalls += 1;
+      assert.equal(String(url), 'https://tts.test/api/elo/tts');
+      assert.equal(options.method, 'POST');
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:auto-tts', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(message.dataset.eloAutoTtsDone, 'true');
+  assert.equal(audioInstances.length, 1);
+  assert.equal(audioInstances[0].playbackRate, 1);
+  assert.equal(audioInstances[0].preservesPitch, true);
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(audit.mode, 'neural');
+  assert.equal(audit.provider, 'openai-tts');
+  assert.equal(audit.fallback, false);
+});
+
+test('ELO auto-TTS: nao fala musica nem status interno', async () => {
+  let fetchCalls = 0;
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); } },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:blocked' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Tocando Dream On.');
+  elo.appendMessageForLayoutTest('assistant', 'Pausando música.');
+  elo.appendMessageForLayoutTest('assistant', 'Analisando imagem e gerando PDF real pelo ObraReport...');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 0);
+});
+
+test('ELO auto-TTS: nova pergunta cancela fala anterior', async () => {
+  const pauses = [];
+  function Audio(url) {
+    this.url = url;
+    this.playbackRate = 1;
+    this.pause = () => { pauses.push(url); };
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-live', provider: 'openai-tts' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elo.ask('Nova pergunta do usuário');
+
+  assert.deepEqual(pauses, ['blob:tts-live']);
+});
+
+test('ELO hero typography: suporta descenders q g p y em multiplas linhas', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+  assert.match(css, /ELO WEB 09: stable hero typography/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*height:\s*auto/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*line-height:\s*1\.22/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*padding-block:\s*0\.08em 0\.18em/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-heading[\s\S]*gap:\s*clamp\(12px, 2\.1vw, 20px\)/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*line-height:\s*1\.24/);
+});
+
+
+test('ELO offline classical routing: 5 obras executam local-first sem provider ou chat', async () => {
+  const library = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media/classical/library.json'), 'utf8'));
+  const fetchCalls = [];
+  const playCalls = [];
+  const events = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-offline-media-library.js', 'elo-music-catalog.js', 'elo-music-resolver.js'],
+    window: {
+      navigator: { onLine: false },
+      console: { info(name, payload) { events.push({ name, payload: payload || {} }); }, log() {}, warn() {}, error() {} },
+      EloMediaPlayer: {
+        play(media) { playCalls.push(media); return Promise.resolve(true); },
+        pause() { return true; },
+        resume() { return true; },
+        stop() { return true; },
+        getState() { return 'PLAYING'; }
+      }
+    },
+    fetch(url) {
+      const cleanUrl = String(url);
+      fetchCalls.push(cleanUrl);
+      if (/offline-media\/classical\/library\.json/.test(cleanUrl)) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(library) });
+      }
+      throw new Error('provider_or_chat_should_not_run_for_local_classical');
+    }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  const cases = [
+    ['ELO, toque Beethoven', 'beethoven-fur-elise'],
+    ['ELO, toque Clair de Lune', 'debussy-clair-de-lune'],
+    ['ELO, toque Vivaldi', 'vivaldi-four-seasons-spring'],
+    ['ELO, toque Canon in D', 'pachelbel-canon-in-d'],
+    ['ELO, toque Chopin', 'chopin-nocturne-op-9-no-2']
+  ];
+
+  for (const [message, id] of cases) {
+    const result = await elo.handleMusicQueryForTest(message);
+    assert.equal(result.handled, true, message);
+    assert.match(result.decision, /EXACT|AUTO_CORRECTED/, message);
+    assert.equal(result.candidate.id, id, message);
+    assert.equal(result.candidate.source, 'LOCAL_CLASSICAL', message);
+  }
+
+  assert.equal(playCalls.length, 5);
+  assert.equal(playCalls.find((media) => media.id === 'vivaldi-four-seasons-spring').files.length, 3);
+  assert.equal(fetchCalls.filter((url) => /\/api\/elo\/media\/search/.test(url)).length, 0);
+  assert.ok(events.some((event) => event.name === 'MEDIA_OFFLINE_LIBRARY_MATCH'));
+});

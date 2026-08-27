@@ -67,23 +67,20 @@ function loadAssistant() {
 
 test("Elo responde oi pelo fast-path sem base tecnica", () => {
   const { assistant, calls } = loadAssistant();
-  const response = assistant.buildQuickGreetingAnswerForTest("oi");
+  const response = assistant.buildResponseForTest("oi");
 
-  assert.equal(response.sessionIntent, "cumprimento_rapido_local");
-  assert.equal(response.sessionTheme, "conversa");
-  assert.equal(response.canSave, false);
-  assert.equal(response.shortAnswer, "oi");
-  assert.equal(response.fullAnswer, "oi");
+  assert.equal(response.fastPath, "greeting");
+  assert.equal(response.sessionIntent, "cumprimento_instantaneo");
+  assert.match(response.shortAnswer, /Oi, Icaro\. Estou pronto\./);
+  assert.equal(response.fullAnswer, response.shortAnswer);
   assert.deepEqual(calls, { router: 0, technical: 0, composition: 0 });
 });
 
 test("Elo responde ola sem chamar CompositionSearchEngine", () => {
   const { assistant, calls } = loadAssistant();
-  const response = assistant.buildQuickGreetingAnswerForTest("ol\u00e1");
+  const response = assistant.buildResponseForTest("ol\u00e1");
 
-  assert.equal(response.sessionIntent, "cumprimento_rapido_local");
-  assert.equal(response.sessionTheme, "conversa");
-  assert.equal(response.canSave, false);
+  assert.equal(response.fastPath, "greeting");
   assert.doesNotMatch(response.fullAnswer, /area|dimensao|composicao de parede/i);
   assert.equal(calls.composition, 0);
   assert.equal(calls.router, 0);
@@ -96,9 +93,8 @@ test("Elo responde bom dia sem parser de orcamento", () => {
   const response = assistant.buildResponseForTest("bom dia");
   const elapsedMs = performance.now() - startedAt;
 
-  assert.equal(response.sessionIntent, "conversa_humana");
-  assert.equal(response.sessionTheme, "conversa");
-  assert.match(response.shortAnswer, /Icaro, oi, estou por aqui\.|oi, estou por aqui\./);
+  assert.equal(response.fastPath, "greeting");
+  assert.match(response.shortAnswer, /Bom dia, Icaro\. Estou pronto\./);
   assert.equal(calls.router, 0);
   assert.equal(calls.technical, 0);
   assert.ok(elapsedMs < 50, "saudacao simples deve ser respondida sem rotina pesada");
