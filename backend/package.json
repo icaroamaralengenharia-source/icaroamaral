@@ -19,7 +19,8 @@
     "demo:full:dry-run": "node scripts/municipal-demo-smoke-local.js --full",
     "demo:wizard": "node scripts/municipal-demo-wizard.js",
     "demo:wizard:example": "node scripts/municipal-demo-wizard.js --example --dry-run",
-    "demo:runbook:dry-run": "node scripts/municipal-demo-wizard.js --example --dry-run"
+    "demo:runbook:dry-run": "node scripts/municipal-demo-wizard.js --example --dry-run",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
     "@playwright/test": "^1.60.0",
