@@ -1,0 +1,1295 @@
+{
+  "submittedAt": "2026-08-28T00:00:00.000Z",
+  "source": "fixture-04b",
+  "tipoRelatorio": "apartment_handover_inspection",
+  "report": {
+    "type": "apartment_handover_inspection",
+    "obra": "Empreendimento Teste ObraReport",
+    "empreendimento": "Empreendimento Teste ObraReport",
+    "construtora": "Construtora Teste ObraReport",
+    "bloco": "Torre Teste",
+    "unidade": "101",
+    "endereco": "Endereco de teste, 100 - Salvador/BA",
+    "local": "Unidade 101 - Torre Teste",
+    "cliente": "Cliente Teste ObraReport",
+    "proprietario": "Proprietario Teste ObraReport",
+    "responsavelTecnico": "Responsavel Tecnico Teste",
+    "creaCau": "CREA/CAU TESTE-000000",
+    "dataVistoria": "2026-08-28",
+    "emailDestino": "teste-obraport@example.com",
+    "artRrt": "Nao informado",
+    "inspection": {
+      "tipo": "Vistoria de entrega",
+      "finalizada": true,
+      "items": [
+        {
+          "numero": 1,
+          "ambiente": "Sala",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 1",
+          "criterioAceitacao": "Criterio de aceitacao controlado 1",
+          "status": "NC",
+          "severidade": "Baixa",
+          "descricaoTecnica": "Pequena falha pontual de acabamento no rodape da sala, registrada em vistoria de teste.",
+          "recomendacaoAcao": "Realizar retoque localizado e reinspecionar o acabamento apos a correcao.",
+          "observacoes": "Ocorrencia controlada para teste de laudo.",
+          "fotos": [
+            {
+              "numero": 1,
+              "legenda": "NC-001 - foto sintetica 1",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-001-1.png"
+              }
+            }
+          ]
+        },
+        {
+          "numero": 2,
+          "ambiente": "Cozinha",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 2",
+          "criterioAceitacao": "Criterio de aceitacao controlado 2",
+          "status": "NC",
+          "severidade": "Media",
+          "descricaoTecnica": "Desalinhamento perceptivel na folha da porta do dormitorio, sem declaracao de risco estrutural.",
+          "recomendacaoAcao": "Regular dobradicas e conferir funcionamento completo da esquadria.",
+          "observacoes": "Validacao de multiplas evidencias fotograficas.",
+          "fotos": [
+            {
+              "numero": 1,
+              "legenda": "NC-002 - foto sintetica 1",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-002-1.png"
+              }
+            },
+            {
+              "numero": 2,
+              "legenda": "NC-002 - foto sintetica 2",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-002-2.png"
+              }
+            }
+          ]
+        },
+        {
+          "numero": 3,
+          "ambiente": "Area de servico",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 3",
+          "criterioAceitacao": "Criterio de aceitacao controlado 3",
+          "status": "NC",
+          "severidade": "Alta",
+          "descricaoTecnica": "Ponto de umidade aparente proximo a janela da cozinha, exigindo verificacao de origem antes da entrega.",
+          "recomendacaoAcao": "Investigar origem da umidade, corrigir vedacao ou interface construtiva e registrar re-vistoria.",
+          "observacoes": "Validacao explicita de cinco fotos vinculadas a uma NC.",
+          "fotos": [
+            {
+              "numero": 1,
+              "legenda": "NC-003 - foto sintetica 1",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-003-1.png"
+              }
+            },
+            {
+              "numero": 2,
+              "legenda": "NC-003 - foto sintetica 2",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-003-2.png"
+              }
+            },
+            {
+              "numero": 3,
+              "legenda": "NC-003 - foto sintetica 3",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-003-3.png"
+              }
+            },
+            {
+              "numero": 4,
+              "legenda": "NC-003 - foto sintetica 4",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-003-4.png"
+              }
+            },
+            {
+              "numero": 5,
+              "legenda": "NC-003 - foto sintetica 5",
+              "foto": {
+                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+                "mimeType": "image/png",
+                "fileName": "nc-003-5.png"
+              }
+            }
+          ]
+        },
+        {
+          "numero": 4,
+          "ambiente": "Banheiro social",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 4",
+          "criterioAceitacao": "Criterio de aceitacao controlado 4",
+          "status": "NA"
+        },
+        {
+          "numero": 5,
+          "ambiente": "Suite",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 5",
+          "criterioAceitacao": "Criterio de aceitacao controlado 5",
+          "status": "NV",
+          "motivoNaoVerificado": "Quadro tecnico sem acesso no momento da vistoria de teste."
+        },
+        {
+          "numero": 6,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 6",
+          "criterioAceitacao": "Criterio de aceitacao controlado 6",
+          "status": "NI",
+          "motivoNaoInspecionado": "Ambiente mantido bloqueado durante a vistoria de teste."
+        },
+        {
+          "numero": 7,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 7",
+          "criterioAceitacao": "Criterio de aceitacao controlado 7",
+          "status": "C",
+          "medicoes": [
+            {
+              "ambiente": "Dormitorio 2",
+              "item": "Item tecnico de vistoria 7",
+              "tipo": "Desnivel",
+              "valor": "4",
+              "unidade": "mm",
+              "instrumento": "Nivel a laser TESTE-01",
+              "criterioAceitacao": "Ate 5 mm na area verificada",
+              "observacao": "Medicao sintetica controlada para QA."
+            }
+          ]
+        },
+        {
+          "numero": 8,
+          "ambiente": "Varanda",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 8",
+          "criterioAceitacao": "Criterio de aceitacao controlado 8",
+          "status": "C"
+        },
+        {
+          "numero": 9,
+          "ambiente": "Circulacao",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 9",
+          "criterioAceitacao": "Criterio de aceitacao controlado 9",
+          "status": "C"
+        },
+        {
+          "numero": 10,
+          "ambiente": "Lavabo",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 10",
+          "criterioAceitacao": "Criterio de aceitacao controlado 10",
+          "status": "C"
+        },
+        {
+          "numero": 11,
+          "ambiente": "Hall",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 11",
+          "criterioAceitacao": "Criterio de aceitacao controlado 11",
+          "status": "C"
+        },
+        {
+          "numero": 12,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 12",
+          "criterioAceitacao": "Criterio de aceitacao controlado 12",
+          "status": "C"
+        },
+        {
+          "numero": 13,
+          "ambiente": "Garagem",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 13",
+          "criterioAceitacao": "Criterio de aceitacao controlado 13",
+          "status": "C"
+        },
+        {
+          "numero": 14,
+          "ambiente": "Sala",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 14",
+          "criterioAceitacao": "Criterio de aceitacao controlado 14",
+          "status": "C"
+        },
+        {
+          "numero": 15,
+          "ambiente": "Cozinha",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 15",
+          "criterioAceitacao": "Criterio de aceitacao controlado 15",
+          "status": "C"
+        },
+        {
+          "numero": 16,
+          "ambiente": "Area de servico",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 16",
+          "criterioAceitacao": "Criterio de aceitacao controlado 16",
+          "status": "C"
+        },
+        {
+          "numero": 17,
+          "ambiente": "Banheiro social",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 17",
+          "criterioAceitacao": "Criterio de aceitacao controlado 17",
+          "status": "C"
+        },
+        {
+          "numero": 18,
+          "ambiente": "Suite",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 18",
+          "criterioAceitacao": "Criterio de aceitacao controlado 18",
+          "status": "C"
+        },
+        {
+          "numero": 19,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 19",
+          "criterioAceitacao": "Criterio de aceitacao controlado 19",
+          "status": "C"
+        },
+        {
+          "numero": 20,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 20",
+          "criterioAceitacao": "Criterio de aceitacao controlado 20",
+          "status": "C"
+        },
+        {
+          "numero": 21,
+          "ambiente": "Varanda",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 21",
+          "criterioAceitacao": "Criterio de aceitacao controlado 21",
+          "status": "C"
+        },
+        {
+          "numero": 22,
+          "ambiente": "Circulacao",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 22",
+          "criterioAceitacao": "Criterio de aceitacao controlado 22",
+          "status": "C"
+        },
+        {
+          "numero": 23,
+          "ambiente": "Lavabo",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 23",
+          "criterioAceitacao": "Criterio de aceitacao controlado 23",
+          "status": "C"
+        },
+        {
+          "numero": 24,
+          "ambiente": "Hall",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 24",
+          "criterioAceitacao": "Criterio de aceitacao controlado 24",
+          "status": "C"
+        },
+        {
+          "numero": 25,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 25",
+          "criterioAceitacao": "Criterio de aceitacao controlado 25",
+          "status": "C"
+        },
+        {
+          "numero": 26,
+          "ambiente": "Garagem",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 26",
+          "criterioAceitacao": "Criterio de aceitacao controlado 26",
+          "status": "C"
+        },
+        {
+          "numero": 27,
+          "ambiente": "Sala",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 27",
+          "criterioAceitacao": "Criterio de aceitacao controlado 27",
+          "status": "C"
+        },
+        {
+          "numero": 28,
+          "ambiente": "Cozinha",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 28",
+          "criterioAceitacao": "Criterio de aceitacao controlado 28",
+          "status": "C"
+        },
+        {
+          "numero": 29,
+          "ambiente": "Area de servico",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 29",
+          "criterioAceitacao": "Criterio de aceitacao controlado 29",
+          "status": "C"
+        },
+        {
+          "numero": 30,
+          "ambiente": "Banheiro social",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 30",
+          "criterioAceitacao": "Criterio de aceitacao controlado 30",
+          "status": "C"
+        },
+        {
+          "numero": 31,
+          "ambiente": "Suite",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 31",
+          "criterioAceitacao": "Criterio de aceitacao controlado 31",
+          "status": "C"
+        },
+        {
+          "numero": 32,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 32",
+          "criterioAceitacao": "Criterio de aceitacao controlado 32",
+          "status": "C"
+        },
+        {
+          "numero": 33,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 33",
+          "criterioAceitacao": "Criterio de aceitacao controlado 33",
+          "status": "C"
+        },
+        {
+          "numero": 34,
+          "ambiente": "Varanda",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 34",
+          "criterioAceitacao": "Criterio de aceitacao controlado 34",
+          "status": "C"
+        },
+        {
+          "numero": 35,
+          "ambiente": "Circulacao",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 35",
+          "criterioAceitacao": "Criterio de aceitacao controlado 35",
+          "status": "C"
+        },
+        {
+          "numero": 36,
+          "ambiente": "Lavabo",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 36",
+          "criterioAceitacao": "Criterio de aceitacao controlado 36",
+          "status": "C"
+        },
+        {
+          "numero": 37,
+          "ambiente": "Hall",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 37",
+          "criterioAceitacao": "Criterio de aceitacao controlado 37",
+          "status": "C"
+        },
+        {
+          "numero": 38,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 38",
+          "criterioAceitacao": "Criterio de aceitacao controlado 38",
+          "status": "C"
+        },
+        {
+          "numero": 39,
+          "ambiente": "Garagem",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 39",
+          "criterioAceitacao": "Criterio de aceitacao controlado 39",
+          "status": "C"
+        },
+        {
+          "numero": 40,
+          "ambiente": "Sala",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 40",
+          "criterioAceitacao": "Criterio de aceitacao controlado 40",
+          "status": "C"
+        },
+        {
+          "numero": 41,
+          "ambiente": "Cozinha",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 41",
+          "criterioAceitacao": "Criterio de aceitacao controlado 41",
+          "status": "C"
+        },
+        {
+          "numero": 42,
+          "ambiente": "Area de servico",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 42",
+          "criterioAceitacao": "Criterio de aceitacao controlado 42",
+          "status": "C"
+        },
+        {
+          "numero": 43,
+          "ambiente": "Banheiro social",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 43",
+          "criterioAceitacao": "Criterio de aceitacao controlado 43",
+          "status": "C"
+        },
+        {
+          "numero": 44,
+          "ambiente": "Suite",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 44",
+          "criterioAceitacao": "Criterio de aceitacao controlado 44",
+          "status": "C"
+        },
+        {
+          "numero": 45,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 45",
+          "criterioAceitacao": "Criterio de aceitacao controlado 45",
+          "status": "C"
+        },
+        {
+          "numero": 46,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 46",
+          "criterioAceitacao": "Criterio de aceitacao controlado 46",
+          "status": "C"
+        },
+        {
+          "numero": 47,
+          "ambiente": "Varanda",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 47",
+          "criterioAceitacao": "Criterio de aceitacao controlado 47",
+          "status": "C"
+        },
+        {
+          "numero": 48,
+          "ambiente": "Circulacao",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 48",
+          "criterioAceitacao": "Criterio de aceitacao controlado 48",
+          "status": "C"
+        },
+        {
+          "numero": 49,
+          "ambiente": "Lavabo",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 49",
+          "criterioAceitacao": "Criterio de aceitacao controlado 49",
+          "status": "C"
+        },
+        {
+          "numero": 50,
+          "ambiente": "Hall",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 50",
+          "criterioAceitacao": "Criterio de aceitacao controlado 50",
+          "status": "C"
+        },
+        {
+          "numero": 51,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 51",
+          "criterioAceitacao": "Criterio de aceitacao controlado 51",
+          "status": "C"
+        },
+        {
+          "numero": 52,
+          "ambiente": "Garagem",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 52",
+          "criterioAceitacao": "Criterio de aceitacao controlado 52",
+          "status": "C"
+        },
+        {
+          "numero": 53,
+          "ambiente": "Sala",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 53",
+          "criterioAceitacao": "Criterio de aceitacao controlado 53",
+          "status": "C"
+        },
+        {
+          "numero": 54,
+          "ambiente": "Cozinha",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 54",
+          "criterioAceitacao": "Criterio de aceitacao controlado 54",
+          "status": "C"
+        },
+        {
+          "numero": 55,
+          "ambiente": "Area de servico",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 55",
+          "criterioAceitacao": "Criterio de aceitacao controlado 55",
+          "status": "C"
+        },
+        {
+          "numero": 56,
+          "ambiente": "Banheiro social",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 56",
+          "criterioAceitacao": "Criterio de aceitacao controlado 56",
+          "status": "C"
+        },
+        {
+          "numero": 57,
+          "ambiente": "Suite",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 57",
+          "criterioAceitacao": "Criterio de aceitacao controlado 57",
+          "status": "C"
+        },
+        {
+          "numero": 58,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 58",
+          "criterioAceitacao": "Criterio de aceitacao controlado 58",
+          "status": "C"
+        },
+        {
+          "numero": 59,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 59",
+          "criterioAceitacao": "Criterio de aceitacao controlado 59",
+          "status": "C"
+        },
+        {
+          "numero": 60,
+          "ambiente": "Varanda",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 60",
+          "criterioAceitacao": "Criterio de aceitacao controlado 60",
+          "status": "C"
+        },
+        {
+          "numero": 61,
+          "ambiente": "Circulacao",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 61",
+          "criterioAceitacao": "Criterio de aceitacao controlado 61",
+          "status": "C"
+        },
+        {
+          "numero": 62,
+          "ambiente": "Lavabo",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 62",
+          "criterioAceitacao": "Criterio de aceitacao controlado 62",
+          "status": "C"
+        },
+        {
+          "numero": 63,
+          "ambiente": "Hall",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 63",
+          "criterioAceitacao": "Criterio de aceitacao controlado 63",
+          "status": "C"
+        },
+        {
+          "numero": 64,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 64",
+          "criterioAceitacao": "Criterio de aceitacao controlado 64",
+          "status": "C"
+        },
+        {
+          "numero": 65,
+          "ambiente": "Garagem",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 65",
+          "criterioAceitacao": "Criterio de aceitacao controlado 65",
+          "status": "C"
+        },
+        {
+          "numero": 66,
+          "ambiente": "Sala",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 66",
+          "criterioAceitacao": "Criterio de aceitacao controlado 66",
+          "status": "C"
+        },
+        {
+          "numero": 67,
+          "ambiente": "Cozinha",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 67",
+          "criterioAceitacao": "Criterio de aceitacao controlado 67",
+          "status": "C"
+        },
+        {
+          "numero": 68,
+          "ambiente": "Area de servico",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 68",
+          "criterioAceitacao": "Criterio de aceitacao controlado 68",
+          "status": "C"
+        },
+        {
+          "numero": 69,
+          "ambiente": "Banheiro social",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 69",
+          "criterioAceitacao": "Criterio de aceitacao controlado 69",
+          "status": "C"
+        },
+        {
+          "numero": 70,
+          "ambiente": "Suite",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 70",
+          "criterioAceitacao": "Criterio de aceitacao controlado 70",
+          "status": "C"
+        },
+        {
+          "numero": 71,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 71",
+          "criterioAceitacao": "Criterio de aceitacao controlado 71",
+          "status": "C"
+        },
+        {
+          "numero": 72,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 72",
+          "criterioAceitacao": "Criterio de aceitacao controlado 72",
+          "status": "C"
+        },
+        {
+          "numero": 73,
+          "ambiente": "Varanda",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 73",
+          "criterioAceitacao": "Criterio de aceitacao controlado 73",
+          "status": "C"
+        },
+        {
+          "numero": 74,
+          "ambiente": "Circulacao",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 74",
+          "criterioAceitacao": "Criterio de aceitacao controlado 74",
+          "status": "C"
+        },
+        {
+          "numero": 75,
+          "ambiente": "Lavabo",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 75",
+          "criterioAceitacao": "Criterio de aceitacao controlado 75",
+          "status": "C"
+        },
+        {
+          "numero": 76,
+          "ambiente": "Hall",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 76",
+          "criterioAceitacao": "Criterio de aceitacao controlado 76",
+          "status": "C"
+        },
+        {
+          "numero": 77,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 77",
+          "criterioAceitacao": "Criterio de aceitacao controlado 77",
+          "status": "C"
+        },
+        {
+          "numero": 78,
+          "ambiente": "Garagem",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 78",
+          "criterioAceitacao": "Criterio de aceitacao controlado 78",
+          "status": "C"
+        },
+        {
+          "numero": 79,
+          "ambiente": "Sala",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 79",
+          "criterioAceitacao": "Criterio de aceitacao controlado 79",
+          "status": "C"
+        },
+        {
+          "numero": 80,
+          "ambiente": "Cozinha",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 80",
+          "criterioAceitacao": "Criterio de aceitacao controlado 80",
+          "status": "C"
+        },
+        {
+          "numero": 81,
+          "ambiente": "Area de servico",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 81",
+          "criterioAceitacao": "Criterio de aceitacao controlado 81",
+          "status": "C"
+        },
+        {
+          "numero": 82,
+          "ambiente": "Banheiro social",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 82",
+          "criterioAceitacao": "Criterio de aceitacao controlado 82",
+          "status": "C"
+        },
+        {
+          "numero": 83,
+          "ambiente": "Suite",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 83",
+          "criterioAceitacao": "Criterio de aceitacao controlado 83",
+          "status": "C"
+        },
+        {
+          "numero": 84,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 84",
+          "criterioAceitacao": "Criterio de aceitacao controlado 84",
+          "status": "C"
+        },
+        {
+          "numero": 85,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 85",
+          "criterioAceitacao": "Criterio de aceitacao controlado 85",
+          "status": "C"
+        },
+        {
+          "numero": 86,
+          "ambiente": "Varanda",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 86",
+          "criterioAceitacao": "Criterio de aceitacao controlado 86",
+          "status": "C"
+        },
+        {
+          "numero": 87,
+          "ambiente": "Circulacao",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 87",
+          "criterioAceitacao": "Criterio de aceitacao controlado 87",
+          "status": "C"
+        },
+        {
+          "numero": 88,
+          "ambiente": "Lavabo",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 88",
+          "criterioAceitacao": "Criterio de aceitacao controlado 88",
+          "status": "C"
+        },
+        {
+          "numero": 89,
+          "ambiente": "Hall",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 89",
+          "criterioAceitacao": "Criterio de aceitacao controlado 89",
+          "status": "C"
+        },
+        {
+          "numero": 90,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 90",
+          "criterioAceitacao": "Criterio de aceitacao controlado 90",
+          "status": "C"
+        },
+        {
+          "numero": 91,
+          "ambiente": "Garagem",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 91",
+          "criterioAceitacao": "Criterio de aceitacao controlado 91",
+          "status": "C"
+        },
+        {
+          "numero": 92,
+          "ambiente": "Sala",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 92",
+          "criterioAceitacao": "Criterio de aceitacao controlado 92",
+          "status": "C"
+        },
+        {
+          "numero": 93,
+          "ambiente": "Cozinha",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 93",
+          "criterioAceitacao": "Criterio de aceitacao controlado 93",
+          "status": "C"
+        },
+        {
+          "numero": 94,
+          "ambiente": "Area de servico",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 94",
+          "criterioAceitacao": "Criterio de aceitacao controlado 94",
+          "status": "C"
+        },
+        {
+          "numero": 95,
+          "ambiente": "Banheiro social",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 95",
+          "criterioAceitacao": "Criterio de aceitacao controlado 95",
+          "status": "C"
+        },
+        {
+          "numero": 96,
+          "ambiente": "Suite",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 96",
+          "criterioAceitacao": "Criterio de aceitacao controlado 96",
+          "status": "C"
+        },
+        {
+          "numero": 97,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 97",
+          "criterioAceitacao": "Criterio de aceitacao controlado 97",
+          "status": "C"
+        },
+        {
+          "numero": 98,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 98",
+          "criterioAceitacao": "Criterio de aceitacao controlado 98",
+          "status": "C"
+        },
+        {
+          "numero": 99,
+          "ambiente": "Varanda",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 99",
+          "criterioAceitacao": "Criterio de aceitacao controlado 99",
+          "status": "C"
+        },
+        {
+          "numero": 100,
+          "ambiente": "Circulacao",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 100",
+          "criterioAceitacao": "Criterio de aceitacao controlado 100",
+          "status": "C"
+        },
+        {
+          "numero": 101,
+          "ambiente": "Lavabo",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 101",
+          "criterioAceitacao": "Criterio de aceitacao controlado 101",
+          "status": "C"
+        },
+        {
+          "numero": 102,
+          "ambiente": "Hall",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 102",
+          "criterioAceitacao": "Criterio de aceitacao controlado 102",
+          "status": "C"
+        },
+        {
+          "numero": 103,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 103",
+          "criterioAceitacao": "Criterio de aceitacao controlado 103",
+          "status": "C"
+        },
+        {
+          "numero": 104,
+          "ambiente": "Garagem",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 104",
+          "criterioAceitacao": "Criterio de aceitacao controlado 104",
+          "status": "C"
+        },
+        {
+          "numero": 105,
+          "ambiente": "Sala",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 105",
+          "criterioAceitacao": "Criterio de aceitacao controlado 105",
+          "status": "C"
+        },
+        {
+          "numero": 106,
+          "ambiente": "Cozinha",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 106",
+          "criterioAceitacao": "Criterio de aceitacao controlado 106",
+          "status": "C"
+        },
+        {
+          "numero": 107,
+          "ambiente": "Area de servico",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 107",
+          "criterioAceitacao": "Criterio de aceitacao controlado 107",
+          "status": "C"
+        },
+        {
+          "numero": 108,
+          "ambiente": "Banheiro social",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 108",
+          "criterioAceitacao": "Criterio de aceitacao controlado 108",
+          "status": "C"
+        },
+        {
+          "numero": 109,
+          "ambiente": "Suite",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 109",
+          "criterioAceitacao": "Criterio de aceitacao controlado 109",
+          "status": "C"
+        },
+        {
+          "numero": 110,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 110",
+          "criterioAceitacao": "Criterio de aceitacao controlado 110",
+          "status": "C"
+        },
+        {
+          "numero": 111,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 111",
+          "criterioAceitacao": "Criterio de aceitacao controlado 111",
+          "status": "C"
+        },
+        {
+          "numero": 112,
+          "ambiente": "Varanda",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 112",
+          "criterioAceitacao": "Criterio de aceitacao controlado 112",
+          "status": "C"
+        },
+        {
+          "numero": 113,
+          "ambiente": "Circulacao",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 113",
+          "criterioAceitacao": "Criterio de aceitacao controlado 113",
+          "status": "C"
+        },
+        {
+          "numero": 114,
+          "ambiente": "Lavabo",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 114",
+          "criterioAceitacao": "Criterio de aceitacao controlado 114",
+          "status": "C"
+        },
+        {
+          "numero": 115,
+          "ambiente": "Hall",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 115",
+          "criterioAceitacao": "Criterio de aceitacao controlado 115",
+          "status": "C"
+        },
+        {
+          "numero": 116,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 116",
+          "criterioAceitacao": "Criterio de aceitacao controlado 116",
+          "status": "C"
+        },
+        {
+          "numero": 117,
+          "ambiente": "Garagem",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 117",
+          "criterioAceitacao": "Criterio de aceitacao controlado 117",
+          "status": "C"
+        },
+        {
+          "numero": 118,
+          "ambiente": "Sala",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 118",
+          "criterioAceitacao": "Criterio de aceitacao controlado 118",
+          "status": "C"
+        },
+        {
+          "numero": 119,
+          "ambiente": "Cozinha",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 119",
+          "criterioAceitacao": "Criterio de aceitacao controlado 119",
+          "status": "C"
+        },
+        {
+          "numero": 120,
+          "ambiente": "Area de servico",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 120",
+          "criterioAceitacao": "Criterio de aceitacao controlado 120",
+          "status": "C"
+        },
+        {
+          "numero": 121,
+          "ambiente": "Banheiro social",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 121",
+          "criterioAceitacao": "Criterio de aceitacao controlado 121",
+          "status": "C"
+        },
+        {
+          "numero": 122,
+          "ambiente": "Suite",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 122",
+          "criterioAceitacao": "Criterio de aceitacao controlado 122",
+          "status": "C"
+        },
+        {
+          "numero": 123,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 123",
+          "criterioAceitacao": "Criterio de aceitacao controlado 123",
+          "status": "C"
+        },
+        {
+          "numero": 124,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 124",
+          "criterioAceitacao": "Criterio de aceitacao controlado 124",
+          "status": "C"
+        },
+        {
+          "numero": 125,
+          "ambiente": "Varanda",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 125",
+          "criterioAceitacao": "Criterio de aceitacao controlado 125",
+          "status": "C"
+        },
+        {
+          "numero": 126,
+          "ambiente": "Circulacao",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 126",
+          "criterioAceitacao": "Criterio de aceitacao controlado 126",
+          "status": "C"
+        },
+        {
+          "numero": 127,
+          "ambiente": "Lavabo",
+          "sistema": "Pisos",
+          "item": "Item tecnico de vistoria 127",
+          "criterioAceitacao": "Criterio de aceitacao controlado 127",
+          "status": "C"
+        },
+        {
+          "numero": 128,
+          "ambiente": "Hall",
+          "sistema": "Paredes",
+          "item": "Item tecnico de vistoria 128",
+          "criterioAceitacao": "Criterio de aceitacao controlado 128",
+          "status": "C"
+        },
+        {
+          "numero": 129,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Forro",
+          "item": "Item tecnico de vistoria 129",
+          "criterioAceitacao": "Criterio de aceitacao controlado 129",
+          "status": "C"
+        },
+        {
+          "numero": 130,
+          "ambiente": "Garagem",
+          "sistema": "Esquadrias",
+          "item": "Item tecnico de vistoria 130",
+          "criterioAceitacao": "Criterio de aceitacao controlado 130",
+          "status": "C"
+        },
+        {
+          "numero": 131,
+          "ambiente": "Sala",
+          "sistema": "Instalacoes eletricas",
+          "item": "Item tecnico de vistoria 131",
+          "criterioAceitacao": "Criterio de aceitacao controlado 131",
+          "status": "C"
+        },
+        {
+          "numero": 132,
+          "ambiente": "Cozinha",
+          "sistema": "Instalacoes hidraulicas",
+          "item": "Item tecnico de vistoria 132",
+          "criterioAceitacao": "Criterio de aceitacao controlado 132",
+          "status": "C"
+        },
+        {
+          "numero": 133,
+          "ambiente": "Area de servico",
+          "sistema": "Loucas",
+          "item": "Item tecnico de vistoria 133",
+          "criterioAceitacao": "Criterio de aceitacao controlado 133",
+          "status": "C"
+        },
+        {
+          "numero": 134,
+          "ambiente": "Banheiro social",
+          "sistema": "Metais",
+          "item": "Item tecnico de vistoria 134",
+          "criterioAceitacao": "Criterio de aceitacao controlado 134",
+          "status": "C"
+        },
+        {
+          "numero": 135,
+          "ambiente": "Suite",
+          "sistema": "Pintura",
+          "item": "Item tecnico de vistoria 135",
+          "criterioAceitacao": "Criterio de aceitacao controlado 135",
+          "status": "C"
+        },
+        {
+          "numero": 136,
+          "ambiente": "Dormitorio 1",
+          "sistema": "Revestimentos",
+          "item": "Item tecnico de vistoria 136",
+          "criterioAceitacao": "Criterio de aceitacao controlado 136",
+          "status": "C"
+        },
+        {
+          "numero": 137,
+          "ambiente": "Dormitorio 2",
+          "sistema": "Impermeabilizacao",
+          "item": "Item tecnico de vistoria 137",
+          "criterioAceitacao": "Criterio de aceitacao controlado 137",
+          "status": "C"
+        },
+        {
+          "numero": 138,
+          "ambiente": "Varanda",
+          "sistema": "Bancadas",
+          "item": "Item tecnico de vistoria 138",
+          "criterioAceitacao": "Criterio de aceitacao controlado 138",
+          "status": "C"
+        },
+        {
+          "numero": 139,
+          "ambiente": "Circulacao",
+          "sistema": "Portas",
+          "item": "Item tecnico de vistoria 139",
+          "criterioAceitacao": "Criterio de aceitacao controlado 139",
+          "status": "C"
+        },
+        {
+          "numero": 140,
+          "ambiente": "Lavabo",
+          "sistema": "Janelas",
+          "item": "Item tecnico de vistoria 140",
+          "criterioAceitacao": "Criterio de aceitacao controlado 140",
+          "status": "C"
+        },
+        {
+          "numero": 141,
+          "ambiente": "Hall",
+          "sistema": "Vidros",
+          "item": "Item tecnico de vistoria 141",
+          "criterioAceitacao": "Criterio de aceitacao controlado 141",
+          "status": "C"
+        },
+        {
+          "numero": 142,
+          "ambiente": "Sacada tecnica",
+          "sistema": "Drenagem",
+          "item": "Item tecnico de vistoria 142",
+          "criterioAceitacao": "Criterio de aceitacao controlado 142",
+          "status": "C"
+        },
+        {
+          "numero": 143,
+          "ambiente": "Garagem",
+          "sistema": "Gas",
+          "item": "Item tecnico de vistoria 143",
+          "criterioAceitacao": "Criterio de aceitacao controlado 143",
+          "status": "C"
+        },
+        {
+          "numero": 144,
+          "ambiente": "Sala",
+          "sistema": "Seguranca",
+          "item": "Item tecnico de vistoria 144",
+          "criterioAceitacao": "Criterio de aceitacao controlado 144",
+          "status": "C"
+        }
+      ],
+      "instrumentos": [
+        {
+          "tipo": "Nivel a laser",
+          "marca": "Marca Teste",
+          "modelo": "Modelo QA-01",
+          "identificacao": "TESTE-01",
+          "observacao": "Instrumento sintetico cadastrado somente na fixture de QA."
+        }
+      ]
+    }
+  },
+  "fotosUnidade": [],
+  "inconformidades": []
+}
