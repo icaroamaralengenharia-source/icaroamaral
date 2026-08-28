@@ -1,7 +1,8 @@
 import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -24,6 +25,8 @@ import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
+import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -819,7 +822,7 @@ export function createApp(options = {}) {
         return;
       }
 
-      const allowed = String(env.AI_ALLOWED_ORIGINS || "https://www.icaroamaral.com.br,https://icaroamaral.com.br,http://localhost,http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5502,http://localhost:5502")
+      const allowed = String(env.AI_ALLOWED_ORIGINS || "https://www.icaroamaral.com.br,https://icaroamaral.com.br,http://localhost,http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5502,http://localhost:5502,https://ipod-politics-abraham-prices.trycloudflare.com")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
@@ -834,6 +837,57 @@ export function createApp(options = {}) {
       ok: true,
       service: "ObraReport AI Backend"
     });
+  });
+  app.post("/api/apartment-handover/pdf", async (request, response) => {
+    let tempPath = "";
+    try {
+      const payload = request.body && typeof request.body === "object" ? request.body : null;
+      const mode = clean_(payload && payload.mode).toLowerCase();
+      const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
+      if (!payload || !report || !["draft", "final"].includes(mode)) {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_PAYLOAD", error: "invalid_apartment_handover_payload" });
+        return;
+      }
+      if (report.type !== "apartment_handover_inspection") {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_TYPE", error: "invalid_report_type" });
+        return;
+      }
+
+      const reviewer = options.apartmentHandoverReviewer || reviewApartmentHandoverInspection;
+      const review = reviewer(payload);
+      if (mode === "final" && review && review.canGenerateFinal === false) {
+        response.status(422).json({ ok: false, code: "INSPECTION_PREFLIGHT_BLOCKED", review });
+        return;
+      }
+
+      const generator = options.apartmentHandoverPdfGenerator || generateApartmentHandoverInspectionPdf;
+      const tempDir = join(REPO_DIR, "tmp", "apartment-handover-endpoint");
+      mkdirSync(tempDir, { recursive: true });
+      tempPath = join(tempDir, `apartment-handover-${Date.now()}-${randomUUID()}.pdf`);
+      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(payload, mode);
+      const generated = await generator(pdfPayload, tempPath, { mode, review });
+      if (generated && generated.ok === false) {
+        response.status(422).json(generated);
+        return;
+      }
+
+      const pdf = readFileSync(tempPath);
+      const filename = buildApartmentHandoverPdfFilename_(payload);
+      response.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": String(pdf.length)
+      });
+      response.status(200).send(pdf);
+    } catch (error) {
+      const message = clean_(error && (error.message || error.code)) || "apartment_handover_pdf_failed";
+      const status = /Executable doesn't exist|browserType.launch|Chromium|playwright/i.test(message) ? 503 : 500;
+      response.status(status).json({ ok: false, code: status === 503 ? "CHROMIUM_UNAVAILABLE" : "APARTMENT_HANDOVER_PDF_FAILED", error: status === 503 ? "chromium_unavailable" : "apartment_handover_pdf_failed" });
+    } finally {
+      if (tempPath) {
+        try { unlinkSync(tempPath); } catch {}
+      }
+    }
   });
 
   function buildObraReportContext_(request) {
@@ -7148,6 +7202,31 @@ function safeValue_(value) {
   return clean_(value) || "-";
 }
 
+
+function normalizeApartmentHandoverPdfPayloadForMode_(payload, mode) {
+  const cloned = JSON.parse(JSON.stringify(payload || {}));
+  cloned.mode = mode;
+  cloned.report = cloned.report || {};
+  cloned.report.inspection = cloned.report.inspection || {};
+  cloned.report.inspection.finalizada = mode === "final";
+  cloned.report.inspection.status = mode === "final" ? "completed" : "draft";
+  return cloned;
+}
+
+function buildApartmentHandoverPdfFilename_(payload) {
+  const report = (payload && payload.report) || {};
+  const inspection = report.inspection || {};
+  const metadata = inspection.metadata || {};
+  const project = sanitizePdfFilenamePart_(report.empreendimento || report.obra || metadata.projectName, "Empreendimento");
+  const unit = sanitizePdfFilenamePart_(report.unidade || metadata.unitName, "Unidade");
+  return `Laudo-Vistoria-${project}-${unit}.pdf`;
+}
+
+function sanitizePdfFilenamePart_(value, fallback) {
+  const ascii = clean_(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const safe = ascii.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  return safe || fallback;
+}
 function clean_(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }

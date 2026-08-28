@@ -22,6 +22,7 @@
     "demo:runbook:dry-run": "node scripts/municipal-demo-wizard.js --example --dry-run"
   },
   "dependencies": {
+    "@playwright/test": "^1.60.0",
     "@supabase/supabase-js": "^2.107.0",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
