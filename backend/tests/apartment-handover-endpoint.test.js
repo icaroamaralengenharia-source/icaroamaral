@@ -138,5 +138,16 @@ test("CORS libera somente a origem temporaria exata", async () => {
     });
     assert.notEqual(blocked.headers.get("access-control-allow-origin"), "https://origem-nao-autorizada.example");
     assert.notEqual(blocked.headers.get("access-control-allow-origin"), "*");
+
+    const preflight = await fetch(`${baseUrl}/api/apartment-handover/pdf`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://ipod-politics-abraham-prices.trycloudflare.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type"
+      }
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://ipod-politics-abraham-prices.trycloudflare.com");
   });
 });

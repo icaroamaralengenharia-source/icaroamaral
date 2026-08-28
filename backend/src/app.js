@@ -1086,6 +1086,9 @@ export function createApp(options = {}) {
       callback(null, allowed.includes(origin) || isPrivateNetworkOrigin_(origin));
     }
   }));
+  app.options("/api/apartment-handover/pdf", (request, response) => {
+    response.sendStatus(204);
+  });
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
 
   app.get("/api/health", (request, response) => {
