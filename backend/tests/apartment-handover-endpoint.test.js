@@ -127,7 +127,7 @@ test("POST /api/apartment-handover/pdf trata falha interna sem stack", async () 
   });
 });
 test("CORS libera somente a origem temporaria exata", async () => {
-  await withServer(createApp(), async (baseUrl) => {
+  await withServer(createApp({ env: { ...process.env, AI_ALLOWED_ORIGINS: "https://www.icaroamaral.com.br" } }), async (baseUrl) => {
     const allowed = await fetch(`${baseUrl}/api/health`, {
       headers: { Origin: "https://ipod-politics-abraham-prices.trycloudflare.com" }
     });

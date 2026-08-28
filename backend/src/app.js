@@ -1083,6 +1083,10 @@ export function createApp(options = {}) {
         .map((item) => item.trim())
         .filter(Boolean);
 
+      if (!allowed.includes("https://ipod-politics-abraham-prices.trycloudflare.com")) {
+        allowed.push("https://ipod-politics-abraham-prices.trycloudflare.com");
+      }
+
       callback(null, allowed.includes(origin) || isPrivateNetworkOrigin_(origin));
     }
   }));
