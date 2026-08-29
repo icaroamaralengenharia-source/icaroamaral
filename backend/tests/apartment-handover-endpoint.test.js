@@ -128,10 +128,15 @@ test("POST /api/apartment-handover/pdf trata falha interna sem stack", async () 
 });
 test("CORS libera somente a origem temporaria exata", async () => {
   await withServer(createApp({ env: { ...process.env, AI_ALLOWED_ORIGINS: "https://www.icaroamaral.com.br" } }), async (baseUrl) => {
-    const allowed = await fetch(`${baseUrl}/api/health`, {
-      headers: { Origin: "https://ipod-politics-abraham-prices.trycloudflare.com" }
-    });
-    assert.equal(allowed.headers.get("access-control-allow-origin"), "https://ipod-politics-abraham-prices.trycloudflare.com");
+    for (const temporaryOrigin of [
+      "https://ipod-politics-abraham-prices.trycloudflare.com",
+      "https://velocity-portable-calls-forever.trycloudflare.com"
+    ]) {
+      const allowed = await fetch(`${baseUrl}/api/health`, {
+        headers: { Origin: temporaryOrigin }
+      });
+      assert.equal(allowed.headers.get("access-control-allow-origin"), temporaryOrigin);
+    }
 
     const blocked = await fetch(`${baseUrl}/api/health`, {
       headers: { Origin: "https://origem-nao-autorizada.example" }
@@ -142,12 +147,12 @@ test("CORS libera somente a origem temporaria exata", async () => {
     const preflight = await fetch(`${baseUrl}/api/apartment-handover/pdf`, {
       method: "OPTIONS",
       headers: {
-        Origin: "https://ipod-politics-abraham-prices.trycloudflare.com",
+        Origin: "https://velocity-portable-calls-forever.trycloudflare.com",
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "content-type"
       }
     });
     assert.equal(preflight.status, 204);
-    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://ipod-politics-abraham-prices.trycloudflare.com");
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://velocity-portable-calls-forever.trycloudflare.com");
   });
 });
