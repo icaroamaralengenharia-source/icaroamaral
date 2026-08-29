@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DEFAULT_DATA_PATH = join(BACKEND_DIR, "data", "obrareport-transactional.json");
+const DEFAULT_DOCUMENT_STORAGE_DIR = join(BACKEND_DIR, "data", "obrareport-document-files");
 
 function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -28,6 +29,10 @@ function objectOf(value) {
 
 function hash(value) {
   return createHash("sha256").update(String(value || ""), "utf8").digest("hex");
+}
+
+function hashBuffer(value) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function emptyDatabase() {
@@ -102,6 +107,8 @@ function requireTenantRecord(record, context, notFoundCode) {
 }
 
 const APARTMENT_HANDOVER_SOURCE_TYPE = "apartment_handover_inspection";
+const APARTMENT_HANDOVER_DRAFT_DOCUMENT_TYPE = "apartment_handover_draft_pdf";
+const APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE = "apartment_handover_final_pdf";
 const APARTMENT_HANDOVER_STATUSES = new Set(["draft", "completed", "final_pdf_generated", "archived"]);
 
 function normalizeInspectionStatus(value) {
@@ -185,8 +192,36 @@ function createDocument(database, institutionId, sourceType, sourceId, documentT
   return document;
 }
 
+function sanitizeStorageSegment(value, fallback) {
+  const safe = clean(value).replace(/[^a-z0-9_.-]+/gi, "-").replace(/^-+|-+$/g, "");
+  return safe || fallback;
+}
+
+function createBinaryFile(database, documentStorageDir, institutionId, filename, mimeType, content) {
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content || "");
+  const file = {
+    id: newId("obr_file"),
+    institution_id: institutionId,
+    filename,
+    mime_type: clean(mimeType) || "application/octet-stream",
+    storage_path: "",
+    public_url: "",
+    size_bytes: buffer.length,
+    hash: hashBuffer(buffer),
+    created_at: now()
+  };
+  const institutionSegment = sanitizeStorageSegment(institutionId, "institution");
+  const storageDir = join(documentStorageDir, institutionSegment);
+  mkdirSync(storageDir, { recursive: true });
+  file.storage_path = join(storageDir, file.id + ".pdf");
+  writeFileSync(file.storage_path, buffer);
+  database.documentFiles[file.id] = file;
+  return file;
+}
+
 export function createObraReportTransactionalService(options = {}) {
   const dataPath = options.dataPath || DEFAULT_DATA_PATH;
+  const documentStorageDir = options.documentStorageDir || DEFAULT_DOCUMENT_STORAGE_DIR;
 
   function registerReportEvent(context, reportId, eventType, payload = {}) {
     const ctx = requireInstitution(context);
@@ -571,6 +606,72 @@ export function createObraReportTransactionalService(options = {}) {
       .map(clone);
   }
 
+
+  function generateApartmentHandoverInspectionPdfDocument(context = {}, id, payload = {}) {
+    const ctx = requireInstitution(context);
+    const safe = objectOf(payload);
+    const database = readDatabase(dataPath);
+    const inspection = database.apartmentHandoverInspections[clean(id)] || null;
+    requireTenantRecord(inspection, context, "inspection_not_found");
+
+    const mode = clean(safe.mode || "draft").toLowerCase() === "final" ? "final" : "draft";
+    const documentType = mode === "final" ? APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE : APARTMENT_HANDOVER_DRAFT_DOCUMENT_TYPE;
+    const pdfBuffer = Buffer.isBuffer(safe.pdfBuffer) ? safe.pdfBuffer : Buffer.from(safe.pdfBuffer || []);
+    if (!pdfBuffer.length) {
+      throw Object.assign(new Error("pdf_content_required"), { status: 400 });
+    }
+    if (pdfBuffer.subarray(0, 4).toString("utf8") !== "%PDF") {
+      throw Object.assign(new Error("pdf_content_invalid"), { status: 400 });
+    }
+
+    const filename = clean(safe.filename) || "Laudo-Vistoria-" + inspection.id + ".pdf";
+    const file = createBinaryFile(database, documentStorageDir, inspection.institution_id, filename, "application/pdf", pdfBuffer);
+    const document = createDocument(database, inspection.institution_id, APARTMENT_HANDOVER_SOURCE_TYPE, inspection.id, documentType, file, ctx.userId);
+    file.public_url = "/api/obrareport/documents/" + encodeURIComponent(document.id) + "/file";
+    document.file_url = file.public_url;
+    document.metadata_json = Object.assign({}, objectOf(safe.metadata_json || safe.metadata), {
+      fileName: file.filename,
+      mode,
+      pdfPersisted: true,
+      contentType: file.mime_type,
+      sizeBytes: file.size_bytes,
+      sourceStatus: inspection.status
+    });
+    database.documentFiles[file.id] = file;
+    database.generatedDocuments[document.id] = document;
+    writeDatabase(dataPath, database);
+    registerApartmentHandoverInspectionEvent(context, inspection.id, mode === "final" ? "inspection_final_pdf_generated" : "inspection_draft_pdf_generated", {
+      documentId: document.id,
+      fileId: file.id,
+      hash: document.hash,
+      sizeBytes: file.size_bytes
+    });
+    return clone(Object.assign({}, document, { file }));
+  }
+
+  function getGeneratedDocumentFile(context = {}, documentId) {
+    const database = readDatabase(dataPath);
+    const document = database.generatedDocuments[clean(documentId)] || null;
+    requireTenantRecord(document, context, "document_not_found");
+    const file = database.documentFiles[document.file_id] || null;
+    requireTenantRecord(file, context, "document_file_not_found");
+    if (file.storage_path) {
+      if (!existsSync(file.storage_path)) {
+        throw Object.assign(new Error("document_file_not_found"), { status: 404 });
+      }
+      return Object.assign({}, clone(file), {
+        document: clone(document),
+        content: readFileSync(file.storage_path)
+      });
+    }
+    if (file.html_content) {
+      return Object.assign({}, clone(file), {
+        document: clone(document),
+        content: Buffer.from(file.html_content, "utf8")
+      });
+    }
+    throw Object.assign(new Error("document_file_not_found"), { status: 404 });
+  }
   function prepareDocumentEmail(context = {}, documentId, payload = {}) {
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
@@ -605,6 +706,7 @@ export function createObraReportTransactionalService(options = {}) {
 
   return {
     dataPath,
+    documentStorageDir,
     createTechnicalReport,
     listTechnicalReports,
     getTechnicalReport,
@@ -626,6 +728,8 @@ export function createObraReportTransactionalService(options = {}) {
     getApartmentHandoverInspection,
     updateApartmentHandoverInspection,
     createApartmentHandoverInspectionVersion,
+    generateApartmentHandoverInspectionPdfDocument,
+    getGeneratedDocumentFile,
     listApartmentHandoverInspectionEvents,
     registerApartmentHandoverInspectionEvent,
     prepareDocumentEmail

@@ -891,9 +891,10 @@ export function createApp(options = {}) {
   });
 
   function buildObraReportContext_(request) {
+    const body = request.body && typeof request.body === "object" ? request.body : {};
     return {
-      institutionId: clean_(request.headers["x-institution-id"] || request.body.institutionId || request.body.institution_id),
-      userId: clean_(request.headers["x-user-id"] || request.body.userId || request.body.user_id)
+      institutionId: clean_(request.headers["x-institution-id"] || body.institutionId || body.institution_id),
+      userId: clean_(request.headers["x-user-id"] || body.userId || body.user_id)
     };
   }
 
@@ -1198,6 +1199,59 @@ export function createApp(options = {}) {
     }
   });
 
+
+  app.post("/api/obrareport/apartment-handover-inspections/:id/generate-document", async (request, response) => {
+    let tempPath = "";
+    try {
+      const context = buildObraReportContext_(request);
+      const inspection = obraReportTransactionalService.getApartmentHandoverInspection(context, request.params.id);
+      const mode = clean_(request.body && request.body.mode).toLowerCase() === "final" ? "final" : "draft";
+      const payload = buildApartmentHandoverPersistedPdfPayload_(inspection, request.body || {}, mode);
+      const reviewer = options.apartmentHandoverReviewer || reviewApartmentHandoverInspection;
+      const review = reviewer(payload);
+      if (mode === "final" && review && review.canGenerateFinal === false) {
+        response.status(422).json({ ok: false, code: "INSPECTION_PREFLIGHT_BLOCKED", review });
+        return;
+      }
+
+      const generator = options.apartmentHandoverPdfGenerator || generateApartmentHandoverInspectionPdf;
+      const tempDir = join(REPO_DIR, "tmp", "apartment-handover-endpoint");
+      mkdirSync(tempDir, { recursive: true });
+      tempPath = join(tempDir, `apartment-handover-persisted-${Date.now()}-${randomUUID()}.pdf`);
+      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(payload, mode);
+      const generated = await generator(pdfPayload, tempPath, { mode, review });
+      if (generated && generated.ok === false) {
+        response.status(422).json(generated);
+        return;
+      }
+
+      const pdf = readFileSync(tempPath);
+      const filename = buildApartmentHandoverPdfFilename_(payload);
+      const document = obraReportTransactionalService.generateApartmentHandoverInspectionPdfDocument(context, inspection.id, {
+        mode,
+        filename,
+        pdfBuffer: pdf,
+        metadata_json: {
+          renderer: "apartment-handover-pdf",
+          reviewCanGenerateFinal: Boolean(review && review.canGenerateFinal),
+          blockersCount: Array.isArray(review && review.blockers) ? review.blockers.length : 0
+        }
+      });
+      await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: inspection.project_id }), event_type: mode === "final" ? "inspection_final_pdf_generated" : "inspection_draft_pdf_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "PDF de vistoria gerado", description: "Referencia de PDF persistido da vistoria de entrega gerada.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
+      response.status(201).json({ ok: true, document });
+    } catch (error) {
+      const message = clean_(error && (error.message || error.code)) || "apartment_handover_pdf_failed";
+      if (/Executable doesn't exist|browserType.launch|Chromium|playwright/i.test(message)) {
+        response.status(503).json({ ok: false, code: "CHROMIUM_UNAVAILABLE", error: "chromium_unavailable" });
+        return;
+      }
+      handleObraReportError_(response, error);
+    } finally {
+      if (tempPath) {
+        try { unlinkSync(tempPath); } catch {}
+      }
+    }
+  });
   app.get("/api/obrareport/apartment-handover-inspections/:id/events", (request, response) => {
     try {
       const events = obraReportTransactionalService.listApartmentHandoverInspectionEvents(buildObraReportContext_(request), request.params.id);
@@ -1266,6 +1320,21 @@ export function createApp(options = {}) {
     }
   });
 
+
+  app.get("/api/obrareport/documents/:id/file", (request, response) => {
+    try {
+      const file = obraReportTransactionalService.getGeneratedDocumentFile(buildObraReportContext_(request), request.params.id);
+      const dispositionMode = clean_(request.query && request.query.download) ? "attachment" : "inline";
+      response.set({
+        "Content-Type": file.mime_type || "application/octet-stream",
+        "Content-Disposition": `${dispositionMode}; filename="${sanitizeHttpFilename_(file.filename || "documento.pdf")}"`,
+        "Content-Length": String(file.content.length)
+      });
+      response.status(200).send(file.content);
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
   app.post("/api/obrareport/documents/:id/prepare-email", (request, response) => {
     try {
       const email = obraReportTransactionalService.prepareDocumentEmail(buildObraReportContext_(request), request.params.id, request.body || {});
@@ -7260,6 +7329,31 @@ function safeValue_(value) {
 }
 
 
+
+function buildApartmentHandoverPersistedPdfPayload_(inspection, body = {}, mode = "draft") {
+  const safeBody = body && typeof body === "object" ? body : {};
+  const bodyReport = safeBody.report && typeof safeBody.report === "object" ? safeBody.report : {};
+  const inspectionData = inspection && inspection.inspection_data_json && typeof inspection.inspection_data_json === "object" ? inspection.inspection_data_json : {};
+  const metadata = inspectionData.metadata && typeof inspectionData.metadata === "object" ? inspectionData.metadata : {};
+  return {
+    mode,
+    report: Object.assign({}, bodyReport, {
+      type: "apartment_handover_inspection",
+      empreendimento: bodyReport.empreendimento || bodyReport.obra || inspectionData.empreendimento || metadata.projectName || inspection.title,
+      obra: bodyReport.obra || bodyReport.empreendimento || inspectionData.obra || metadata.projectName || inspection.title,
+      unidade: bodyReport.unidade || inspectionData.unidade || metadata.unitName || "",
+      cliente: bodyReport.cliente || inspectionData.cliente || metadata.clientName || "",
+      bloco: bodyReport.bloco || inspectionData.bloco || metadata.blockName || "",
+      endereco: bodyReport.endereco || inspectionData.endereco || metadata.address || "",
+      dataVistoria: bodyReport.dataVistoria || inspectionData.dataVistoria || inspectionData.startedAt || inspection.created_at || "",
+      inspection: inspectionData
+    })
+  };
+}
+
+function sanitizeHttpFilename_(value) {
+  return clean_(value).replace(/[\\"\r\n]/g, "-") || "documento.pdf";
+}
 function normalizeApartmentHandoverPdfPayloadForMode_(payload, mode) {
   const cloned = JSON.parse(JSON.stringify(payload || {}));
   cloned.mode = mode;
