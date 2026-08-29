@@ -95,9 +95,9 @@ test("ObraReport service bloqueia acesso cruzado por institutionId", () => {
     });
 
     assert.equal(service.listTechnicalReports(contextB).length, 0);
-    assert.throws(() => service.getTechnicalReport(contextB, report.id), /report_forbidden/);
-    assert.throws(() => service.updateTechnicalReport(contextB, report.id, { reportData: { title: "Ataque" } }), /report_forbidden/);
-    assert.throws(() => service.generateTechnicalReportDocument(contextB, report.id), /report_forbidden/);
+    assert.throws(() => service.getTechnicalReport(contextB, report.id), /report_not_found/);
+    assert.throws(() => service.updateTechnicalReport(contextB, report.id, { reportData: { title: "Ataque" } }), /report_not_found/);
+    assert.throws(() => service.generateTechnicalReportDocument(contextB, report.id), /report_not_found/);
   } finally {
     cleanup();
   }

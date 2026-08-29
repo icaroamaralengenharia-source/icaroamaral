@@ -100,7 +100,10 @@ test("GET /api/obrareport/documents lista technical_report, rdo e vistoria com l
 
     const report = result.data.documents.find((item) => item.sourceType === "technical_report");
     assert.equal(report.title, "Relatorio patologico A");
+    assert.equal(report.documentAvailable, true);
     assert.equal(report.pdfAvailable, false);
+    assert.equal(report.documentType, "technical_report_controlled_html");
+    assert.match(report.fileUrl, /^\/api\/obrareport\/documents\/obr_doc_.+\/file$/);
     assert.equal(report.canContinue, true);
 
     const rdo = result.data.documents.find((item) => item.sourceType === "rdo");
@@ -138,17 +141,17 @@ test("GET /api/obrareport/documents aplica filtros e isola tenants", async () =>
     const project = await requestJson(base, "/api/obrareport/documents?project_id=project-a", { headers: headers() });
     assert.equal(project.data.documents.length, 3);
 
-    const type = await requestJson(base, "/api/obrareport/documents?source_type=apartment_handover_inspection", { headers: headers() });
+    const type = await requestJson(base, "/api/obrareport/documents?source_type=technical_report", { headers: headers() });
     assert.equal(type.data.documents.length, 1);
-    assert.equal(type.data.documents[0].sourceType, "apartment_handover_inspection");
+    assert.equal(type.data.documents[0].sourceType, "technical_report");
 
     const status = await requestJson(base, "/api/obrareport/documents?status=closed", { headers: headers() });
     assert.equal(status.data.documents.length, 1);
     assert.equal(status.data.documents[0].sourceType, "rdo");
 
-    const createdBy = await requestJson(base, "/api/obrareport/documents?created_by=user-vistoria", { headers: headers() });
+    const createdBy = await requestJson(base, "/api/obrareport/documents?created_by=user-report", { headers: headers() });
     assert.equal(createdBy.data.documents.length, 1);
-    assert.equal(createdBy.data.documents[0].sourceType, "apartment_handover_inspection");
+    assert.equal(createdBy.data.documents[0].sourceType, "technical_report");
 
     const noLeak = await requestJson(base, "/api/obrareport/documents?client_id=client-b", { headers: headers() });
     assert.equal(noLeak.data.documents.length, 0);

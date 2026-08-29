@@ -221,11 +221,16 @@ function createBinaryFile(database, documentStorageDir, institutionId, filename,
 
 
 
+function buildReportTitle_(payload, reportData) {
+  return clean(payload.title || reportData.title || reportData.obra || reportData.projectName || reportData.project_name || reportData.clientName || reportData.client_name) || "Relatorio tecnico";
+}
+
 function buildRdoTitle_(payload, rdoData) {
   const project = clean(payload.projectName || payload.project_name || payload.projectId || payload.project_id || rdoData.projectName || rdoData.project_name || rdoData.workName || rdoData.work_name);
   const date = clean(payload.rdoDate || payload.rdo_date || rdoData.date || rdoData.rdo_date);
   return ["RDO", project, date].filter(Boolean).join(" - ") || "Diario de Obras";
 }
+
 function sourceKey(sourceType, sourceId) {
   return clean(sourceType) + ":" + clean(sourceId);
 }
@@ -298,7 +303,7 @@ function normalizeUnifiedDocument(database, sourceType, source) {
 
   if (sourceType === "technical_report") {
     base.summary = clean(source.report_data_json && (source.report_data_json.summary || source.report_data_json.pathology || source.report_data_json.obra)) || "Relatorio tecnico";
-    base.canContinue = !["archived"].includes(status.toLowerCase());
+    base.canContinue = !["completed", "closed", "final", "archived"].includes(status.toLowerCase());
   } else if (sourceType === "rdo") {
     base.summary = clean(source.rdo_data_json && (source.rdo_data_json.summary || source.rdo_data_json.services)) || "Diario de Obras";
     base.date = source.rdo_date || source.created_at || null;
@@ -381,7 +386,7 @@ export function createObraReportTransactionalService(options = {}) {
       institution_id: ctx.institutionId,
       project_id: clean(safe.projectId || safe.project_id) || null,
       client_id: clean(safe.clientId || safe.client_id) || null,
-      title: clean(safe.title || reportData.title || reportData.obra) || "Relatorio tecnico",
+      title: buildReportTitle_(safe, reportData),
       status: clean(safe.status) || "draft",
       report_data_json: reportData,
       created_by: ctx.userId || null,
@@ -398,17 +403,23 @@ export function createObraReportTransactionalService(options = {}) {
   function listTechnicalReports(context = {}, filters = {}) {
     requireInstitution(context);
     const safe = objectOf(filters);
+    const projectId = clean(safe.projectId || safe.project_id);
+    const clientId = clean(safe.clientId || safe.client_id);
+    const status = clean(safe.status);
+    const createdBy = clean(safe.createdBy || safe.created_by);
     return Object.values(readDatabase(dataPath).reports)
       .filter((report) => canAccess(report, context))
-      .filter((report) => !safe.projectId || report.project_id === clean(safe.projectId))
-      .filter((report) => !safe.clientId || report.client_id === clean(safe.clientId))
+      .filter((report) => !projectId || report.project_id === projectId)
+      .filter((report) => !clientId || report.client_id === clientId)
+      .filter((report) => !status || report.status === status)
+      .filter((report) => !createdBy || report.created_by === createdBy)
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
       .map(clone);
   }
 
   function getTechnicalReport(context = {}, id) {
     const report = readDatabase(dataPath).reports[clean(id)] || null;
-    requireAccess(report, context, "report_not_found", "report_forbidden");
+    requireTenantRecord(report, context, "report_not_found");
     return clone(report);
   }
 
@@ -416,7 +427,7 @@ export function createObraReportTransactionalService(options = {}) {
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
     const current = database.reports[clean(id)] || null;
-    requireAccess(current, context, "report_not_found", "report_forbidden");
+    requireTenantRecord(current, context, "report_not_found");
     const safe = objectOf(payload);
     const reportData = requirePayloadObject(safe.reportData || safe.report_data || safe.report_data_json || current.report_data_json, "report_data_required");
     const updated = Object.assign({}, current, {
@@ -435,7 +446,7 @@ export function createObraReportTransactionalService(options = {}) {
   function createTechnicalReportVersion(context = {}, id) {
     const database = readDatabase(dataPath);
     const report = database.reports[clean(id)] || null;
-    requireAccess(report, context, "report_not_found", "report_forbidden");
+    requireTenantRecord(report, context, "report_not_found");
     const versionNumber = Object.values(database.reportVersions).filter((version) => version.report_id === report.id).length + 1;
     const version = {
       id: newId("obr_report_version"),
@@ -455,10 +466,15 @@ export function createObraReportTransactionalService(options = {}) {
   function generateTechnicalReportDocument(context = {}, id) {
     const database = readDatabase(dataPath);
     const report = database.reports[clean(id)] || null;
-    requireAccess(report, context, "report_not_found", "report_forbidden");
+    requireTenantRecord(report, context, "report_not_found");
     const html = controlledHtmlDocument("ObraReport - " + report.title, report.report_data_json);
     const file = createFile(database, report.institution_id, "obrareport-report-" + report.id + ".html", html);
     const document = createDocument(database, report.institution_id, "technical_report", report.id, "technical_report_controlled_html", file, contextOf(context).userId);
+    file.public_url = "/api/obrareport/documents/" + encodeURIComponent(document.id) + "/file";
+    document.file_url = file.public_url;
+    document.metadata_json = { fileName: file.filename, mode: "controlled_html", contentType: file.mime_type, sizeBytes: file.size_bytes };
+    database.documentFiles[file.id] = file;
+    database.generatedDocuments[document.id] = document;
     writeDatabase(dataPath, database);
     registerReportEvent(context, report.id, "report_document_generated", { documentId: document.id, hash: document.hash });
     return clone(Object.assign({}, document, { file, html_content: html }));

@@ -104,8 +104,8 @@ test("ObraReport API bloqueia acesso cruzado por institutionId", async () => {
     const id = created.data.report.id;
 
     const blocked = await json(base + "/api/obrareport/reports/" + id, { headers: headersB });
-    assert.equal(blocked.response.status, 403);
-    assert.equal(blocked.data.error, "report_forbidden");
+    assert.equal(blocked.response.status, 404);
+    assert.equal(blocked.data.error, "report_not_found");
 
     const listB = await json(base + "/api/obrareport/reports", { headers: headersB });
     assert.equal(listB.response.status, 200);
