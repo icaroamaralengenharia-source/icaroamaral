@@ -1078,14 +1078,15 @@ export function createApp(options = {}) {
         return;
       }
 
-      const allowed = String(env.AI_ALLOWED_ORIGINS || "https://www.icaroamaral.com.br,https://icaroamaral.com.br,http://localhost,http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5502,http://localhost:5502,https://ipod-politics-abraham-prices.trycloudflare.com,https://velocity-portable-calls-forever.trycloudflare.com")
+      const allowed = String(env.AI_ALLOWED_ORIGINS || "https://www.icaroamaral.com.br,https://icaroamaral.com.br,http://localhost,http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5502,http://localhost:5502,https://ipod-politics-abraham-prices.trycloudflare.com,https://velocity-portable-calls-forever.trycloudflare.com,https://convergence-files-thou-environment.trycloudflare.com")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
 
       for (const temporaryOrigin of [
         "https://ipod-politics-abraham-prices.trycloudflare.com",
-        "https://velocity-portable-calls-forever.trycloudflare.com"
+        "https://velocity-portable-calls-forever.trycloudflare.com",
+        "https://convergence-files-thou-environment.trycloudflare.com"
       ]) {
         if (!allowed.includes(temporaryOrigin)) allowed.push(temporaryOrigin);
       }

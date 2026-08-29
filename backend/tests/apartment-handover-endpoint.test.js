@@ -130,7 +130,8 @@ test("CORS libera somente a origem temporaria exata", async () => {
   await withServer(createApp({ env: { ...process.env, AI_ALLOWED_ORIGINS: "https://www.icaroamaral.com.br" } }), async (baseUrl) => {
     for (const temporaryOrigin of [
       "https://ipod-politics-abraham-prices.trycloudflare.com",
-      "https://velocity-portable-calls-forever.trycloudflare.com"
+      "https://velocity-portable-calls-forever.trycloudflare.com",
+      "https://convergence-files-thou-environment.trycloudflare.com"
     ]) {
       const allowed = await fetch(`${baseUrl}/api/health`, {
         headers: { Origin: temporaryOrigin }
@@ -147,12 +148,12 @@ test("CORS libera somente a origem temporaria exata", async () => {
     const preflight = await fetch(`${baseUrl}/api/apartment-handover/pdf`, {
       method: "OPTIONS",
       headers: {
-        Origin: "https://velocity-portable-calls-forever.trycloudflare.com",
+        Origin: "https://convergence-files-thou-environment.trycloudflare.com",
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "content-type"
       }
     });
     assert.equal(preflight.status, 204);
-    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://velocity-portable-calls-forever.trycloudflare.com");
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://convergence-files-thou-environment.trycloudflare.com");
   });
 });
