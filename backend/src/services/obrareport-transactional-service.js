@@ -38,6 +38,9 @@ function emptyDatabase() {
     rdos: {},
     rdoVersions: {},
     rdoEvents: {},
+    apartmentHandoverInspections: {},
+    apartmentHandoverInspectionVersions: {},
+    apartmentHandoverInspectionEvents: {},
     generatedDocuments: {},
     documentFiles: {}
   };
@@ -94,6 +97,28 @@ function requireAccess(record, context, notFoundCode, forbiddenCode) {
   if (!canAccess(record, context)) throw Object.assign(new Error(forbiddenCode), { status: 403 });
 }
 
+function requireTenantRecord(record, context, notFoundCode) {
+  if (!record || !canAccess(record, context)) throw Object.assign(new Error(notFoundCode), { status: 404 });
+}
+
+const APARTMENT_HANDOVER_SOURCE_TYPE = "apartment_handover_inspection";
+const APARTMENT_HANDOVER_STATUSES = new Set(["draft", "completed", "final_pdf_generated", "archived"]);
+
+function normalizeInspectionStatus(value) {
+  const status = clean(value || "draft");
+  if (!APARTMENT_HANDOVER_STATUSES.has(status)) {
+    throw Object.assign(new Error("inspection_status_invalid"), { status: 400 });
+  }
+  return status;
+}
+
+function requireApartmentHandoverSourceType(value) {
+  const sourceType = clean(value || APARTMENT_HANDOVER_SOURCE_TYPE);
+  if (sourceType !== APARTMENT_HANDOVER_SOURCE_TYPE) {
+    throw Object.assign(new Error("inspection_source_type_invalid"), { status: 400 });
+  }
+  return sourceType;
+}
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>\"']/g, (char) => ({
     "&": "&amp;",
@@ -401,6 +426,151 @@ export function createObraReportTransactionalService(options = {}) {
       .map(clone);
   }
 
+
+  function registerApartmentHandoverInspectionEvent(context, inspectionId, eventType, payload = {}) {
+    const ctx = requireInstitution(context);
+    const database = readDatabase(dataPath);
+    const event = {
+      id: newId("obr_ahi_event"),
+      inspection_id: clean(inspectionId),
+      institution_id: ctx.institutionId,
+      event_type: clean(eventType),
+      user_id: ctx.userId || null,
+      payload_json: objectOf(payload),
+      created_at: now()
+    };
+    database.apartmentHandoverInspectionEvents[event.id] = event;
+    writeDatabase(dataPath, database);
+    return clone(event);
+  }
+
+  function validateReinspectionLink(database, context, reinspectionOfId) {
+    const id = clean(reinspectionOfId);
+    if (!id) return null;
+    const previous = database.apartmentHandoverInspections[id] || null;
+    requireTenantRecord(previous, context, "reinspection_not_found");
+    return id;
+  }
+
+  function createApartmentHandoverInspection(context = {}, payload = {}) {
+    const ctx = requireInstitution(context);
+    const safe = objectOf(payload);
+    requireApartmentHandoverSourceType(safe.sourceType || safe.source_type);
+    const inspectionData = requirePayloadObject(safe.inspectionData || safe.inspection_data || safe.inspection_data_json, "inspection_data_required");
+    const database = readDatabase(dataPath);
+    const reinspectionOfId = validateReinspectionLink(database, context, safe.reinspectionOfId || safe.reinspection_of_id || inspectionData.reinspectionOfId || inspectionData.reinspection_of_id);
+    const createdAt = now();
+    const inspection = {
+      id: newId("obr_ahi"),
+      institution_id: ctx.institutionId,
+      client_id: clean(safe.clientId || safe.client_id) || null,
+      project_id: clean(safe.projectId || safe.project_id) || null,
+      title: clean(safe.title || inspectionData.title || inspectionData.metadata?.projectName) || "Vistoria de Entrega",
+      status: normalizeInspectionStatus(safe.status || inspectionData.status),
+      source_type: APARTMENT_HANDOVER_SOURCE_TYPE,
+      source_id: clean(safe.sourceId || safe.source_id) || null,
+      inspection_data_json: inspectionData,
+      created_by: ctx.userId || clean(safe.createdBy || safe.created_by) || null,
+      updated_by: ctx.userId || clean(safe.updatedBy || safe.updated_by) || null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      completed_at: clean(safe.completedAt || safe.completed_at || inspectionData.completedAt || inspectionData.completed_at) || null,
+      reopened_at: clean(safe.reopenedAt || safe.reopened_at || inspectionData.reopenedAt || inspectionData.reopened_at) || null,
+      reinspection_of_id: reinspectionOfId
+    };
+    database.apartmentHandoverInspections[inspection.id] = inspection;
+    writeDatabase(dataPath, database);
+    registerApartmentHandoverInspectionEvent(context, inspection.id, "inspection_created", { title: inspection.title, status: inspection.status });
+    if (inspection.status === "completed" || inspection.completed_at) {
+      registerApartmentHandoverInspectionEvent(context, inspection.id, "inspection_completed", { completedAt: inspection.completed_at });
+    }
+    if (inspection.reopened_at) {
+      registerApartmentHandoverInspectionEvent(context, inspection.id, "inspection_reopened", { reopenedAt: inspection.reopened_at });
+    }
+    return clone(inspection);
+  }
+
+  function listApartmentHandoverInspections(context = {}, filters = {}) {
+    requireInstitution(context);
+    const safe = objectOf(filters);
+    const status = clean(safe.status);
+    if (status) normalizeInspectionStatus(status);
+    const projectId = clean(safe.projectId || safe.project_id);
+    const clientId = clean(safe.clientId || safe.client_id);
+    return Object.values(readDatabase(dataPath).apartmentHandoverInspections)
+      .filter((inspection) => canAccess(inspection, context))
+      .filter((inspection) => !projectId || inspection.project_id === projectId)
+      .filter((inspection) => !clientId || inspection.client_id === clientId)
+      .filter((inspection) => !status || inspection.status === status)
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
+      .map(clone);
+  }
+
+  function getApartmentHandoverInspection(context = {}, id) {
+    const inspection = readDatabase(dataPath).apartmentHandoverInspections[clean(id)] || null;
+    requireTenantRecord(inspection, context, "inspection_not_found");
+    return clone(inspection);
+  }
+
+  function updateApartmentHandoverInspection(context = {}, id, payload = {}) {
+    const ctx = requireInstitution(context);
+    const database = readDatabase(dataPath);
+    const current = database.apartmentHandoverInspections[clean(id)] || null;
+    requireTenantRecord(current, context, "inspection_not_found");
+    const safe = objectOf(payload);
+    const inspectionData = requirePayloadObject(safe.inspectionData || safe.inspection_data || safe.inspection_data_json || current.inspection_data_json, "inspection_data_required");
+    const nextStatus = normalizeInspectionStatus(safe.status || current.status);
+    const completedAt = clean(safe.completedAt || safe.completed_at || inspectionData.completedAt || inspectionData.completed_at || current.completed_at) || null;
+    const reopenedAt = clean(safe.reopenedAt || safe.reopened_at || inspectionData.reopenedAt || inspectionData.reopened_at || current.reopened_at) || null;
+    const updated = Object.assign({}, current, {
+      title: clean(safe.title || current.title) || current.title,
+      status: nextStatus,
+      inspection_data_json: inspectionData,
+      updated_by: ctx.userId || clean(safe.updatedBy || safe.updated_by) || current.updated_by || null,
+      updated_at: now(),
+      completed_at: completedAt,
+      reopened_at: reopenedAt
+    });
+    database.apartmentHandoverInspections[updated.id] = updated;
+    writeDatabase(dataPath, database);
+    registerApartmentHandoverInspectionEvent(context, updated.id, "inspection_updated", { status: updated.status });
+    if (current.status !== "completed" && updated.status === "completed") {
+      registerApartmentHandoverInspectionEvent(context, updated.id, "inspection_completed", { completedAt: updated.completed_at });
+    }
+    if (updated.reopened_at && updated.reopened_at !== current.reopened_at) {
+      registerApartmentHandoverInspectionEvent(context, updated.id, "inspection_reopened", { reopenedAt: updated.reopened_at });
+    }
+    return clone(updated);
+  }
+
+  function createApartmentHandoverInspectionVersion(context = {}, id) {
+    const database = readDatabase(dataPath);
+    const inspection = database.apartmentHandoverInspections[clean(id)] || null;
+    requireTenantRecord(inspection, context, "inspection_not_found");
+    const versionNumber = Object.values(database.apartmentHandoverInspectionVersions).filter((version) => version.inspection_id === inspection.id).length + 1;
+    const version = {
+      id: newId("obr_ahi_version"),
+      inspection_id: inspection.id,
+      institution_id: inspection.institution_id,
+      version_number: versionNumber,
+      inspection_data_json: clone(inspection.inspection_data_json),
+      created_by: contextOf(context).userId || null,
+      created_at: now()
+    };
+    database.apartmentHandoverInspectionVersions[version.id] = version;
+    writeDatabase(dataPath, database);
+    registerApartmentHandoverInspectionEvent(context, inspection.id, "inspection_version_created", { versionId: version.id, versionNumber });
+    return clone(version);
+  }
+
+  function listApartmentHandoverInspectionEvents(context = {}, id) {
+    getApartmentHandoverInspection(context, id);
+    return Object.values(readDatabase(dataPath).apartmentHandoverInspectionEvents)
+      .filter((event) => event.inspection_id === clean(id))
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .map(clone);
+  }
+
   function prepareDocumentEmail(context = {}, documentId, payload = {}) {
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
@@ -451,6 +621,13 @@ export function createObraReportTransactionalService(options = {}) {
     listRdoEvents,
     registerReportEvent,
     registerRdoEvent,
+    createApartmentHandoverInspection,
+    listApartmentHandoverInspections,
+    getApartmentHandoverInspection,
+    updateApartmentHandoverInspection,
+    createApartmentHandoverInspectionVersion,
+    listApartmentHandoverInspectionEvents,
+    registerApartmentHandoverInspectionEvent,
     prepareDocumentEmail
   };
 }

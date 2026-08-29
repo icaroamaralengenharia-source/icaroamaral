@@ -87,10 +87,49 @@ create table if not exists obrareport_rdo_events (
   created_at timestamptz not null default now()
 );
 
+
+create table if not exists obrareport_apartment_handover_inspections (
+  id text primary key,
+  institution_id text not null,
+  project_id text references obrareport_projects(id),
+  client_id text references obrareport_clients(id),
+  title text not null,
+  status text not null default 'draft',
+  source_id text,
+  inspection_data_json jsonb not null default '{}'::jsonb,
+  created_by text,
+  updated_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz,
+  reopened_at timestamptz,
+  reinspection_of_id text references obrareport_apartment_handover_inspections(id)
+);
+
+create table if not exists obrareport_apartment_handover_inspection_versions (
+  id text primary key,
+  inspection_id text not null references obrareport_apartment_handover_inspections(id),
+  institution_id text not null,
+  version_number integer not null,
+  inspection_data_json jsonb not null default '{}'::jsonb,
+  created_by text,
+  created_at timestamptz not null default now(),
+  unique (inspection_id, version_number)
+);
+
+create table if not exists obrareport_apartment_handover_inspection_events (
+  id text primary key,
+  inspection_id text not null references obrareport_apartment_handover_inspections(id),
+  institution_id text not null,
+  event_type text not null,
+  user_id text,
+  payload_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
 create table if not exists obrareport_generated_documents (
   id text primary key,
   institution_id text not null,
-  source_type text not null check (source_type in ('technical_report', 'rdo')),
+  source_type text not null check (source_type in ('technical_report', 'rdo', 'apartment_handover_inspection')),
   source_id text not null,
   document_type text not null,
   status text not null default 'generated',
@@ -119,5 +158,7 @@ create index if not exists idx_obrareport_projects_institution on obrareport_pro
 create index if not exists idx_obrareport_reports_institution on obrareport_technical_reports(institution_id, updated_at desc);
 create index if not exists idx_obrareport_report_events_report on obrareport_report_events(report_id, created_at asc);
 create index if not exists idx_obrareport_rdos_institution on obrareport_rdos(institution_id, updated_at desc);
+create index if not exists idx_obrareport_apartment_handover_inspections_institution on obrareport_apartment_handover_inspections(institution_id, updated_at desc);
+create index if not exists idx_obrareport_apartment_handover_inspection_events_inspection on obrareport_apartment_handover_inspection_events(inspection_id, created_at asc);
 create index if not exists idx_obrareport_rdo_events_rdo on obrareport_rdo_events(rdo_id, created_at asc);
 create index if not exists idx_obrareport_documents_source on obrareport_generated_documents(source_type, source_id);
