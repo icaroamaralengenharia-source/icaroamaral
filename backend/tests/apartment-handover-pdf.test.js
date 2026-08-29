@@ -124,6 +124,16 @@ test("gerador independente cria PDFs final e rascunho com fixture de 144 itens",
   assert.match(draftText, /RASCUNHO - NAO FINALIZADO/i);
 });
 
+test("CSS do PDF centraliza blocos fotograficos, imagens e legendas", () => {
+  const finalPayload = readJson(finalFixturePath);
+  const html = buildApartmentHandoverInspectionHtml(finalPayload);
+
+  assert.match(html, /\.photos \{[^}]*margin: 9px auto 0;[^}]*justify-items: center;/);
+  assert.match(html, /figure \{[^}]*max-width: 82mm;[^}]*margin: 0 auto;[^}]*text-align: center;/);
+  assert.match(html, /figure img \{[^}]*display: block;[^}]*max-width: 100%;[^}]*margin-left: auto;[^}]*margin-right: auto;[^}]*object-fit: contain;/);
+  assert.match(html, /figcaption \{[^}]*margin: 5px auto 0;[^}]*text-align: center;/);
+  assert.equal((html.match(/<figure>/g) || []).length, 8);
+});
 test("gerador permite draft com blocker e recusa final bloqueado pelo preflight", async () => {
   mkdirSync(tmpDir, { recursive: true });
   const payload = readJson(finalFixturePath);

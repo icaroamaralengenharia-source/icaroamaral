@@ -274,10 +274,10 @@ export function buildApartmentHandoverInspectionHtml(payload, options = {}) {
   .status-NC { background: #fdeaea; color: #8a1f1f; }
   .status-NA { background: #eef2f7; color: #334155; }
   .status-NV, .status-NI { background: #fff6d8; color: #775600; }
-  .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
-  figure { margin: 0; border: 1px solid #d2d9e4; padding: 6px; page-break-inside: avoid; }
-  img { display: block; width: 100%; height: 90px; object-fit: contain; background: #f6f8fb; }
-  figcaption { margin-top: 5px; font-size: 9.2px; color: #4b5563; }
+  .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 9px auto 0; justify-items: center; }
+  figure { width: 100%; max-width: 82mm; margin: 0 auto; border: 1px solid #d2d9e4; padding: 6px; page-break-inside: avoid; text-align: center; }
+  figure img { display: block; width: 100%; max-width: 100%; height: 90px; margin-left: auto; margin-right: auto; object-fit: contain; background: #f6f8fb; }
+  figcaption { width: 100%; margin: 5px auto 0; font-size: 9.2px; color: #4b5563; text-align: center; overflow-wrap: anywhere; }
   .checklist { font-size: 9.6px; }
   .checklist th, .checklist td { padding: 4px 5px; }
   .final-section { font-size: 11px; line-height: 1.55; }
