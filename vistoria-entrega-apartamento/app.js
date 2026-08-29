@@ -6,7 +6,7 @@
   const PHOTO_STORE = "photos";
   const NOT_INSPECTED = "NAO_INSPECIONADO";
   const MAX_PHOTOS = 5;
-  const API_BASE_URL = String(window.OBRAREPORT_API_BASE_URL || "").replace(/\/$/, "");
+  const API_BASE_URL = String(window.OBRAREPORT_API_BASE_URL || window.OBRAREPORT_PRODUCTION_API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/$/, "");
   const template = window.VistoriaEntregaTemplates.templates.find((entry) => entry.id === window.VistoriaEntregaTemplates.activeTemplateId);
   const statusLabels = { C: "Conforme", NC: "Não Conforme", NA: "Não Aplicável", NV: "Não Verificado", [NOT_INSPECTED]: "Não Inspecionado" };
   const measurementTypes = ["tensão", "dimensão", "nível", "caimento", "umidade", "pressão", "temperatura", "outro"];
