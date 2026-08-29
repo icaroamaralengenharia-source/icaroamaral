@@ -106,7 +106,10 @@ test("GET /api/obrareport/documents lista technical_report, rdo e vistoria com l
     const rdo = result.data.documents.find((item) => item.sourceType === "rdo");
     assert.equal(rdo.date, "2026-08-28");
     assert.equal(rdo.displayStatus, "CONCLUIDO");
+    assert.equal(rdo.documentAvailable, true);
     assert.equal(rdo.pdfAvailable, false);
+    assert.equal(rdo.documentType, "rdo_controlled_html");
+    assert.match(rdo.fileUrl, /^\/api\/obrareport\/documents\/obr_doc_.+\/file$/);
 
     const inspection = result.data.documents.find((item) => item.sourceType === "apartment_handover_inspection");
     assert.equal(inspection.sourceId, seeded.inspection.id);

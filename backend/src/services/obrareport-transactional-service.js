@@ -220,6 +220,12 @@ function createBinaryFile(database, documentStorageDir, institutionId, filename,
 }
 
 
+
+function buildRdoTitle_(payload, rdoData) {
+  const project = clean(payload.projectName || payload.project_name || payload.projectId || payload.project_id || rdoData.projectName || rdoData.project_name || rdoData.workName || rdoData.work_name);
+  const date = clean(payload.rdoDate || payload.rdo_date || rdoData.date || rdoData.rdo_date);
+  return ["RDO", project, date].filter(Boolean).join(" - ") || "Diario de Obras";
+}
 function sourceKey(sourceType, sourceId) {
   return clean(sourceType) + ":" + clean(sourceId);
 }
@@ -229,6 +235,10 @@ function isPdfFile(file, document) {
   const filename = clean(file && file.filename).toLowerCase();
   const documentType = clean(document && document.document_type).toLowerCase();
   return mimeType === "application/pdf" || filename.endsWith(".pdf") || documentType.indexOf("pdf") >= 0;
+}
+
+function isDocumentFileAvailable(file) {
+  return Boolean(file && (file.storage_path || file.html_content || file.public_url));
 }
 
 function latestDocumentForSource(database, sourceType, sourceId) {
@@ -247,14 +257,15 @@ function normalizeDocumentStatus(sourceType, status, latestDocument) {
   const safeStatus = clean(status).toLowerCase();
   if (safeStatus === "archived") return "ARQUIVADO";
   if (sourceType === APARTMENT_HANDOVER_SOURCE_TYPE && latestDocument && latestDocument.document_type === APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE) return "PDF FINAL";
-  if (["completed", "closed", "final_pdf_generated", "concluido", "concluído"].includes(safeStatus)) return "CONCLUIDO";
+  if (["completed", "closed", "final", "final_pdf_generated", "concluido", "concluído"].includes(safeStatus)) return "CONCLUIDO";
   return "RASCUNHO";
 }
 
 function normalizeUnifiedDocument(database, sourceType, source) {
   const latestDocument = latestDocumentForSource(database, sourceType, source.id);
   const latestFile = latestDocument ? database.documentFiles[latestDocument.file_id] || null : null;
-  const pdfAvailable = Boolean(latestDocument && latestFile && isPdfFile(latestFile, latestDocument));
+  const documentAvailable = Boolean(latestDocument && latestFile && isDocumentFileAvailable(latestFile));
+  const pdfAvailable = Boolean(documentAvailable && isPdfFile(latestFile, latestDocument));
   const status = clean(source.status || "draft");
   const updatedAt = clean(source.updated_at || source.created_at);
   const base = {
@@ -274,8 +285,10 @@ function normalizeUnifiedDocument(database, sourceType, source) {
     latestDocumentId: latestDocument ? latestDocument.id : null,
     fileId: latestFile ? latestFile.id : null,
     latestFileId: latestFile ? latestFile.id : null,
-    fileUrl: latestDocument && pdfAvailable ? latestDocument.file_url || latestFile.public_url || "" : "",
+    fileUrl: documentAvailable ? latestDocument.file_url || latestFile.public_url || "" : "",
+    documentAvailable,
     pdfAvailable,
+    artifactType: latestFile ? latestFile.mime_type : null,
     documentType: latestDocument ? latestDocument.document_type : null,
     summary: "",
     date: source.created_at || null,
@@ -289,7 +302,7 @@ function normalizeUnifiedDocument(database, sourceType, source) {
   } else if (sourceType === "rdo") {
     base.summary = clean(source.rdo_data_json && (source.rdo_data_json.summary || source.rdo_data_json.services)) || "Diario de Obras";
     base.date = source.rdo_date || source.created_at || null;
-    base.canContinue = !["closed", "archived"].includes(status.toLowerCase());
+    base.canContinue = !["closed", "completed", "final", "archived"].includes(status.toLowerCase());
   } else if (sourceType === APARTMENT_HANDOVER_SOURCE_TYPE) {
     const inspectionData = source.inspection_data_json || {};
     base.summary = clean(inspectionData.summary || inspectionData.professionalOpinion || "Vistoria de Entrega");
@@ -469,7 +482,7 @@ export function createObraReportTransactionalService(options = {}) {
       institution_id: ctx.institutionId,
       project_id: clean(safe.projectId || safe.project_id) || null,
       client_id: clean(safe.clientId || safe.client_id) || null,
-      title: clean(safe.title || rdoData.title || rdoData.summary) || "Diario de Obras",
+      title: clean(safe.title || rdoData.title || rdoData.summary) || buildRdoTitle_(safe, rdoData),
       rdo_date: clean(safe.rdoDate || safe.rdo_date || rdoData.date) || null,
       status: clean(safe.status) || "draft",
       rdo_data_json: rdoData,
@@ -497,7 +510,7 @@ export function createObraReportTransactionalService(options = {}) {
 
   function getRdo(context = {}, id) {
     const rdo = readDatabase(dataPath).rdos[clean(id)] || null;
-    requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
+    requireTenantRecord(rdo, context, "rdo_not_found");
     return clone(rdo);
   }
 
@@ -505,7 +518,7 @@ export function createObraReportTransactionalService(options = {}) {
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
     const current = database.rdos[clean(id)] || null;
-    requireAccess(current, context, "rdo_not_found", "rdo_forbidden");
+    requireTenantRecord(current, context, "rdo_not_found");
     const safe = objectOf(payload);
     const rdoData = requirePayloadObject(safe.rdoData || safe.rdo_data || safe.rdo_data_json || current.rdo_data_json, "rdo_data_required");
     const updated = Object.assign({}, current, {
@@ -525,7 +538,7 @@ export function createObraReportTransactionalService(options = {}) {
   function createRdoVersion(context = {}, id) {
     const database = readDatabase(dataPath);
     const rdo = database.rdos[clean(id)] || null;
-    requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
+    requireTenantRecord(rdo, context, "rdo_not_found");
     const versionNumber = Object.values(database.rdoVersions).filter((version) => version.rdo_id === rdo.id).length + 1;
     const version = {
       id: newId("obr_rdo_version"),
@@ -545,10 +558,15 @@ export function createObraReportTransactionalService(options = {}) {
   function generateRdoDocument(context = {}, id) {
     const database = readDatabase(dataPath);
     const rdo = database.rdos[clean(id)] || null;
-    requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
+    requireTenantRecord(rdo, context, "rdo_not_found");
     const html = controlledHtmlDocument("ObraReport RDO - " + rdo.title, rdo.rdo_data_json);
     const file = createFile(database, rdo.institution_id, "obrareport-rdo-" + rdo.id + ".html", html);
     const document = createDocument(database, rdo.institution_id, "rdo", rdo.id, "rdo_controlled_html", file, contextOf(context).userId);
+    file.public_url = "/api/obrareport/documents/" + encodeURIComponent(document.id) + "/file";
+    document.file_url = file.public_url;
+    document.metadata_json = { fileName: file.filename, mode: "controlled_html", contentType: file.mime_type, sizeBytes: file.size_bytes };
+    database.documentFiles[file.id] = file;
+    database.generatedDocuments[document.id] = document;
     writeDatabase(dataPath, database);
     registerRdoEvent(context, rdo.id, "rdo_document_generated", { documentId: document.id, hash: document.hash });
     return clone(Object.assign({}, document, { file, html_content: html }));

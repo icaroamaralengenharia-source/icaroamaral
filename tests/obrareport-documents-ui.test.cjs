@@ -84,7 +84,7 @@ function render(documents) {
 test("renderiza cards technical_report, rdo e vistoria com metadados", () => {
   const { target } = render([
     { sourceType: "technical_report", sourceId: "rep-1", title: "Relatorio A", clientId: "client-a", projectId: "project-a", status: "draft", createdBy: "Ana", createdAt: "2026-08-28T10:00:00.000Z", pdfAvailable: false, canContinue: true },
-    { sourceType: "rdo", sourceId: "rdo-1", title: "RDO A", clientId: "client-a", projectId: "project-a", status: "closed", date: "2026-08-27", createdBy: "Bruno", pdfAvailable: true, fileUrl: "/api/obrareport/documents/doc-rdo/file" },
+    { sourceType: "rdo", sourceId: "rdo-1", title: "RDO A", clientId: "client-a", projectId: "project-a", status: "closed", date: "2026-08-27", createdBy: "Bruno", documentAvailable: true, pdfAvailable: false, fileUrl: "/api/obrareport/documents/doc-rdo/file" },
     { sourceType: "apartment_handover_inspection", sourceId: "vist-1", title: "Vistoria Apto 101", clientId: "client-a", projectId: "project-a", displayStatus: "PDF FINAL", createdBy: "Carla", updatedAt: "2026-08-29T12:00:00.000Z", pdfAvailable: true, fileUrl: "/api/obrareport/documents/doc-vist/file", canReinspect: true }
   ]);
 
@@ -103,12 +103,12 @@ test("renderiza cards technical_report, rdo e vistoria com metadados", () => {
 test("mostra apenas acoes aplicaveis por documento", () => {
   const { target, calls } = render([
     { sourceType: "technical_report", sourceId: "rep-1", title: "Relatorio A", canContinue: true, pdfAvailable: false },
-    { sourceType: "rdo", sourceId: "rdo-1", title: "RDO A", pdfAvailable: true, fileUrl: "/api/obrareport/documents/doc-rdo/file" },
+    { sourceType: "rdo", sourceId: "rdo-1", title: "RDO A", documentAvailable: true, pdfAvailable: false, fileUrl: "/api/obrareport/documents/doc-rdo/file" },
     { sourceType: "apartment_handover_inspection", sourceId: "vist-1", title: "Vistoria A", pdfAvailable: true, fileUrl: "/api/obrareport/documents/doc-vist/file", canReinspect: true }
   ]);
 
   assert.deepEqual(buttons(target.children[0]).map((button) => button.textContent), ["Abrir", "Continuar"]);
-  assert.deepEqual(buttons(target.children[1]).map((button) => button.textContent), ["Abrir", "Baixar PDF"]);
+  assert.deepEqual(buttons(target.children[1]).map((button) => button.textContent), ["Abrir", "Baixar arquivo"]);
   assert.deepEqual(buttons(target.children[2]).map((button) => button.textContent), ["Abrir", "Baixar PDF", "Nova re-vistoria"]);
 
   buttons(target.children[2])[2].eventListeners.click();

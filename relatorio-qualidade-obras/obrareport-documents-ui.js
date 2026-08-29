@@ -56,6 +56,7 @@
       status: statusLabel(safe),
       author: clean(safe.createdBy || safe.created_by) || "-",
       pdfLabel: safe.pdfAvailable ? "PDF: Disponivel" : "PDF: Nao disponivel",
+      documentAvailable: Boolean(safe.documentAvailable || safe.pdfAvailable),
       pdfAvailable: Boolean(safe.pdfAvailable),
       fileUrl: clean(safe.fileUrl || safe.file_url),
       documentId: clean(safe.documentId || safe.latestDocumentId || safe.document_id),
@@ -118,8 +119,8 @@
       actions.appendChild(createButton(documentRef, "Abrir", "primary", function () {
         if (typeof opts.onOpen === "function") opts.onOpen(item, card);
       }));
-      if (card.pdfAvailable && card.fileUrl) {
-        actions.appendChild(createButton(documentRef, "Baixar PDF", "", function () {
+      if (card.documentAvailable && card.fileUrl) {
+        actions.appendChild(createButton(documentRef, card.pdfAvailable ? "Baixar PDF" : "Baixar arquivo", "", function () {
           if (typeof opts.onDownload === "function") opts.onDownload(item, card);
         }));
       }

@@ -1281,6 +1281,15 @@ export function createApp(options = {}) {
     }
   });
 
+
+  app.get("/api/obrareport/rdos/:id", (request, response) => {
+    try {
+      const rdo = obraReportTransactionalService.getRdo(buildObraReportContext_(request), request.params.id);
+      response.json({ ok: true, rdo });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
   app.put("/api/obrareport/rdos/:id", async (request, response) => {
     try {
       const rdo = obraReportTransactionalService.updateRdo(buildObraReportContext_(request), request.params.id, request.body || {});
