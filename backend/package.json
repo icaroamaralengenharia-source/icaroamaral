@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node scripts/start-backend.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/*.test.js",
     "test:elo:hardening": "node --test tests/elo-hardening-stress.test.js",
@@ -20,7 +20,7 @@
     "demo:wizard": "node scripts/municipal-demo-wizard.js",
     "demo:wizard:example": "node scripts/municipal-demo-wizard.js --example --dry-run",
     "demo:runbook:dry-run": "node scripts/municipal-demo-wizard.js --example --dry-run",
-    "postinstall": "playwright install chromium"
+    "postinstall": "node scripts/install-playwright-chromium.js"
   },
   "dependencies": {
     "@playwright/test": "^1.60.0",
