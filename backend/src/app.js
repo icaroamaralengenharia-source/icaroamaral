@@ -1321,6 +1321,15 @@ export function createApp(options = {}) {
   });
 
 
+
+  app.get("/api/obrareport/documents", (request, response) => {
+    try {
+      const documents = obraReportTransactionalService.listUnifiedDocuments(buildObraReportContext_(request), request.query || {});
+      response.json({ ok: true, documents });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
   app.get("/api/obrareport/documents/:id/file", (request, response) => {
     try {
       const file = obraReportTransactionalService.getGeneratedDocumentFile(buildObraReportContext_(request), request.params.id);

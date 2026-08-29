@@ -219,6 +219,107 @@ function createBinaryFile(database, documentStorageDir, institutionId, filename,
   return file;
 }
 
+
+function sourceKey(sourceType, sourceId) {
+  return clean(sourceType) + ":" + clean(sourceId);
+}
+
+function isPdfFile(file, document) {
+  const mimeType = clean(file && file.mime_type).toLowerCase();
+  const filename = clean(file && file.filename).toLowerCase();
+  const documentType = clean(document && document.document_type).toLowerCase();
+  return mimeType === "application/pdf" || filename.endsWith(".pdf") || documentType.indexOf("pdf") >= 0;
+}
+
+function latestDocumentForSource(database, sourceType, sourceId) {
+  const candidates = Object.values(database.generatedDocuments || {})
+    .filter((document) => document.source_type === sourceType && document.source_id === sourceId)
+    .sort((a, b) => String(b.generated_at || b.created_at || "").localeCompare(String(a.generated_at || a.created_at || "")));
+  if (sourceType === APARTMENT_HANDOVER_SOURCE_TYPE) {
+    const latestFinalPdf = candidates.find((document) => document.document_type === APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE && isPdfFile(database.documentFiles[document.file_id], document));
+    if (latestFinalPdf) return latestFinalPdf;
+  }
+  const latestPdf = candidates.find((document) => isPdfFile(database.documentFiles[document.file_id], document));
+  return latestPdf || candidates[0] || null;
+}
+
+function normalizeDocumentStatus(sourceType, status, latestDocument) {
+  const safeStatus = clean(status).toLowerCase();
+  if (safeStatus === "archived") return "ARQUIVADO";
+  if (sourceType === APARTMENT_HANDOVER_SOURCE_TYPE && latestDocument && latestDocument.document_type === APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE) return "PDF FINAL";
+  if (["completed", "closed", "final_pdf_generated", "concluido", "concluído"].includes(safeStatus)) return "CONCLUIDO";
+  return "RASCUNHO";
+}
+
+function normalizeUnifiedDocument(database, sourceType, source) {
+  const latestDocument = latestDocumentForSource(database, sourceType, source.id);
+  const latestFile = latestDocument ? database.documentFiles[latestDocument.file_id] || null : null;
+  const pdfAvailable = Boolean(latestDocument && latestFile && isPdfFile(latestFile, latestDocument));
+  const status = clean(source.status || "draft");
+  const updatedAt = clean(source.updated_at || source.created_at);
+  const base = {
+    id: sourceKey(sourceType, source.id),
+    sourceType,
+    sourceId: source.id,
+    title: clean(source.title) || (sourceType === "rdo" ? "Diario de Obras" : sourceType === APARTMENT_HANDOVER_SOURCE_TYPE ? "Vistoria de Entrega" : "Relatorio tecnico"),
+    institutionId: source.institution_id,
+    clientId: source.client_id || null,
+    projectId: source.project_id || null,
+    status,
+    displayStatus: normalizeDocumentStatus(sourceType, status, latestDocument),
+    createdBy: source.created_by || null,
+    createdAt: source.created_at || null,
+    updatedAt: updatedAt || null,
+    documentId: latestDocument ? latestDocument.id : null,
+    latestDocumentId: latestDocument ? latestDocument.id : null,
+    fileId: latestFile ? latestFile.id : null,
+    latestFileId: latestFile ? latestFile.id : null,
+    fileUrl: latestDocument && pdfAvailable ? latestDocument.file_url || latestFile.public_url || "" : "",
+    pdfAvailable,
+    documentType: latestDocument ? latestDocument.document_type : null,
+    summary: "",
+    date: source.created_at || null,
+    canContinue: false,
+    canReinspect: false
+  };
+
+  if (sourceType === "technical_report") {
+    base.summary = clean(source.report_data_json && (source.report_data_json.summary || source.report_data_json.pathology || source.report_data_json.obra)) || "Relatorio tecnico";
+    base.canContinue = !["archived"].includes(status.toLowerCase());
+  } else if (sourceType === "rdo") {
+    base.summary = clean(source.rdo_data_json && (source.rdo_data_json.summary || source.rdo_data_json.services)) || "Diario de Obras";
+    base.date = source.rdo_date || source.created_at || null;
+    base.canContinue = !["closed", "archived"].includes(status.toLowerCase());
+  } else if (sourceType === APARTMENT_HANDOVER_SOURCE_TYPE) {
+    const inspectionData = source.inspection_data_json || {};
+    base.summary = clean(inspectionData.summary || inspectionData.professionalOpinion || "Vistoria de Entrega");
+    base.backendInspectionId = source.id;
+    base.localSourceId = source.source_id || null;
+    base.canContinue = !["completed", "final_pdf_generated", "archived"].includes(status.toLowerCase());
+    base.canReinspect = ["completed", "final_pdf_generated"].includes(status.toLowerCase()) || Boolean(latestDocument && latestDocument.document_type === APARTMENT_HANDOVER_FINAL_DOCUMENT_TYPE);
+  }
+  return base;
+}
+
+function applyUnifiedDocumentFilters(document, filters = {}) {
+  const safe = objectOf(filters);
+  const sourceType = clean(safe.sourceType || safe.source_type);
+  const clientId = clean(safe.clientId || safe.client_id);
+  const projectId = clean(safe.projectId || safe.project_id);
+  const status = clean(safe.status).toLowerCase();
+  const createdBy = clean(safe.createdBy || safe.created_by);
+  const dateFrom = clean(safe.dateFrom || safe.date_from);
+  const dateTo = clean(safe.dateTo || safe.date_to);
+  const documentDate = clean(document.updatedAt || document.createdAt || document.date);
+  if (sourceType && document.sourceType !== sourceType) return false;
+  if (clientId && document.clientId !== clientId) return false;
+  if (projectId && document.projectId !== projectId) return false;
+  if (status && clean(document.status).toLowerCase() !== status && clean(document.displayStatus).toLowerCase() !== status) return false;
+  if (createdBy && document.createdBy !== createdBy) return false;
+  if (dateFrom && documentDate && documentDate < dateFrom) return false;
+  if (dateTo && documentDate && documentDate > dateTo + "T23:59:59.999Z") return false;
+  return true;
+}
 export function createObraReportTransactionalService(options = {}) {
   const dataPath = options.dataPath || DEFAULT_DATA_PATH;
   const documentStorageDir = options.documentStorageDir || DEFAULT_DOCUMENT_STORAGE_DIR;
@@ -607,6 +708,18 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
 
+
+  function listUnifiedDocuments(context = {}, filters = {}) {
+    requireInstitution(context);
+    const database = readDatabase(dataPath);
+    return []
+      .concat(Object.values(database.reports || {}).filter((report) => canAccess(report, context)).map((report) => normalizeUnifiedDocument(database, "technical_report", report)))
+      .concat(Object.values(database.rdos || {}).filter((rdo) => canAccess(rdo, context)).map((rdo) => normalizeUnifiedDocument(database, "rdo", rdo)))
+      .concat(Object.values(database.apartmentHandoverInspections || {}).filter((inspection) => canAccess(inspection, context)).map((inspection) => normalizeUnifiedDocument(database, APARTMENT_HANDOVER_SOURCE_TYPE, inspection)))
+      .filter((document) => applyUnifiedDocumentFilters(document, filters))
+      .sort((a, b) => String(b.updatedAt || b.createdAt || b.date || "").localeCompare(String(a.updatedAt || a.createdAt || a.date || "")))
+      .map(clone);
+  }
   function generateApartmentHandoverInspectionPdfDocument(context = {}, id, payload = {}) {
     const ctx = requireInstitution(context);
     const safe = objectOf(payload);
@@ -721,6 +834,7 @@ export function createObraReportTransactionalService(options = {}) {
     createRdoVersion,
     generateRdoDocument,
     listRdoEvents,
+    listUnifiedDocuments,
     registerReportEvent,
     registerRdoEvent,
     createApartmentHandoverInspection,

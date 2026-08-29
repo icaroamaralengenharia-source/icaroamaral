@@ -51,6 +51,7 @@
   const clientPortalReportsList = document.getElementById("clientPortalReportsList");
   const clientPortalRdosList = document.getElementById("clientPortalRdosList");
   const clientPortalDocumentsList = document.getElementById("clientPortalDocumentsList");
+  const clientPortalDocumentsStatus = document.getElementById("clientPortalDocumentsStatus");
   const adminUsersMetric = document.getElementById("adminUsersMetric");
   const adminClientsMetric = document.getElementById("adminClientsMetric");
   const adminWorksMetric = document.getElementById("adminWorksMetric");
@@ -303,6 +304,7 @@
   let stockFullRemoteReadyState = { ok: false, mode: "local", itemsLoaded: false, items: 0, institutionId: "" };
   let stockFullRemoteReadyPromise = Promise.resolve(stockFullRemoteReadyState);
   let currentUser = getCurrentUser_();
+  let companyDocumentsState = { status: "idle", documents: [], error: "", promise: null };
   let activeReportId = null;
   let draftSaveTimer = null;
   let localSaveTimer = null;
@@ -4917,6 +4919,184 @@
     });
   }
 
+
+  function getDocumentsUiApi_() {
+    return window.ObraReportDocumentsUi || null;
+  }
+
+  function getObraReportApiBaseUrl_() {
+    return String(config.obraReportApiBaseUrl || window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
+  }
+
+  function getObraReportInstitutionId_() {
+    return clean(currentUser && (currentUser.institutionId || currentUser.companyId || currentUser.id));
+  }
+
+  function buildObraReportDocumentHeaders_() {
+    const headers = { "Content-Type": "application/json" };
+    const institutionId = getObraReportInstitutionId_();
+    if (institutionId) headers["x-institution-id"] = institutionId;
+    if (currentUser && currentUser.id) headers["x-user-id"] = currentUser.id;
+    return headers;
+  }
+
+  function buildCompanyDocumentsQuery_() {
+    const params = new URLSearchParams();
+    const workId = clean(appState.local && appState.local.lastWorkId);
+    const clientId = clean(appState.local && appState.local.lastClientId);
+    if (workId) params.set("project_id", workId);
+    if (!workId && clientId) params.set("client_id", clientId);
+    return params.toString();
+  }
+
+  function refreshCompanyDocuments_() {
+    if (!clientPortalDocumentsList || companyDocumentsState.status === "loading") {
+      return companyDocumentsState.promise || Promise.resolve(companyDocumentsState.documents);
+    }
+    const institutionId = getObraReportInstitutionId_();
+    if (!institutionId) {
+      companyDocumentsState = { status: "error", documents: [], error: "institution_missing", promise: null };
+      renderUnifiedCompanyDocuments_(clientPortalDocumentsList, getLocalCompanyDocumentFallback_(), false);
+      return Promise.resolve([]);
+    }
+
+    const query = buildCompanyDocumentsQuery_();
+    const url = getObraReportApiBaseUrl_() + "/api/obrareport/documents" + (query ? "?" + query : "");
+    companyDocumentsState.status = "loading";
+    renderUnifiedCompanyDocuments_(clientPortalDocumentsList, getLocalCompanyDocumentFallback_(), false);
+    companyDocumentsState.promise = fetch(url, { headers: buildObraReportDocumentHeaders_() })
+      .then(function (response) {
+        if (!response.ok) throw new Error("documents_request_failed");
+        return response.json();
+      })
+      .then(function (data) {
+        companyDocumentsState = { status: "ready", documents: Array.isArray(data.documents) ? data.documents : [], error: "", promise: null };
+        renderUnifiedCompanyDocuments_(clientPortalDocumentsList, getLocalCompanyDocumentFallback_(), false);
+        renderUnifiedCompanyDocuments_(clientPortalRecentDocs, getLocalCompanyDocumentFallback_().slice(0, 5), true);
+        return companyDocumentsState.documents;
+      })
+      .catch(function (error) {
+        companyDocumentsState = { status: "error", documents: [], error: clean(error && error.message) || "documents_request_failed", promise: null };
+        renderUnifiedCompanyDocuments_(clientPortalDocumentsList, getLocalCompanyDocumentFallback_(), false);
+        renderUnifiedCompanyDocuments_(clientPortalRecentDocs, getLocalCompanyDocumentFallback_().slice(0, 5), true);
+        return [];
+      });
+    return companyDocumentsState.promise;
+  }
+
+  function getLocalCompanyDocumentFallback_() {
+    return getUserReports_().filter(function (report) { return Boolean(report.pdfUrl); }).map(function (report) {
+      return {
+        id: "local-report:" + report.id,
+        sourceType: "technical_report",
+        sourceId: report.id,
+        title: report.title,
+        clientId: report.clientId,
+        projectId: report.workId,
+        status: report.status,
+        displayStatus: report.status || "RASCUNHO",
+        createdBy: report.userId,
+        createdAt: report.createdAt,
+        updatedAt: report.updatedAt,
+        documentId: report.id,
+        fileUrl: report.pdfUrl,
+        pdfAvailable: true,
+        canContinue: true,
+        canReinspect: false
+      };
+    });
+  }
+
+  function getCompanyDocumentsForRender_(fallbackDocuments, recentOnly) {
+    const remote = companyDocumentsState.status === "ready" ? companyDocumentsState.documents : [];
+    const docs = [];
+    const seen = new Set();
+    remote.concat(fallbackDocuments || []).forEach(function (documentItem) {
+      const key = clean(documentItem.sourceType) + ":" + clean(documentItem.sourceId || documentItem.documentId || documentItem.id);
+      if (!seen.has(key)) {
+        seen.add(key);
+        docs.push(documentItem);
+      }
+    });
+    return recentOnly ? docs.slice(0, 5) : docs;
+  }
+
+  function renderUnifiedCompanyDocuments_(target, fallbackDocuments, recentOnly) {
+    if (!target) return;
+    const api = getDocumentsUiApi_();
+    if (!api || typeof api.renderDocumentsList !== "function") {
+      renderClientDocumentsList_(target, fallbackDocuments || []);
+      return;
+    }
+    if (clientPortalDocumentsStatus && !recentOnly) {
+      if (companyDocumentsState.status === "error") {
+        clientPortalDocumentsStatus.textContent = "Não foi possível carregar documentos da empresa.";
+        clientPortalDocumentsStatus.className = "cloud-status error";
+      } else if (companyDocumentsState.status === "ready") {
+        clientPortalDocumentsStatus.textContent = "Documentos da empresa carregados.";
+        clientPortalDocumentsStatus.className = "cloud-status success";
+      } else {
+        clientPortalDocumentsStatus.textContent = "Carregando documentos da empresa.";
+        clientPortalDocumentsStatus.className = "cloud-status info";
+      }
+    }
+    const clientsById = Object.fromEntries((appState.clients || []).map(function (client) { return [client.id, client]; }));
+    const worksById = Object.fromEntries((appState.works || []).map(function (work) { return [work.id, work]; }));
+    api.renderDocumentsList(target, getCompanyDocumentsForRender_(fallbackDocuments, recentOnly), {
+      clientsById,
+      worksById,
+      emptyMessage: recentOnly ? "Nenhum documento vinculado com segurança ao seu acesso." : "Nenhum documento da empresa encontrado.",
+      onOpen: openUnifiedCompanyDocument_,
+      onDownload: downloadUnifiedCompanyDocument_,
+      onContinue: continueUnifiedCompanyDocument_,
+      onReinspect: prepareUnifiedCompanyReinspection_
+    });
+  }
+
+  function downloadUnifiedCompanyDocument_(documentItem) {
+    const fileUrl = clean(documentItem.fileUrl || documentItem.file_url);
+    if (!fileUrl) return;
+    const absoluteUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : getObraReportApiBaseUrl_() + fileUrl;
+    window.open(absoluteUrl, "_blank", "noopener");
+  }
+
+  function openUnifiedCompanyDocument_(documentItem) {
+    if (documentItem.sourceType === "technical_report") {
+      const localReport = findReport_(documentItem.sourceId);
+      if (localReport) {
+        openReportEditor_(localReport.id).catch(function () { setCloudStatus_("Não foi possível abrir o relatório.", "error"); });
+        return;
+      }
+    }
+    if (documentItem.sourceType === "rdo") {
+      const localRdo = findDailyLog_(documentItem.sourceId);
+      if (localRdo) {
+        loadDailyLogIntoForm_(localRdo.id);
+        showDashboardPanel_("diario");
+        return;
+      }
+    }
+    if (documentItem.pdfAvailable) {
+      downloadUnifiedCompanyDocument_(documentItem);
+      return;
+    }
+    setCloudStatus_("Documento registrado no histórico. Continuação local não disponível neste navegador.", "info");
+  }
+
+  function continueUnifiedCompanyDocument_(documentItem) {
+    if (documentItem.sourceType === "apartment_handover_inspection") {
+      const params = new URLSearchParams({ backendInspectionId: documentItem.backendInspectionId || documentItem.sourceId || "" });
+      window.location.href = "/vistoria-entrega-apartamento/?" + params.toString();
+      return;
+    }
+    openUnifiedCompanyDocument_(documentItem);
+  }
+
+  function prepareUnifiedCompanyReinspection_(documentItem) {
+    if (documentItem.sourceType !== "apartment_handover_inspection") return;
+    const params = new URLSearchParams({ reinspectionOfId: documentItem.backendInspectionId || documentItem.sourceId || "" });
+    window.location.href = "/vistoria-entrega-apartamento/?" + params.toString();
+  }
   function renderClientDocumentsList_(target, reports) {
     if (!target) {
       return;

@@ -7,6 +7,7 @@
     maxInconformidades: 20,
     maxImageWidth: 1280,
     maxImagePixels: 1638400,
+    obraReportApiBaseUrl: apiBaseUrl,
     jpegQuality: 0.72,
     aiAssistantUrl: apiBaseUrl + "/api/ai/improve-text",
     aiImageAnalysisUrl: apiBaseUrl + "/api/ai/analyze-image",
