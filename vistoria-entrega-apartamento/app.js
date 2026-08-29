@@ -22,6 +22,9 @@
   let draftStatus = "C";
   let pdfBusy = false;
   let pdfObjectUrl = "";
+  let syncController = null;
+  let syncEnabled = false;
+  let syncContextSnapshot = { institutionId: "", clientId: "", projectId: "", createdBy: "" };
   let state = normalizeState(loadState() || createSession());
 
   const nodes = {
@@ -96,7 +99,8 @@
     pdfPreflight: document.querySelector("[data-pdf-preflight]"),
     pdfBlockers: document.querySelector("[data-pdf-blockers]"),
     pdfWarnings: document.querySelector("[data-pdf-warnings]"),
-    reopenButton: document.querySelector("[data-reopen-inspection]")
+    reopenButton: document.querySelector("[data-reopen-inspection]"),
+    syncStatus: document.querySelector("[data-sync-status]")
   };
 
   function createSession() {
@@ -132,7 +136,116 @@
 
   function resultKey(environmentId, itemId) { return environmentId + "::" + itemId; }
   function loadState() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
-  function persist() { state.inspection.summary = computeSummary(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if (nodes.saveState) nodes.saveState.textContent = "Salvo " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
+  function persist() {
+    state.inspection.summary = computeSummary();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (nodes.saveState) nodes.saveState.textContent = "Salvo " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function cleanString(value) { return String(value || "").trim(); }
+  function readStorageJson(key) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+  function normalizeSyncContext(context) {
+    const safe = context || {};
+    return {
+      institutionId: cleanString(safe.institutionId || safe.institution_id || safe.companyId || safe.company_id),
+      clientId: cleanString(safe.clientId || safe.client_id),
+      projectId: cleanString(safe.projectId || safe.project_id || safe.workId || safe.work_id),
+      createdBy: cleanString(safe.createdBy || safe.created_by || safe.userId || safe.user_id)
+    };
+  }
+  function hasSyncContext(context) {
+    return Boolean(context && context.institutionId && context.clientId && context.projectId && context.createdBy);
+  }
+  function resolveSaasSyncContext() {
+    const appState = readStorageJson("obrareport-saas-v1") || {};
+    const session = appState.session || {};
+    const local = appState.local || {};
+    const users = Array.isArray(appState.users) ? appState.users : [];
+    const clients = Array.isArray(appState.clients) ? appState.clients : [];
+    const works = Array.isArray(appState.works) ? appState.works : [];
+    const reports = Array.isArray(appState.reports) ? appState.reports : [];
+    const user = users.find((item) => item && cleanString(item.id) === cleanString(session.userId || session.user_id)) || null;
+    const report = reports.find((item) => item && cleanString(item.id) === cleanString(local.lastReportId)) || null;
+    const workId = cleanString(local.lastWorkId || local.workId || local.projectId || report && report.workId);
+    const work = works.find((item) => item && cleanString(item.id) === workId) || null;
+    const clientId = cleanString(work && work.clientId || local.lastClientId || local.clientId || report && report.clientId);
+    const client = clients.find((item) => item && cleanString(item.id) === clientId) || null;
+    return normalizeSyncContext({
+      institutionId: session.institutionId || session.institution_id || session.companyId || session.company_id || user && (user.institutionId || user.institution_id || user.companyId || user.company_id) || appState.institutionId || appState.institution_id,
+      clientId: client ? client.id : "",
+      projectId: work ? work.id : "",
+      createdBy: user && user.id || session.userId || session.user_id
+    });
+  }
+  function resolveAppSyncContext() {
+    const syncModule = window.ApartmentHandoverInspectionSync;
+    if (syncModule && typeof syncModule.resolveCorporateContext === "function") {
+      const explicit = normalizeSyncContext(syncModule.resolveCorporateContext(localStorage));
+      if (hasSyncContext(explicit)) return explicit;
+    }
+    return resolveSaasSyncContext();
+  }
+  function syncModulesAvailable() {
+    return Boolean(window.ApartmentHandoverDocumentAdapter && window.ApartmentHandoverInspectionSync && typeof window.ApartmentHandoverInspectionSync.createController === "function");
+  }
+  function refreshSyncAvailability() {
+    syncContextSnapshot = resolveAppSyncContext();
+    syncEnabled = syncModulesAvailable() && hasSyncContext(syncContextSnapshot);
+    if (!syncEnabled) syncController = null;
+    return syncEnabled;
+  }
+  function getSyncMetadata() {
+    const syncModule = window.ApartmentHandoverInspectionSync;
+    return syncModule && typeof syncModule.ensureSyncMetadata === "function" ? syncModule.ensureSyncMetadata(state) : { syncStatus: "local_only", syncRevision: 0 };
+  }
+  function persistSyncState() { persist(); renderSyncStatus(); }
+  function initSyncController() {
+    if (!refreshSyncAvailability()) { renderSyncStatus(); return null; }
+    syncController = window.ApartmentHandoverInspectionSync.createController({
+      apiBaseUrl: API_BASE_URL,
+      adapter: window.ApartmentHandoverDocumentAdapter,
+      getState: () => state,
+      getContext: () => { syncContextSnapshot = resolveAppSyncContext(); return syncContextSnapshot; },
+      persistState: persistSyncState,
+      debounceMs: 1200
+    });
+    renderSyncStatus();
+    return syncController;
+  }
+  function ensureSyncController() { return syncController || initSyncController(); }
+  function hasPendingSync() {
+    const sync = getSyncMetadata();
+    return sync.syncStatus === "dirty" || sync.syncStatus === "error" || (sync.syncStatus === "local_only" && Number(sync.syncRevision) > 0);
+  }
+  function renderSyncStatus() {
+    if (!nodes.syncStatus) return;
+    refreshSyncAvailability();
+    const sync = getSyncMetadata();
+    let label = "Salvo neste aparelho";
+    let stateName = "local_only";
+    if (syncEnabled) {
+      stateName = sync.syncStatus || "local_only";
+      if (stateName === "synced") label = "Sincronizado";
+      else if (stateName === "syncing") label = "Sincronizando...";
+      else if (stateName === "conflict") label = "Conflito de sincronização";
+      else if (stateName === "error") label = "Erro de sincronização";
+      else if (stateName === "dirty" || Number(sync.syncRevision) > 0) label = "Pendente de sincronização";
+    }
+    nodes.syncStatus.textContent = label;
+    nodes.syncStatus.dataset.syncState = stateName;
+  }
+  function queueInspectionSync(reason) {
+    if (!ensureSyncController()) { renderSyncStatus(); return getSyncMetadata(); }
+    const metadata = syncController.queueSync(reason || "local_change");
+    renderSyncStatus();
+    return metadata;
+  }
+  async function retryPendingSync(reason) {
+    if (!ensureSyncController() || !hasPendingSync()) { renderSyncStatus(); return { ok: false, skipped: true, reason: "sync_disabled_or_clean" }; }
+    const result = await syncController.retryPending(reason || "retry_pending");
+    renderSyncStatus();
+    return result;
+  }
+  function retryPendingSyncLater(reason) { retryPendingSync(reason).catch(() => { renderSyncStatus(); }); }
   function showView(name) { state.currentView = name; nodes.views.forEach((view) => { view.hidden = view.dataset.view !== name; }); render(); }
 
   function render() {
@@ -301,6 +414,7 @@
   async function saveItem() {
     if (!await applyActiveSheetToState({ requireNcDescription: true })) return;
     closeSheet();
+    queueInspectionSync("save_item");
   }
   function closeSheet() { nodes.itemSheet.hidden = true; activeResultKey = ""; pendingPhotos = []; render(); }
   function quickConfirmConforme(key) {
@@ -316,14 +430,15 @@
     result.justification = "";
     result.nvReason = "";
     render();
+    queueInspectionSync("quick_c");
   }
   function finishEnvironment() { if (environmentResults(state.activeEnvironmentId).some((result) => result.status === NOT_INSPECTED)) nodes.bulkDialog.showModal(); }
-  function bulkConfirmEnvironment() { const now = new Date().toISOString(); environmentResults(state.activeEnvironmentId).forEach((result) => { if (result.status === NOT_INSPECTED) Object.assign(result, { status: "C", confirmedByUser: true, confirmedAt: now, bulkConfirmed: true, bulkAction: "environment_c" }); }); nodes.bulkDialog.close(); render(); }
+  function bulkConfirmEnvironment() { const now = new Date().toISOString(); environmentResults(state.activeEnvironmentId).forEach((result) => { if (result.status === NOT_INSPECTED) Object.assign(result, { status: "C", confirmedByUser: true, confirmedAt: now, bulkConfirmed: true, bulkAction: "environment_c" }); }); nodes.bulkDialog.close(); render(); queueInspectionSync("finish_environment"); }
   function markEnvironmentNa() { nodes.envNaDialog.showModal(); }
-  function confirmEnvironmentNa() { const now = new Date().toISOString(); environmentResults(state.activeEnvironmentId).forEach((result) => { if (result.status === NOT_INSPECTED) Object.assign(result, { status: "NA", confirmedByUser: true, confirmedAt: now, bulkConfirmed: true, bulkAction: "environment_na", justification: "Ambiente não aplicável" }); }); nodes.envNaDialog.close(); render(); }
+  function confirmEnvironmentNa() { const now = new Date().toISOString(); environmentResults(state.activeEnvironmentId).forEach((result) => { if (result.status === NOT_INSPECTED) Object.assign(result, { status: "NA", confirmedByUser: true, confirmedAt: now, bulkConfirmed: true, bulkAction: "environment_na", justification: "Ambiente não aplicável" }); }); nodes.envNaDialog.close(); render(); queueInspectionSync("environment_na"); }
   function finalizeInspection() { const c = computeSummary().counts; nodes.finalizeWarning.textContent = `${c[NOT_INSPECTED]} itens não inspecionados, ${c.NC} não conformidades e ${c.NV} itens não verificados.`; nodes.finalizeDialog.showModal(); }
-  function confirmFinalize() { state.inspection.status = "completed"; state.inspection.completedAt = new Date().toISOString(); nodes.finalizeDialog.close(); showView("dashboard"); }
-  function reopenInspection() { state.inspection.status = "draft"; state.inspection.reopenedAt = new Date().toISOString(); showView("dashboard"); }
+  function confirmFinalize() { state.inspection.status = "completed"; state.inspection.completedAt = new Date().toISOString(); nodes.finalizeDialog.close(); showView("dashboard"); queueInspectionSync("finalize_inspection"); }
+  function reopenInspection() { state.inspection.status = "draft"; state.inspection.reopenedAt = new Date().toISOString(); showView("dashboard"); queueInspectionSync("reopen_inspection"); }
 
 
   function renderInstruments() {
@@ -389,6 +504,7 @@
     pdfBusy = true;
     setPdfButtonsBusy(true);
     await autosaveCurrentStateForPdf();
+    queueInspectionSync("pdf_" + mode);
     showPdfStatus(mode, mode === "final" ? "Gerando laudo final..." : "Gerando rascunho...");
     try {
       const response = await fetch(`${API_BASE_URL}/api/apartment-handover/pdf`, {
@@ -740,14 +856,10 @@
   document.querySelector("[data-summary-button]").addEventListener("click", openSummary);
   document.querySelector("[data-close-summary]").addEventListener("click", () => nodes.summaryDialog.close());
 
-  window.VistoriaEntregaApp = { adapters, template, getState: () => JSON.parse(JSON.stringify(state)), buildApartmentHandoverPdfPayload, generateInspectionPdf, generateReportFromTop, reset: () => { localStorage.removeItem(STORAGE_KEY); state = createSession(); activeSystemId = "all"; activeFilter = "all"; activeNcFilter = "all"; showView("identification"); }, buildPerformanceTemplate: (count = 300) => Array.from({ length: count }, (_, index) => ({ ...template.items[index % template.items.length], id: "perf-" + index })) };
+  window.VistoriaEntregaApp = { adapters, template, getState: () => JSON.parse(JSON.stringify(state)), buildApartmentHandoverPdfPayload, generateInspectionPdf, generateReportFromTop, queueInspectionSync, retryPendingSync, getSyncContext: () => ({ ...syncContextSnapshot }), isSyncEnabled: () => syncEnabled, getSyncMetadata: () => JSON.parse(JSON.stringify(getSyncMetadata())), maybeHydrateRemote: (remote, options) => window.ApartmentHandoverInspectionSync ? window.ApartmentHandoverInspectionSync.maybeHydrateRemote(state, remote, options || {}) : { applied: false, reason: "sync_unavailable", state }, reset: () => { localStorage.removeItem(STORAGE_KEY); state = createSession(); activeSystemId = "all"; activeFilter = "all"; activeNcFilter = "all"; syncController = null; showView("identification"); }, buildPerformanceTemplate: (count = 300) => Array.from({ length: count }, (_, index) => ({ ...template.items[index % template.items.length], id: "perf-" + index })) };
 
+  initSyncController();
   showView(state.currentView || "identification");
+  retryPendingSyncLater("app_open");
 })();
-
-
-
-
-
-
 

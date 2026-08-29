@@ -27,6 +27,10 @@ h2 { font-size: 1.08rem; }
 .topbar { align-items: flex-start; background: rgba(244, 246, 243, .97); display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; position: sticky; top: 0; z-index: 12; }
 .top-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .top-report-button { min-width: 150px; }
+.sync-status { align-items: center; align-self: center; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); display: inline-flex; font-size: .72rem; font-weight: 900; min-height: 32px; padding: 5px 9px; white-space: nowrap; }
+.sync-status[data-sync-state="synced"] { border-color: #b9d8cd; color: var(--ok); }
+.sync-status[data-sync-state="dirty"], .sync-status[data-sync-state="syncing"] { border-color: #dec48e; color: var(--warn); }
+.sync-status[data-sync-state="error"], .sync-status[data-sync-state="conflict"] { border-color: #e7aaa4; color: var(--danger); }
 .eyebrow { color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .view { display: grid; gap: 14px; }
 

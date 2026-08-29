@@ -29,15 +29,18 @@
     const inspection = getInspection(state);
     const current = inspection[SYNC_KEY] && typeof inspection[SYNC_KEY] === "object" ? inspection[SYNC_KEY] : {};
     const status = STATUSES.has(clean(current.syncStatus)) ? clean(current.syncStatus) : "local_only";
-    inspection[SYNC_KEY] = {
-      backendInspectionId: clean(current.backendInspectionId) || null,
-      syncStatus: status,
-      lastSyncedAt: clean(current.lastSyncedAt) || null,
-      lastSyncError: clean(current.lastSyncError) || "",
-      syncRevision: Number.isFinite(Number(current.syncRevision)) ? Number(current.syncRevision) : 0,
-      backendUpdatedAt: clean(current.backendUpdatedAt) || null
-    };
-    return inspection[SYNC_KEY];
+    current.backendInspectionId = clean(current.backendInspectionId) || null;
+    current.syncStatus = status;
+    current.lastSyncedAt = clean(current.lastSyncedAt) || null;
+    current.lastSyncError = clean(current.lastSyncError) || "";
+    current.syncRevision = Number.isFinite(Number(current.syncRevision)) ? Number(current.syncRevision) : 0;
+    current.backendUpdatedAt = clean(current.backendUpdatedAt) || null;
+    current.tenantInstitutionId = clean(current.tenantInstitutionId) || null;
+    current.tenantClientId = clean(current.tenantClientId) || null;
+    current.tenantProjectId = clean(current.tenantProjectId) || null;
+    current.tenantUserId = clean(current.tenantUserId) || null;
+    inspection[SYNC_KEY] = current;
+    return current;
   }
 
   function getSyncMetadata(state) {
@@ -85,6 +88,21 @@
     } catch (_) {
       return normalizeContext({});
     }
+  }
+
+  function tenantMatches(sync, context) {
+    if (!sync.backendInspectionId) return true;
+    return (!sync.tenantInstitutionId || sync.tenantInstitutionId === context.institutionId)
+      && (!sync.tenantClientId || sync.tenantClientId === context.clientId)
+      && (!sync.tenantProjectId || sync.tenantProjectId === context.projectId)
+      && (!sync.tenantUserId || sync.tenantUserId === context.createdBy);
+  }
+
+  function rememberTenant(sync, context) {
+    sync.tenantInstitutionId = context.institutionId;
+    sync.tenantClientId = context.clientId;
+    sync.tenantProjectId = context.projectId;
+    sync.tenantUserId = context.createdBy;
   }
 
   function isOnline(navigatorRef) {
@@ -137,6 +155,11 @@
       sync.lastSyncError = "corporate_context_required";
       return { ok: false, skipped: true, reason: "corporate_context_required", sync: getSyncMetadata(state) };
     }
+    if (!tenantMatches(sync, context)) {
+      setSyncError(state, "tenant_context_changed", "conflict");
+      client.persistState(state);
+      return { ok: false, conflict: true, reason: "tenant_context_changed", sync: getSyncMetadata(state) };
+    }
     if (!isOnline(client.navigatorRef)) {
       sync.syncStatus = sync.backendInspectionId ? "dirty" : "local_only";
       sync.lastSyncError = "offline";
@@ -153,6 +176,7 @@
     }
 
     const beforeStatus = sync.syncStatus;
+    const runRevision = sync.syncRevision;
     sync.syncStatus = "syncing";
     sync.lastSyncError = "";
     client.persistState(state);
@@ -186,10 +210,11 @@
       }
       const remoteInspection = data.inspection;
       sync.backendInspectionId = remoteInspection.id;
-      sync.syncStatus = "synced";
+      rememberTenant(sync, context);
       sync.lastSyncedAt = new Date().toISOString();
       sync.lastSyncError = "";
       sync.backendUpdatedAt = clean(remoteInspection.updated_at) || sync.lastSyncedAt;
+      sync.syncStatus = sync.syncRevision > runRevision ? "dirty" : "synced";
       client.persistState(state);
       return { ok: true, action: method === "POST" ? "create" : "update", inspection: remoteInspection, previousStatus: beforeStatus, sync: getSyncMetadata(state) };
     } catch (error) {
@@ -235,13 +260,23 @@
     };
     let timer = null;
     let running = false;
+    let rerunRequested = false;
 
     async function run(reason) {
-      if (running) return { ok: false, skipped: true, reason: "sync_already_running" };
+      if (running) {
+        rerunRequested = true;
+        return { ok: false, skipped: true, reason: "sync_already_running" };
+      }
       running = true;
       try {
         const state = options.getState();
-        return await syncNow(client, state, client.getContext(), reason);
+        const result = await syncNow(client, state, client.getContext(), reason);
+        if (rerunRequested) {
+          rerunRequested = false;
+          const nextSync = ensureSyncMetadata(options.getState());
+          if (["dirty", "local_only", "error"].includes(nextSync.syncStatus)) { running = false; return run("queued_after_inflight"); }
+        }
+        return result;
       } finally {
         running = false;
       }
