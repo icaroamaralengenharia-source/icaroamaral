@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createApp } from "../../backend/src/app.js";
 
 const appUrl = process.env.VISTORIA_BASE_URL || "http://127.0.0.1:5542";
+const productionApiBaseUrl = "https://obrareport-backend.onrender.com";
 
 async function openFresh(page) {
   await page.goto(`${appUrl}/vistoria-entrega-apartamento/`);
@@ -243,7 +244,9 @@ test.describe("vistoria de entrega profissional isolada", () => {
 
   test("analisa foto com IA mockada, aceita parcialmente e nao sobrescreve automatico", async ({ page }) => {
     let requestPayload = null;
+    let requestUrl = "";
     await page.route("**/api/ai/analyze-image", async (route) => {
+      requestUrl = route.request().url();
       requestPayload = route.request().postDataJSON();
       await route.fulfill({
         status: 200,
@@ -292,6 +295,7 @@ test.describe("vistoria de entrega profissional isolada", () => {
 
     let state = await page.evaluate(() => window.VistoriaEntregaApp.getState());
     let result = state.inspection.results["sala::sala-parede-pintura"];
+    expect(requestUrl).toBe(`${productionApiBaseUrl}/api/ai/analyze-image`);
     expect(requestPayload.context.inspection.type).toBe("vistoria de entrega de apartamento");
     expect(requestPayload.context.inspection.environment.name).toBe("Sala");
     expect(requestPayload.context.inspection.system.name).toBe("Paredes");
@@ -465,7 +469,7 @@ test.describe("vistoria de entrega profissional isolada", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/pdf",
-        headers: { "content-disposition": "attachment; filename=\"Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf\"" },
+        headers: { "content-disposition": "attachment; filename=\"Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf\"" },
         body: Buffer.from("%PDF-1.4\n% UI mock\n%%EOF")
       });
     });
@@ -479,7 +483,7 @@ test.describe("vistoria de entrega profissional isolada", () => {
     await requestPromise;
     await expect(page.locator("[data-pdf-dialog]")).toContainText("Rascunho gerado");
     await expect(page.locator("[data-open-pdf]")).toHaveAttribute("href", /^blob:/);
-    await expect(page.locator("[data-download-pdf]")).toHaveAttribute("download", "Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
+    await expect(page.locator("[data-download-pdf]")).toHaveAttribute("download", "Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
 
     expect(requestPayload.mode).toBe("draft");
     expect(requestPayload.report.type).toBe("apartment_handover_inspection");
@@ -712,16 +716,18 @@ test.describe("vistoria de entrega profissional isolada", () => {
 
   test("UX campo: gerar relatorio no topo com 2 itens, draft parcial, autosave e download", async ({ page }) => {
     let requestPayload = null;
+    let requestUrl = "";
     let calls = 0;
     let release;
     await page.route("**/api/apartment-handover/pdf", async (route) => {
       calls += 1;
+      requestUrl = route.request().url();
       requestPayload = route.request().postDataJSON();
       await new Promise((resolve) => { release = resolve; });
       await route.fulfill({
         status: 200,
         contentType: "application/pdf",
-        headers: { "content-disposition": "attachment; filename=\"Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf\"" },
+        headers: { "content-disposition": "attachment; filename=\"Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf\"" },
         body: Buffer.from("%PDF-1.4\n% top report draft\n%%EOF")
       });
     });
@@ -741,12 +747,13 @@ test.describe("vistoria de entrega profissional isolada", () => {
     release();
     const download = await downloadPromise;
     await expect(page.locator("[data-pdf-dialog]")).toContainText("Rascunho gerado com sucesso");
-    await expect(page.locator("[data-pdf-dialog]")).toContainText("Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
+    await expect(page.locator("[data-pdf-dialog]")).toContainText("Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
     await expect(page.locator("[data-open-pdf]")).toHaveAttribute("href", /^blob:/);
-    await expect(page.locator("[data-download-pdf]")).toHaveAttribute("download", "Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
+    await expect(page.locator("[data-download-pdf]")).toHaveAttribute("download", "Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
 
-    expect(download.suggestedFilename()).toBe("Laudo-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
+    expect(download.suggestedFilename()).toBe("Rascunho-Vistoria-Residencial-Campo-Real-Apto-802.pdf");
     expect(calls).toBe(1);
+    expect(requestUrl).toBe(`${productionApiBaseUrl}/api/apartment-handover/pdf`);
     expect(requestPayload.mode).toBe("draft");
     expect(requestPayload.report.inspection.finalizada).toBe(false);
     expect(requestPayload.report.inspection.items).toHaveLength(144);

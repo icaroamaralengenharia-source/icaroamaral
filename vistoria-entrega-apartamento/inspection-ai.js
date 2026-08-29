@@ -2,6 +2,8 @@
   "use strict";
 
   const ENDPOINT_PATH = "/api/ai/analyze-image";
+  const PRODUCTION_API_BASE_URL = "https://obrareport-backend.onrender.com";
+  window.OBRAREPORT_PRODUCTION_API_BASE_URL = window.OBRAREPORT_PRODUCTION_API_BASE_URL || PRODUCTION_API_BASE_URL;
   const TIMEOUT_MS = 25000;
   const MAX_IMAGE_EDGE = 1600;
   const JPEG_QUALITY = 0.82;
@@ -226,8 +228,8 @@
   function resolveEndpoint() {
     const configured = window.RELATORIO_QUALIDADE_CONFIG?.aiImageAnalysisUrl;
     if (configured) return String(configured);
-    const baseUrl = String(window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
-    return baseUrl ? baseUrl + ENDPOINT_PATH : ENDPOINT_PATH;
+    const baseUrl = String(window.OBRAREPORT_API_BASE_URL || window.OBRAREPORT_PRODUCTION_API_BASE_URL || "").replace(/\/+$/g, "");
+    return baseUrl + ENDPOINT_PATH;
   }
   function buildPublicError(code, message) { const error = new Error(code); error.code = code; error.publicMessage = message; return error; }
 
