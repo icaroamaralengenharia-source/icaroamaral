@@ -1,0 +1,303 @@
+:root {
+  color-scheme: light;
+  --ink: #17201b;
+  --muted: #5d665f;
+  --line: #c8d0ca;
+  --paper: #ffffff;
+  --surface: #f5f7f3;
+  --brand: #168145;
+  --brand-dark: #0a3f28;
+  --danger: #9c2525;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1120px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 18px 0 36px;
+}
+
+.topbar,
+.visit-card,
+.status-panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+h2 {
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
+h3 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.primary-action,
+.upload-button,
+.photo-actions button {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-action {
+  min-height: 44px;
+  padding: 0 18px;
+  background: var(--brand);
+  color: #fff;
+}
+
+.visit-card {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 260px) minmax(140px, 180px) minmax(180px, 240px);
+  gap: 16px;
+  margin-top: 14px;
+  padding: 18px;
+}
+
+.visit-card p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.date-field {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.date-field input,
+.date-field select {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 14px 0 10px;
+}
+
+.category-tab {
+  flex: 0 0 auto;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.category-tab.is-active {
+  border-color: var(--brand);
+  background: #eaf5ee;
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
+.category-panel {
+  display: none;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.category-panel.is-active {
+  display: block;
+}
+
+.category-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.category-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  background: var(--brand-dark);
+  color: #fff;
+}
+
+.upload-button input {
+  display: none;
+}
+
+.legend-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.legend-field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--ink);
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  gap: 12px;
+}
+
+.photo-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.photo-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #eef1ed;
+}
+
+.photo-meta {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.photo-meta strong {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.photo-actions button {
+  min-height: 30px;
+  background: #edf1ee;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.photo-actions button[data-remove-photo] {
+  background: #faeaea;
+  color: var(--danger);
+}
+
+.empty-photos {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.status-panel {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 14px 16px;
+}
+
+.status-panel span {
+  color: var(--muted);
+}
+
+
+@media (max-width: 720px) {
+  .topbar,
+  .visit-card,
+  .category-header {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .primary-action {
+    width: 100%;
+  }
+}

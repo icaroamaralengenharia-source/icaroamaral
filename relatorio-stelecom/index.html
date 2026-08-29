@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatório STELECOM</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Nova visita</p>
+        <h1>RELATÓRIO STELECOM</h1>
+      </div>
+      <button class="primary-action" type="button" data-generate-pdf>GERAR PDF</button>
+    </header>
+
+    <section class="visit-card" aria-labelledby="visit-title">
+      <div>
+        <h2 id="visit-title">Dados da visita</h2>
+        <p>Preencha uma vez para alimentar o cabeçalho e o PDF.</p>
+      </div>
+      <label class="date-field">
+        <span>CIDADE</span>
+        <input type="text" placeholder="Tremedal" data-visit-city>
+      </label>
+      <label class="date-field">
+        <span>TIPO DA OBRA</span>
+        <select data-work-type>
+          <option value="DT1B">DT1B</option>
+          <option value="PM1B">PM1B</option>
+        </select>
+      </label>
+      <label class="date-field">
+        <span>DATA DA VISITA</span>
+        <input type="text" inputmode="numeric" placeholder="dd/mm/aaaa" data-visit-date>
+      </label>
+      <label class="date-field">
+        <span>TIPO DE RELATÓRIO</span>
+        <select data-report-type>
+          <option value="STELECOM">STELECOM</option>
+          <option value="SGTO">SGTO</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="category-tabs" aria-label="Categorias de fotos" data-category-tabs></section>
+    <section class="category-panels" data-category-panels></section>
+
+    <section class="status-panel" aria-live="polite">
+      <strong data-status-title>Pronto para montar relatório</strong>
+      <span data-status-detail>Adicione as fotos nas categorias e informe a data uma única vez.</span>
+    </section>
+  </main>
+
+  <script src="./stelecom-template.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
