@@ -27,6 +27,7 @@ import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
+import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -1059,6 +1060,7 @@ export function createApp(options = {}) {
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
+  const apartmentHandoverEntitlementSupabaseClient = options.apartmentHandoverEntitlementSupabaseClient || null;
   const municipalAdminSupabaseClient = options.municipalAdminSupabaseClient || authContextSupabaseClient || null;
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
@@ -1068,6 +1070,7 @@ export function createApp(options = {}) {
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
+  const getApartmentHandoverEntitlementDatabase = () => apartmentHandoverEntitlementSupabaseClient || getAuthContextDatabase();
 
   app.locals.resolveAuthContext = (request) => resolveAuthContext(request, { supabase: getAuthContextDatabase() });
 
@@ -1097,6 +1100,9 @@ export function createApp(options = {}) {
   app.options("/api/apartment-handover/pdf", (request, response) => {
     response.sendStatus(204);
   });
+  app.options("/api/apartment-handover/pdf-protected", (request, response) => {
+    response.sendStatus(204);
+  });
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
 
   app.get("/api/health", (request, response) => {
@@ -1104,6 +1110,126 @@ export function createApp(options = {}) {
       ok: true,
       service: "ObraReport AI Backend"
     });
+  });
+
+  async function resolveApartmentHandoverRequestAccess_(request, response) {
+    const context = await app.locals.resolveAuthContext(request);
+    if (!context || !context.ok) {
+      response.status(context && context.status ? context.status : 401).json({
+        ok: false,
+        allowed: false,
+        code: clean_(context && context.error || "authentication_required")
+      });
+      return null;
+    }
+    const resolver = options.resolveApartmentHandoverAccess || resolveApartmentHandoverAccess;
+    const access = await resolver({
+      supabase: getApartmentHandoverEntitlementDatabase(),
+      institutionId: context.institutionId,
+      now: options.apartmentHandoverAccessNow
+    });
+    return { context, access };
+  }
+
+  function sendApartmentHandoverAccess_(response, access) {
+    const body = toApartmentHandoverAccessResponse(access);
+    if (access && access.allowed) {
+      response.status(200).json(Object.assign({ ok: true }, body));
+      return;
+    }
+    response.status(403).json(Object.assign({ ok: false }, body));
+  }
+
+  app.get("/api/apartment-handover/access", async (request, response) => {
+    try {
+      const resolved = await resolveApartmentHandoverRequestAccess_(request, response);
+      if (!resolved) return;
+      sendApartmentHandoverAccess_(response, resolved.access);
+    } catch (error) {
+      response.status(500).json({ ok: false, allowed: false, code: "APARTMENT_HANDOVER_ACCESS_FAILED" });
+    }
+  });
+
+  function extractApartmentHandoverInspectionId_(payload) {
+    const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
+    const inspection = report && report.inspection && typeof report.inspection === "object" ? report.inspection : null;
+    return clean_(payload && (payload.inspection_id || payload.inspectionId) || report && (report.inspection_id || report.inspectionId || report.id) || inspection && (inspection.id || inspection.inspection_id || inspection.inspectionId));
+  }
+
+  app.post("/api/apartment-handover/pdf-protected", async (request, response) => {
+    let tempPath = "";
+    try {
+      const resolved = await resolveApartmentHandoverRequestAccess_(request, response);
+      if (!resolved) return;
+      if (!resolved.access || !resolved.access.allowed) {
+        sendApartmentHandoverAccess_(response, resolved.access);
+        return;
+      }
+
+      const payload = request.body && typeof request.body === "object" ? request.body : null;
+      const mode = clean_(payload && payload.mode).toLowerCase();
+      const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
+      const inspectionId = extractApartmentHandoverInspectionId_(payload);
+      if (!payload || !report || !["draft", "final"].includes(mode)) {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_PAYLOAD", error: "invalid_apartment_handover_payload" });
+        return;
+      }
+      if (report.type !== "apartment_handover_inspection") {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_TYPE", error: "invalid_report_type" });
+        return;
+      }
+      if (!inspectionId) {
+        response.status(400).json({ ok: false, allowed: false, code: "INSPECTION_ID_REQUIRED", error: "inspection_id_required" });
+        return;
+      }
+
+      const reviewer = options.apartmentHandoverReviewer || reviewApartmentHandoverInspection;
+      const review = reviewer(payload);
+      if (mode === "final" && review && review.canGenerateFinal === false) {
+        response.status(422).json({ ok: false, code: "INSPECTION_PREFLIGHT_BLOCKED", review });
+        return;
+      }
+
+      const authorizer = options.authorizeApartmentHandoverInspectionUsage || authorizeApartmentHandoverInspectionUsage;
+      const usageAccess = await authorizer({
+        supabase: getApartmentHandoverEntitlementDatabase(),
+        institutionId: resolved.context.institutionId,
+        inspectionId,
+        consume: mode === "final"
+      });
+      if (!usageAccess || !usageAccess.allowed) {
+        sendApartmentHandoverAccess_(response, usageAccess);
+        return;
+      }
+
+      const generator = options.apartmentHandoverPdfGenerator || generateApartmentHandoverInspectionPdf;
+      const tempDir = join(REPO_DIR, "tmp", "apartment-handover-endpoint");
+      mkdirSync(tempDir, { recursive: true });
+      tempPath = join(tempDir, `apartment-handover-protected-${Date.now()}-${randomUUID()}.pdf`);
+      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(payload, mode);
+      const generated = await generator(pdfPayload, tempPath, { mode, review });
+      if (generated && generated.ok === false) {
+        response.status(422).json(generated);
+        return;
+      }
+
+      const pdf = readFileSync(tempPath);
+      const filename = buildApartmentHandoverPdfFilename_(payload);
+      response.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": String(pdf.length)
+      });
+      response.status(200).send(pdf);
+    } catch (error) {
+      const message = clean_(error && (error.message || error.code)) || "apartment_handover_pdf_failed";
+      const status = /Executable doesn't exist|browserType.launch|Chromium|playwright/i.test(message) ? 503 : 500;
+      response.status(status).json({ ok: false, code: status === 503 ? "CHROMIUM_UNAVAILABLE" : "APARTMENT_HANDOVER_PDF_FAILED", error: status === 503 ? "chromium_unavailable" : "apartment_handover_pdf_failed" });
+    } finally {
+      if (tempPath) {
+        try { unlinkSync(tempPath); } catch {}
+      }
+    }
   });
   app.post("/api/apartment-handover/pdf", async (request, response) => {
     let tempPath = "";
