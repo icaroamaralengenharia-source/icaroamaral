@@ -7,7 +7,69 @@ const html = readFileSync("relatorio-stelecom/index.html", "utf8");
 const app = readFileSync("relatorio-stelecom/app.js", "utf8");
 const css = readFileSync("relatorio-stelecom/styles.css", "utf8");
 const templateCode = readFileSync("relatorio-stelecom/stelecom-template.js", "utf8");
+let objectUrlSequence = 0;
 
+function createFakeIndexedDB(options = {}) {
+  const records = new Map();
+  const database = {
+    objectStoreNames: { contains: () => records.__created === true },
+    createObjectStore() {
+      records.__created = true;
+      return { indexNames: { contains: () => false }, createIndex() {} };
+    },
+    transaction(storeName, mode) {
+      const transaction = { mode, error: null, oncomplete: null, onabort: null, onerror: null };
+      const complete = () => setImmediate(() => {
+        if (transaction.error) {
+          if (transaction.onerror) transaction.onerror();
+          if (transaction.onabort) transaction.onabort();
+          return;
+        }
+        if (transaction.oncomplete) transaction.oncomplete();
+      });
+      transaction.objectStore = () => ({
+        getAll() {
+          const request = { result: null, error: null, onsuccess: null, onerror: null };
+          setImmediate(() => {
+            request.result = Array.from(records.values()).filter((record) => record && record.id);
+            if (request.onsuccess) request.onsuccess();
+            complete();
+          });
+          return request;
+        },
+        put(record) {
+          if (options.failPut) {
+            transaction.error = Object.assign(new Error("quota"), { name: "QuotaExceededError" });
+            complete();
+            return;
+          }
+          records.set(record.id, structuredClone(record));
+          complete();
+        },
+        delete(id) {
+          records.delete(id);
+          complete();
+        },
+        indexNames: { contains: () => true },
+        createIndex() {}
+      });
+      return transaction;
+    }
+  };
+
+  return {
+    records,
+    open() {
+      const request = { result: database, transaction: null, error: null, onsuccess: null, onerror: null, onupgradeneeded: null, onblocked: null };
+      request.transaction = { objectStore: () => ({ indexNames: { contains: () => true }, createIndex() {} }) };
+      setImmediate(() => {
+        if (!records.__created && request.onupgradeneeded) request.onupgradeneeded();
+        if (request.onsuccess) request.onsuccess();
+      });
+      return request;
+    }
+  };
+}
 function loadTemplate() {
   const context = { console };
   vm.createContext(context);
@@ -36,13 +98,12 @@ test("UI cria tabela SIM/NAO com autosave local e perfis independentes por relat
   assert.match(app, /data-answer="NAO"/);
 });
 
-test("trocar cidade, SGTO/STELECOM e DT1B/PM1B preserva fotos e carrega apenas checklist", () => {
+test("trocar cidade, SGTO/STELECOM e DT1B/PM1B troca contexto de fotos e carrega checklist", () => {
   assert.match(app, /nodes\.city\.addEventListener\("input"/);
-  assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);/);
+  assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);\s*switchPhotoContext\(\);/);
   assert.match(app, /nodes\.reportType\.addEventListener\("change"/);
   assert.match(app, /state\.workType = template\.normalizeWorkType/);
-  assert.doesNotMatch(app, /state\.cameras\s*=\s*\[\]/);
-  assert.doesNotMatch(app, /state\.tomadas\s*=\s*\[\]/);
+  assert.match(app, /clearStatePhotos\(\)/);
 });
 
 test("PDF usa exatamente SIM/NAO selecionado e não inventa resposta ausente", () => {
@@ -88,7 +149,8 @@ function createAppContext(options = {}) {
     dataset: {},
     textContent: "",
     innerHTML: "",
-    addEventListener() {},
+    listeners: {},
+    addEventListener(type, callback) { this.listeners[type] = callback; },
     setAttribute() {},
     focus() {},
     scrollIntoView() {},
@@ -124,8 +186,13 @@ function createAppContext(options = {}) {
   function URLMock(input, base) {
     return new URL(input, base);
   }
-  URLMock.createObjectURL = () => "blob:optimized";
-  URLMock.revokeObjectURL = () => {};
+  const urlState = { created: [], revoked: [] };
+  URLMock.createObjectURL = (blob) => {
+    const value = `blob:optimized-${++objectUrlSequence}`;
+    urlState.created.push({ value, blob });
+    return value;
+  };
+  URLMock.revokeObjectURL = (value) => urlState.revoked.push(value);
   const context = {
     console,
     document,
@@ -133,6 +200,7 @@ function createAppContext(options = {}) {
     URL: URLMock,
     FileReader: options.FileReaderImpl || function FileReader() {},
     fetch: options.fetchImpl || (async () => ({ ok: false })),
+    indexedDB: options.indexedDB,
     location: { href: "https://www.icaroamaral.com.br/relatorio-stelecom/" },
     createImageBitmap(file) {
       return Promise.resolve({
@@ -146,6 +214,8 @@ function createAppContext(options = {}) {
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(app, context);
+  context.window.StelecomApp.__nodes = nodes;
+  context.window.StelecomApp.__urlState = urlState;
   return context.window.StelecomApp;
 }
 
@@ -379,7 +449,7 @@ test("acoes em lote adicionam e limpam fotos por grupo sem misturar categorias",
   assert.equal(appContext.getState().cameras.length, 2);
   assert.equal(appContext.getState().tomadas.length, 1);
 
-  assert.equal(appContext.clearPhotoGroup("cameras"), true);
+  assert.equal(await appContext.clearPhotoGroup("cameras"), true);
   assert.equal(confirms, 1);
   assert.equal(appContext.getState().cameras.length, 0);
   assert.equal(appContext.getState().tomadas.length, 1);
@@ -393,7 +463,7 @@ test("acoes em lote cobrem todos os grupos reais de fotografia", async () => {
   for (const category of template.categories) {
     await appContext.addFiles(category.id, [photo]);
     assert.equal(appContext.getState()[category.id].length, 1, `${category.label} deveria receber foto`);
-    assert.equal(appContext.clearPhotoGroup(category.id), true, `${category.label} deveria limpar fotos`);
+    assert.equal(await appContext.clearPhotoGroup(category.id), true, `${category.label} deveria limpar fotos`);
     assert.equal(appContext.getState()[category.id].length, 0, `${category.label} deveria ficar vazio`);
   }
 });
@@ -409,11 +479,11 @@ test("cancelar limpeza mantem fotos e grupo vazio nao pede confirmacao", async (
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "cancelar.jpg" });
 
   await appContext.addFiles("rack", [photo]);
-  assert.equal(appContext.clearPhotoGroup("rack"), false);
+  assert.equal(await appContext.clearPhotoGroup("rack"), false);
   assert.equal(appContext.getState().rack.length, 1);
   assert.equal(confirms, 1);
 
-  assert.equal(appContext.clearPhotoGroup("caixa"), false);
+  assert.equal(await appContext.clearPhotoGroup("caixa"), false);
   assert.equal(appContext.getState().caixa.length, 0);
   assert.equal(confirms, 1);
 });
@@ -443,3 +513,132 @@ test("UI mostra adicionar fotos e limpar por grupo, mas controles nao aparecem n
   assert.doesNotMatch(report, /ADICIONAR FOTOS|LIMPAR|data-clear-photos|photo-section-actions/);
 });
 
+
+test("IndexedDB salva, restaura apos reload e recria ObjectURL em ordem", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const photo = imageFile({ width: 900, height: 600, size: 500000, name: "persistida.jpg" });
+  const firstLoad = createAppContext({ indexedDB });
+  await firstLoad.loadStoredPhotosForCurrentContext();
+
+  await firstLoad.addFiles("cameras", [photo, photo]);
+  await firstLoad.addFiles("tomadas", [photo]);
+  const originalIds = firstLoad.getState().cameras.map((item) => item.id);
+  assert.equal(firstLoad.getState().cameras.length, 2);
+  assert.equal(firstLoad.getState().tomadas.length, 1);
+  assert.equal(indexedDB.records.size, 3);
+
+  const secondLoad = createAppContext({ indexedDB });
+  await secondLoad.loadStoredPhotosForCurrentContext();
+  assert.deepEqual(secondLoad.getState().cameras.map((item) => item.id), originalIds);
+  assert.equal(secondLoad.getState().tomadas.length, 1);
+  assert.notEqual(secondLoad.getState().cameras[0].url, firstLoad.getState().cameras[0].url);
+  assert.equal(secondLoad.getState().cameras[0].file.type, "image/jpeg");
+});
+
+test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "isolada.jpg" });
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  const workNode = appContext.__nodes.get("[data-work-type]");
+
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  workNode.value = "DT1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  await appContext.addFiles("cameras", [photo]);
+  await appContext.addFiles("tomadas", [photo]);
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.equal(appContext.getState().tomadas.length, 1);
+
+  cityNode.value = "Tremedal";
+  cityNode.listeners.input();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+
+  reportNode.value = "STELECOM";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+
+  workNode.value = "PM1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  workNode.value = "DT1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("remover uma foto e limpar grupo removem apenas os registros certos", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "limpeza.jpg" });
+
+  await appContext.addFiles("cameras", [photo, photo]);
+  await appContext.addFiles("tomadas", [photo]);
+  const removedUrl = appContext.getState().cameras[0].url;
+  const cameraId = appContext.getState().cameras[0].id;
+  appContext.removePhoto("cameras", cameraId);
+  await appContext.persistPhotoGroup("cameras");
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.ok(appContext.__urlState.revoked.includes(removedUrl));
+
+  const reloadAfterRemove = createAppContext({ indexedDB });
+  await reloadAfterRemove.loadStoredPhotosForCurrentContext();
+  assert.equal(reloadAfterRemove.getState().cameras.length, 1);
+  assert.equal(reloadAfterRemove.getState().tomadas.length, 1);
+
+  assert.equal(await reloadAfterRemove.clearPhotoGroup("cameras"), true);
+  const reloadAfterClear = createAppContext({ indexedDB });
+  await reloadAfterClear.loadStoredPhotosForCurrentContext();
+  assert.equal(reloadAfterClear.getState().cameras.length, 0);
+  assert.equal(reloadAfterClear.getState().tomadas.length, 1);
+});
+
+test("quota do IndexedDB mostra aviso controlado e mantem foto em sessao", async () => {
+  const indexedDB = createFakeIndexedDB({ failPut: true });
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "quota.jpg" });
+
+  assert.equal(appContext.photoStorageErrorMessage({ name: "QuotaExceededError" }), "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
+  await appContext.addFiles("mastro", [photo]);
+  assert.equal(appContext.getState().mastro.length, 1);
+  assert.equal(appContext.__nodes.get("[data-status-detail]").textContent, "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
+});
+
+test("PDF usa fotos restauradas do IndexedDB sem depender do File original", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "pdf.jpg" });
+  await appContext.addFiles("rack", [photo]);
+
+  const reload = createAppContext({ indexedDB });
+  await reload.loadStoredPhotosForCurrentContext();
+  const template = loadTemplate();
+  const report = template.buildStelecomReport(Object.assign(reload.getState(), {
+    date: "30/08/2026",
+    checklistAnswers: Object.fromEntries(template.stelecomChecklistItems.map((entry) => [String(entry.item), "SIM"]))
+  }), "STELECOM");
+
+  assert.match(report, /blob:optimized-/);
+  assert.match(report, /RACK/);
+});
