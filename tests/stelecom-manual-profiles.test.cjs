@@ -241,3 +241,57 @@ test("cidade desconhecida não usa GRADO como fallback universal", () => {
   assert.doesNotMatch(report, /OBRA DT1B \/ GRADO ENGENHARIA/);
 });
 
+
+test("checklist STELECOM e SGTO fica em tabela unica sem CONTINUACAO", () => {
+  const template = loadTemplate();
+
+  for (const reportType of ["STELECOM", "SGTO"]) {
+    const checklist = template.reportTypes[reportType].checklist;
+    const report = template.buildStelecomReport({
+      date: "30/08/2026",
+      city: "Ibicoara",
+      workType: "DT1B",
+      reportType,
+      checklistAnswers: Object.fromEntries(checklist.map((entry) => [String(entry.item), "SIM"])),
+      legends: {},
+      cameras: [],
+      tomadas: [],
+      rack: [],
+      caixa: [],
+      mastro: []
+    }, reportType);
+
+    assert.equal((report.match(/class="report-page checklist-page"/g) || []).length, 1);
+    assert.equal((report.match(/class="checklist-table"/g) || []).length, 1);
+    assert.doesNotMatch(report, /CONTINUA[ÇC][ÃA]O/);
+    assert.doesNotMatch(report, /pageBreaks/);
+    assert.match(report, /DESCRIÇÃO DO CHECKLIST IBICOARA DT1B/);
+    assert.match(report, /OBRA DT1B \/ LAM ENGENHARIA/);
+    assert.match(report, /<td class="col-item">1<\/td>/);
+    assert.match(report, new RegExp(`<td class="col-item">${checklist.length}<\\/td>`));
+    assert.ok(report.indexOf('class="report-page checklist-page"') < report.indexOf('class="report-page photo-page"'));
+  }
+});
+
+test("CSS do PDF centraliza cabeçalhos e mantém fotos em nova página", () => {
+  const template = loadTemplate();
+  const report = template.buildStelecomReport({
+    date: "30/08/2026",
+    city: "Ibicoara",
+    workType: "PM1B",
+    reportType: "SGTO",
+    checklistAnswers: Object.fromEntries(template.sgtoChecklistItems.map((entry) => [String(entry.item), "SIM"])),
+    legends: {},
+    cameras: [],
+    tomadas: [],
+    rack: [],
+    caixa: [],
+    mastro: []
+  }, "SGTO");
+
+  assert.match(report, /\.report-page \+ \.report-page \{ break-before: page; page-break-before: always; \}/);
+  assert.match(report, /\.checklist-table th \{[^}]*text-align: center;[^}]*vertical-align: middle;/);
+  assert.match(report, /OBRA PM1B \/ LAM ENGENHARIA/);
+  assert.match(report, /1 - REGISTRO FOTOGRÁFICO/);
+});
+

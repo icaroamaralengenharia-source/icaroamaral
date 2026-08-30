@@ -34,8 +34,8 @@
   ];
 
   const reportTypes = {
-    STELECOM: { label: "STELECOM", checklist: stelecomChecklistItems, pageBreaks: [12] },
-    SGTO: { label: "SGTO", checklist: sgtoChecklistItems, pageBreaks: [8] }
+    STELECOM: { label: "STELECOM", checklist: stelecomChecklistItems },
+    SGTO: { label: "SGTO", checklist: sgtoChecklistItems }
   };
 
   const companyByCity = {
@@ -144,7 +144,7 @@
     if (answer === "NÃO") return "NAO";
     return "";
   }
-  function buildChecklistPage(items, visit, pageIndex, reportType) {
+  function buildChecklistPage(items, visit, reportType) {
     const date = visit.date;
     const workType = normalizeWorkType(visit.workType);
     const city = cityForHeader(visit.city);
@@ -166,9 +166,7 @@
       </tr>`;
     }).join("");
 
-    const subtitle = pageIndex === 0
-      ? `<tr class="meta-row"><th colspan="4">${escapeHtml(descriptionLabel)}</th><th colspan="2">FOI REALIZADO?</th><th></th></tr>`
-      : `<tr class="meta-row"><th colspan="7">CONTINUAÇÃO - ${escapeHtml(descriptionLabel)}</th></tr>`;
+    const subtitle = `<tr class="meta-row"><th colspan="4">${escapeHtml(descriptionLabel)}</th><th colspan="2">FOI REALIZADO?</th><th></th></tr>`;
 
     return `
       <section class="report-page checklist-page">
@@ -242,26 +240,26 @@
       @page photos { size: A4 portrait; margin: 0; }
       * { box-sizing: border-box; }
       body { margin: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
-      .report-root { --report-header-height: 23mm; --report-logo-width: 48mm; --checklist-font-size: 8.8px; --checklist-heading-font-size: 10px; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
+      .report-root { --report-header-height: 18mm; --report-logo-width: 42mm; --checklist-font-size: 8.4px; --checklist-heading-font-size: 9.6px; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
       .report-page { background: #fff; overflow: hidden; }
       .report-page + .report-page { break-before: page; page-break-before: always; }
       .report-header { height: var(--report-header-height); display: flex; align-items: flex-start; justify-content: flex-start; overflow: hidden; }
       .wia-logo { display: block; width: var(--report-logo-width); height: auto; object-fit: contain; }
-      .checklist-page { page: checklist; width: 297mm; min-height: 210mm; padding: 8mm 9mm; }
-      .checklist-table { width: 100%; margin-top: 2mm; border-collapse: collapse; table-layout: fixed; }
+      .checklist-page { page: checklist; width: 297mm; min-height: 210mm; padding: 6mm 8mm; }
+      .checklist-table { width: 100%; margin-top: 1.5mm; border-collapse: collapse; table-layout: fixed; }
       .checklist-table th, .checklist-table td { border: 1px solid #000; vertical-align: middle; }
-      .checklist-table th { font-size: var(--checklist-heading-font-size); font-weight: 700; text-align: center; }
-      .checklist-table td { font-size: var(--checklist-font-size); font-weight: 700; line-height: 1.15; padding: 2px 4px; }
-      .title-row th { height: 7.6mm; font-size: 12px; }
-      .work-row th { height: 6.8mm; font-size: 11px; }
-      .meta-row th { height: 6.8mm; background: #fff; }
-      .columns-row th { height: 7mm; background: #e6e6e6; }
+      .checklist-table th { font-size: var(--checklist-heading-font-size); font-weight: 700; text-align: center; vertical-align: middle; }
+      .checklist-table td { font-size: var(--checklist-font-size); font-weight: 700; line-height: 1.08; padding: 1.5px 3px; }
+      .title-row th { height: 6.6mm; font-size: 11.2px; }
+      .work-row th { height: 6mm; font-size: 10.4px; }
+      .meta-row th { height: 6mm; background: #fff; }
+      .columns-row th { height: 6.2mm; background: #e6e6e6; }
       .col-item { width: 10mm; text-align: center; }
-      .col-service { width: 162mm; }
+      .col-service { width: 140mm; }
       .col-type { width: 30mm; text-align: center; }
       .col-date { width: 28mm; text-align: center; }
       .col-mark { width: 9mm; text-align: center; }
-      .col-observation { width: 28mm; }
+      .col-observation { width: 50mm; }
       .photo-page { page: photos; width: 210mm; min-height: 297mm; padding: 15mm 14mm 16mm; }
       .photo-report-header { height: var(--report-header-height); }
       .photo-heading-table { width: 100%; margin-top: 2mm; border-collapse: collapse; table-layout: fixed; }
@@ -288,15 +286,7 @@
   }
   function buildChecklistPages(visit, reportType) {
     const type = normalizeReportType(reportType);
-    const config = reportTypes[type];
-    const pages = [];
-    let start = 0;
-    for (const end of config.pageBreaks) {
-      pages.push(buildChecklistPage(config.checklist.slice(start, end), visit, pages.length, type));
-      start = end;
-    }
-    pages.push(buildChecklistPage(config.checklist.slice(start), visit, pages.length, type));
-    return pages.join("");
+    return buildChecklistPage(reportTypes[type].checklist, visit, type);
   }
 
   function buildStelecomReport(visit, reportType) {
