@@ -23,8 +23,15 @@
       </div>
       <label class="date-field">
         <span>CIDADE</span>
-        <input type="text" placeholder="Tremedal" data-visit-city>
+        <input type="text" placeholder="Tremedal" list="stelecom-city-options" data-visit-city>
       </label>
+      <datalist id="stelecom-city-options">
+        <option value="Belo Campo"></option>
+        <option value="Tremedal"></option>
+        <option value="Ibirapuã"></option>
+        <option value="Ibicoara"></option>
+        <option value="Malhada de Pedras"></option>
+      </datalist>
       <label class="date-field">
         <span>TIPO DA OBRA</span>
         <select data-work-type>
@@ -45,6 +52,8 @@
       </label>
     </section>
 
+    <section class="checklist-profile" aria-label="Tabela SIM/NÃO por cidade" data-checklist-profile></section>
+
     <section class="category-tabs" aria-label="Categorias de fotos" data-category-tabs></section>
     <section class="category-panels" data-category-panels></section>
 
@@ -58,3 +67,6 @@
   <script src="./app.js"></script>
 </body>
 </html>
+
+
+
