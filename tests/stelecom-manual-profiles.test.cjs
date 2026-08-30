@@ -182,4 +182,62 @@ test("otimizacao nao amplia imagem menor e bloqueia arquivo invalido", async () 
 });
 
 
+test("empresa do cabeçalho é vinculada à cidade em STELECOM e SGTO", () => {
+  const template = loadTemplate();
+  const expected = [
+    ["Malhada de Pedras", "EMKO ENGENHARIA"],
+    ["Belo Campo", "GRADO ENGENHARIA"],
+    ["Tremedal", "GRADO ENGENHARIA"],
+    ["Ibicoara", "LAM ENGENHARIA"],
+    ["Ibirapuã", "AS ENGENHARIA"]
+  ];
+
+  for (const [city, company] of expected) {
+    assert.equal(template.getCompanyForCity(city), company);
+    assert.equal(template.getCompanyForCity(city.toLocaleUpperCase("pt-BR")), company);
+
+    for (const reportType of ["STELECOM", "SGTO"]) {
+      for (const workType of ["DT1B", "PM1B"]) {
+        const checklist = template.reportTypes[reportType].checklist;
+        const report = template.buildStelecomReport({
+          date: "30/08/2026",
+          city,
+          workType,
+          reportType,
+          checklistAnswers: Object.fromEntries(checklist.map((entry) => [String(entry.item), "SIM"])),
+          legends: {},
+          cameras: [],
+          tomadas: [],
+          rack: [],
+          caixa: [],
+          mastro: []
+        }, reportType);
+
+        assert.match(report, new RegExp(`OBRA ${workType} / ${company}`));
+        assert.match(report, new RegExp(`CHECKLIST DE INSTALAÇÕES - REDE E CFTV - \\(${reportType}\\)`));
+      }
+    }
+  }
+});
+
+test("cidade desconhecida não usa GRADO como fallback universal", () => {
+  const template = loadTemplate();
+  const report = template.buildStelecomReport({
+    date: "30/08/2026",
+    city: "Cidade Fora do Mapa",
+    workType: "DT1B",
+    reportType: "STELECOM",
+    checklistAnswers: { 1: "SIM" },
+    legends: {},
+    cameras: [],
+    tomadas: [],
+    rack: [],
+    caixa: [],
+    mastro: []
+  }, "STELECOM");
+
+  assert.equal(template.getCompanyForCity("Cidade Fora do Mapa"), "");
+  assert.match(report, /OBRA DT1B<\/th>/);
+  assert.doesNotMatch(report, /OBRA DT1B \/ GRADO ENGENHARIA/);
+});
 
