@@ -38,6 +38,14 @@
     SGTO: { label: "SGTO", checklist: sgtoChecklistItems, pageBreaks: [8] }
   };
 
+  const companyByCity = {
+    "malhada-de-pedras": "EMKO ENGENHARIA",
+    "belo-campo": "GRADO ENGENHARIA",
+    "tremedal": "GRADO ENGENHARIA",
+    "ibicoara": "LAM ENGENHARIA",
+    "ibirapua": "AS ENGENHARIA"
+  };
+
   const categories = [
     { id: "cameras", label: "CAMERAS", reportLabel: "CAMERAS", defaultLegend: "Fotos: Ponto de camera interna e externa, conectadas, identificadas." },
     { id: "tomadas", label: "TOMADAS", reportLabel: "TOMADAS", defaultLegend: "Tomadas instaladas e identificadas." },
@@ -79,6 +87,19 @@
 
   function normalizeCity(value) {
     return String(value || "Tremedal").trim() || "Tremedal";
+  }
+
+  function cityCompanyKey(value) {
+    return normalizeCity(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  function getCompanyForCity(city) {
+    return companyByCity[cityCompanyKey(city)] || "";
   }
 
   function cityForHeader(value) {
@@ -127,7 +148,8 @@
     const date = visit.date;
     const workType = normalizeWorkType(visit.workType);
     const city = cityForHeader(visit.city);
-    const obraLabel = `OBRA ${workType} / GRADO ENGENHARIA`;
+    const company = getCompanyForCity(visit.city);
+    const obraLabel = company ? "OBRA " + workType + " / " + company : "OBRA " + workType;
     const descriptionLabel = `DESCRIÇÃO DO CHECKLIST ${city} ${workType}`;
     const type = normalizeReportType(reportType);
     const rows = items.map((entry) => {
@@ -317,6 +339,8 @@
     stelecomChecklistItems,
     sgtoChecklistItems,
     reportTypes,
+    companyByCity,
+    getCompanyForCity,
     categories,
     normalizeDate,
     normalizeWorkType,
