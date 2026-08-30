@@ -146,3 +146,22 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .ma-import-header { padding: 10px; }
   .ma-import-detail .ma-form-grid, .ma-import-filters .ma-form-grid { grid-template-columns: 1fr; }
 }
+.ma-profile-diff { display: grid; gap: 10px; box-shadow: none; }
+.ma-diff-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.ma-diff-summary .ma-card { min-height: 74px; padding: 10px; box-shadow: none; }
+.ma-diff-summary .ma-card strong { font-size: 1.25rem; }
+.ma-diff-filter { display: grid; gap: 5px; color: #273a52; font-size: 0.84rem; font-weight: 800; }
+.ma-diff-filter select { min-height: 39px; border: 1px solid var(--ma-line); border-radius: 7px; background: #f8fafc; padding: 8px 10px; }
+.ma-diff-list { display: grid; gap: 8px; }
+.ma-diff-row { border-left: 5px solid var(--ma-line); }
+.ma-diff-row.is-changed { border-left-color: #9a6a13; }
+.ma-diff-row.is-added { border-left-color: #176b4d; }
+.ma-diff-row.is-removed { border-left-color: #9b2c2c; }
+.ma-diff-row.is-unchanged { border-left-color: #607188; }
+.ma-diff-before-after { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ma-diff-before-after .ma-mini-panel { background: #fff; }
+.ma-diff-before-after span, .ma-diff-before-after small { overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .ma-diff-before-after { grid-template-columns: 1fr; }
+  .ma-diff-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,6 +1,7 @@
 import express from "express";
 import { createMunicipalAdminService, createSupabaseMunicipalAdminStore, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
 import { createMunicipalOperationalShelfService } from "./municipal-operational-shelf-service.js";
+import { createMunicipalProfileDiffService } from "./municipal-profile-diff-service.js";
 import { createMunicipalProfileReviewService } from "./municipal-profile-review-service.js";
 
 function clean(value) {
@@ -47,6 +48,7 @@ export function createMunicipalAdminRouter(options = {}) {
   const database = options.database || null;
   let service = options.service || null;
   let operationalShelfService = options.operationalShelfService || null;
+  let municipalProfileDiffService = options.municipalProfileDiffService || null;
   let municipalProfileReviewService = options.municipalProfileReviewService || null;
   const resolveAuthContext = options.resolveAuthContext;
 
@@ -73,6 +75,13 @@ export function createMunicipalAdminRouter(options = {}) {
     const reviewStore = options.municipalProfileReviewStore || options.store || createSupabaseMunicipalAdminStore(database);
     municipalProfileReviewService = createMunicipalProfileReviewService({ store: reviewStore });
     return municipalProfileReviewService;
+  }
+
+  function getMunicipalProfileDiffService() {
+    if (municipalProfileDiffService) return municipalProfileDiffService;
+    const diffStore = options.municipalProfileDiffStore || options.store || createSupabaseMunicipalAdminStore(database);
+    municipalProfileDiffService = createMunicipalProfileDiffService({ store: diffStore });
+    return municipalProfileDiffService;
   }
 
   async function requireContext(request) {
@@ -123,6 +132,7 @@ export function createMunicipalAdminRouter(options = {}) {
   router.patch("/users/:userId/units", route((request, context, svc) => svc.updateUserUnits(context, request.params.userId, request.body || {})));
   router.post("/users/:userId/deactivate", route((request, context, svc) => svc.deactivateUser(context, request.params.userId)));
   router.get("/me", route((request, context, svc) => svc.me(context)));
+  router.get("/municipal-profiles/:profileId/diff", route((request, context) => getMunicipalProfileDiffService().getMunicipalProfileVersionDiff(context, request.params.profileId, request.query || {})));
   router.get("/municipal-profile-imports/:importId", route((request, context) => getMunicipalProfileReviewService().getMunicipalProfileImport(context, request.params.importId)));
   router.put("/municipal-profile-imports/:importId/review", route((request, context) => getMunicipalProfileReviewService().saveMunicipalImportReview(context, request.params.importId, request.body || {})));
 
