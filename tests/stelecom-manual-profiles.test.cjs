@@ -81,7 +81,7 @@ test("mobile usa cards e botões grandes, sem tabela horizontal para SIM/NAO", (
   assert.match(css, /@media \(max-width: 720px\)/);
 });
 
-function createAppContext() {
+function createAppContext(options = {}) {
   const template = loadTemplate();
   const node = () => ({
     value: "",
@@ -121,11 +121,19 @@ function createAppContext() {
       };
     }
   };
+  function URLMock(input, base) {
+    return new URL(input, base);
+  }
+  URLMock.createObjectURL = () => "blob:optimized";
+  URLMock.revokeObjectURL = () => {};
   const context = {
     console,
     document,
     localStorage: { getItem() { return null; }, setItem() {} },
-    URL: { createObjectURL() { return "blob:optimized"; }, revokeObjectURL() {} },
+    URL: URLMock,
+    FileReader: options.FileReaderImpl || function FileReader() {},
+    fetch: options.fetchImpl || (async () => ({ ok: false })),
+    location: { href: "https://www.icaroamaral.com.br/relatorio-stelecom/" },
     createImageBitmap(file) {
       return Promise.resolve({
         width: file.width,
@@ -293,5 +301,65 @@ test("CSS do PDF centraliza cabeçalhos e mantém fotos em nova página", () => 
   assert.match(report, /\.checklist-table th \{[^}]*text-align: center;[^}]*vertical-align: middle;/);
   assert.match(report, /OBRA PM1B \/ LAM ENGENHARIA/);
   assert.match(report, /1 - REGISTRO FOTOGRÁFICO/);
+});
+
+
+test("logo WIA do PDF usa data URL segura quando fornecida no relatório", () => {
+  const template = loadTemplate();
+  const logoDataUrl = "data:image/png;base64,V0lB";
+  const report = template.buildStelecomReport({
+    date: "30/08/2026",
+    city: "Ibicoara",
+    workType: "DT1B",
+    reportType: "STELECOM",
+    logoUrl: logoDataUrl,
+    checklistAnswers: Object.fromEntries(template.stelecomChecklistItems.map((entry) => [String(entry.item), "SIM"])),
+    legends: {},
+    cameras: [],
+    tomadas: [],
+    rack: [],
+    caixa: [],
+    mastro: []
+  }, "STELECOM");
+
+  const logoMatches = report.match(/<img class="wia-logo" src="data:image\/png;base64,V0lB"/g) || [];
+  assert.equal(logoMatches.length, 6);
+  assert.doesNotMatch(report, /<img class="wia-logo" src="\.\/assets\/wia-engenharia\.png"/);
+  assert.match(report, /onerror="this\.style\.display='none'"/);
+});
+
+test("app carrega logo WIA como data URL antes do PDF", async () => {
+  const appContext = createAppContext({
+    fetchImpl: async (url) => ({
+      ok: true,
+      url,
+      async blob() {
+        return { type: "image/png", payload: "wia" };
+      }
+    }),
+    FileReaderImpl: function FileReader() {
+      this.readAsDataURL = (blob) => {
+        assert.equal(blob.type, "image/png");
+        this.result = "data:image/png;base64,V0lB";
+        this.onload();
+      };
+    }
+  });
+
+  assert.equal(await appContext.loadReportLogoUrl(), "data:image/png;base64,V0lB");
+});
+
+
+
+test("app usa fallback data URL da logo WIA quando fetch local falha", async () => {
+  const appContext = createAppContext({
+    fetchImpl: async () => {
+      throw new Error("file fetch blocked");
+    }
+  });
+
+  const logoUrl = await appContext.loadReportLogoUrl();
+  assert.match(logoUrl, /^data:image\/png;base64,/);
+  assert.ok(logoUrl.length > 1000);
 });
 

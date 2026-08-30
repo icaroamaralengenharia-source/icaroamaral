@@ -132,9 +132,9 @@
     return normalizeWorkType(workType) === "PM1B" ? "Pelotão PM 1B" : "PC DT 1B";
   }
 
-  function reportLogo() {
-    const logoUrl = root.location ? new URL("./assets/wia-engenharia.png", root.location.href).href : "./assets/wia-engenharia.png";
-    return `<img class="wia-logo" src="${escapeHtml(logoUrl)}" alt="WIA Engenharia">`;
+  function reportLogo(visit) {
+    const logoUrl = visit && visit.logoUrl ? visit.logoUrl : root.location ? new URL("./assets/wia-engenharia.png", root.location.href).href : "./assets/wia-engenharia.png";
+    return logoUrl ? `<img class="wia-logo" src="${escapeHtml(logoUrl)}" alt="WIA Engenharia" onerror="this.style.display='none'">` : "";
   }
 
   function checklistAnswerFor(visit, entry) {
@@ -171,7 +171,7 @@
     return `
       <section class="report-page checklist-page">
         <header class="report-header">
-          ${reportLogo()}
+          ${reportLogo(visit)}
         </header>
         <table class="checklist-table">
           <thead>
@@ -212,7 +212,7 @@
         pages.push(`
           <section class="report-page photo-page">
             <header class="report-header photo-report-header">
-              ${reportLogo()}
+              ${reportLogo(visit)}
             </header>
             ${showPhotoHeader ? `
               <table class="photo-heading-table">
@@ -302,7 +302,8 @@
       tomadas: visit?.tomadas || [],
       rack: visit?.rack || [],
       caixa: visit?.caixa || [],
-      mastro: visit?.mastro || []
+      mastro: visit?.mastro || [],
+      logoUrl: visit?.logoUrl || ""
     };
 
     const checklistPages = buildChecklistPages(safeVisit, type);
