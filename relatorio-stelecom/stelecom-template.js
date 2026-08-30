@@ -116,6 +116,13 @@
     return `<img class="wia-logo" src="${escapeHtml(logoUrl)}" alt="WIA Engenharia">`;
   }
 
+  function checklistAnswerFor(visit, entry) {
+    const answers = visit && visit.checklistAnswers ? visit.checklistAnswers : {};
+    const answer = String(answers[String(entry.item)] || "").toUpperCase();
+    if (answer === "SIM" || answer === "NAO") return answer;
+    if (answer === "NÃO") return "NAO";
+    return "";
+  }
   function buildChecklistPage(items, visit, pageIndex, reportType) {
     const date = visit.date;
     const workType = normalizeWorkType(visit.workType);
@@ -123,16 +130,19 @@
     const obraLabel = `OBRA ${workType} / GRADO ENGENHARIA`;
     const descriptionLabel = `DESCRIÇÃO DO CHECKLIST ${city} ${workType}`;
     const type = normalizeReportType(reportType);
-    const rows = items.map((entry) => `
+    const rows = items.map((entry) => {
+      const answer = checklistAnswerFor(visit, entry);
+      return `
       <tr>
         <td class="col-item">${entry.item}</td>
         <td class="col-service">${escapeHtml(entry.service)}</td>
         <td class="col-type">${escapeHtml(entry.type)}</td>
         <td class="col-date">${escapeHtml(date)}</td>
-        <td class="col-mark">${entry.done ? "X" : ""}</td>
-        <td class="col-mark">${entry.done ? "" : "X"}</td>
+        <td class="col-mark">${answer === "SIM" ? "X" : ""}</td>
+        <td class="col-mark">${answer === "NAO" ? "X" : ""}</td>
         <td class="col-observation">${escapeHtml(entry.observation || "")}</td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
 
     const subtitle = pageIndex === 0
       ? `<tr class="meta-row"><th colspan="4">${escapeHtml(descriptionLabel)}</th><th colspan="2">FOI REALIZADO?</th><th></th></tr>`
@@ -274,6 +284,7 @@
       city: normalizeCity(visit?.city),
       workType: normalizeWorkType(visit?.workType),
       reportType: type,
+      checklistAnswers: visit?.checklistAnswers || {},
       legends: visit?.legends || {},
       cameras: visit?.cameras || [],
       tomadas: visit?.tomadas || [],
@@ -314,6 +325,8 @@
     cityForFilename,
     isValidDate,
     buildFilename,
+    checklistAnswerFor,
     buildStelecomReport
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
