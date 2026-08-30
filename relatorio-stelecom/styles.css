@@ -83,6 +83,7 @@ h3 {
 
 .primary-action,
 .upload-button,
+.clear-photos-button,
 .photo-actions button {
   border: 0;
   border-radius: 6px;
@@ -179,12 +180,28 @@ h3 {
   font-size: 13px;
 }
 
-.upload-button {
+.photo-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.upload-button,
+.clear-photos-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 40px;
   padding: 0 14px;
+}
+
+.clear-photos-button {
+  border: 1px solid #e3b6b6;
+  background: #fff6f6;
+  color: var(--danger);
+}
+.upload-button {
   background: var(--brand-dark);
   color: #fff;
 }
@@ -252,9 +269,22 @@ h3 {
   font-weight: 700;
 }
 
+.photo-status-pending,
+.photo-status-optimizing {
+  color: #7a5a00;
+}
+
+.photo-status-ready {
+  color: var(--brand-dark);
+}
+
+.photo-status-error {
+  color: var(--danger);
+}
+
 .photo-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
   gap: 6px;
 }
 
@@ -263,6 +293,11 @@ h3 {
   background: #edf1ee;
   color: var(--ink);
   font-size: 12px;
+}
+
+.photo-actions button[data-retry-photo] {
+  background: #fff4cf;
+  color: #7a5a00;
 }
 
 .photo-actions button[data-remove-photo] {
@@ -305,6 +340,15 @@ h3 {
 
   .primary-action {
     width: 100%;
+  }
+  .photo-section-actions {
+    justify-content: stretch;
+  }
+
+  .upload-button,
+  .clear-photos-button {
+    flex: 1 1 140px;
+    min-height: 48px;
   }
 
   .checklist-profile-head,
@@ -365,6 +409,43 @@ h3 {
   white-space: nowrap;
 }
 
+
+.checklist-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9f6;
+}
+
+.checklist-bulk-actions span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  margin-right: 2px;
+}
+
+.bulk-answer-button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.bulk-answer-button.is-active,
+.bulk-answer-button[aria-pressed="true"] {
+  border-color: var(--brand);
+  background: #eaf5ee;
+  color: var(--brand-dark);
+  box-shadow: inset 0 0 0 2px rgba(51, 128, 73, 0.18);
+}
 .checklist-answer-list {
   display: grid;
   gap: 8px;
@@ -450,3 +531,14 @@ h3 {
   }
 }
 
+
+@media (max-width: 720px) {
+  .checklist-bulk-actions {
+    align-items: stretch;
+  }
+
+  .bulk-answer-button {
+    flex: 1 1 128px;
+    min-height: 52px;
+  }
+}

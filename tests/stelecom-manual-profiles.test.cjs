@@ -7,7 +7,69 @@ const html = readFileSync("relatorio-stelecom/index.html", "utf8");
 const app = readFileSync("relatorio-stelecom/app.js", "utf8");
 const css = readFileSync("relatorio-stelecom/styles.css", "utf8");
 const templateCode = readFileSync("relatorio-stelecom/stelecom-template.js", "utf8");
+let objectUrlSequence = 0;
 
+function createFakeIndexedDB(options = {}) {
+  const records = new Map();
+  const database = {
+    objectStoreNames: { contains: () => records.__created === true },
+    createObjectStore() {
+      records.__created = true;
+      return { indexNames: { contains: () => false }, createIndex() {} };
+    },
+    transaction(storeName, mode) {
+      const transaction = { mode, error: null, oncomplete: null, onabort: null, onerror: null };
+      const complete = () => setImmediate(() => {
+        if (transaction.error) {
+          if (transaction.onerror) transaction.onerror();
+          if (transaction.onabort) transaction.onabort();
+          return;
+        }
+        if (transaction.oncomplete) transaction.oncomplete();
+      });
+      transaction.objectStore = () => ({
+        getAll() {
+          const request = { result: null, error: null, onsuccess: null, onerror: null };
+          setImmediate(() => {
+            request.result = Array.from(records.values()).filter((record) => record && record.id);
+            if (request.onsuccess) request.onsuccess();
+            complete();
+          });
+          return request;
+        },
+        put(record) {
+          if (options.failPut) {
+            transaction.error = Object.assign(new Error("quota"), { name: "QuotaExceededError" });
+            complete();
+            return;
+          }
+          records.set(record.id, structuredClone(record));
+          complete();
+        },
+        delete(id) {
+          records.delete(id);
+          complete();
+        },
+        indexNames: { contains: () => true },
+        createIndex() {}
+      });
+      return transaction;
+    }
+  };
+
+  return {
+    records,
+    open() {
+      const request = { result: database, transaction: null, error: null, onsuccess: null, onerror: null, onupgradeneeded: null, onblocked: null };
+      request.transaction = { objectStore: () => ({ indexNames: { contains: () => true }, createIndex() {} }) };
+      setImmediate(() => {
+        if (!records.__created && request.onupgradeneeded) request.onupgradeneeded();
+        if (request.onsuccess) request.onsuccess();
+      });
+      return request;
+    }
+  };
+}
 function loadTemplate() {
   const context = { console };
   vm.createContext(context);
@@ -36,13 +98,12 @@ test("UI cria tabela SIM/NAO com autosave local e perfis independentes por relat
   assert.match(app, /data-answer="NAO"/);
 });
 
-test("trocar cidade, SGTO/STELECOM e DT1B/PM1B preserva fotos e carrega apenas checklist", () => {
+test("trocar cidade, SGTO/STELECOM e DT1B/PM1B troca contexto de fotos e carrega checklist", () => {
   assert.match(app, /nodes\.city\.addEventListener\("input"/);
-  assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);/);
+  assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);\s*switchPhotoContext\(\);/);
   assert.match(app, /nodes\.reportType\.addEventListener\("change"/);
   assert.match(app, /state\.workType = template\.normalizeWorkType/);
-  assert.doesNotMatch(app, /state\.cameras\s*=\s*\[\]/);
-  assert.doesNotMatch(app, /state\.tomadas\s*=\s*\[\]/);
+  assert.match(app, /clearStatePhotos\(\)/);
 });
 
 test("PDF usa exatamente SIM/NAO selecionado e não inventa resposta ausente", () => {
@@ -88,7 +149,8 @@ function createAppContext(options = {}) {
     dataset: {},
     textContent: "",
     innerHTML: "",
-    addEventListener() {},
+    listeners: {},
+    addEventListener(type, callback) { this.listeners[type] = callback; },
     setAttribute() {},
     focus() {},
     scrollIntoView() {},
@@ -124,33 +186,83 @@ function createAppContext(options = {}) {
   function URLMock(input, base) {
     return new URL(input, base);
   }
-  URLMock.createObjectURL = () => "blob:optimized";
-  URLMock.revokeObjectURL = () => {};
+  const urlState = { created: [], revoked: [] };
+  URLMock.createObjectURL = (blob) => {
+    const value = `blob:optimized-${++objectUrlSequence}`;
+    urlState.created.push({ value, blob });
+    return value;
+  };
+  URLMock.revokeObjectURL = (value) => urlState.revoked.push(value);
+  const storage = options.localStorageStore || new Map();
   const context = {
     console,
     document,
-    localStorage: { getItem() { return null; }, setItem() {} },
+    localStorage: {
+      getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+      setItem(key, value) { storage.set(key, String(value)); }
+    },
     URL: URLMock,
     FileReader: options.FileReaderImpl || function FileReader() {},
     fetch: options.fetchImpl || (async () => ({ ok: false })),
+    indexedDB: options.indexedDB,
     location: { href: "https://www.icaroamaral.com.br/relatorio-stelecom/" },
-    createImageBitmap(file) {
-      return Promise.resolve({
-        width: file.width,
-        height: file.height,
-        close() {}
-      });
-    },
-    window: { StelecomTemplate: template }
+    createImageBitmap: options.createImageBitmapImpl || ((file) => Promise.resolve({
+      width: file.width,
+      height: file.height,
+      close() {}
+    })),
+    window: { StelecomTemplate: template, confirm: options.confirmImpl || (() => true), open: options.openImpl }
   };
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(app, context);
+  context.window.StelecomApp.__nodes = nodes;
+  context.window.StelecomApp.__urlState = urlState;
   return context.window.StelecomApp;
+}
+
+function setAppContext(appContext, { city = "Tremedal", reportType = "STELECOM", workType = "DT1B" } = {}) {
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  const workNode = appContext.__nodes.get("[data-work-type]");
+  cityNode.value = city;
+  cityNode.listeners.input();
+  reportNode.value = reportType;
+  reportNode.listeners.change();
+  workNode.value = workType;
+  workNode.listeners.change();
+}
+
+function answersFor(appContext, template, reportType) {
+  const answers = appContext.getState().checklistAnswers;
+  return template.reportTypes[reportType].checklist.map((entry) => answers[String(entry.item)] || "");
+}
+
+function allAnswersAre(appContext, template, reportType, answer) {
+  return answersFor(appContext, template, reportType).every((value) => value === answer);
 }
 
 function imageFile({ width, height, size, type = "image/jpeg", name = "foto.jpg" }) {
   return { width, height, size, type, name };
+}
+
+async function addReady(appContext, categoryId, files) {
+  await appContext.addFiles(categoryId, files);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function tick() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 test("otimizacao reduz fotos grandes sem alterar proporcao e gera JPEG para o PDF", async () => {
@@ -363,3 +475,484 @@ test("app usa fallback data URL da logo WIA quando fetch local falha", async () 
   assert.ok(logoUrl.length > 1000);
 });
 
+test("acoes em lote adicionam e limpam fotos por grupo sem misturar categorias", async () => {
+  let confirms = 0;
+  const appContext = createAppContext({
+    confirmImpl(message) {
+      confirms += 1;
+      assert.match(message, /Remover todas as fotos de CAMERAS\?/);
+      return true;
+    }
+  });
+  const photo = imageFile({ width: 900, height: 600, size: 500000, name: "grupo.jpg" });
+
+  await addReady(appContext, "cameras", [photo, photo]);
+  await addReady(appContext, "tomadas", [photo]);
+  assert.equal(appContext.getState().cameras.length, 2);
+  assert.equal(appContext.getState().tomadas.length, 1);
+
+  assert.equal(await appContext.clearPhotoGroup("cameras"), true);
+  assert.equal(confirms, 1);
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("acoes em lote cobrem todos os grupos reais de fotografia", async () => {
+  const appContext = createAppContext();
+  const template = loadTemplate();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "auditoria.jpg" });
+
+  for (const category of template.categories) {
+    await addReady(appContext, category.id, [photo]);
+    assert.equal(appContext.getState()[category.id].length, 1, `${category.label} deveria receber foto`);
+    assert.equal(await appContext.clearPhotoGroup(category.id), true, `${category.label} deveria limpar fotos`);
+    assert.equal(appContext.getState()[category.id].length, 0, `${category.label} deveria ficar vazio`);
+  }
+});
+
+test("cancelar limpeza mantem fotos e grupo vazio nao pede confirmacao", async () => {
+  let confirms = 0;
+  const appContext = createAppContext({
+    confirmImpl() {
+      confirms += 1;
+      return false;
+    }
+  });
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "cancelar.jpg" });
+
+  await addReady(appContext, "rack", [photo]);
+  assert.equal(await appContext.clearPhotoGroup("rack"), false);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(confirms, 1);
+
+  assert.equal(await appContext.clearPhotoGroup("caixa"), false);
+  assert.equal(appContext.getState().caixa.length, 0);
+  assert.equal(confirms, 1);
+});
+
+test("UI mostra adicionar fotos e limpar por grupo, mas controles nao aparecem no PDF", () => {
+  const template = loadTemplate();
+  assert.match(app, /class="photo-section-actions"/);
+  assert.match(app, /data-clear-photos="\$\{category\.id\}"/);
+  assert.match(app, /multiple data-file-input="\$\{category\.id\}"/);
+  assert.match(css, /\.photo-section-actions/);
+  assert.match(css, /\.clear-photos-button/);
+
+  const report = template.buildStelecomReport({
+    date: "30/08/2026",
+    city: "Ibicoara",
+    workType: "DT1B",
+    reportType: "STELECOM",
+    checklistAnswers: Object.fromEntries(template.stelecomChecklistItems.map((entry) => [String(entry.item), "SIM"])),
+    legends: {},
+    cameras: [],
+    tomadas: [],
+    rack: [],
+    caixa: [],
+    mastro: []
+  }, "STELECOM");
+
+  assert.doesNotMatch(report, /ADICIONAR FOTOS|LIMPAR|data-clear-photos|photo-section-actions/);
+});
+
+
+test("IndexedDB salva, restaura apos reload e recria ObjectURL em ordem", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const photo = imageFile({ width: 900, height: 600, size: 500000, name: "persistida.jpg" });
+  const firstLoad = createAppContext({ indexedDB });
+  await firstLoad.loadStoredPhotosForCurrentContext();
+
+  await addReady(firstLoad, "cameras", [photo, photo]);
+  await addReady(firstLoad, "tomadas", [photo]);
+  const originalIds = firstLoad.getState().cameras.map((item) => item.id);
+  assert.equal(firstLoad.getState().cameras.length, 2);
+  assert.equal(firstLoad.getState().tomadas.length, 1);
+  assert.equal(indexedDB.records.size, 3);
+
+  const secondLoad = createAppContext({ indexedDB });
+  await secondLoad.loadStoredPhotosForCurrentContext();
+  assert.deepEqual(secondLoad.getState().cameras.map((item) => item.id), originalIds);
+  assert.equal(secondLoad.getState().tomadas.length, 1);
+  assert.notEqual(secondLoad.getState().cameras[0].url, firstLoad.getState().cameras[0].url);
+  assert.equal(secondLoad.getState().cameras[0].file.type, "image/jpeg");
+});
+
+test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "isolada.jpg" });
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  const workNode = appContext.__nodes.get("[data-work-type]");
+
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  workNode.value = "DT1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  await addReady(appContext, "cameras", [photo]);
+  await addReady(appContext, "tomadas", [photo]);
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.equal(appContext.getState().tomadas.length, 1);
+
+  cityNode.value = "Tremedal";
+  cityNode.listeners.input();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+
+  reportNode.value = "STELECOM";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+
+  workNode.value = "PM1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 0);
+  workNode.value = "DT1B";
+  workNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("remover uma foto e limpar grupo removem apenas os registros certos", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "limpeza.jpg" });
+
+  await addReady(appContext, "cameras", [photo, photo]);
+  await addReady(appContext, "tomadas", [photo]);
+  const removedUrl = appContext.getState().cameras[0].url;
+  const cameraId = appContext.getState().cameras[0].id;
+  appContext.removePhoto("cameras", cameraId);
+  await appContext.persistPhotoGroup("cameras");
+  assert.equal(appContext.getState().cameras.length, 1);
+  assert.ok(appContext.__urlState.revoked.includes(removedUrl));
+
+  const reloadAfterRemove = createAppContext({ indexedDB });
+  await reloadAfterRemove.loadStoredPhotosForCurrentContext();
+  assert.equal(reloadAfterRemove.getState().cameras.length, 1);
+  assert.equal(reloadAfterRemove.getState().tomadas.length, 1);
+
+  assert.equal(await reloadAfterRemove.clearPhotoGroup("cameras"), true);
+  const reloadAfterClear = createAppContext({ indexedDB });
+  await reloadAfterClear.loadStoredPhotosForCurrentContext();
+  assert.equal(reloadAfterClear.getState().cameras.length, 0);
+  assert.equal(reloadAfterClear.getState().tomadas.length, 1);
+});
+
+test("quota do IndexedDB mostra aviso controlado e mantem foto em sessao", async () => {
+  const indexedDB = createFakeIndexedDB({ failPut: true });
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "quota.jpg" });
+
+  assert.equal(appContext.photoStorageErrorMessage({ name: "QuotaExceededError" }), "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
+  await addReady(appContext, "mastro", [photo]);
+  assert.equal(appContext.getState().mastro.length, 1);
+  assert.equal(appContext.__nodes.get("[data-status-detail]").textContent, "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
+});
+
+test("PDF usa fotos restauradas do IndexedDB sem depender do File original", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "pdf.jpg" });
+  await addReady(appContext, "rack", [photo]);
+
+  const reload = createAppContext({ indexedDB });
+  await reload.loadStoredPhotosForCurrentContext();
+  const template = loadTemplate();
+  const report = template.buildStelecomReport(Object.assign(reload.getState(), {
+    date: "30/08/2026",
+    checklistAnswers: Object.fromEntries(template.stelecomChecklistItems.map((entry) => [String(entry.item), "SIM"]))
+  }), "STELECOM");
+
+  assert.match(report, /blob:optimized-/);
+  assert.match(report, /RACK/);
+});
+test("upload mostra preview antes da otimização assíncrona e persiste apenas foto pronta", async () => {
+  const gate = deferred();
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 2200, height: 1200, size: 2800000, name: "preview.jpg" });
+
+  await appContext.addFiles("cameras", [photo]);
+  const item = appContext.getState().cameras[0];
+  assert.equal(item.status, "optimizing");
+  assert.equal(item.optimizedForReport, false);
+  assert.equal(item.file, null);
+  const previewUrl = item.url;
+  assert.match(previewUrl, /blob:optimized-/);
+  assert.equal(indexedDB.records.size, 0);
+  assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Otimizando\.\.\.|Na fila/);
+
+  gate.resolve();
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.equal(appContext.getState().cameras[0].status, "ready");
+  assert.equal(appContext.getState().cameras[0].optimizedForReport, true);
+  assert.equal(indexedDB.records.size, 1);
+  assert.ok(appContext.__urlState.revoked.includes(previewUrl));
+});
+
+test("fila de fotos respeita concorrência 2 e drena itens pendentes", async () => {
+  const gates = [];
+  let active = 0;
+  let maxActive = 0;
+  const appContext = createAppContext({
+    createImageBitmapImpl: (file) => {
+      const gate = deferred();
+      gates.push({ gate, file });
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} })).finally(() => {
+        active -= 1;
+      });
+    }
+  });
+  const files = Array.from({ length: 5 }, (_, index) => imageFile({ width: 1600, height: 900, size: 1000000, name: `fila-${index}.jpg` }));
+
+  await appContext.addFiles("cameras", files);
+  assert.equal(appContext.getPhotoOptimizationStats().limit, 2);
+  assert.equal(appContext.getPhotoOptimizationStats().active, 2);
+  assert.equal(appContext.getPhotoOptimizationStats().queued, 3);
+
+  for (let index = 0; index < files.length; index += 1) {
+    while (!gates.length) await tick();
+    const current = gates.shift();
+    current.gate.resolve();
+    await tick();
+  }
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.ok(maxActive <= 2);
+  assert.equal(appContext.getPhotoOptimizationStats().pending, 0);
+  assert.equal(appContext.getState().cameras.filter((photo) => photo.status === "ready").length, 5);
+});
+
+test("remover ou limpar invalida otimização atrasada sem regravar fotos", async () => {
+  const gates = [];
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => {
+      const gate = deferred();
+      gates.push({ gate, file });
+      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }));
+    }
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+
+  await appContext.addFiles("cameras", [imageFile({ width: 900, height: 600, size: 500000, name: "remove.jpg" })]);
+  const removedUrl = appContext.getState().cameras[0].url;
+  appContext.removePhoto("cameras", appContext.getState().cameras[0].id);
+  gates.shift().gate.resolve();
+  await tick();
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+  assert.ok(appContext.__urlState.revoked.includes(removedUrl));
+
+  await appContext.addFiles("tomadas", [imageFile({ width: 900, height: 600, size: 500000, name: "clear.jpg" })]);
+  assert.equal(await appContext.clearPhotoGroup("tomadas"), true);
+  gates.shift().gate.resolve();
+  await tick();
+  assert.equal(appContext.getState().tomadas.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+});
+
+test("troca de cidade invalida resultado atrasado e não mistura contexto", async () => {
+  const gate = deferred();
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await appContext.addFiles("rack", [imageFile({ width: 900, height: 600, size: 500000, name: "cidade.jpg" })]);
+
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  gate.resolve();
+  await tick();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().rack.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+});
+
+test("falha de otimização fica isolada e IndexedDB salva somente fotos ready", async () => {
+  const indexedDB = createFakeIndexedDB();
+  let calls = 0;
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error("imagem quebrada"));
+      return Promise.resolve({ width: file.width, height: file.height, close() {} });
+    }
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await appContext.addFiles("caixa", [
+    imageFile({ width: 900, height: 600, size: 500000, name: "erro.jpg" }),
+    imageFile({ width: 900, height: 600, size: 500000, name: "ok.jpg" })
+  ]);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+
+  assert.equal(appContext.getPhotoOptimizationStats().errors, 1);
+  assert.equal(appContext.getState().caixa.filter((photo) => photo.status === "ready").length, 1);
+  assert.equal(indexedDB.records.size, 1);
+  assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Falha na otimização/);
+});
+
+test("gerar PDF aguarda otimização pendente e usa somente blob otimizado", async () => {
+  const gate = deferred();
+  let written = "";
+  const reportWindow = {
+    document: {
+      images: [],
+      title: "",
+      open() {},
+      write(html) { written = html; },
+      close() {}
+    },
+    close() {},
+    focus() {},
+    print() {}
+  };
+  const appContext = createAppContext({
+    openImpl: () => reportWindow,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  const template = loadTemplate();
+  const dateNode = appContext.__nodes.get("[data-visit-date]");
+  dateNode.value = "30/08/2026";
+  dateNode.listeners.input();
+  appContext.setChecklistBulkAnswer("SIM");
+  await appContext.addFiles("mastro", [imageFile({ width: 1600, height: 900, size: 1500000, name: "pdf-pendente.jpg" })]);
+
+  const pdfPromise = appContext.generatePdf();
+  await tick();
+  assert.equal(appContext.__nodes.get("[data-generate-pdf]").disabled, true);
+  assert.match(appContext.__nodes.get("[data-status-detail]").textContent, /Finalizando otimização de 1 fotos/);
+  gate.resolve();
+  await pdfPromise;
+
+  assert.match(written, /blob:optimized-/);
+  assert.match(written, /REGISTRO FOTOGRÁFICO/);
+  assert.equal(appContext.getState().mastro[0].originalFile, null);
+  assert.equal(appContext.getState().mastro[0].optimizedForReport, true);
+  assert.equal(template.sgtoChecklistItems.length, 15);
+});
+test("Todos SIM e Todos NAO preenchem, alternam e mantem exclusividade", () => {
+  const template = loadTemplate();
+  const appContext = createAppContext();
+  assert.equal(template.stelecomChecklistItems.length, 13);
+  assert.equal(template.sgtoChecklistItems.length, 15);
+
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.ok(allAnswersAre(appContext, template, "STELECOM", "SIM"));
+  const htmlAfterAllSim = appContext.__nodes.get("[data-checklist-profile]").innerHTML;
+  assert.equal((htmlAfterAllSim.match(/data-answer="SIM">SIM<\/button>/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/data-answer="NAO">NÃO<\/button>/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/choice-button is-selected" type="button" data-answer-item="\d+" data-answer="SIM"/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/choice-button is-selected" type="button" data-answer-item="\d+" data-answer="NAO"/g) || []).length, 0);
+
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.equal(Object.keys(appContext.getState().checklistAnswers).length, 0);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(appContext, template, "STELECOM", "NAO"));
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.equal(Object.keys(appContext.getState().checklistAnswers).length, 0);
+});
+
+test("estado misto vira Todos SIM ou Todos NAO sem tocar observacoes do template", () => {
+  const template = loadTemplate();
+  const observation = template.sgtoChecklistItems.find((entry) => entry.observation)?.observation;
+  const appContext = createAppContext();
+  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+
+  appContext.setChecklistAnswer(1, "SIM");
+  appContext.setChecklistAnswer(2, "NAO");
+  appContext.setChecklistAnswer(3, "SIM");
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.ok(allAnswersAre(appContext, template, "SGTO", "SIM"));
+  assert.equal(template.sgtoChecklistItems.find((entry) => entry.observation)?.observation, observation);
+
+  appContext.setChecklistAnswer(4, "SIM");
+  appContext.setChecklistAnswer(5, "NAO");
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(appContext, template, "SGTO", "NAO"));
+  assert.equal(template.sgtoChecklistItems.find((entry) => entry.observation)?.observation, observation);
+});
+
+test("preenchimento em lote autosalva e isola cidade, relatorio e DT1B/PM1B", () => {
+  const template = loadTemplate();
+  const storage = new Map();
+  const firstLoad = createAppContext({ localStorageStore: storage });
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+  firstLoad.setChecklistBulkAnswer("SIM");
+
+  const profiles = firstLoad.getProfiles();
+  assert.ok(profiles.ibicoara["sgto|dt1b"]);
+  assert.equal(profiles.ibicoara["sgto|dt1b"].workType, "DT1B");
+  assert.ok(Object.values(profiles.ibicoara["sgto|dt1b"].checklist).every((value) => value === "SIM"));
+
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "SGTO", workType: "PM1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+  firstLoad.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(firstLoad, template, "SGTO", "NAO"));
+
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+  setAppContext(firstLoad, { city: "Tremedal", reportType: "SGTO", workType: "DT1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+
+  const reload = createAppContext({ localStorageStore: storage });
+  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+  assert.ok(allAnswersAre(reload, template, "SGTO", "SIM"));
+  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "PM1B" });
+  assert.ok(allAnswersAre(reload, template, "SGTO", "NAO"));
+});
+
+test("PDF reflete Todos SIM, Todos NAO e tudo desmarcado", () => {
+  const template = loadTemplate();
+  const appContext = createAppContext();
+  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
+
+  appContext.setChecklistBulkAnswer("SIM");
+  let report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark">X<\/td>\s*<td class="col-mark"><\/td>/g) || []).length, 13);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark"><\/td>\s*<td class="col-mark">X<\/td>/g) || []).length, 13);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark">X<\/td>/g) || []).length, 0);
+});
+
+test("UI de preenchimento rapido possui estado ativo e suporte mobile", () => {
+  assert.match(app, /class="checklist-bulk-actions"/);
+  assert.match(app, /data-bulk-answer="SIM"/);
+  assert.match(app, /aria-pressed="\$\{allSim \? "true" : "false"\}"/);
+  assert.match(css, /\.bulk-answer-button/);
+  assert.match(css, /min-height: 52px/);
+});

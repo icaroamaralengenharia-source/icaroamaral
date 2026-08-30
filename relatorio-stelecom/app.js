@@ -36,6 +36,16 @@
 
   let activeCategory = template.categories[0].id;
   let reportLogoUrlPromise = null;
+  let photoDbPromise = null;
+  let photoContextLoadToken = 0;
+  const photoDatabaseName = "obrareport-stelecom-photos";
+  const photoDatabaseVersion = 1;
+  const photoStoreName = "photos";
+  const maxPhotoOptimizationConcurrency = 2;
+  const photoOptimizationQueue = [];
+  const photoOptimizationWaiters = [];
+  let activePhotoOptimizations = 0;
+  let photoSequence = 0;
 
   function setStatus(title, detail) {
     nodes.statusTitle.textContent = title;
@@ -61,6 +71,250 @@
 
   function reportKey() {
     return template.normalizeReportType(state.reportType).toLowerCase();
+  }
+  function workKey() {
+    return template.normalizeWorkType(state.workType).toLowerCase();
+  }
+
+  function checklistProfileKey() {
+    return `${reportKey()}|${workKey()}`;
+  }
+
+
+  function photoProfileKey() {
+    return [
+      cityKey(state.city),
+      reportKey(),
+      workKey()
+    ].join("|");
+  }
+
+  function photoContextGroupKey(profileKey, group) {
+    return `${profileKey}|${group}`;
+  }
+
+  function photoRecordId(profileKey, group, photoId) {
+    return `${photoContextGroupKey(profileKey, group)}|${photoId}`;
+  }
+
+  function photoStorageAvailable() {
+    return typeof indexedDB !== "undefined" && indexedDB && typeof indexedDB.open === "function";
+  }
+
+  function requestToPromise(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB indisponivel."));
+    });
+  }
+
+  function transactionDone(transaction) {
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error || new Error("IndexedDB abortado."));
+      transaction.onerror = () => reject(transaction.error || new Error("IndexedDB indisponivel."));
+    });
+  }
+
+  function openPhotoDatabase() {
+    if (!photoStorageAvailable()) return Promise.reject(new Error("IndexedDB indisponivel."));
+    if (photoDbPromise) return photoDbPromise;
+
+    photoDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(photoDatabaseName, photoDatabaseVersion);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        const store = database.objectStoreNames.contains(photoStoreName)
+          ? request.transaction.objectStore(photoStoreName)
+          : database.createObjectStore(photoStoreName, { keyPath: "id" });
+        if (!store.indexNames.contains("profileKey")) store.createIndex("profileKey", "profileKey", { unique: false });
+        if (!store.indexNames.contains("profileGroup")) store.createIndex("profileGroup", "profileGroup", { unique: false });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        photoDbPromise = null;
+        reject(request.error || new Error("IndexedDB indisponivel."));
+      };
+      request.onblocked = () => {
+        photoDbPromise = null;
+        reject(new Error("IndexedDB bloqueado."));
+      };
+    });
+
+    return photoDbPromise;
+  }
+
+  async function getAllPhotoRecords() {
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readonly");
+    const done = transactionDone(transaction);
+    const records = await requestToPromise(transaction.objectStore(photoStoreName).getAll());
+    await done;
+    return Array.isArray(records) ? records : [];
+  }
+
+  async function listPhotoRecords(profileKey) {
+    const records = await getAllPhotoRecords();
+    return records
+      .filter((record) => record.profileKey === profileKey)
+      .sort((left, right) => (left.group || "").localeCompare(right.group || "") || (left.order || 0) - (right.order || 0));
+  }
+
+  async function deletePhotoRecordsByFilter(filter) {
+    const records = (await getAllPhotoRecords()).filter(filter);
+    if (!records.length) return;
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(photoStoreName);
+    records.forEach((record) => store.delete(record.id));
+    await done;
+  }
+
+  async function clearPhotoGroupRecords(profileKey, group) {
+    await deletePhotoRecordsByFilter((record) => record.profileGroup === photoContextGroupKey(profileKey, group));
+  }
+
+  async function clearReportPhotos(profileKey) {
+    await deletePhotoRecordsByFilter((record) => record.profileKey === profileKey);
+  }
+
+  function photoStorageErrorMessage(error) {
+    if (error && error.name === "QuotaExceededError") {
+      return "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.";
+    }
+    return "Não foi possível salvar as fotos neste dispositivo.";
+  }
+
+  function handlePhotoStorageError(error) {
+    setStatus("Fotos não persistidas", photoStorageErrorMessage(error));
+  }
+
+  function photoToRecord(profileKey, group, photo, order) {
+    if (photo.status && photo.status !== "ready") return null;
+    if (!photo.optimizedForReport) return null;
+    const blob = photo.file || photo.optimizedBlob || photo.blob;
+    return {
+      id: photoRecordId(profileKey, group, photo.id),
+      photoId: photo.id,
+      profileKey,
+      profileGroup: photoContextGroupKey(profileKey, group),
+      city: template.normalizeCity(state.city),
+      reportType: template.normalizeReportType(state.reportType),
+      buildingType: template.normalizeWorkType(state.workType),
+      group,
+      order,
+      blob,
+      mimeType: photo.mimeType || blob?.type || reportImageMimeType,
+      width: photo.width || 0,
+      height: photo.height || 0,
+      originalWidth: photo.originalWidth || photo.width || 0,
+      originalHeight: photo.originalHeight || photo.height || 0,
+      originalBytes: photo.originalBytes || blob?.size || 0,
+      optimizedBytes: photo.optimizedBytes || blob?.size || 0,
+      optimized: true,
+      optimizedForReport: true,
+      name: photo.name || "foto.jpg",
+      legend: photo.legend || state.legends[group],
+      createdAt: photo.createdAt || new Date().toISOString()
+    };
+  }
+
+  async function savePhotoRecords(profileKey, group, photos) {
+    await clearPhotoGroupRecords(profileKey, group);
+    const records = (photos || []).map((photo, order) => photoToRecord(profileKey, group, photo, order)).filter((record) => record && record.blob);
+    if (!records.length) return;
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(photoStoreName);
+    records.forEach((record) => store.put(record));
+    await done;
+  }
+
+  async function persistPhotoGroup(categoryId) {
+    if (!photoStorageAvailable()) {
+      handlePhotoStorageError(new Error("IndexedDB indisponivel."));
+      return false;
+    }
+    try {
+      await savePhotoRecords(photoProfileKey(), categoryId, state[categoryId]);
+      return true;
+    } catch (error) {
+      handlePhotoStorageError(error);
+      return false;
+    }
+  }
+
+  function photoFromRecord(record) {
+    const blob = record.blob;
+    return {
+      id: record.photoId || record.id,
+      profileKey: record.profileKey,
+      group: record.group,
+      name: record.name || "foto.jpg",
+      file: blob,
+      optimizedBlob: blob,
+      url: URL.createObjectURL(blob),
+      width: record.width || 0,
+      height: record.height || 0,
+      originalWidth: record.originalWidth || record.width || 0,
+      originalHeight: record.originalHeight || record.height || 0,
+      originalBytes: record.originalBytes || blob?.size || 0,
+      optimizedBytes: record.optimizedBytes || blob?.size || 0,
+      mimeType: record.mimeType || blob?.type || reportImageMimeType,
+      optimizedForReport: true,
+      status: "ready",
+      persisted: true,
+      legend: record.legend || state.legends[record.group],
+      createdAt: record.createdAt
+    };
+  }
+
+  function invalidatePhoto(photo) {
+    if (!photo) return;
+    photo.removed = true;
+    photo.optimizationToken = (photo.optimizationToken || 0) + 1;
+    if (photo.url) URL.revokeObjectURL(photo.url);
+    if (photo.previewUrl && photo.previewUrl !== photo.url) URL.revokeObjectURL(photo.previewUrl);
+    photo.originalFile = null;
+  }
+
+  function clearStatePhotos() {
+    template.categories.forEach((category) => {
+      state[category.id].forEach(invalidatePhoto);
+      state[category.id] = [];
+    });
+    resolvePhotoOptimizationWaiters();
+  }
+
+  async function loadStoredPhotosForCurrentContext() {
+    const profileKey = photoProfileKey();
+    const token = ++photoContextLoadToken;
+    if (!photoStorageAvailable()) return false;
+    try {
+      const records = await listPhotoRecords(profileKey);
+      if (token !== photoContextLoadToken || profileKey !== photoProfileKey()) return false;
+      clearStatePhotos();
+      template.categories.forEach((category) => {
+        state[category.id] = records
+          .filter((record) => record.group === category.id)
+          .sort((left, right) => (left.order || 0) - (right.order || 0))
+          .map(photoFromRecord);
+      });
+      render();
+      return true;
+    } catch (error) {
+      if (token === photoContextLoadToken) handlePhotoStorageError(error);
+      return false;
+    }
+  }
+
+  function switchPhotoContext() {
+    photoContextLoadToken += 1;
+    clearStatePhotos();
+    render();
+    loadStoredPhotosForCurrentContext();
   }
 
   function readProfiles() {
@@ -88,7 +342,9 @@
   function loadChecklistProfile() {
     const profiles = readProfiles();
     const cityProfile = profiles[cityKey(state.city)] || {};
-    const reportProfile = cityProfile[reportKey()] || null;
+    const scopedProfile = cityProfile[checklistProfileKey()] || null;
+    const legacyProfile = cityProfile[reportKey()] || null;
+    const reportProfile = scopedProfile || legacyProfile;
     state.checklistAnswers = normalizeAnswers(reportProfile && reportProfile.checklist);
     state.profileSaved = Boolean(reportProfile);
   }
@@ -96,14 +352,16 @@
   function saveChecklistProfile() {
     const profiles = readProfiles();
     const key = cityKey(state.city);
+    const profileKey = checklistProfileKey();
     profiles[key] = profiles[key] || { city: template.normalizeCity(state.city) };
-    profiles[key][reportKey()] = Object.assign({}, profiles[key][reportKey()] || {}, {
+    profiles[key][profileKey] = Object.assign({}, profiles[key][profileKey] || {}, {
       checklist: normalizeAnswers(state.checklistAnswers),
+      workType: template.normalizeWorkType(state.workType),
       updatedAt: new Date().toISOString()
     });
     if (writeProfiles(profiles)) {
       state.profileSaved = true;
-      setStatus("Dados desta cidade salvos", `${template.normalizeCity(state.city)} / ${template.normalizeReportType(state.reportType)} atualizado no navegador.`);
+      setStatus("Dados desta cidade salvos", `${template.normalizeCity(state.city)} / ${template.normalizeReportType(state.reportType)} / ${template.normalizeWorkType(state.workType)} atualizado no navegador.`);
     }
   }
 
@@ -120,18 +378,41 @@
     saveChecklistProfile();
     renderChecklist();
   }
+  function allChecklistAnsweredAs(answer) {
+    const items = checklistItems();
+    return items.length > 0 && items.every((entry) => state.checklistAnswers[String(entry.item)] === answer);
+  }
+
+  function setChecklistBulkAnswer(answer) {
+    const normalized = answer === "NAO" ? "NAO" : "SIM";
+    const shouldClear = allChecklistAnsweredAs(normalized);
+    checklistItems().forEach((entry) => {
+      const key = String(entry.item);
+      if (shouldClear) delete state.checklistAnswers[key];
+      else state.checklistAnswers[key] = normalized;
+    });
+    saveChecklistProfile();
+    renderChecklist();
+  }
 
   function renderChecklist() {
     if (!nodes.checklist) return;
     const items = checklistItems();
     const missing = missingChecklistItems().length;
+    const allSim = allChecklistAnsweredAs("SIM");
+    const allNao = allChecklistAnsweredAs("NAO");
     nodes.checklist.innerHTML = `
       <div class="checklist-profile-head">
         <div>
           <h2>Tabela SIM/NÃO</h2>
-          <p>${escapeHtml(template.normalizeCity(state.city))} / ${escapeHtml(template.normalizeReportType(state.reportType))} · ${missing ? `${missing} nao definido(s)` : "todos preenchidos"}</p>
+          <p>${escapeHtml(template.normalizeCity(state.city))} / ${escapeHtml(template.normalizeReportType(state.reportType))} / ${escapeHtml(template.normalizeWorkType(state.workType))} · ${missing ? `${missing} nao definido(s)` : "todos preenchidos"}</p>
         </div>
         <span class="autosave-pill">${state.profileSaved ? "Dados desta cidade salvos" : "NÃO DEFINIDO"}</span>
+      </div>
+      <div class="checklist-bulk-actions" aria-label="Preenchimento rapido da tabela">
+        <span>Preenchimento rápido</span>
+        <button class="bulk-answer-button ${allSim ? "is-active" : ""}" type="button" data-bulk-answer="SIM" aria-pressed="${allSim ? "true" : "false"}">Todos SIM</button>
+        <button class="bulk-answer-button ${allNao ? "is-active" : ""}" type="button" data-bulk-answer="NAO" aria-pressed="${allNao ? "true" : "false"}">Todos NÃO</button>
       </div>
       <div class="checklist-answer-list">
         ${items.map((entry) => {
@@ -153,6 +434,10 @@
 
     nodes.checklist.querySelectorAll("[data-answer-item]").forEach((button) => {
       button.addEventListener("click", () => setChecklistAnswer(button.dataset.answerItem, button.dataset.answer));
+    });
+
+    nodes.checklist.querySelectorAll("[data-bulk-answer]").forEach((button) => {
+      button.addEventListener("click", () => setChecklistBulkAnswer(button.dataset.bulkAnswer));
     });
   }
 
@@ -286,22 +571,159 @@
     };
   }
 
-  async function photoFromFile(categoryId, file, index) {
-    const optimized = await optimizeReportImage(file);
+  function currentReportPhotos() {
+    return template.categories.flatMap((category) => state[category.id].map((photo) => ({ categoryId: category.id, photo })));
+  }
+
+  function pendingPhotosForCurrentReport() {
+    return currentReportPhotos().filter(({ photo }) => photo.status === "pending" || photo.status === "optimizing");
+  }
+
+  function errorPhotosForCurrentReport() {
+    return currentReportPhotos().filter(({ photo }) => photo.status === "error");
+  }
+
+  function resolvePhotoOptimizationWaiters() {
+    const waiters = photoOptimizationWaiters.splice(0);
+    waiters.forEach((resolve) => resolve());
+  }
+
+  function photoStillCurrent(job) {
+    const photo = (state[job.group] || []).find((item) => item.id === job.photoId);
+    if (!photo || photo.removed) return null;
+    if (photo.profileKey !== job.profileKey || photo.group !== job.group) return null;
+    if (photo.optimizationToken !== job.token) return null;
+    return photo;
+  }
+
+  async function saveReadyPhotosForJob(job) {
+    if (!photoStorageAvailable()) return false;
+    if (job.profileKey !== photoProfileKey()) return false;
+    const photos = state[job.group] || [];
+    const order = photos.findIndex((photo) => photo.id === job.photoId);
+    if (order < 0) return false;
+    const record = photoToRecord(job.profileKey, job.group, photos[order], order);
+    if (!record || !record.blob) return false;
+    try {
+      const database = await openPhotoDatabase();
+      const transaction = database.transaction(photoStoreName, "readwrite");
+      const done = transactionDone(transaction);
+      transaction.objectStore(photoStoreName).put(record);
+      await done;
+      return true;
+    } catch (error) {
+      handlePhotoStorageError(error);
+      return false;
+    }
+  }
+
+  async function runPhotoOptimizationJob(job) {
+    const started = photoStillCurrent(job);
+    if (!started || !started.originalFile) return;
+    started.status = "optimizing";
+    renderPanels();
+
+    try {
+      const optimized = await optimizeReportImage(started.originalFile);
+      const photo = photoStillCurrent(job);
+      if (!photo) return;
+      const previousUrl = photo.url;
+      photo.file = optimized.blob;
+      photo.optimizedBlob = optimized.blob;
+      photo.url = URL.createObjectURL(optimized.blob);
+      photo.previewUrl = photo.url;
+      photo.width = optimized.width;
+      photo.height = optimized.height;
+      photo.originalWidth = optimized.originalWidth;
+      photo.originalHeight = optimized.originalHeight;
+      photo.originalBytes = optimized.originalBytes;
+      photo.optimizedBytes = optimized.optimizedBytes;
+      photo.mimeType = optimized.mimeType;
+      photo.optimizedForReport = true;
+      photo.status = "ready";
+      photo.optimizationError = "";
+      photo.originalFile = null;
+      if (previousUrl && previousUrl !== photo.url) URL.revokeObjectURL(previousUrl);
+      renderPanels();
+      await saveReadyPhotosForJob(job);
+    } catch (error) {
+      const photo = photoStillCurrent(job);
+      if (!photo) return;
+      photo.status = "error";
+      photo.optimizationError = "Falha na otimização";
+      photo.optimizedForReport = false;
+      renderPanels();
+      setStatus("Falha na otimização", `Uma foto em ${labelOf(job.group)} nao foi otimizada. Remova ou tente novamente.`);
+    }
+  }
+
+  function processPhotoOptimizationQueue() {
+    while (activePhotoOptimizations < maxPhotoOptimizationConcurrency && photoOptimizationQueue.length) {
+      const job = photoOptimizationQueue.shift();
+      if (!photoStillCurrent(job)) continue;
+      activePhotoOptimizations += 1;
+      runPhotoOptimizationJob(job).finally(() => {
+        activePhotoOptimizations -= 1;
+        resolvePhotoOptimizationWaiters();
+        processPhotoOptimizationQueue();
+      });
+    }
+    resolvePhotoOptimizationWaiters();
+  }
+
+  function enqueuePhotoOptimization(photo) {
+    photo.status = "pending";
+    photo.optimizationToken = (photo.optimizationToken || 0) + 1;
+    photoOptimizationQueue.push({
+      profileKey: photo.profileKey,
+      group: photo.group,
+      photoId: photo.id,
+      token: photo.optimizationToken
+    });
+    processPhotoOptimizationQueue();
+  }
+
+  async function waitForPhotoOptimizationsForCurrentReport() {
+    while (pendingPhotosForCurrentReport().length) {
+      await new Promise((resolve) => photoOptimizationWaiters.push(resolve));
+    }
+  }
+
+  function getPhotoOptimizationStats() {
     return {
-      id: categoryId + "-" + Date.now() + "-" + index + "-" + Math.random().toString(16).slice(2),
+      limit: maxPhotoOptimizationConcurrency,
+      active: activePhotoOptimizations,
+      queued: photoOptimizationQueue.length,
+      pending: pendingPhotosForCurrentReport().length,
+      errors: errorPhotosForCurrentReport().length
+    };
+  }
+
+  function photoFromFile(categoryId, file, index, profileKey) {
+    const previewUrl = URL.createObjectURL(file);
+    return {
+      id: categoryId + "-" + Date.now() + "-" + index + "-" + (++photoSequence),
+      profileKey,
+      group: categoryId,
       name: file.name,
-      file: optimized.blob,
-      url: URL.createObjectURL(optimized.blob),
-      width: optimized.width,
-      height: optimized.height,
-      originalWidth: optimized.originalWidth,
-      originalHeight: optimized.originalHeight,
-      originalBytes: optimized.originalBytes,
-      optimizedBytes: optimized.optimizedBytes,
-      mimeType: optimized.mimeType,
-      optimizedForReport: true,
-      legend: state.legends[categoryId]
+      file: null,
+      originalFile: file,
+      optimizedBlob: null,
+      url: previewUrl,
+      previewUrl,
+      width: file.width || 0,
+      height: file.height || 0,
+      originalWidth: file.width || 0,
+      originalHeight: file.height || 0,
+      originalBytes: file.size || 0,
+      optimizedBytes: 0,
+      mimeType: file.type || reportImageMimeType,
+      optimizedForReport: false,
+      status: "pending",
+      optimizationError: "",
+      optimizationToken: 0,
+      legend: state.legends[categoryId],
+      createdAt: new Date().toISOString()
     };
   }
 
@@ -314,26 +736,26 @@
       return;
     }
 
-    setStatus("Otimizando fotos", `${accepted.length} foto(s) sendo preparadas para PDF leve.`);
-    const mapped = [];
-    try {
-      for (const [index, file] of accepted.entries()) {
-        mapped.push(await photoFromFile(categoryId, file, index));
-      }
-    } catch (error) {
-      mapped.forEach(revokePhoto);
-      throw error;
-    }
-
+    const profileKey = photoProfileKey();
+    const startIndex = state[categoryId].length;
+    const mapped = accepted.map((file, index) => photoFromFile(categoryId, file, startIndex + index, profileKey));
     state[categoryId].push(...mapped);
     render();
-    const originalBytes = mapped.reduce((total, photo) => total + photo.originalBytes, 0);
-    const optimizedBytes = mapped.reduce((total, photo) => total + photo.optimizedBytes, 0);
-    const reduction = originalBytes ? Math.max(0, Math.round((1 - optimizedBytes / originalBytes) * 100)) : 0;
+    mapped.forEach(enqueuePhotoOptimization);
     const invalidText = blocked ? ` ${blocked} arquivo(s) ignorado(s).` : "";
-    setStatus("Fotos otimizadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}. Reducao aproximada: ${reduction}%.${invalidText}`);
+    setStatus("Fotos adicionadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}. Otimizando em segundo plano.${invalidText}`);
   }
 
+  function retryPhotoOptimization(categoryId, photoId) {
+    const photo = (state[categoryId] || []).find((item) => item.id === photoId);
+    if (!photo || photo.status !== "error" || !photo.originalFile) return false;
+    photo.optimizationError = "";
+    photo.removed = false;
+    enqueuePhotoOptimization(photo);
+    render();
+    setStatus("Otimizando foto", `Tentando otimizar novamente uma foto em ${labelOf(categoryId)}.`);
+    return true;
+  }
   function labelOf(categoryId) {
     return template.categories.find((category) => category.id === categoryId)?.label || categoryId;
   }
@@ -346,6 +768,7 @@
     const [photo] = list.splice(index, 1);
     list.splice(target, 0, photo);
     render();
+    persistPhotoGroup(categoryId);
     setStatus("Ordem atualizada", `A ordem das fotos em ${labelOf(categoryId)} foi alterada.`);
   }
 
@@ -356,7 +779,32 @@
     const [photo] = list.splice(index, 1);
     revokePhoto(photo);
     render();
+    persistPhotoGroup(categoryId);
     setStatus("Foto excluida", `A foto foi removida de ${labelOf(categoryId)}.`);
+  }
+
+  async function clearPhotoGroup(categoryId) {
+    const list = state[categoryId];
+    if (!list || !list.length) {
+      setStatus("Grupo sem fotos", `${labelOf(categoryId)} nao possui fotos para limpar.`);
+      return false;
+    }
+
+    const label = labelOf(categoryId);
+    if (!window.confirm(`Remover todas as fotos de ${label}?`)) return false;
+    list.forEach(invalidatePhoto);
+    list.length = 0;
+    render();
+    if (photoStorageAvailable()) {
+      try {
+        await clearPhotoGroupRecords(photoProfileKey(), categoryId);
+      } catch (error) {
+        handlePhotoStorageError(error);
+        return true;
+      }
+    }
+    setStatus("Fotos removidas", `Todas as fotos de ${label} foram removidas.`);
+    return true;
   }
 
   function renderTabs() {
@@ -373,22 +821,33 @@
     });
   }
 
+  function photoStatusLabel(photo) {
+    if (photo.status === "pending") return "Na fila";
+    if (photo.status === "optimizing") return "Otimizando...";
+    if (photo.status === "error") return "Falha na otimização";
+    return "✓ Otimizada";
+  }
+
   function renderPanels() {
     nodes.panels.innerHTML = template.categories.map((category) => {
       const photos = state[category.id];
-      const cards = photos.map((photo, index) => `
+      const cards = photos.map((photo, index) => {
+        const status = photo.status || (photo.optimizedForReport ? "ready" : "pending");
+        return `
         <article class="photo-card">
           <img src="${photo.url}" alt="${escapeHtml(photo.name)}">
           <div class="photo-meta">
             <strong>${index + 1}. ${escapeHtml(photo.name)}</strong>
-            <span class="photo-optimized">Foto otimizada</span>
+            <span class="photo-optimized photo-status-${status}">${photoStatusLabel(photo)}</span>
             <div class="photo-actions">
               <button type="button" data-move-photo="${photo.id}" data-direction="-1" ${index === 0 ? "disabled" : ""}>Subir</button>
               <button type="button" data-move-photo="${photo.id}" data-direction="1" ${index === photos.length - 1 ? "disabled" : ""}>Descer</button>
+              ${status === "error" ? `<button type="button" data-retry-photo="${photo.id}">Tentar</button>` : ""}
               <button type="button" data-remove-photo="${photo.id}">Excluir</button>
             </div>
           </div>
-        </article>`).join("");
+        </article>`;
+      }).join("");
 
       return `
         <article class="category-panel ${category.id === activeCategory ? "is-active" : ""}" data-panel="${category.id}">
@@ -397,10 +856,13 @@
               <h3>${category.label}</h3>
               <span class="category-count">${photos.length} foto(s)</span>
             </div>
-            <label class="upload-button">
-              ADICIONAR FOTOS
-              <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple data-file-input="${category.id}">
-            </label>
+            <div class="photo-section-actions">
+              <label class="upload-button">
+                ADICIONAR FOTOS
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple data-file-input="${category.id}">
+              </label>
+              <button class="clear-photos-button" type="button" data-clear-photos="${category.id}">LIMPAR</button>
+            </div>
           </div>
           <label class="legend-field">
             <span>LEGENDA PADRAO</span>
@@ -413,7 +875,7 @@
     nodes.panels.querySelectorAll("[data-file-input]").forEach((input) => {
       input.addEventListener("change", () => {
         addFiles(input.dataset.fileInput, input.files).catch(() => {
-          setStatus("Falha na imagem", "Nao foi possivel otimizar uma das fotos selecionadas.");
+          setStatus("Falha na imagem", "Nao foi possivel adicionar uma das fotos selecionadas.");
         }).finally(() => {
           input.value = "";
         });
@@ -427,14 +889,30 @@
     });
 
     nodes.panels.querySelectorAll("[data-move-photo]").forEach((button) => {
-      button.addEventListener("click", () => movePhoto(activeCategory, button.dataset.movePhoto, Number(button.dataset.direction)));
+      button.addEventListener("click", () => {
+        const panel = button.closest("[data-panel]");
+        movePhoto(panel?.dataset.panel || activeCategory, button.dataset.movePhoto, Number(button.dataset.direction));
+      });
+    });
+
+    nodes.panels.querySelectorAll("[data-retry-photo]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const panel = button.closest("[data-panel]");
+        retryPhotoOptimization(panel?.dataset.panel || activeCategory, button.dataset.retryPhoto);
+      });
     });
 
     nodes.panels.querySelectorAll("[data-remove-photo]").forEach((button) => {
-      button.addEventListener("click", () => removePhoto(activeCategory, button.dataset.removePhoto));
+      button.addEventListener("click", () => {
+        const panel = button.closest("[data-panel]");
+        removePhoto(panel?.dataset.panel || activeCategory, button.dataset.removePhoto);
+      });
+    });
+
+    nodes.panels.querySelectorAll("[data-clear-photos]").forEach((button) => {
+      button.addEventListener("click", () => clearPhotoGroup(button.dataset.clearPhotos));
     });
   }
-
   function render() {
     renderChecklist();
     renderTabs();
@@ -474,25 +952,21 @@
   }
 
   async function ensurePhotosOptimized() {
-    for (const category of template.categories) {
-      for (const photo of state[category.id]) {
-        if (photo.optimizedForReport || !photo.file) continue;
-        const optimized = await optimizeReportImage(photo.file);
-        revokePhoto(photo);
-        photo.file = optimized.blob;
-        photo.url = URL.createObjectURL(optimized.blob);
-        photo.width = optimized.width;
-        photo.height = optimized.height;
-        photo.originalWidth = optimized.originalWidth;
-        photo.originalHeight = optimized.originalHeight;
-        photo.originalBytes = optimized.originalBytes;
-        photo.optimizedBytes = optimized.optimizedBytes;
-        photo.mimeType = optimized.mimeType;
-        photo.optimizedForReport = true;
-      }
+    const pending = pendingPhotosForCurrentReport();
+    if (pending.length) {
+      nodes.generate.disabled = true;
+      setStatus("Finalizando otimização", `Finalizando otimização de ${pending.length} fotos...`);
+      await waitForPhotoOptimizationsForCurrentReport();
+      nodes.generate.disabled = false;
+    }
+
+    const errors = errorPhotosForCurrentReport();
+    if (errors.length) {
+      const error = new Error(`${errors.length} foto(s) com falha de otimização.`);
+      error.code = "PHOTO_OPTIMIZATION_ERROR";
+      throw error;
     }
   }
-
   async function generatePdf() {
     const visit = visitPayload();
     if (!template.isValidDate(visit.date)) {
@@ -520,8 +994,13 @@
       await ensurePhotosOptimized();
       logoUrl = await loadReportLogoUrl();
     } catch (error) {
+      nodes.generate.disabled = false;
       reportWindow.close();
-      setStatus("Falha na logo", "Nao foi possivel carregar a logo WIA para o PDF.");
+      if (error && error.code === "PHOTO_OPTIMIZATION_ERROR") {
+        setStatus("Fotos com falha", "Remova ou tente novamente as fotos com falha antes de gerar o PDF.");
+      } else {
+        setStatus("Falha na logo", "Nao foi possivel carregar a logo WIA para o PDF.");
+      }
       return;
     }
 
@@ -545,16 +1024,21 @@
     state.city = nodes.city.value;
     loadChecklistProfile();
     renderChecklist();
+    switchPhotoContext();
   });
   nodes.workType.addEventListener("change", () => {
     state.workType = template.normalizeWorkType(nodes.workType.value);
     nodes.workType.value = state.workType;
+    loadChecklistProfile();
+    renderChecklist();
+    switchPhotoContext();
   });
   nodes.reportType.addEventListener("change", () => {
     state.reportType = template.normalizeReportType(nodes.reportType.value);
     nodes.reportType.value = state.reportType;
     loadChecklistProfile();
     renderChecklist();
+    switchPhotoContext();
   });
   nodes.city.value = state.city;
   nodes.city.setAttribute("list", "stelecom-city-options");
@@ -563,14 +1047,28 @@
   nodes.generate.addEventListener("click", generatePdf);
   loadChecklistProfile();
   render();
+  loadStoredPhotosForCurrentContext();
 
   window.StelecomApp = {
     getState: () => visitPayload(),
     getProfiles: readProfiles,
     setChecklistAnswer,
+    setChecklistBulkAnswer,
     loadChecklistProfile,
     optimizeReportImage,
+    addFiles,
+    removePhoto,
+    movePhoto,
+    clearPhotoGroup,
+    clearReportPhotos,
+    loadStoredPhotosForCurrentContext,
+    persistPhotoGroup,
+    photoProfileKey,
+    photoStorageErrorMessage,
     loadReportLogoUrl,
+    waitForPhotoOptimizationsForCurrentReport,
+    getPhotoOptimizationStats,
+    retryPhotoOptimization,
     imageOptimizationSettings: {
       maxSide: reportImageMaxSide,
       quality: reportImageQuality,
