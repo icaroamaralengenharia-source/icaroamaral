@@ -1,10 +1,13 @@
 (function () {
   const template = window.StelecomTemplate;
+  const profileStorageKey = "stelecomMunicipalProfiles";
   const state = {
     city: "Tremedal",
     workType: "DT1B",
     date: "",
     reportType: "STELECOM",
+    checklistAnswers: {},
+    profileSaved: false,
     legends: Object.fromEntries(template.categories.map((category) => [category.id, category.defaultLegend])),
     cameras: [],
     tomadas: [],
@@ -18,6 +21,7 @@
     workType: document.querySelector("[data-work-type]"),
     date: document.querySelector("[data-visit-date]"),
     reportType: document.querySelector("[data-report-type]"),
+    checklist: document.querySelector("[data-checklist-profile]"),
     tabs: document.querySelector("[data-category-tabs]"),
     panels: document.querySelector("[data-category-panels]"),
     generate: document.querySelector("[data-generate-pdf]"),
@@ -30,6 +34,120 @@
   function setStatus(title, detail) {
     nodes.statusTitle.textContent = title;
     nodes.statusDetail.textContent = detail;
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function cityKey(value) {
+    return template.normalizeCity(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "cidade";
+  }
+
+  function reportKey() {
+    return template.normalizeReportType(state.reportType).toLowerCase();
+  }
+
+  function readProfiles() {
+    try {
+      return JSON.parse(localStorage.getItem(profileStorageKey) || "{}");
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeProfiles(profiles) {
+    try {
+      localStorage.setItem(profileStorageKey, JSON.stringify(profiles || {}));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function normalizeAnswers(answers) {
+    const valid = new Set(["SIM", "NAO"]);
+    return Object.fromEntries(Object.entries(answers || {}).filter(([, value]) => valid.has(value)));
+  }
+
+  function loadChecklistProfile() {
+    const profiles = readProfiles();
+    const cityProfile = profiles[cityKey(state.city)] || {};
+    const reportProfile = cityProfile[reportKey()] || null;
+    state.checklistAnswers = normalizeAnswers(reportProfile && reportProfile.checklist);
+    state.profileSaved = Boolean(reportProfile);
+  }
+
+  function saveChecklistProfile() {
+    const profiles = readProfiles();
+    const key = cityKey(state.city);
+    profiles[key] = profiles[key] || { city: template.normalizeCity(state.city) };
+    profiles[key][reportKey()] = Object.assign({}, profiles[key][reportKey()] || {}, {
+      checklist: normalizeAnswers(state.checklistAnswers),
+      updatedAt: new Date().toISOString()
+    });
+    if (writeProfiles(profiles)) {
+      state.profileSaved = true;
+      setStatus("Dados desta cidade salvos", `${template.normalizeCity(state.city)} / ${template.normalizeReportType(state.reportType)} atualizado no navegador.`);
+    }
+  }
+
+  function checklistItems() {
+    return template.reportTypes[template.normalizeReportType(state.reportType)].checklist;
+  }
+
+  function missingChecklistItems() {
+    return checklistItems().filter((entry) => !state.checklistAnswers[String(entry.item)]);
+  }
+
+  function setChecklistAnswer(item, answer) {
+    state.checklistAnswers[String(item)] = answer;
+    saveChecklistProfile();
+    renderChecklist();
+  }
+
+  function renderChecklist() {
+    if (!nodes.checklist) return;
+    const items = checklistItems();
+    const missing = missingChecklistItems().length;
+    nodes.checklist.innerHTML = `
+      <div class="checklist-profile-head">
+        <div>
+          <h2>Tabela SIM/NÃO</h2>
+          <p>${escapeHtml(template.normalizeCity(state.city))} / ${escapeHtml(template.normalizeReportType(state.reportType))} · ${missing ? `${missing} nao definido(s)` : "todos preenchidos"}</p>
+        </div>
+        <span class="autosave-pill">${state.profileSaved ? "Dados desta cidade salvos" : "NÃO DEFINIDO"}</span>
+      </div>
+      <div class="checklist-answer-list">
+        ${items.map((entry) => {
+          const answer = state.checklistAnswers[String(entry.item)] || "";
+          return `
+            <article class="checklist-answer-card" data-checklist-item="${entry.item}">
+              <div class="checklist-answer-text">
+                <strong>${entry.item}. ${escapeHtml(entry.service)}</strong>
+                <span>${escapeHtml(entry.type)}${entry.observation ? " · " + escapeHtml(entry.observation) : ""}</span>
+              </div>
+              <div class="choice-buttons" role="group" aria-label="Item ${entry.item}">
+                <button class="choice-button ${answer === "SIM" ? "is-selected" : ""}" type="button" data-answer-item="${entry.item}" data-answer="SIM">SIM</button>
+                <button class="choice-button ${answer === "NAO" ? "is-selected" : ""}" type="button" data-answer-item="${entry.item}" data-answer="NAO">NÃO</button>
+              </div>
+              ${answer ? "" : `<small class="undefined-answer">NÃO DEFINIDO</small>`}
+            </article>`;
+        }).join("")}
+      </div>`;
+
+    nodes.checklist.querySelectorAll("[data-answer-item]").forEach((button) => {
+      button.addEventListener("click", () => setChecklistAnswer(button.dataset.answerItem, button.dataset.answer));
+    });
   }
 
   function revokePhoto(photo) {
@@ -148,16 +266,9 @@
   }
 
   function render() {
+    renderChecklist();
     renderTabs();
     renderPanels();
-  }
-
-  function escapeHtml(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 
   function visitPayload() {
@@ -166,6 +277,7 @@
       city: template.normalizeCity(state.city),
       workType: template.normalizeWorkType(state.workType),
       reportType: template.normalizeReportType(state.reportType),
+      checklistAnswers: { ...state.checklistAnswers },
       legends: { ...state.legends },
       cameras: state.cameras,
       tomadas: state.tomadas,
@@ -199,6 +311,13 @@
       return;
     }
 
+    const missing = missingChecklistItems();
+    if (missing.length) {
+      setStatus("Tabela incompleta", `Existem ${missing.length} campos da tabela ainda nao preenchidos.`);
+      nodes.checklist.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     const reportWindow = window.open("", "_blank");
     if (!reportWindow) {
       setStatus("Janela bloqueada", "Permita pop-ups para gerar o PDF.");
@@ -222,6 +341,8 @@
   });
   nodes.city.addEventListener("input", () => {
     state.city = nodes.city.value;
+    loadChecklistProfile();
+    renderChecklist();
   });
   nodes.workType.addEventListener("change", () => {
     state.workType = template.normalizeWorkType(nodes.workType.value);
@@ -230,15 +351,23 @@
   nodes.reportType.addEventListener("change", () => {
     state.reportType = template.normalizeReportType(nodes.reportType.value);
     nodes.reportType.value = state.reportType;
+    loadChecklistProfile();
+    renderChecklist();
   });
   nodes.city.value = state.city;
+  nodes.city.setAttribute("list", "stelecom-city-options");
   nodes.workType.value = state.workType;
   nodes.reportType.value = state.reportType;
   nodes.generate.addEventListener("click", generatePdf);
+  loadChecklistProfile();
   render();
 
   window.StelecomApp = {
     getState: () => visitPayload(),
+    getProfiles: readProfiles,
+    setChecklistAnswer,
+    loadChecklistProfile,
     generatePdf
   };
 })();
+

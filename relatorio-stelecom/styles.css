@@ -300,4 +300,146 @@ h3 {
   .primary-action {
     width: 100%;
   }
+
+  .checklist-profile-head,
+  .checklist-answer-card {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .choice-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .choice-button {
+    min-height: 52px;
+  }
+
+  .autosave-pill {
+    width: fit-content;
+    white-space: normal;
+  }
+}
+.checklist-profile {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.checklist-profile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checklist-profile-head p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.autosave-pill,
+.undefined-answer {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.autosave-pill {
+  border: 1px solid #bad8c4;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #eaf5ee;
+  color: var(--brand-dark);
+  white-space: nowrap;
+}
+
+.checklist-answer-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checklist-answer-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.checklist-answer-text {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.checklist-answer-text strong,
+.checklist-answer-text span {
+  overflow-wrap: anywhere;
+}
+
+.checklist-answer-text span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.choice-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.choice-button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7f9f6;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.choice-button.is-selected[data-answer="SIM"] {
+  border-color: var(--brand);
+  background: #eaf5ee;
+  color: var(--brand-dark);
+}
+
+.choice-button.is-selected[data-answer="NAO"] {
+  border-color: var(--danger);
+  background: #faeaea;
+  color: var(--danger);
+}
+
+.undefined-answer {
+  grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  .checklist-profile-head,
+  .checklist-answer-card {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .choice-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .choice-button {
+    min-height: 52px;
+  }
+
+  .autosave-pill {
+    width: fit-content;
+    white-space: normal;
+  }
 }
