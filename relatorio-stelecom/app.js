@@ -1,6 +1,10 @@
 (function () {
   const template = window.StelecomTemplate;
   const profileStorageKey = "stelecomMunicipalProfiles";
+  const reportImageMaxSide = 1400;
+  const reportImageQuality = 0.76;
+  const reportImageMimeType = "image/jpeg";
+  const acceptedPhotoPattern = /^image\/(jpeg|png|webp)$/;
   const state = {
     city: "Tremedal",
     workType: "DT1B",
@@ -154,18 +158,133 @@
     if (photo && photo.url) URL.revokeObjectURL(photo.url);
   }
 
-  function addFiles(categoryId, files) {
-    const accepted = Array.from(files || []).filter((file) => /^image\/(jpeg|png|webp)$/.test(file.type));
-    const mapped = accepted.map((file, index) => ({
+  function loadImageFromBlob(blob) {
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(blob, { imageOrientation: "from-image" });
+    }
+
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Nao foi possivel ler a imagem."));
+      };
+      image.src = url;
+    });
+  }
+
+  function canvasToBlob(canvas, mimeType, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Nao foi possivel otimizar a imagem."));
+      }, mimeType, quality);
+    });
+  }
+
+  function scaledDimensions(width, height) {
+    const maxSide = Math.max(width, height);
+    if (!maxSide || maxSide <= reportImageMaxSide) return { width, height };
+    const scale = reportImageMaxSide / maxSide;
+    return {
+      width: Math.max(1, Math.round(width * scale)),
+      height: Math.max(1, Math.round(height * scale))
+    };
+  }
+
+  async function optimizeReportImage(file) {
+    if (!file || !acceptedPhotoPattern.test(file.type || "")) {
+      throw new Error("Arquivo invalido. Use JPG, PNG ou WEBP.");
+    }
+
+    const image = await loadImageFromBlob(file);
+    const originalWidth = image.naturalWidth || image.width;
+    const originalHeight = image.naturalHeight || image.height;
+    if (!originalWidth || !originalHeight) throw new Error("Imagem sem dimensoes validas.");
+
+    const size = scaledDimensions(originalWidth, originalHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Canvas indisponivel para otimizar imagem.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, size.width, size.height);
+    context.drawImage(image, 0, 0, size.width, size.height);
+    if (typeof image.close === "function") image.close();
+
+    const optimizedBlob = await canvasToBlob(canvas, reportImageMimeType, reportImageQuality);
+    const shouldKeepOriginal = size.width === originalWidth
+      && size.height === originalHeight
+      && file.type === reportImageMimeType
+      && optimizedBlob.size >= file.size;
+    const outputBlob = shouldKeepOriginal ? file : optimizedBlob;
+
+    return {
+      blob: outputBlob,
+      width: size.width,
+      height: size.height,
+      originalWidth,
+      originalHeight,
+      originalBytes: file.size || 0,
+      optimizedBytes: outputBlob.size || file.size || 0,
+      mimeType: outputBlob.type || reportImageMimeType,
+      optimizedForReport: true,
+      compressionRatio: file.size ? outputBlob.size / file.size : 1
+    };
+  }
+
+  async function photoFromFile(categoryId, file, index) {
+    const optimized = await optimizeReportImage(file);
+    return {
       id: categoryId + "-" + Date.now() + "-" + index + "-" + Math.random().toString(16).slice(2),
       name: file.name,
-      file,
-      url: URL.createObjectURL(file),
+      file: optimized.blob,
+      url: URL.createObjectURL(optimized.blob),
+      width: optimized.width,
+      height: optimized.height,
+      originalWidth: optimized.originalWidth,
+      originalHeight: optimized.originalHeight,
+      originalBytes: optimized.originalBytes,
+      optimizedBytes: optimized.optimizedBytes,
+      mimeType: optimized.mimeType,
+      optimizedForReport: true,
       legend: state.legends[categoryId]
-    }));
+    };
+  }
+
+  async function addFiles(categoryId, files) {
+    const selected = Array.from(files || []);
+    const accepted = selected.filter((file) => acceptedPhotoPattern.test(file.type || ""));
+    const blocked = selected.length - accepted.length;
+    if (!accepted.length) {
+      if (blocked) setStatus("Arquivo invalido", "Use apenas imagens JPG, PNG ou WEBP.");
+      return;
+    }
+
+    setStatus("Otimizando fotos", `${accepted.length} foto(s) sendo preparadas para PDF leve.`);
+    const mapped = [];
+    try {
+      for (const [index, file] of accepted.entries()) {
+        mapped.push(await photoFromFile(categoryId, file, index));
+      }
+    } catch (error) {
+      mapped.forEach(revokePhoto);
+      throw error;
+    }
+
     state[categoryId].push(...mapped);
     render();
-    setStatus("Fotos adicionadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}.`);
+    const originalBytes = mapped.reduce((total, photo) => total + photo.originalBytes, 0);
+    const optimizedBytes = mapped.reduce((total, photo) => total + photo.optimizedBytes, 0);
+    const reduction = originalBytes ? Math.max(0, Math.round((1 - optimizedBytes / originalBytes) * 100)) : 0;
+    const invalidText = blocked ? ` ${blocked} arquivo(s) ignorado(s).` : "";
+    setStatus("Fotos otimizadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}. Reducao aproximada: ${reduction}%.${invalidText}`);
   }
 
   function labelOf(categoryId) {
@@ -215,6 +334,7 @@
           <img src="${photo.url}" alt="${escapeHtml(photo.name)}">
           <div class="photo-meta">
             <strong>${index + 1}. ${escapeHtml(photo.name)}</strong>
+            <span class="photo-optimized">Foto otimizada</span>
             <div class="photo-actions">
               <button type="button" data-move-photo="${photo.id}" data-direction="-1" ${index === 0 ? "disabled" : ""}>Subir</button>
               <button type="button" data-move-photo="${photo.id}" data-direction="1" ${index === photos.length - 1 ? "disabled" : ""}>Descer</button>
@@ -245,8 +365,11 @@
 
     nodes.panels.querySelectorAll("[data-file-input]").forEach((input) => {
       input.addEventListener("change", () => {
-        addFiles(input.dataset.fileInput, input.files);
-        input.value = "";
+        addFiles(input.dataset.fileInput, input.files).catch(() => {
+          setStatus("Falha na imagem", "Nao foi possivel otimizar uma das fotos selecionadas.");
+        }).finally(() => {
+          input.value = "";
+        });
       });
     });
 
@@ -303,7 +426,27 @@
     })));
   }
 
-  function generatePdf() {
+  async function ensurePhotosOptimized() {
+    for (const category of template.categories) {
+      for (const photo of state[category.id]) {
+        if (photo.optimizedForReport || !photo.file) continue;
+        const optimized = await optimizeReportImage(photo.file);
+        revokePhoto(photo);
+        photo.file = optimized.blob;
+        photo.url = URL.createObjectURL(optimized.blob);
+        photo.width = optimized.width;
+        photo.height = optimized.height;
+        photo.originalWidth = optimized.originalWidth;
+        photo.originalHeight = optimized.originalHeight;
+        photo.originalBytes = optimized.originalBytes;
+        photo.optimizedBytes = optimized.optimizedBytes;
+        photo.mimeType = optimized.mimeType;
+        photo.optimizedForReport = true;
+      }
+    }
+  }
+
+  async function generatePdf() {
     const visit = visitPayload();
     if (!template.isValidDate(visit.date)) {
       nodes.date.focus();
@@ -324,15 +467,25 @@
       return;
     }
 
+    setStatus("Otimizando PDF", "Conferindo fotos antes de montar o relatorio.");
+    try {
+      await ensurePhotosOptimized();
+    } catch (error) {
+      reportWindow.close();
+      setStatus("Falha na imagem", "Nao foi possivel preparar uma foto para o PDF.");
+      return;
+    }
+
+    const optimizedVisit = visitPayload();
     reportWindow.document.open();
-    reportWindow.document.write(template.buildStelecomReport(visit, visit.reportType).replace('./styles.css', new URL('./styles.css', location.href).href));
+    reportWindow.document.write(template.buildStelecomReport(optimizedVisit, optimizedVisit.reportType).replace('./styles.css', new URL('./styles.css', location.href).href));
     reportWindow.document.close();
-    reportWindow.document.title = template.buildFilename(visit, visit.reportType);
+    reportWindow.document.title = template.buildFilename(optimizedVisit, optimizedVisit.reportType);
     waitForReportImages(reportWindow).then(() => {
       reportWindow.focus();
       reportWindow.print();
     });
-    setStatus("PDF preparado", `Use Salvar como PDF com o nome ${template.buildFilename(visit, visit.reportType)}.`);
+    setStatus("PDF preparado", `Use Salvar como PDF com o nome ${template.buildFilename(optimizedVisit, optimizedVisit.reportType)}.`);
   }
 
   nodes.date.addEventListener("input", () => {
@@ -367,6 +520,12 @@
     getProfiles: readProfiles,
     setChecklistAnswer,
     loadChecklistProfile,
+    optimizeReportImage,
+    imageOptimizationSettings: {
+      maxSide: reportImageMaxSide,
+      quality: reportImageQuality,
+      mimeType: reportImageMimeType
+    },
     generatePdf
   };
 })();
