@@ -359,6 +359,22 @@
     setStatus("Foto excluida", `A foto foi removida de ${labelOf(categoryId)}.`);
   }
 
+  function clearPhotoGroup(categoryId) {
+    const list = state[categoryId];
+    if (!list || !list.length) {
+      setStatus("Grupo sem fotos", `${labelOf(categoryId)} nao possui fotos para limpar.`);
+      return false;
+    }
+
+    const label = labelOf(categoryId);
+    if (!window.confirm(`Remover todas as fotos de ${label}?`)) return false;
+    list.forEach(revokePhoto);
+    list.length = 0;
+    render();
+    setStatus("Fotos removidas", `Todas as fotos de ${label} foram removidas.`);
+    return true;
+  }
+
   function renderTabs() {
     nodes.tabs.innerHTML = template.categories.map((category) => `
       <button class="category-tab ${category.id === activeCategory ? "is-active" : ""}" type="button" data-open-category="${category.id}">
@@ -397,10 +413,13 @@
               <h3>${category.label}</h3>
               <span class="category-count">${photos.length} foto(s)</span>
             </div>
-            <label class="upload-button">
-              ADICIONAR FOTOS
-              <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple data-file-input="${category.id}">
-            </label>
+            <div class="photo-section-actions">
+              <label class="upload-button">
+                ADICIONAR FOTOS
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple data-file-input="${category.id}">
+              </label>
+              <button class="clear-photos-button" type="button" data-clear-photos="${category.id}">LIMPAR</button>
+            </div>
           </div>
           <label class="legend-field">
             <span>LEGENDA PADRAO</span>
@@ -427,11 +446,21 @@
     });
 
     nodes.panels.querySelectorAll("[data-move-photo]").forEach((button) => {
-      button.addEventListener("click", () => movePhoto(activeCategory, button.dataset.movePhoto, Number(button.dataset.direction)));
+      button.addEventListener("click", () => {
+        const panel = button.closest("[data-panel]");
+        movePhoto(panel?.dataset.panel || activeCategory, button.dataset.movePhoto, Number(button.dataset.direction));
+      });
     });
 
     nodes.panels.querySelectorAll("[data-remove-photo]").forEach((button) => {
-      button.addEventListener("click", () => removePhoto(activeCategory, button.dataset.removePhoto));
+      button.addEventListener("click", () => {
+        const panel = button.closest("[data-panel]");
+        removePhoto(panel?.dataset.panel || activeCategory, button.dataset.removePhoto);
+      });
+    });
+
+    nodes.panels.querySelectorAll("[data-clear-photos]").forEach((button) => {
+      button.addEventListener("click", () => clearPhotoGroup(button.dataset.clearPhotos));
     });
   }
 
@@ -570,6 +599,8 @@
     setChecklistAnswer,
     loadChecklistProfile,
     optimizeReportImage,
+    addFiles,
+    clearPhotoGroup,
     loadReportLogoUrl,
     imageOptimizationSettings: {
       maxSide: reportImageMaxSide,

@@ -83,6 +83,7 @@ h3 {
 
 .primary-action,
 .upload-button,
+.clear-photos-button,
 .photo-actions button {
   border: 0;
   border-radius: 6px;
@@ -179,12 +180,28 @@ h3 {
   font-size: 13px;
 }
 
-.upload-button {
+.photo-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.upload-button,
+.clear-photos-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 40px;
   padding: 0 14px;
+}
+
+.clear-photos-button {
+  border: 1px solid #e3b6b6;
+  background: #fff6f6;
+  color: var(--danger);
+}
+.upload-button {
   background: var(--brand-dark);
   color: #fff;
 }
@@ -305,6 +322,15 @@ h3 {
 
   .primary-action {
     width: 100%;
+  }
+  .photo-section-actions {
+    justify-content: stretch;
+  }
+
+  .upload-button,
+  .clear-photos-button {
+    flex: 1 1 140px;
+    min-height: 48px;
   }
 
   .checklist-profile-head,
