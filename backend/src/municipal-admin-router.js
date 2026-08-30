@@ -1,6 +1,7 @@
 import express from "express";
 import { createMunicipalAdminService, createSupabaseMunicipalAdminStore, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
 import { createMunicipalOperationalShelfService } from "./municipal-operational-shelf-service.js";
+import { createMunicipalProfileReviewService } from "./municipal-profile-review-service.js";
 
 function clean(value) {
   return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -46,6 +47,7 @@ export function createMunicipalAdminRouter(options = {}) {
   const database = options.database || null;
   let service = options.service || null;
   let operationalShelfService = options.operationalShelfService || null;
+  let municipalProfileReviewService = options.municipalProfileReviewService || null;
   const resolveAuthContext = options.resolveAuthContext;
 
   function getService() {
@@ -65,6 +67,12 @@ export function createMunicipalAdminRouter(options = {}) {
     const shelfStore = options.operationalShelfStore || options.store || createSupabaseMunicipalAdminStore(database);
     operationalShelfService = createMunicipalOperationalShelfService({ store: shelfStore });
     return operationalShelfService;
+  }
+  function getMunicipalProfileReviewService() {
+    if (municipalProfileReviewService) return municipalProfileReviewService;
+    const reviewStore = options.municipalProfileReviewStore || options.store || createSupabaseMunicipalAdminStore(database);
+    municipalProfileReviewService = createMunicipalProfileReviewService({ store: reviewStore });
+    return municipalProfileReviewService;
   }
 
   async function requireContext(request) {
@@ -115,6 +123,8 @@ export function createMunicipalAdminRouter(options = {}) {
   router.patch("/users/:userId/units", route((request, context, svc) => svc.updateUserUnits(context, request.params.userId, request.body || {})));
   router.post("/users/:userId/deactivate", route((request, context, svc) => svc.deactivateUser(context, request.params.userId)));
   router.get("/me", route((request, context, svc) => svc.me(context)));
+  router.get("/municipal-profile-imports/:importId", route((request, context) => getMunicipalProfileReviewService().getMunicipalProfileImport(context, request.params.importId)));
+  router.put("/municipal-profile-imports/:importId/review", route((request, context) => getMunicipalProfileReviewService().saveMunicipalImportReview(context, request.params.importId, request.body || {})));
 
   router.post("/invites/:token/accept", async (request, response) => {
     try {

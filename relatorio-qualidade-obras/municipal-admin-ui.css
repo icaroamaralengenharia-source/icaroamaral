@@ -132,4 +132,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .ma-brand h1 { font-size: 1.45rem; }
   .ma-card { min-height: 82px; }
   .ma-card strong { font-size: 1.45rem; }
+}.ma-import-review { display: grid; gap: 10px; }
+.ma-import-header { display: grid; gap: 5px; padding: 11px; border: 1px solid rgba(31, 111, 174, 0.18); border-radius: 8px; background: #f8fbfe; }
+.ma-import-filters { background: #f8fbfe; box-shadow: none; }
+.ma-import-row { border-left: 5px solid var(--ma-line); }
+.ma-import-row.is-high { border-left-color: #176b4d; }
+.ma-import-row.is-medium { border-left-color: #9a6a13; }
+.ma-import-row.is-low { border-left-color: #9b2c2c; }
+.ma-import-row.is-unmatched { border-left-color: #607188; }
+.ma-import-detail .ma-form { box-shadow: none; }
+.ma-import-detail p { overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .ma-import-header { padding: 10px; }
+  .ma-import-detail .ma-form-grid, .ma-import-filters .ma-form-grid { grid-template-columns: 1fr; }
 }
