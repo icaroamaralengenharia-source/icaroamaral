@@ -36,6 +36,11 @@
 
   let activeCategory = template.categories[0].id;
   let reportLogoUrlPromise = null;
+  let photoDbPromise = null;
+  let photoContextLoadToken = 0;
+  const photoDatabaseName = "obrareport-stelecom-photos";
+  const photoDatabaseVersion = 1;
+  const photoStoreName = "photos";
 
   function setStatus(title, detail) {
     nodes.statusTitle.textContent = title;
@@ -61,6 +66,227 @@
 
   function reportKey() {
     return template.normalizeReportType(state.reportType).toLowerCase();
+  }
+
+
+  function photoProfileKey() {
+    return [
+      cityKey(state.city),
+      reportKey(),
+      template.normalizeWorkType(state.workType).toLowerCase()
+    ].join("|");
+  }
+
+  function photoContextGroupKey(profileKey, group) {
+    return `${profileKey}|${group}`;
+  }
+
+  function photoRecordId(profileKey, group, photoId) {
+    return `${photoContextGroupKey(profileKey, group)}|${photoId}`;
+  }
+
+  function photoStorageAvailable() {
+    return typeof indexedDB !== "undefined" && indexedDB && typeof indexedDB.open === "function";
+  }
+
+  function requestToPromise(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("IndexedDB indisponivel."));
+    });
+  }
+
+  function transactionDone(transaction) {
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error || new Error("IndexedDB abortado."));
+      transaction.onerror = () => reject(transaction.error || new Error("IndexedDB indisponivel."));
+    });
+  }
+
+  function openPhotoDatabase() {
+    if (!photoStorageAvailable()) return Promise.reject(new Error("IndexedDB indisponivel."));
+    if (photoDbPromise) return photoDbPromise;
+
+    photoDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(photoDatabaseName, photoDatabaseVersion);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        const store = database.objectStoreNames.contains(photoStoreName)
+          ? request.transaction.objectStore(photoStoreName)
+          : database.createObjectStore(photoStoreName, { keyPath: "id" });
+        if (!store.indexNames.contains("profileKey")) store.createIndex("profileKey", "profileKey", { unique: false });
+        if (!store.indexNames.contains("profileGroup")) store.createIndex("profileGroup", "profileGroup", { unique: false });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        photoDbPromise = null;
+        reject(request.error || new Error("IndexedDB indisponivel."));
+      };
+      request.onblocked = () => {
+        photoDbPromise = null;
+        reject(new Error("IndexedDB bloqueado."));
+      };
+    });
+
+    return photoDbPromise;
+  }
+
+  async function getAllPhotoRecords() {
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readonly");
+    const done = transactionDone(transaction);
+    const records = await requestToPromise(transaction.objectStore(photoStoreName).getAll());
+    await done;
+    return Array.isArray(records) ? records : [];
+  }
+
+  async function listPhotoRecords(profileKey) {
+    const records = await getAllPhotoRecords();
+    return records
+      .filter((record) => record.profileKey === profileKey)
+      .sort((left, right) => (left.group || "").localeCompare(right.group || "") || (left.order || 0) - (right.order || 0));
+  }
+
+  async function deletePhotoRecordsByFilter(filter) {
+    const records = (await getAllPhotoRecords()).filter(filter);
+    if (!records.length) return;
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(photoStoreName);
+    records.forEach((record) => store.delete(record.id));
+    await done;
+  }
+
+  async function clearPhotoGroupRecords(profileKey, group) {
+    await deletePhotoRecordsByFilter((record) => record.profileGroup === photoContextGroupKey(profileKey, group));
+  }
+
+  async function clearReportPhotos(profileKey) {
+    await deletePhotoRecordsByFilter((record) => record.profileKey === profileKey);
+  }
+
+  function photoStorageErrorMessage(error) {
+    if (error && error.name === "QuotaExceededError") {
+      return "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.";
+    }
+    return "Não foi possível salvar as fotos neste dispositivo.";
+  }
+
+  function handlePhotoStorageError(error) {
+    setStatus("Fotos não persistidas", photoStorageErrorMessage(error));
+  }
+
+  function photoToRecord(profileKey, group, photo, order) {
+    const blob = photo.file || photo.blob;
+    return {
+      id: photoRecordId(profileKey, group, photo.id),
+      photoId: photo.id,
+      profileKey,
+      profileGroup: photoContextGroupKey(profileKey, group),
+      city: template.normalizeCity(state.city),
+      reportType: template.normalizeReportType(state.reportType),
+      buildingType: template.normalizeWorkType(state.workType),
+      group,
+      order,
+      blob,
+      mimeType: photo.mimeType || blob?.type || reportImageMimeType,
+      width: photo.width || 0,
+      height: photo.height || 0,
+      originalWidth: photo.originalWidth || photo.width || 0,
+      originalHeight: photo.originalHeight || photo.height || 0,
+      originalBytes: photo.originalBytes || blob?.size || 0,
+      optimizedBytes: photo.optimizedBytes || blob?.size || 0,
+      optimized: true,
+      optimizedForReport: true,
+      name: photo.name || "foto.jpg",
+      legend: photo.legend || state.legends[group],
+      createdAt: photo.createdAt || new Date().toISOString()
+    };
+  }
+
+  async function savePhotoRecords(profileKey, group, photos) {
+    await clearPhotoGroupRecords(profileKey, group);
+    const records = (photos || []).map((photo, order) => photoToRecord(profileKey, group, photo, order)).filter((record) => record.blob);
+    if (!records.length) return;
+    const database = await openPhotoDatabase();
+    const transaction = database.transaction(photoStoreName, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(photoStoreName);
+    records.forEach((record) => store.put(record));
+    await done;
+  }
+
+  async function persistPhotoGroup(categoryId) {
+    if (!photoStorageAvailable()) {
+      handlePhotoStorageError(new Error("IndexedDB indisponivel."));
+      return false;
+    }
+    try {
+      await savePhotoRecords(photoProfileKey(), categoryId, state[categoryId]);
+      return true;
+    } catch (error) {
+      handlePhotoStorageError(error);
+      return false;
+    }
+  }
+
+  function photoFromRecord(record) {
+    const blob = record.blob;
+    return {
+      id: record.photoId || record.id,
+      name: record.name || "foto.jpg",
+      file: blob,
+      url: URL.createObjectURL(blob),
+      width: record.width || 0,
+      height: record.height || 0,
+      originalWidth: record.originalWidth || record.width || 0,
+      originalHeight: record.originalHeight || record.height || 0,
+      originalBytes: record.originalBytes || blob?.size || 0,
+      optimizedBytes: record.optimizedBytes || blob?.size || 0,
+      mimeType: record.mimeType || blob?.type || reportImageMimeType,
+      optimizedForReport: true,
+      persisted: true,
+      legend: record.legend || state.legends[record.group],
+      createdAt: record.createdAt
+    };
+  }
+
+  function clearStatePhotos() {
+    template.categories.forEach((category) => {
+      state[category.id].forEach(revokePhoto);
+      state[category.id] = [];
+    });
+  }
+
+  async function loadStoredPhotosForCurrentContext() {
+    const profileKey = photoProfileKey();
+    const token = ++photoContextLoadToken;
+    if (!photoStorageAvailable()) return false;
+    try {
+      const records = await listPhotoRecords(profileKey);
+      if (token !== photoContextLoadToken || profileKey !== photoProfileKey()) return false;
+      clearStatePhotos();
+      template.categories.forEach((category) => {
+        state[category.id] = records
+          .filter((record) => record.group === category.id)
+          .sort((left, right) => (left.order || 0) - (right.order || 0))
+          .map(photoFromRecord);
+      });
+      render();
+      return true;
+    } catch (error) {
+      if (token === photoContextLoadToken) handlePhotoStorageError(error);
+      return false;
+    }
+  }
+
+  function switchPhotoContext() {
+    photoContextLoadToken += 1;
+    clearStatePhotos();
+    render();
+    loadStoredPhotosForCurrentContext();
   }
 
   function readProfiles() {
@@ -301,7 +527,8 @@
       optimizedBytes: optimized.optimizedBytes,
       mimeType: optimized.mimeType,
       optimizedForReport: true,
-      legend: state.legends[categoryId]
+      legend: state.legends[categoryId],
+      createdAt: new Date().toISOString()
     };
   }
 
@@ -326,12 +553,15 @@
     }
 
     state[categoryId].push(...mapped);
+    const persisted = await persistPhotoGroup(categoryId);
     render();
     const originalBytes = mapped.reduce((total, photo) => total + photo.originalBytes, 0);
     const optimizedBytes = mapped.reduce((total, photo) => total + photo.optimizedBytes, 0);
     const reduction = originalBytes ? Math.max(0, Math.round((1 - optimizedBytes / originalBytes) * 100)) : 0;
     const invalidText = blocked ? ` ${blocked} arquivo(s) ignorado(s).` : "";
-    setStatus("Fotos otimizadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}. Reducao aproximada: ${reduction}%.${invalidText}`);
+    if (persisted) {
+      setStatus("Fotos otimizadas", `${mapped.length} foto(s) adicionada(s) em ${labelOf(categoryId)}. Reducao aproximada: ${reduction}%.${invalidText}`);
+    }
   }
 
   function labelOf(categoryId) {
@@ -346,6 +576,7 @@
     const [photo] = list.splice(index, 1);
     list.splice(target, 0, photo);
     render();
+    persistPhotoGroup(categoryId);
     setStatus("Ordem atualizada", `A ordem das fotos em ${labelOf(categoryId)} foi alterada.`);
   }
 
@@ -356,10 +587,11 @@
     const [photo] = list.splice(index, 1);
     revokePhoto(photo);
     render();
+    persistPhotoGroup(categoryId);
     setStatus("Foto excluida", `A foto foi removida de ${labelOf(categoryId)}.`);
   }
 
-  function clearPhotoGroup(categoryId) {
+  async function clearPhotoGroup(categoryId) {
     const list = state[categoryId];
     if (!list || !list.length) {
       setStatus("Grupo sem fotos", `${labelOf(categoryId)} nao possui fotos para limpar.`);
@@ -371,6 +603,14 @@
     list.forEach(revokePhoto);
     list.length = 0;
     render();
+    if (photoStorageAvailable()) {
+      try {
+        await clearPhotoGroupRecords(photoProfileKey(), categoryId);
+      } catch (error) {
+        handlePhotoStorageError(error);
+        return true;
+      }
+    }
     setStatus("Fotos removidas", `Todas as fotos de ${label} foram removidas.`);
     return true;
   }
@@ -574,16 +814,19 @@
     state.city = nodes.city.value;
     loadChecklistProfile();
     renderChecklist();
+    switchPhotoContext();
   });
   nodes.workType.addEventListener("change", () => {
     state.workType = template.normalizeWorkType(nodes.workType.value);
     nodes.workType.value = state.workType;
+    switchPhotoContext();
   });
   nodes.reportType.addEventListener("change", () => {
     state.reportType = template.normalizeReportType(nodes.reportType.value);
     nodes.reportType.value = state.reportType;
     loadChecklistProfile();
     renderChecklist();
+    switchPhotoContext();
   });
   nodes.city.value = state.city;
   nodes.city.setAttribute("list", "stelecom-city-options");
@@ -592,6 +835,7 @@
   nodes.generate.addEventListener("click", generatePdf);
   loadChecklistProfile();
   render();
+  loadStoredPhotosForCurrentContext();
 
   window.StelecomApp = {
     getState: () => visitPayload(),
@@ -600,7 +844,14 @@
     loadChecklistProfile,
     optimizeReportImage,
     addFiles,
+    removePhoto,
+    movePhoto,
     clearPhotoGroup,
+    clearReportPhotos,
+    loadStoredPhotosForCurrentContext,
+    persistPhotoGroup,
+    photoProfileKey,
+    photoStorageErrorMessage,
     loadReportLogoUrl,
     imageOptimizationSettings: {
       maxSide: reportImageMaxSide,
