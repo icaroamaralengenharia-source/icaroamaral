@@ -80,3 +80,106 @@ test("mobile usa cards e botões grandes, sem tabela horizontal para SIM/NAO", (
   assert.match(css, /min-height: 52px/);
   assert.match(css, /@media \(max-width: 720px\)/);
 });
+
+function createAppContext() {
+  const template = loadTemplate();
+  const node = () => ({
+    value: "",
+    dataset: {},
+    textContent: "",
+    innerHTML: "",
+    addEventListener() {},
+    setAttribute() {},
+    focus() {},
+    scrollIntoView() {},
+    querySelectorAll() { return []; }
+  });
+  const nodes = new Map();
+  const document = {
+    querySelector(selector) {
+      if (!nodes.has(selector)) nodes.set(selector, node());
+      return nodes.get(selector);
+    },
+    createElement(tagName) {
+      assert.equal(tagName, "canvas");
+      return {
+        width: 0,
+        height: 0,
+        getContext() {
+          return {
+            fillStyle: "",
+            fillRect() {},
+            drawImage() {}
+          };
+        },
+        toBlob(callback, mimeType, quality) {
+          callback({
+            size: Math.max(1, Math.round(this.width * this.height * quality * 0.25)),
+            type: mimeType
+          });
+        }
+      };
+    }
+  };
+  const context = {
+    console,
+    document,
+    localStorage: { getItem() { return null; }, setItem() {} },
+    URL: { createObjectURL() { return "blob:optimized"; }, revokeObjectURL() {} },
+    createImageBitmap(file) {
+      return Promise.resolve({
+        width: file.width,
+        height: file.height,
+        close() {}
+      });
+    },
+    window: { StelecomTemplate: template }
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(app, context);
+  return context.window.StelecomApp;
+}
+
+function imageFile({ width, height, size, type = "image/jpeg", name = "foto.jpg" }) {
+  return { width, height, size, type, name };
+}
+
+test("otimizacao reduz fotos grandes sem alterar proporcao e gera JPEG para o PDF", async () => {
+  const appContext = createAppContext();
+  const settings = appContext.imageOptimizationSettings;
+  assert.equal(settings.maxSide, 1400);
+  assert.equal(settings.quality, 0.76);
+  assert.equal(settings.mimeType, "image/jpeg");
+
+  const horizontal = await appContext.optimizeReportImage(imageFile({ width: 4000, height: 2000, size: 6000000 }));
+  assert.equal(horizontal.width, 1400);
+  assert.equal(horizontal.height, 700);
+  assert.equal(horizontal.mimeType, "image/jpeg");
+  assert.ok(horizontal.optimizedBytes < horizontal.originalBytes);
+
+  const vertical = await appContext.optimizeReportImage(imageFile({ width: 2000, height: 4000, size: 6000000 }));
+  assert.equal(vertical.width, 700);
+  assert.equal(vertical.height, 1400);
+
+  const square = await appContext.optimizeReportImage(imageFile({ width: 3000, height: 3000, size: 7000000, type: "image/png" }));
+  assert.equal(square.width, 1400);
+  assert.equal(square.height, 1400);
+  assert.equal(square.mimeType, "image/jpeg");
+});
+
+test("otimizacao nao amplia imagem menor e bloqueia arquivo invalido", async () => {
+  const appContext = createAppContext();
+  const small = await appContext.optimizeReportImage(imageFile({ width: 800, height: 600, size: 700000, type: "image/jpeg" }));
+  assert.equal(small.width, 800);
+  assert.equal(small.height, 600);
+  assert.ok(small.optimizedBytes <= small.originalBytes);
+
+  await assert.rejects(
+    () => appContext.optimizeReportImage({ type: "application/pdf", size: 1000, name: "arquivo.pdf" }),
+    /Arquivo invalido/
+  );
+});
+
+
+
