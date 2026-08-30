@@ -193,10 +193,14 @@ function createAppContext(options = {}) {
     return value;
   };
   URLMock.revokeObjectURL = (value) => urlState.revoked.push(value);
+  const storage = options.localStorageStore || new Map();
   const context = {
     console,
     document,
-    localStorage: { getItem() { return null; }, setItem() {} },
+    localStorage: {
+      getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+      setItem(key, value) { storage.set(key, String(value)); }
+    },
     URL: URLMock,
     FileReader: options.FileReaderImpl || function FileReader() {},
     fetch: options.fetchImpl || (async () => ({ ok: false })),
@@ -217,6 +221,27 @@ function createAppContext(options = {}) {
   context.window.StelecomApp.__nodes = nodes;
   context.window.StelecomApp.__urlState = urlState;
   return context.window.StelecomApp;
+}
+
+function setAppContext(appContext, { city = "Tremedal", reportType = "STELECOM", workType = "DT1B" } = {}) {
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  const workNode = appContext.__nodes.get("[data-work-type]");
+  cityNode.value = city;
+  cityNode.listeners.input();
+  reportNode.value = reportType;
+  reportNode.listeners.change();
+  workNode.value = workType;
+  workNode.listeners.change();
+}
+
+function answersFor(appContext, template, reportType) {
+  const answers = appContext.getState().checklistAnswers;
+  return template.reportTypes[reportType].checklist.map((entry) => answers[String(entry.item)] || "");
+}
+
+function allAnswersAre(appContext, template, reportType, answer) {
+  return answersFor(appContext, template, reportType).every((value) => value === answer);
 }
 
 function imageFile({ width, height, size, type = "image/jpeg", name = "foto.jpg" }) {
@@ -641,4 +666,101 @@ test("PDF usa fotos restauradas do IndexedDB sem depender do File original", asy
 
   assert.match(report, /blob:optimized-/);
   assert.match(report, /RACK/);
+});
+test("Todos SIM e Todos NAO preenchem, alternam e mantem exclusividade", () => {
+  const template = loadTemplate();
+  const appContext = createAppContext();
+  assert.equal(template.stelecomChecklistItems.length, 13);
+  assert.equal(template.sgtoChecklistItems.length, 15);
+
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.ok(allAnswersAre(appContext, template, "STELECOM", "SIM"));
+  const htmlAfterAllSim = appContext.__nodes.get("[data-checklist-profile]").innerHTML;
+  assert.equal((htmlAfterAllSim.match(/data-answer="SIM">SIM<\/button>/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/data-answer="NAO">NÃO<\/button>/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/choice-button is-selected" type="button" data-answer-item="\d+" data-answer="SIM"/g) || []).length, 13);
+  assert.equal((htmlAfterAllSim.match(/choice-button is-selected" type="button" data-answer-item="\d+" data-answer="NAO"/g) || []).length, 0);
+
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.equal(Object.keys(appContext.getState().checklistAnswers).length, 0);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(appContext, template, "STELECOM", "NAO"));
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.equal(Object.keys(appContext.getState().checklistAnswers).length, 0);
+});
+
+test("estado misto vira Todos SIM ou Todos NAO sem tocar observacoes do template", () => {
+  const template = loadTemplate();
+  const observation = template.sgtoChecklistItems.find((entry) => entry.observation)?.observation;
+  const appContext = createAppContext();
+  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+
+  appContext.setChecklistAnswer(1, "SIM");
+  appContext.setChecklistAnswer(2, "NAO");
+  appContext.setChecklistAnswer(3, "SIM");
+  appContext.setChecklistBulkAnswer("SIM");
+  assert.ok(allAnswersAre(appContext, template, "SGTO", "SIM"));
+  assert.equal(template.sgtoChecklistItems.find((entry) => entry.observation)?.observation, observation);
+
+  appContext.setChecklistAnswer(4, "SIM");
+  appContext.setChecklistAnswer(5, "NAO");
+  appContext.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(appContext, template, "SGTO", "NAO"));
+  assert.equal(template.sgtoChecklistItems.find((entry) => entry.observation)?.observation, observation);
+});
+
+test("preenchimento em lote autosalva e isola cidade, relatorio e DT1B/PM1B", () => {
+  const template = loadTemplate();
+  const storage = new Map();
+  const firstLoad = createAppContext({ localStorageStore: storage });
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+  firstLoad.setChecklistBulkAnswer("SIM");
+
+  const profiles = firstLoad.getProfiles();
+  assert.ok(profiles.ibicoara["sgto|dt1b"]);
+  assert.equal(profiles.ibicoara["sgto|dt1b"].workType, "DT1B");
+  assert.ok(Object.values(profiles.ibicoara["sgto|dt1b"].checklist).every((value) => value === "SIM"));
+
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "SGTO", workType: "PM1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+  firstLoad.setChecklistBulkAnswer("NAO");
+  assert.ok(allAnswersAre(firstLoad, template, "SGTO", "NAO"));
+
+  setAppContext(firstLoad, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+  setAppContext(firstLoad, { city: "Tremedal", reportType: "SGTO", workType: "DT1B" });
+  assert.equal(Object.keys(firstLoad.getState().checklistAnswers).length, 0);
+
+  const reload = createAppContext({ localStorageStore: storage });
+  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
+  assert.ok(allAnswersAre(reload, template, "SGTO", "SIM"));
+  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "PM1B" });
+  assert.ok(allAnswersAre(reload, template, "SGTO", "NAO"));
+});
+
+test("PDF reflete Todos SIM, Todos NAO e tudo desmarcado", () => {
+  const template = loadTemplate();
+  const appContext = createAppContext();
+  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
+
+  appContext.setChecklistBulkAnswer("SIM");
+  let report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark">X<\/td>\s*<td class="col-mark"><\/td>/g) || []).length, 13);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark"><\/td>\s*<td class="col-mark">X<\/td>/g) || []).length, 13);
+
+  appContext.setChecklistBulkAnswer("NAO");
+  report = template.buildStelecomReport(Object.assign(appContext.getState(), { date: "30/08/2026" }), "STELECOM");
+  assert.equal((report.match(/<td class="col-mark">X<\/td>/g) || []).length, 0);
+});
+
+test("UI de preenchimento rapido possui estado ativo e suporte mobile", () => {
+  assert.match(app, /class="checklist-bulk-actions"/);
+  assert.match(app, /data-bulk-answer="SIM"/);
+  assert.match(app, /aria-pressed="\$\{allSim \? "true" : "false"\}"/);
+  assert.match(css, /\.bulk-answer-button/);
+  assert.match(css, /min-height: 52px/);
 });

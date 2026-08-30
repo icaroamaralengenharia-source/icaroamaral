@@ -67,13 +67,20 @@
   function reportKey() {
     return template.normalizeReportType(state.reportType).toLowerCase();
   }
+  function workKey() {
+    return template.normalizeWorkType(state.workType).toLowerCase();
+  }
+
+  function checklistProfileKey() {
+    return `${reportKey()}|${workKey()}`;
+  }
 
 
   function photoProfileKey() {
     return [
       cityKey(state.city),
       reportKey(),
-      template.normalizeWorkType(state.workType).toLowerCase()
+      workKey()
     ].join("|");
   }
 
@@ -314,7 +321,9 @@
   function loadChecklistProfile() {
     const profiles = readProfiles();
     const cityProfile = profiles[cityKey(state.city)] || {};
-    const reportProfile = cityProfile[reportKey()] || null;
+    const scopedProfile = cityProfile[checklistProfileKey()] || null;
+    const legacyProfile = cityProfile[reportKey()] || null;
+    const reportProfile = scopedProfile || legacyProfile;
     state.checklistAnswers = normalizeAnswers(reportProfile && reportProfile.checklist);
     state.profileSaved = Boolean(reportProfile);
   }
@@ -322,14 +331,16 @@
   function saveChecklistProfile() {
     const profiles = readProfiles();
     const key = cityKey(state.city);
+    const profileKey = checklistProfileKey();
     profiles[key] = profiles[key] || { city: template.normalizeCity(state.city) };
-    profiles[key][reportKey()] = Object.assign({}, profiles[key][reportKey()] || {}, {
+    profiles[key][profileKey] = Object.assign({}, profiles[key][profileKey] || {}, {
       checklist: normalizeAnswers(state.checklistAnswers),
+      workType: template.normalizeWorkType(state.workType),
       updatedAt: new Date().toISOString()
     });
     if (writeProfiles(profiles)) {
       state.profileSaved = true;
-      setStatus("Dados desta cidade salvos", `${template.normalizeCity(state.city)} / ${template.normalizeReportType(state.reportType)} atualizado no navegador.`);
+      setStatus("Dados desta cidade salvos", `${template.normalizeCity(state.city)} / ${template.normalizeReportType(state.reportType)} / ${template.normalizeWorkType(state.workType)} atualizado no navegador.`);
     }
   }
 
@@ -346,18 +357,41 @@
     saveChecklistProfile();
     renderChecklist();
   }
+  function allChecklistAnsweredAs(answer) {
+    const items = checklistItems();
+    return items.length > 0 && items.every((entry) => state.checklistAnswers[String(entry.item)] === answer);
+  }
+
+  function setChecklistBulkAnswer(answer) {
+    const normalized = answer === "NAO" ? "NAO" : "SIM";
+    const shouldClear = allChecklistAnsweredAs(normalized);
+    checklistItems().forEach((entry) => {
+      const key = String(entry.item);
+      if (shouldClear) delete state.checklistAnswers[key];
+      else state.checklistAnswers[key] = normalized;
+    });
+    saveChecklistProfile();
+    renderChecklist();
+  }
 
   function renderChecklist() {
     if (!nodes.checklist) return;
     const items = checklistItems();
     const missing = missingChecklistItems().length;
+    const allSim = allChecklistAnsweredAs("SIM");
+    const allNao = allChecklistAnsweredAs("NAO");
     nodes.checklist.innerHTML = `
       <div class="checklist-profile-head">
         <div>
           <h2>Tabela SIM/NÃO</h2>
-          <p>${escapeHtml(template.normalizeCity(state.city))} / ${escapeHtml(template.normalizeReportType(state.reportType))} · ${missing ? `${missing} nao definido(s)` : "todos preenchidos"}</p>
+          <p>${escapeHtml(template.normalizeCity(state.city))} / ${escapeHtml(template.normalizeReportType(state.reportType))} / ${escapeHtml(template.normalizeWorkType(state.workType))} · ${missing ? `${missing} nao definido(s)` : "todos preenchidos"}</p>
         </div>
         <span class="autosave-pill">${state.profileSaved ? "Dados desta cidade salvos" : "NÃO DEFINIDO"}</span>
+      </div>
+      <div class="checklist-bulk-actions" aria-label="Preenchimento rapido da tabela">
+        <span>Preenchimento rápido</span>
+        <button class="bulk-answer-button ${allSim ? "is-active" : ""}" type="button" data-bulk-answer="SIM" aria-pressed="${allSim ? "true" : "false"}">Todos SIM</button>
+        <button class="bulk-answer-button ${allNao ? "is-active" : ""}" type="button" data-bulk-answer="NAO" aria-pressed="${allNao ? "true" : "false"}">Todos NÃO</button>
       </div>
       <div class="checklist-answer-list">
         ${items.map((entry) => {
@@ -379,6 +413,10 @@
 
     nodes.checklist.querySelectorAll("[data-answer-item]").forEach((button) => {
       button.addEventListener("click", () => setChecklistAnswer(button.dataset.answerItem, button.dataset.answer));
+    });
+
+    nodes.checklist.querySelectorAll("[data-bulk-answer]").forEach((button) => {
+      button.addEventListener("click", () => setChecklistBulkAnswer(button.dataset.bulkAnswer));
     });
   }
 
@@ -819,6 +857,8 @@
   nodes.workType.addEventListener("change", () => {
     state.workType = template.normalizeWorkType(nodes.workType.value);
     nodes.workType.value = state.workType;
+    loadChecklistProfile();
+    renderChecklist();
     switchPhotoContext();
   });
   nodes.reportType.addEventListener("change", () => {
@@ -841,6 +881,7 @@
     getState: () => visitPayload(),
     getProfiles: readProfiles,
     setChecklistAnswer,
+    setChecklistBulkAnswer,
     loadChecklistProfile,
     optimizeReportImage,
     addFiles,
