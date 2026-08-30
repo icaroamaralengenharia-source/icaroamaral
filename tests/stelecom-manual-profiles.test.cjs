@@ -141,7 +141,7 @@ function createAppContext(options = {}) {
         close() {}
       });
     },
-    window: { StelecomTemplate: template }
+    window: { StelecomTemplate: template, confirm: options.confirmImpl || (() => true) }
   };
   context.globalThis = context;
   vm.createContext(context);
@@ -361,5 +361,85 @@ test("app usa fallback data URL da logo WIA quando fetch local falha", async () 
   const logoUrl = await appContext.loadReportLogoUrl();
   assert.match(logoUrl, /^data:image\/png;base64,/);
   assert.ok(logoUrl.length > 1000);
+});
+
+test("acoes em lote adicionam e limpam fotos por grupo sem misturar categorias", async () => {
+  let confirms = 0;
+  const appContext = createAppContext({
+    confirmImpl(message) {
+      confirms += 1;
+      assert.match(message, /Remover todas as fotos de CAMERAS\?/);
+      return true;
+    }
+  });
+  const photo = imageFile({ width: 900, height: 600, size: 500000, name: "grupo.jpg" });
+
+  await appContext.addFiles("cameras", [photo, photo]);
+  await appContext.addFiles("tomadas", [photo]);
+  assert.equal(appContext.getState().cameras.length, 2);
+  assert.equal(appContext.getState().tomadas.length, 1);
+
+  assert.equal(appContext.clearPhotoGroup("cameras"), true);
+  assert.equal(confirms, 1);
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("acoes em lote cobrem todos os grupos reais de fotografia", async () => {
+  const appContext = createAppContext();
+  const template = loadTemplate();
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "auditoria.jpg" });
+
+  for (const category of template.categories) {
+    await appContext.addFiles(category.id, [photo]);
+    assert.equal(appContext.getState()[category.id].length, 1, `${category.label} deveria receber foto`);
+    assert.equal(appContext.clearPhotoGroup(category.id), true, `${category.label} deveria limpar fotos`);
+    assert.equal(appContext.getState()[category.id].length, 0, `${category.label} deveria ficar vazio`);
+  }
+});
+
+test("cancelar limpeza mantem fotos e grupo vazio nao pede confirmacao", async () => {
+  let confirms = 0;
+  const appContext = createAppContext({
+    confirmImpl() {
+      confirms += 1;
+      return false;
+    }
+  });
+  const photo = imageFile({ width: 640, height: 480, size: 120000, name: "cancelar.jpg" });
+
+  await appContext.addFiles("rack", [photo]);
+  assert.equal(appContext.clearPhotoGroup("rack"), false);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(confirms, 1);
+
+  assert.equal(appContext.clearPhotoGroup("caixa"), false);
+  assert.equal(appContext.getState().caixa.length, 0);
+  assert.equal(confirms, 1);
+});
+
+test("UI mostra adicionar fotos e limpar por grupo, mas controles nao aparecem no PDF", () => {
+  const template = loadTemplate();
+  assert.match(app, /class="photo-section-actions"/);
+  assert.match(app, /data-clear-photos="\$\{category\.id\}"/);
+  assert.match(app, /multiple data-file-input="\$\{category\.id\}"/);
+  assert.match(css, /\.photo-section-actions/);
+  assert.match(css, /\.clear-photos-button/);
+
+  const report = template.buildStelecomReport({
+    date: "30/08/2026",
+    city: "Ibicoara",
+    workType: "DT1B",
+    reportType: "STELECOM",
+    checklistAnswers: Object.fromEntries(template.stelecomChecklistItems.map((entry) => [String(entry.item), "SIM"])),
+    legends: {},
+    cameras: [],
+    tomadas: [],
+    rack: [],
+    caixa: [],
+    mastro: []
+  }, "STELECOM");
+
+  assert.doesNotMatch(report, /ADICIONAR FOTOS|LIMPAR|data-clear-photos|photo-section-actions/);
 });
 
