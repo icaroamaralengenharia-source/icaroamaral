@@ -48,6 +48,34 @@ function createAuthClient() {
   };
 }
 
+
+function createStockFullLoginClient() {
+  const profile = { id: "profile-a", auth_user_id: "user-a", company_id: legacyCompany, institution_id: institutionA, role: "gestor", status: "ativo", email: "trial@example.com" };
+  return {
+    auth: {
+      async signInWithPassword(credentials) {
+        if (credentials && credentials.email === "trial@example.com" && credentials.password === "correta") {
+          return {
+            data: {
+              user: { id: "user-a", email: "trial@example.com" },
+              session: { access_token: "token-a", refresh_token: "refresh-a", expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: "bearer" }
+            },
+            error: null
+          };
+        }
+        return { data: { user: null, session: null }, error: { message: "invalid_credentials" } };
+      },
+      async getUser(token) {
+        return token === "token-a" ? { data: { user: { id: "user-a", email: "trial@example.com" } }, error: null } : { data: { user: null }, error: { message: "invalid" } };
+      }
+    },
+    from(table) {
+      if (table !== "profiles") throw new Error("unexpected stock full table " + table);
+      let authUserId = "";
+      return { select() { return this; }, eq(column, value) { if (column === "auth_user_id") authUserId = String(value); return this; }, async maybeSingle() { return { data: authUserId === "user-a" ? clone(profile) : null, error: null }; } };
+    }
+  };
+}
 function createEntitlementClient(state) {
   function queryBuilder() {
     const filters = [];
@@ -98,6 +126,7 @@ async function startBackend(state) {
   const client = createEntitlementClient(state);
   const app = createApp({
     authContextSupabaseClient: createAuthClient(),
+    stockFullSupabaseClient: createStockFullLoginClient(),
     apartmentHandoverEntitlementSupabaseClient: client,
     resolveApartmentHandoverAccess(input) { return resolveApartmentHandoverAccess({ ...input, supabase: client }); },
     authorizeApartmentHandoverInspectionUsage(input) { return authorizeApartmentHandoverInspectionUsage({ ...input, supabase: client }); },
@@ -123,6 +152,18 @@ async function openTrial(page, baseUrl, token) {
   await page.goto(`${appUrl}/vistoria-entrega-apartamento-trial/index.html`);
 }
 
+
+async function openTrialWithoutSession(page, baseUrl) {
+  await page.addInitScript(({ baseUrl }) => {
+    window.OBRAREPORT_API_BASE_URL = baseUrl;
+    if (!sessionStorage.getItem("trial-login-test-ready")) {
+      localStorage.clear();
+      sessionStorage.clear();
+      sessionStorage.setItem("trial-login-test-ready", "1");
+    }
+  }, { baseUrl });
+  await page.goto(`${appUrl}/vistoria-entrega-apartamento-trial/index.html`);
+}
 async function protectedPdf(page, inspectionId, mode = "final") {
   return page.evaluate(async (payload) => {
     const response = await fetch(window.OBRAREPORT_API_BASE_URL + "/api/apartment-handover/pdf-protected", {
@@ -219,6 +260,51 @@ test("trial paralelo limita 2 vistorias concluidas por institution e preserva re
     await contextA.close();
     await contextB.close();
     await contextOther.close();
+  } finally {
+    await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("trial paralelo autentica usuario sem consumir uso", async ({ browser }) => {
+  const state = {
+    pdfBuilderCalls: 0,
+    rows: [{ id: "ent-a", institution_id: institutionA, module_key: "apartment_handover", status: "trial_active", trial_limit: 2, trial_used: 0 }],
+    usages: []
+  };
+  const backend = await startBackend(state);
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await openTrialWithoutSession(page, backend.baseUrl);
+
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    await expect(page.locator("text=Acesse sua conta")).toBeVisible();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+
+    await page.locator("[data-trial-login-email]").fill("trial@example.com");
+    await page.locator("[data-trial-login-password]").fill("errada");
+    await page.locator("[data-trial-login-submit]").click();
+    await expect(page.locator("[data-trial-login-error]")).toContainText("E-mail ou senha inválidos.");
+    expect(state.rows[0].trial_used).toBe(0);
+
+    await page.locator("[data-trial-login-password]").fill("correta");
+    await page.locator("[data-trial-login-submit]").click();
+    await expect(page.locator("[data-trial-banner]")).toContainText("0 de 2 vistorias utilizadas");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeHidden();
+    expect(await page.evaluate(() => window.ApartmentHandoverAccess.findAccessToken())).toBe("token-a");
+    expect(await page.evaluate(() => window.ApartmentHandoverAccess.authenticatedHeaders({ "Content-Type": "application/json" }).Authorization)).toBe("Bearer token-a");
+    expect(state.rows[0].trial_used).toBe(0);
+
+    await page.reload();
+    await expect(page.locator("[data-trial-banner]")).toContainText("0 de 2 vistorias utilizadas");
+    expect(state.rows[0].trial_used).toBe(0);
+
+    await page.locator("[data-trial-logout]").click();
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    expect(await page.evaluate(() => window.ApartmentHandoverAccess.findAccessToken())).toBe("");
+    expect(state.rows[0].trial_used).toBe(0);
+
+    await context.close();
   } finally {
     await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
   }

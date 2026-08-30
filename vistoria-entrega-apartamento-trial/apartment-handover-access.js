@@ -2,7 +2,9 @@
   "use strict";
 
   const root = typeof window !== "undefined" ? window : globalThis;
-  const state = { access: null, mounted: false, checking: false };
+  const AUTH_STORAGE_KEY = "obrareport-apartment-handover-auth-v1";
+  const LEGACY_TOKEN_KEY = "sb-trial-auth-token";
+  const state = { access: null, mounted: false, checking: false, loginBusy: false };
 
   function text(value) {
     return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -14,6 +16,14 @@
 
   function readStorage(storage, key) {
     try { return storage && storage.getItem(key); } catch (_) { return ""; }
+  }
+
+  function writeStorage(storage, key, value) {
+    try { if (storage) storage.setItem(key, value); } catch (_) {}
+  }
+
+  function removeStorage(storage, key) {
+    try { if (storage) storage.removeItem(key); } catch (_) {}
   }
 
   function tokenIn(value, depth) {
@@ -38,6 +48,8 @@
   }
 
   function findAccessToken() {
+    const stored = tokenIn(readStorage(root.localStorage, AUTH_STORAGE_KEY), 0);
+    if (stored) return stored;
     const direct = text(root.APARTMENT_HANDOVER_AUTH_TOKEN || root.ELO_AUTH_TOKEN || root.OBRAREPORT_AUTH_TOKEN);
     if (direct) return direct;
     for (const storage of [root.localStorage, root.sessionStorage].filter(Boolean)) {
@@ -56,7 +68,36 @@
   }
 
   function apiBaseUrl() {
-    return text(root.OBRAREPORT_API_BASE_URL || root.API_BASE_URL || "").replace(/\/+$/g, "");
+    return text(root.OBRAREPORT_API_BASE_URL || root.API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
+  }
+
+  function isAuthenticationRequired(access) {
+    const code = text(access && access.code).toLowerCase();
+    const status = text(access && access.status).toLowerCase();
+    return code === "authentication_required" || status === "missing_session" || status === "authentication_required" || status === "invalid_session";
+  }
+
+  function persistSession(session) {
+    const safe = session && typeof session === "object" ? session : {};
+    const accessToken = text(safe.access_token);
+    if (!accessToken) return false;
+    writeStorage(root.localStorage, AUTH_STORAGE_KEY, JSON.stringify({
+      currentSession: {
+        access_token: accessToken,
+        refresh_token: text(safe.refresh_token),
+        expires_at: safe.expires_at || null,
+        token_type: text(safe.token_type) || "bearer"
+      },
+      savedAt: Date.now()
+    }));
+    return true;
+  }
+
+  function clearSession() {
+    removeStorage(root.localStorage, AUTH_STORAGE_KEY);
+    removeStorage(root.sessionStorage, AUTH_STORAGE_KEY);
+    removeStorage(root.localStorage, LEGACY_TOKEN_KEY);
+    removeStorage(root.sessionStorage, LEGACY_TOKEN_KEY);
   }
 
   function limitText(access) {
@@ -82,6 +123,23 @@
     overlay.style.cssText = "position:fixed;inset:0;z-index:80;background:rgba(11,18,32,.82);display:none;align-items:center;justify-content:center;padding:24px";
     overlay.innerHTML = '<section style="max-width:460px;background:#fff;color:#172033;padding:24px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.28);font-family:system-ui"><p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a3ffc">Vistoria de Entrega</p><h1 data-trial-overlay-title style="margin:0 0 12px;font-size:24px;line-height:1.15">ACESSO INDISPONÍVEL</h1><p data-trial-overlay-message style="margin:0 0 18px;line-height:1.45">Sua empresa ainda não possui autorização para este módulo.</p><a href="mailto:contato@icaroamaral.com.br?subject=Ativar%20Vistoria%20de%20Entrega" style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;background:#12312b;color:#fff;text-decoration:none;border-radius:6px;font-weight:700">ENTRAR EM CONTATO</a></section>';
     document.body.appendChild(overlay);
+
+    const loginOverlay = document.createElement("div");
+    loginOverlay.setAttribute("data-trial-login-overlay", "");
+    loginOverlay.style.cssText = "position:fixed;inset:0;z-index:90;background:rgba(11,18,32,.82);display:none;align-items:center;justify-content:center;padding:24px";
+    loginOverlay.innerHTML = '<form data-trial-login-form style="width:min(100%,420px);background:#fff;color:#172033;padding:24px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.28);font-family:system-ui;display:grid;gap:14px"><header style="display:grid;gap:6px"><p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#65716d">Vistoria de Entrega</p><h1 style="margin:0;font-size:24px;line-height:1.15">Acesse sua conta</h1></header><label style="display:grid;gap:6px;color:#65716d;font-size:13px;font-weight:800">E-mail<input data-trial-login-email type="email" autocomplete="email" required style="min-height:44px;border:1px solid #d7dfda;border-radius:6px;padding:10px;color:#17221f"></label><label style="display:grid;gap:6px;color:#65716d;font-size:13px;font-weight:800">Senha<input data-trial-login-password type="password" autocomplete="current-password" required style="min-height:44px;border:1px solid #d7dfda;border-radius:6px;padding:10px;color:#17221f"></label><p data-trial-login-error style="margin:0;min-height:20px;color:#b42318;font-size:13px;font-weight:800"></p><button data-trial-login-submit type="submit" style="min-height:44px;border:1px solid #1f6f5b;border-radius:6px;background:#1f6f5b;color:#fff;font-weight:800;cursor:pointer">ENTRAR</button></form>';
+    document.body.appendChild(loginOverlay);
+
+    const logout = document.createElement("button");
+    logout.setAttribute("data-trial-logout", "");
+    logout.type = "button";
+    logout.textContent = "SAIR";
+    logout.style.cssText = "position:fixed;right:16px;bottom:70px;z-index:41;min-height:34px;border:1px solid #d7dfda;border-radius:6px;background:#fff;color:#17221f;font:800 12px system-ui;padding:7px 9px;cursor:pointer;display:none";
+    document.body.appendChild(logout);
+
+    const loginForm = loginOverlay.querySelector("[data-trial-login-form]");
+    if (loginForm) loginForm.addEventListener("submit", login);
+    logout.addEventListener("click", logoutUser);
   }
 
   function emitAccessChanged(access) {
@@ -92,25 +150,86 @@
     ensureNodes();
     const banner = document.querySelector("[data-trial-banner]");
     const overlay = document.querySelector("[data-trial-overlay]");
+    const loginOverlay = document.querySelector("[data-trial-login-overlay]");
+    const logout = document.querySelector("[data-trial-logout]");
     const overlayTitle = document.querySelector("[data-trial-overlay-title]");
     const overlayMessage = document.querySelector("[data-trial-overlay-message]");
     if (banner) banner.hidden = true;
     if (overlay) overlay.style.display = "none";
+    if (loginOverlay) loginOverlay.style.display = "none";
+    if (logout) logout.style.display = "none";
     if (!access) return;
+    if (isAuthenticationRequired(access)) {
+      if (loginOverlay) loginOverlay.style.display = "flex";
+      return;
+    }
     if (access.allowed) {
       if (banner) {
         banner.textContent = limitText(access);
         banner.hidden = false;
       }
+      if (logout) logout.style.display = "block";
       return;
     }
     if (overlayTitle) overlayTitle.textContent = access.code === "MODULE_BLOCKED" ? "ACESSO BLOQUEADO" : "ACESSO INDISPONÍVEL";
     if (overlayMessage) {
       overlayMessage.textContent = access.code === "NO_ENTITLEMENT"
-        ? "Sua empresa ainda não possui autorização para iniciar este módulo. Entre em contato para ativar o acesso."
-        : "Este módulo está bloqueado para a sua empresa. Entre em contato para regularizar o acesso.";
+        ? "Este módulo não está habilitado para sua empresa."
+        : "Entre em contato para regularizar o acesso.";
     }
     if (overlay) overlay.style.display = "flex";
+    if (logout && findAccessToken()) logout.style.display = "block";
+  }
+
+  async function login(event) {
+    if (event && typeof event.preventDefault === "function") event.preventDefault();
+    if (state.loginBusy) return;
+    ensureNodes();
+    const emailInput = document.querySelector("[data-trial-login-email]");
+    const passwordInput = document.querySelector("[data-trial-login-password]");
+    const errorNode = document.querySelector("[data-trial-login-error]");
+    const submit = document.querySelector("[data-trial-login-submit]");
+    const email = text(emailInput && emailInput.value).toLowerCase();
+    const password = String(passwordInput && passwordInput.value || "");
+    if (!email || !password) {
+      if (errorNode) errorNode.textContent = "Informe e-mail e senha.";
+      return;
+    }
+    state.loginBusy = true;
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "ENTRANDO...";
+    }
+    if (errorNode) errorNode.textContent = "";
+    try {
+      const response = await fetch(apiBaseUrl() + "/api/stock-full/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const body = await response.json().catch(function () { return {}; });
+      if (!response.ok || !body || !body.session || !persistSession(body.session)) {
+        if (errorNode) errorNode.textContent = "E-mail ou senha inválidos.";
+        return;
+      }
+      if (passwordInput) passwordInput.value = "";
+      await checkAccess({ force: true });
+    } catch (_) {
+      if (errorNode) errorNode.textContent = "Não foi possível entrar agora.";
+    } finally {
+      state.loginBusy = false;
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = "ENTRAR";
+      }
+    }
+  }
+
+  async function logoutUser() {
+    clearSession();
+    state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+    render(state.access);
+    emitAccessChanged(state.access);
   }
 
   async function checkAccess() {
@@ -129,6 +248,7 @@
         headers: { Authorization: "Bearer " + token }
       });
       const body = await response.json().catch(function () { return {}; });
+      if (response.status === 401) clearSession();
       state.access = Object.assign({ allowed: response.ok && body.allowed === true }, body);
       render(state.access);
       emitAccessChanged(state.access);
@@ -148,7 +268,7 @@
     return Object.assign({}, headers || {}, token ? { Authorization: "Bearer " + token } : {});
   }
 
-  root.ApartmentHandoverAccess = { checkAccess, ensureAllowed, authenticatedHeaders, findAccessToken, getState: function () { return Object.assign({}, state.access || {}); } };
+  root.ApartmentHandoverAccess = { checkAccess, ensureAllowed, authenticatedHeaders, findAccessToken, login, logout: logoutUser, getState: function () { return Object.assign({}, state.access || {}); } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", checkAccess);
   else checkAccess();
 })();
