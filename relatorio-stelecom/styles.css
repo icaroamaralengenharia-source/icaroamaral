@@ -269,9 +269,22 @@ h3 {
   font-weight: 700;
 }
 
+.photo-status-pending,
+.photo-status-optimizing {
+  color: #7a5a00;
+}
+
+.photo-status-ready {
+  color: var(--brand-dark);
+}
+
+.photo-status-error {
+  color: var(--danger);
+}
+
 .photo-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
   gap: 6px;
 }
 
@@ -280,6 +293,11 @@ h3 {
   background: #edf1ee;
   color: var(--ink);
   font-size: 12px;
+}
+
+.photo-actions button[data-retry-photo] {
+  background: #fff4cf;
+  color: #7a5a00;
 }
 
 .photo-actions button[data-remove-photo] {

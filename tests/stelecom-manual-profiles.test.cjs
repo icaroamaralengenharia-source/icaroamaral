@@ -206,14 +206,12 @@ function createAppContext(options = {}) {
     fetch: options.fetchImpl || (async () => ({ ok: false })),
     indexedDB: options.indexedDB,
     location: { href: "https://www.icaroamaral.com.br/relatorio-stelecom/" },
-    createImageBitmap(file) {
-      return Promise.resolve({
-        width: file.width,
-        height: file.height,
-        close() {}
-      });
-    },
-    window: { StelecomTemplate: template, confirm: options.confirmImpl || (() => true) }
+    createImageBitmap: options.createImageBitmapImpl || ((file) => Promise.resolve({
+      width: file.width,
+      height: file.height,
+      close() {}
+    })),
+    window: { StelecomTemplate: template, confirm: options.confirmImpl || (() => true), open: options.openImpl }
   };
   context.globalThis = context;
   vm.createContext(context);
@@ -246,6 +244,25 @@ function allAnswersAre(appContext, template, reportType, answer) {
 
 function imageFile({ width, height, size, type = "image/jpeg", name = "foto.jpg" }) {
   return { width, height, size, type, name };
+}
+
+async function addReady(appContext, categoryId, files) {
+  await appContext.addFiles(categoryId, files);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function tick() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 test("otimizacao reduz fotos grandes sem alterar proporcao e gera JPEG para o PDF", async () => {
@@ -469,8 +486,8 @@ test("acoes em lote adicionam e limpam fotos por grupo sem misturar categorias",
   });
   const photo = imageFile({ width: 900, height: 600, size: 500000, name: "grupo.jpg" });
 
-  await appContext.addFiles("cameras", [photo, photo]);
-  await appContext.addFiles("tomadas", [photo]);
+  await addReady(appContext, "cameras", [photo, photo]);
+  await addReady(appContext, "tomadas", [photo]);
   assert.equal(appContext.getState().cameras.length, 2);
   assert.equal(appContext.getState().tomadas.length, 1);
 
@@ -486,7 +503,7 @@ test("acoes em lote cobrem todos os grupos reais de fotografia", async () => {
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "auditoria.jpg" });
 
   for (const category of template.categories) {
-    await appContext.addFiles(category.id, [photo]);
+    await addReady(appContext, category.id, [photo]);
     assert.equal(appContext.getState()[category.id].length, 1, `${category.label} deveria receber foto`);
     assert.equal(await appContext.clearPhotoGroup(category.id), true, `${category.label} deveria limpar fotos`);
     assert.equal(appContext.getState()[category.id].length, 0, `${category.label} deveria ficar vazio`);
@@ -503,7 +520,7 @@ test("cancelar limpeza mantem fotos e grupo vazio nao pede confirmacao", async (
   });
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "cancelar.jpg" });
 
-  await appContext.addFiles("rack", [photo]);
+  await addReady(appContext, "rack", [photo]);
   assert.equal(await appContext.clearPhotoGroup("rack"), false);
   assert.equal(appContext.getState().rack.length, 1);
   assert.equal(confirms, 1);
@@ -545,8 +562,8 @@ test("IndexedDB salva, restaura apos reload e recria ObjectURL em ordem", async 
   const firstLoad = createAppContext({ indexedDB });
   await firstLoad.loadStoredPhotosForCurrentContext();
 
-  await firstLoad.addFiles("cameras", [photo, photo]);
-  await firstLoad.addFiles("tomadas", [photo]);
+  await addReady(firstLoad, "cameras", [photo, photo]);
+  await addReady(firstLoad, "tomadas", [photo]);
   const originalIds = firstLoad.getState().cameras.map((item) => item.id);
   assert.equal(firstLoad.getState().cameras.length, 2);
   assert.equal(firstLoad.getState().tomadas.length, 1);
@@ -576,8 +593,8 @@ test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
   workNode.value = "DT1B";
   workNode.listeners.change();
   await appContext.loadStoredPhotosForCurrentContext();
-  await appContext.addFiles("cameras", [photo]);
-  await appContext.addFiles("tomadas", [photo]);
+  await addReady(appContext, "cameras", [photo]);
+  await addReady(appContext, "tomadas", [photo]);
   assert.equal(appContext.getState().cameras.length, 1);
   assert.equal(appContext.getState().tomadas.length, 1);
 
@@ -616,8 +633,8 @@ test("remover uma foto e limpar grupo removem apenas os registros certos", async
   await appContext.loadStoredPhotosForCurrentContext();
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "limpeza.jpg" });
 
-  await appContext.addFiles("cameras", [photo, photo]);
-  await appContext.addFiles("tomadas", [photo]);
+  await addReady(appContext, "cameras", [photo, photo]);
+  await addReady(appContext, "tomadas", [photo]);
   const removedUrl = appContext.getState().cameras[0].url;
   const cameraId = appContext.getState().cameras[0].id;
   appContext.removePhoto("cameras", cameraId);
@@ -644,7 +661,7 @@ test("quota do IndexedDB mostra aviso controlado e mantem foto em sessao", async
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "quota.jpg" });
 
   assert.equal(appContext.photoStorageErrorMessage({ name: "QuotaExceededError" }), "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
-  await appContext.addFiles("mastro", [photo]);
+  await addReady(appContext, "mastro", [photo]);
   assert.equal(appContext.getState().mastro.length, 1);
   assert.equal(appContext.__nodes.get("[data-status-detail]").textContent, "Armazenamento do navegador cheio. Remova fotos antigas ou conclua os relatórios.");
 });
@@ -654,7 +671,7 @@ test("PDF usa fotos restauradas do IndexedDB sem depender do File original", asy
   const appContext = createAppContext({ indexedDB });
   await appContext.loadStoredPhotosForCurrentContext();
   const photo = imageFile({ width: 640, height: 480, size: 120000, name: "pdf.jpg" });
-  await appContext.addFiles("rack", [photo]);
+  await addReady(appContext, "rack", [photo]);
 
   const reload = createAppContext({ indexedDB });
   await reload.loadStoredPhotosForCurrentContext();
@@ -666,6 +683,181 @@ test("PDF usa fotos restauradas do IndexedDB sem depender do File original", asy
 
   assert.match(report, /blob:optimized-/);
   assert.match(report, /RACK/);
+});
+test("upload mostra preview antes da otimização assíncrona e persiste apenas foto pronta", async () => {
+  const gate = deferred();
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  const photo = imageFile({ width: 2200, height: 1200, size: 2800000, name: "preview.jpg" });
+
+  await appContext.addFiles("cameras", [photo]);
+  const item = appContext.getState().cameras[0];
+  assert.equal(item.status, "optimizing");
+  assert.equal(item.optimizedForReport, false);
+  assert.equal(item.file, null);
+  const previewUrl = item.url;
+  assert.match(previewUrl, /blob:optimized-/);
+  assert.equal(indexedDB.records.size, 0);
+  assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Otimizando\.\.\.|Na fila/);
+
+  gate.resolve();
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.equal(appContext.getState().cameras[0].status, "ready");
+  assert.equal(appContext.getState().cameras[0].optimizedForReport, true);
+  assert.equal(indexedDB.records.size, 1);
+  assert.ok(appContext.__urlState.revoked.includes(previewUrl));
+});
+
+test("fila de fotos respeita concorrência 2 e drena itens pendentes", async () => {
+  const gates = [];
+  let active = 0;
+  let maxActive = 0;
+  const appContext = createAppContext({
+    createImageBitmapImpl: (file) => {
+      const gate = deferred();
+      gates.push({ gate, file });
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} })).finally(() => {
+        active -= 1;
+      });
+    }
+  });
+  const files = Array.from({ length: 5 }, (_, index) => imageFile({ width: 1600, height: 900, size: 1000000, name: `fila-${index}.jpg` }));
+
+  await appContext.addFiles("cameras", files);
+  assert.equal(appContext.getPhotoOptimizationStats().limit, 2);
+  assert.equal(appContext.getPhotoOptimizationStats().active, 2);
+  assert.equal(appContext.getPhotoOptimizationStats().queued, 3);
+
+  for (let index = 0; index < files.length; index += 1) {
+    while (!gates.length) await tick();
+    const current = gates.shift();
+    current.gate.resolve();
+    await tick();
+  }
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.ok(maxActive <= 2);
+  assert.equal(appContext.getPhotoOptimizationStats().pending, 0);
+  assert.equal(appContext.getState().cameras.filter((photo) => photo.status === "ready").length, 5);
+});
+
+test("remover ou limpar invalida otimização atrasada sem regravar fotos", async () => {
+  const gates = [];
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => {
+      const gate = deferred();
+      gates.push({ gate, file });
+      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }));
+    }
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+
+  await appContext.addFiles("cameras", [imageFile({ width: 900, height: 600, size: 500000, name: "remove.jpg" })]);
+  const removedUrl = appContext.getState().cameras[0].url;
+  appContext.removePhoto("cameras", appContext.getState().cameras[0].id);
+  gates.shift().gate.resolve();
+  await tick();
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+  assert.ok(appContext.__urlState.revoked.includes(removedUrl));
+
+  await appContext.addFiles("tomadas", [imageFile({ width: 900, height: 600, size: 500000, name: "clear.jpg" })]);
+  assert.equal(await appContext.clearPhotoGroup("tomadas"), true);
+  gates.shift().gate.resolve();
+  await tick();
+  assert.equal(appContext.getState().tomadas.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+});
+
+test("troca de cidade invalida resultado atrasado e não mistura contexto", async () => {
+  const gate = deferred();
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await appContext.addFiles("rack", [imageFile({ width: 900, height: 600, size: 500000, name: "cidade.jpg" })]);
+
+  const cityNode = appContext.__nodes.get("[data-visit-city]");
+  cityNode.value = "Ibicoara";
+  cityNode.listeners.input();
+  gate.resolve();
+  await tick();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.equal(appContext.getState().rack.length, 0);
+  assert.equal(indexedDB.records.size, 0);
+});
+
+test("falha de otimização fica isolada e IndexedDB salva somente fotos ready", async () => {
+  const indexedDB = createFakeIndexedDB();
+  let calls = 0;
+  const appContext = createAppContext({
+    indexedDB,
+    createImageBitmapImpl: (file) => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error("imagem quebrada"));
+      return Promise.resolve({ width: file.width, height: file.height, close() {} });
+    }
+  });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await appContext.addFiles("caixa", [
+    imageFile({ width: 900, height: 600, size: 500000, name: "erro.jpg" }),
+    imageFile({ width: 900, height: 600, size: 500000, name: "ok.jpg" })
+  ]);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+
+  assert.equal(appContext.getPhotoOptimizationStats().errors, 1);
+  assert.equal(appContext.getState().caixa.filter((photo) => photo.status === "ready").length, 1);
+  assert.equal(indexedDB.records.size, 1);
+  assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Falha na otimização/);
+});
+
+test("gerar PDF aguarda otimização pendente e usa somente blob otimizado", async () => {
+  const gate = deferred();
+  let written = "";
+  const reportWindow = {
+    document: {
+      images: [],
+      title: "",
+      open() {},
+      write(html) { written = html; },
+      close() {}
+    },
+    close() {},
+    focus() {},
+    print() {}
+  };
+  const appContext = createAppContext({
+    openImpl: () => reportWindow,
+    createImageBitmapImpl: (file) => gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }))
+  });
+  const template = loadTemplate();
+  const dateNode = appContext.__nodes.get("[data-visit-date]");
+  dateNode.value = "30/08/2026";
+  dateNode.listeners.input();
+  appContext.setChecklistBulkAnswer("SIM");
+  await appContext.addFiles("mastro", [imageFile({ width: 1600, height: 900, size: 1500000, name: "pdf-pendente.jpg" })]);
+
+  const pdfPromise = appContext.generatePdf();
+  await tick();
+  assert.equal(appContext.__nodes.get("[data-generate-pdf]").disabled, true);
+  assert.match(appContext.__nodes.get("[data-status-detail]").textContent, /Finalizando otimização de 1 fotos/);
+  gate.resolve();
+  await pdfPromise;
+
+  assert.match(written, /blob:optimized-/);
+  assert.match(written, /REGISTRO FOTOGRÁFICO/);
+  assert.equal(appContext.getState().mastro[0].originalFile, null);
+  assert.equal(appContext.getState().mastro[0].optimizedForReport, true);
+  assert.equal(template.sgtoChecklistItems.length, 15);
 });
 test("Todos SIM e Todos NAO preenchem, alternam e mantem exclusividade", () => {
   const template = loadTemplate();
