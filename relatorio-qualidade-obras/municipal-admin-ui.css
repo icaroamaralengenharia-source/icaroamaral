@@ -165,3 +165,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .ma-diff-before-after { grid-template-columns: 1fr; }
   .ma-diff-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.ma-modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: rgba(20, 34, 53, 0.46); }
+.ma-modal { width: min(620px, 100%); max-height: min(86vh, 760px); overflow: auto; display: grid; gap: 12px; padding: 16px; border: 1px solid var(--ma-line); border-radius: 8px; background: #fff; box-shadow: 0 24px 70px rgba(20, 34, 53, 0.22); }
+.ma-modal h3 { margin: 0; font-size: 1.05rem; }
+.ma-activation-modal .ma-diff-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 620px) {
+  .ma-modal-backdrop { align-items: end; padding: 10px; }
+  .ma-modal { max-height: 92vh; padding: 12px; }
+  .ma-activation-modal .ma-diff-summary { grid-template-columns: 1fr; }
+}

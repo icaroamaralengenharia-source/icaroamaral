@@ -1,6 +1,7 @@
 import express from "express";
 import { createMunicipalAdminService, createSupabaseMunicipalAdminStore, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
 import { createMunicipalOperationalShelfService } from "./municipal-operational-shelf-service.js";
+import { createMunicipalProfileService } from "./municipal-profile-service.js";
 import { createMunicipalProfileDiffService } from "./municipal-profile-diff-service.js";
 import { createMunicipalProfileReviewService } from "./municipal-profile-review-service.js";
 
@@ -49,6 +50,7 @@ export function createMunicipalAdminRouter(options = {}) {
   let service = options.service || null;
   let operationalShelfService = options.operationalShelfService || null;
   let municipalProfileDiffService = options.municipalProfileDiffService || null;
+  let municipalProfileService = options.municipalProfileService || null;
   let municipalProfileReviewService = options.municipalProfileReviewService || null;
   const resolveAuthContext = options.resolveAuthContext;
 
@@ -84,6 +86,12 @@ export function createMunicipalAdminRouter(options = {}) {
     return municipalProfileDiffService;
   }
 
+  function getMunicipalProfileService() {
+    if (municipalProfileService) return municipalProfileService;
+    const profileStore = options.municipalProfileStore || options.store || createSupabaseMunicipalAdminStore(database);
+    municipalProfileService = createMunicipalProfileService({ store: profileStore });
+    return municipalProfileService;
+  }
   async function requireContext(request) {
     if (typeof resolveAuthContext !== "function") {
       const error = new Error("municipal_admin_auth_not_configured");
@@ -133,6 +141,7 @@ export function createMunicipalAdminRouter(options = {}) {
   router.post("/users/:userId/deactivate", route((request, context, svc) => svc.deactivateUser(context, request.params.userId)));
   router.get("/me", route((request, context, svc) => svc.me(context)));
   router.get("/municipal-profiles/:profileId/diff", route((request, context) => getMunicipalProfileDiffService().getMunicipalProfileVersionDiff(context, request.params.profileId, request.query || {})));
+  router.put("/municipal-profiles/:profileId/activate", route((request, context) => getMunicipalProfileService().activateControlledMunicipalProfileVersion(context, request.params.profileId, request.body || {})));
   router.get("/municipal-profile-imports/:importId", route((request, context) => getMunicipalProfileReviewService().getMunicipalProfileImport(context, request.params.importId)));
   router.put("/municipal-profile-imports/:importId/review", route((request, context) => getMunicipalProfileReviewService().saveMunicipalImportReview(context, request.params.importId, request.body || {})));
 
@@ -154,3 +163,4 @@ export function createMunicipalAdminRouter(options = {}) {
 export function registerMunicipalAdminRoutes(app, options = {}) {
   app.use("/api/municipal-admin", createMunicipalAdminRouter(options));
 }
+
