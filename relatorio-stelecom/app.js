@@ -30,6 +30,7 @@
     tabs: document.querySelector("[data-category-tabs]"),
     panels: document.querySelector("[data-category-panels]"),
     generate: document.querySelector("[data-generate-pdf]"),
+    clearReport: document.querySelector("[data-clear-report]"),
     statusTitle: document.querySelector("[data-status-title]"),
     statusDetail: document.querySelector("[data-status-detail]")
   };
@@ -46,6 +47,8 @@
   const photoOptimizationWaiters = [];
   let activePhotoOptimizations = 0;
   let photoSequence = 0;
+  let activePhotoProfileKey = photoProfileKey();
+  const photoStateCache = new Map();
 
   function setStatus(title, detail) {
     nodes.statusTitle.textContent = title;
@@ -199,9 +202,9 @@
       photoId: photo.id,
       profileKey,
       profileGroup: photoContextGroupKey(profileKey, group),
-      city: template.normalizeCity(state.city),
-      reportType: template.normalizeReportType(state.reportType),
-      buildingType: template.normalizeWorkType(state.workType),
+      city: photo.city || template.normalizeCity(state.city),
+      reportType: photo.reportType || template.normalizeReportType(state.reportType),
+      buildingType: photo.buildingType || template.normalizeWorkType(state.workType),
       group,
       order,
       blob,
@@ -238,7 +241,7 @@
       return false;
     }
     try {
-      await savePhotoRecords(photoProfileKey(), categoryId, state[categoryId]);
+      await savePhotoRecords(activePhotoProfileKey, categoryId, state[categoryId]);
       return true;
     } catch (error) {
       handlePhotoStorageError(error);
@@ -266,6 +269,9 @@
       optimizedForReport: true,
       status: "ready",
       persisted: true,
+      city: record.city,
+      reportType: record.reportType,
+      buildingType: record.buildingType,
       legend: record.legend || state.legends[record.group],
       createdAt: record.createdAt
     };
@@ -280,28 +286,61 @@
     photo.originalFile = null;
   }
 
-  function clearStatePhotos() {
-    template.categories.forEach((category) => {
-      state[category.id].forEach(invalidatePhoto);
-      state[category.id] = [];
-    });
-    resolvePhotoOptimizationWaiters();
+  function emptyPhotoGroups() {
+    return Object.fromEntries(template.categories.map((category) => [category.id, []]));
   }
 
+  function captureCurrentPhotoGroups() {
+    return Object.fromEntries(template.categories.map((category) => [category.id, state[category.id]]));
+  }
+
+
+  function rememberCurrentPhotoState() {
+    photoStateCache.set(activePhotoProfileKey, captureCurrentPhotoGroups());
+  }
+
+  function applyPhotoGroups(groups) {
+    template.categories.forEach((category) => {
+      state[category.id] = groups && groups[category.id] ? groups[category.id] : [];
+    });
+  }
+
+  function photoGroupsForProfile(profileKey) {
+    if (profileKey === activePhotoProfileKey) return captureCurrentPhotoGroups();
+    return photoStateCache.get(profileKey) || null;
+  }
+
+  function mergeStoredPhotoRecords(profileKey, records) {
+    const groups = photoStateCache.get(profileKey) || emptyPhotoGroups();
+    template.categories.forEach((category) => {
+      const list = groups[category.id] || [];
+      const existing = new Set(list.map((photo) => photo.id));
+      records
+        .filter((record) => record.group === category.id)
+        .sort((left, right) => (left.order || 0) - (right.order || 0))
+        .forEach((record) => {
+          const photo = photoFromRecord(record);
+          if (!existing.has(photo.id)) {
+            list.push(photo);
+            existing.add(photo.id);
+          }
+        });
+      groups[category.id] = list;
+    });
+    photoStateCache.set(profileKey, groups);
+    return groups;
+  }
+
+
   async function loadStoredPhotosForCurrentContext() {
-    const profileKey = photoProfileKey();
+    const profileKey = activePhotoProfileKey;
     const token = ++photoContextLoadToken;
     if (!photoStorageAvailable()) return false;
     try {
       const records = await listPhotoRecords(profileKey);
-      if (token !== photoContextLoadToken || profileKey !== photoProfileKey()) return false;
-      clearStatePhotos();
-      template.categories.forEach((category) => {
-        state[category.id] = records
-          .filter((record) => record.group === category.id)
-          .sort((left, right) => (left.order || 0) - (right.order || 0))
-          .map(photoFromRecord);
-      });
+      if (token !== photoContextLoadToken || profileKey !== activePhotoProfileKey) return false;
+      const groups = mergeStoredPhotoRecords(profileKey, records);
+      applyPhotoGroups(groups);
       render();
       return true;
     } catch (error) {
@@ -311,12 +350,13 @@
   }
 
   function switchPhotoContext() {
+    rememberCurrentPhotoState();
     photoContextLoadToken += 1;
-    clearStatePhotos();
+    activePhotoProfileKey = photoProfileKey();
+    applyPhotoGroups(photoStateCache.get(activePhotoProfileKey) || emptyPhotoGroups());
     render();
     loadStoredPhotosForCurrentContext();
   }
-
   function readProfiles() {
     try {
       return JSON.parse(localStorage.getItem(profileStorageKey) || "{}");
@@ -441,9 +481,6 @@
     });
   }
 
-  function revokePhoto(photo) {
-    if (photo && photo.url) URL.revokeObjectURL(photo.url);
-  }
 
   function loadImageFromBlob(blob) {
     if (typeof createImageBitmap === "function") {
@@ -589,7 +626,8 @@
   }
 
   function photoStillCurrent(job) {
-    const photo = (state[job.group] || []).find((item) => item.id === job.photoId);
+    const groups = photoGroupsForProfile(job.profileKey);
+    const photo = groups && (groups[job.group] || []).find((item) => item.id === job.photoId);
     if (!photo || photo.removed) return null;
     if (photo.profileKey !== job.profileKey || photo.group !== job.group) return null;
     if (photo.optimizationToken !== job.token) return null;
@@ -598,8 +636,8 @@
 
   async function saveReadyPhotosForJob(job) {
     if (!photoStorageAvailable()) return false;
-    if (job.profileKey !== photoProfileKey()) return false;
-    const photos = state[job.group] || [];
+    const groups = photoGroupsForProfile(job.profileKey);
+    const photos = groups && groups[job.group] ? groups[job.group] : [];
     const order = photos.findIndex((photo) => photo.id === job.photoId);
     if (order < 0) return false;
     const record = photoToRecord(job.profileKey, job.group, photos[order], order);
@@ -621,7 +659,7 @@
     const started = photoStillCurrent(job);
     if (!started || !started.originalFile) return;
     started.status = "optimizing";
-    renderPanels();
+    if (job.profileKey === activePhotoProfileKey) renderPanels();
 
     try {
       const optimized = await optimizeReportImage(started.originalFile);
@@ -644,7 +682,7 @@
       photo.optimizationError = "";
       photo.originalFile = null;
       if (previousUrl && previousUrl !== photo.url) URL.revokeObjectURL(previousUrl);
-      renderPanels();
+      if (job.profileKey === activePhotoProfileKey) renderPanels();
       await saveReadyPhotosForJob(job);
     } catch (error) {
       const photo = photoStillCurrent(job);
@@ -652,8 +690,10 @@
       photo.status = "error";
       photo.optimizationError = "Falha na otimização";
       photo.optimizedForReport = false;
-      renderPanels();
-      setStatus("Falha na otimização", `Uma foto em ${labelOf(job.group)} nao foi otimizada. Remova ou tente novamente.`);
+      if (job.profileKey === activePhotoProfileKey) {
+        renderPanels();
+        setStatus("Falha na otimização", `Uma foto em ${labelOf(job.group)} nao foi otimizada. Remova ou tente novamente.`);
+      }
     }
   }
 
@@ -705,6 +745,9 @@
       id: categoryId + "-" + Date.now() + "-" + index + "-" + (++photoSequence),
       profileKey,
       group: categoryId,
+      city: template.normalizeCity(state.city),
+      reportType: template.normalizeReportType(state.reportType),
+      buildingType: template.normalizeWorkType(state.workType),
       name: file.name,
       file: null,
       originalFile: file,
@@ -736,7 +779,7 @@
       return;
     }
 
-    const profileKey = photoProfileKey();
+    const profileKey = activePhotoProfileKey;
     const startIndex = state[categoryId].length;
     const mapped = accepted.map((file, index) => photoFromFile(categoryId, file, startIndex + index, profileKey));
     state[categoryId].push(...mapped);
@@ -777,7 +820,7 @@
     const index = list.findIndex((photo) => photo.id === photoId);
     if (index < 0) return;
     const [photo] = list.splice(index, 1);
-    revokePhoto(photo);
+    invalidatePhoto(photo);
     render();
     persistPhotoGroup(categoryId);
     setStatus("Foto excluida", `A foto foi removida de ${labelOf(categoryId)}.`);
@@ -797,13 +840,49 @@
     render();
     if (photoStorageAvailable()) {
       try {
-        await clearPhotoGroupRecords(photoProfileKey(), categoryId);
+        await clearPhotoGroupRecords(activePhotoProfileKey, categoryId);
       } catch (error) {
         handlePhotoStorageError(error);
         return true;
       }
     }
     setStatus("Fotos removidas", `Todas as fotos de ${label} foram removidas.`);
+    return true;
+  }
+
+  function removeQueuedJobsForProfile(profileKey) {
+    for (let index = photoOptimizationQueue.length - 1; index >= 0; index -= 1) {
+      if (photoOptimizationQueue[index].profileKey === profileKey) photoOptimizationQueue.splice(index, 1);
+    }
+  }
+
+  function resetLegends() {
+    state.legends = Object.fromEntries(template.categories.map((category) => [category.id, category.defaultLegend]));
+  }
+
+  async function clearCurrentReport() {
+    const profileKey = activePhotoProfileKey;
+    if (!window.confirm("Isso apagará todos os dados do relatório atual, incluindo fotos, marcações SIM/NÃO e observações. Deseja continuar?")) return false;
+    removeQueuedJobsForProfile(profileKey);
+    template.categories.forEach((category) => {
+      state[category.id].forEach(invalidatePhoto);
+      state[category.id] = [];
+    });
+    photoStateCache.set(profileKey, emptyPhotoGroups());
+    state.checklistAnswers = {};
+    resetLegends();
+    saveChecklistProfile();
+    render();
+    resolvePhotoOptimizationWaiters();
+    if (photoStorageAvailable()) {
+      try {
+        await clearReportPhotos(profileKey);
+      } catch (error) {
+        handlePhotoStorageError(error);
+        return true;
+      }
+    }
+    setStatus("Relatório limpo", "Dados do relatório atual apagados. Os outros contextos foram preservados.");
     return true;
   }
 
@@ -1045,6 +1124,7 @@
   nodes.workType.value = state.workType;
   nodes.reportType.value = state.reportType;
   nodes.generate.addEventListener("click", generatePdf);
+  if (nodes.clearReport) nodes.clearReport.addEventListener("click", () => clearCurrentReport());
   loadChecklistProfile();
   render();
   loadStoredPhotosForCurrentContext();
@@ -1060,6 +1140,8 @@
     removePhoto,
     movePhoto,
     clearPhotoGroup,
+    retryPhotoOptimization,
+    clearCurrentReport,
     clearReportPhotos,
     loadStoredPhotosForCurrentContext,
     persistPhotoGroup,

@@ -98,6 +98,31 @@ h3 {
   color: #fff;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.secondary-danger-action {
+  min-height: 44px;
+  border: 1px solid #d8b8b8;
+  border-radius: 6px;
+  background: #fff8f8;
+  color: var(--danger);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.secondary-danger-action:hover,
+.secondary-danger-action:focus-visible {
+  border-color: var(--danger);
+  background: #faeaea;
+}
+
 .visit-card {
   display: grid;
   grid-template-columns: 1fr minmax(180px, 260px) minmax(140px, 180px) minmax(180px, 240px);
@@ -510,6 +535,22 @@ h3 {
   grid-column: 1 / -1;
 }
 @media (max-width: 720px) {
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .primary-action,
+  .secondary-danger-action {
+    width: 100%;
+    min-height: 52px;
+  }
+
   .checklist-profile-head,
   .checklist-answer-card {
     grid-template-columns: 1fr;
