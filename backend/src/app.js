@@ -3306,23 +3306,19 @@ export function createApp(options = {}) {
       response.status(400).json({ ok: false, error: "query_required" });
       return;
     }
-    if (!getEloMediaSearchApiKey_(env)) {
-      response.status(503).json({ ok: false, error: "media_search_provider_not_configured", provider: "youtube-data-api" });
-      return;
-    }
-
     try {
-      const result = await callEloMediaSearch_(query, env, options.mediaSearchFetch || globalThis.fetch);
+      const result = await resolveEloMediaSearch_(query, env, options.mediaSearchFetch || globalThis.fetch);
       response.json({
         ok: true,
         mode: "remote",
         provider: result.provider,
         query,
-        results: result.results
+        results: result.results,
+        candidates: result.results
       });
     } catch (error) {
       console.error("Falha na busca de mídia do Elo:", error);
-      response.status(502).json({ ok: false, error: "media_search_failed", provider: "youtube-data-api" });
+      response.status(502).json({ ok: false, error: "media_search_failed", provider: error && error.provider || "youtube-web-search" });
     }
   }
   app.get("/api/elo/media/search", handleEloMediaSearchRequest_);
@@ -6493,6 +6489,220 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
 
 function getEloMediaSearchApiKey_(env) {
   return clean_(env && (env.YOUTUBE_API_KEY || env.YOUTUBE_DATA_API_KEY || env.ELO_YOUTUBE_API_KEY));
+}
+
+const ELO_MEDIA_WEB_SEARCH_PROVIDER = "youtube-web-search";
+const ELO_MEDIA_WEB_SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
+const ELO_MEDIA_WEB_SEARCH_CACHE = new Map();
+
+function normalizeEloMediaSearchText_(value) {
+  return clean_(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEloMediaWebQueries_(query) {
+  const base = clean_(query).replace(/\s+/g, " ").trim();
+  const variants = [base + " official", base + " official video", base + " audio"];
+  const seen = new Set();
+  return variants.filter((item) => {
+    const key = normalizeEloMediaSearchText_(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 3);
+}
+
+function getEloMediaWebCache_(query) {
+  const key = normalizeEloMediaSearchText_(query);
+  const cached = ELO_MEDIA_WEB_SEARCH_CACHE.get(key);
+  if (!cached || Date.now() - cached.createdAt > ELO_MEDIA_WEB_SEARCH_TTL_MS) {
+    ELO_MEDIA_WEB_SEARCH_CACHE.delete(key);
+    return null;
+  }
+  return cached.results.map((item) => ({ ...item }));
+}
+
+function setEloMediaWebCache_(query, results) {
+  const key = normalizeEloMediaSearchText_(query);
+  if (!key) return;
+  ELO_MEDIA_WEB_SEARCH_CACHE.set(key, {
+    createdAt: Date.now(),
+    results: results.map((item) => ({ ...item }))
+  });
+}
+
+function extractBalancedJson_(text, startIndex) {
+  const firstBrace = text.indexOf("{", startIndex);
+  if (firstBrace < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = firstBrace; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(firstBrace, index + 1);
+    }
+  }
+  return null;
+}
+
+function getYoutubeText_(value) {
+  if (!value) return "";
+  if (typeof value === "string") return clean_(value);
+  if (typeof value.simpleText === "string") return clean_(value.simpleText);
+  if (Array.isArray(value.runs)) return clean_(value.runs.map((run) => run && run.text || "").join(""));
+  return "";
+}
+
+function walkYoutubeRenderers_(node, found) {
+  if (!node || found.length >= 32) return;
+  if (Array.isArray(node)) {
+    node.forEach((item) => walkYoutubeRenderers_(item, found));
+    return;
+  }
+  if (typeof node !== "object") return;
+  if (node.videoRenderer && typeof node.videoRenderer === "object") {
+    const renderer = node.videoRenderer;
+    found.push({
+      videoId: clean_(renderer.videoId),
+      title: getYoutubeText_(renderer.title),
+      channel: getYoutubeText_(renderer.ownerText || renderer.shortBylineText || renderer.longBylineText)
+    });
+  }
+  Object.keys(node).forEach((key) => walkYoutubeRenderers_(node[key], found));
+}
+
+function extractYoutubeInitialData_(html) {
+  const markerIndex = html.indexOf("ytInitialData");
+  if (markerIndex < 0) return null;
+  const jsonText = extractBalancedJson_(html, markerIndex);
+  if (!jsonText) return null;
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    return null;
+  }
+}
+
+function extractYoutubeWebCandidates_(html) {
+  const data = extractYoutubeInitialData_(html);
+  const raw = [];
+  if (data) walkYoutubeRenderers_(data, raw);
+  if (!raw.length) {
+    const pattern = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{6,20})"[\s\S]{0,900}?"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]{1,180})"/g;
+    let match;
+    while ((match = pattern.exec(html)) && raw.length < 32) raw.push({ videoId: match[1], title: match[2], channel: "" });
+  }
+  const seen = new Set();
+  return raw.filter((item) => {
+    if (!item.videoId || seen.has(item.videoId)) return false;
+    seen.add(item.videoId);
+    return true;
+  });
+}
+
+function scoreEloMediaWebCandidate_(candidate, query) {
+  const normalizedQuery = normalizeEloMediaSearchText_(query);
+  const title = normalizeEloMediaSearchText_(candidate.title);
+  const channel = normalizeEloMediaSearchText_(candidate.channel);
+  const tokens = normalizedQuery.split(" ").filter((token) => token.length > 2 && !/^(official|video|audio|music|the|of|and)$/.test(token));
+  let score = 0;
+  tokens.forEach((token) => {
+    if (title.includes(token)) score += 8;
+    if (channel.includes(token)) score += 4;
+  });
+  if (/\bofficial\b/.test(title)) score += 6;
+  if (/\bofficial audio\b/.test(title)) score += 5;
+  if (/\bofficial video\b/.test(title)) score += 5;
+  if (/\bvevo\b/.test(channel)) score += 4;
+  if (/\b(?:cover|karaoke|reaction|tutorial|lesson|tribute|remix)\b/.test(title)) score -= 18;
+  return score;
+}
+
+function normalizeEloMediaWebCandidate_(candidate, query) {
+  const videoId = clean_(candidate.videoId);
+  const title = clean_(candidate.title).slice(0, 160);
+  if (!/^[a-zA-Z0-9_-]{6,20}$/.test(videoId) || !title) return null;
+  const channel = clean_(candidate.channel).slice(0, 120);
+  return {
+    title,
+    artist: channel,
+    channel,
+    channelTitle: channel,
+    videoId,
+    url: "https://www.youtube.com/watch?v=" + videoId,
+    source: "web_search",
+    provider: ELO_MEDIA_WEB_SEARCH_PROVIDER,
+    playable: null,
+    embeddable: null,
+    relevance: scoreEloMediaWebCandidate_(candidate, query)
+  };
+}
+
+async function fetchYoutubeWebSearch_(query, fetchImpl) {
+  const url = new URL("https://www.youtube.com/results");
+  url.searchParams.set("search_query", query);
+  const options = {
+    method: "GET",
+    headers: {
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    }
+  };
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    options.signal = AbortSignal.timeout(4500);
+  }
+  const response = await fetchImpl(url.toString(), options);
+  if (!response.ok) throw Object.assign(new Error("youtube_web_search_http_" + response.status), { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER });
+  return response.text();
+}
+
+async function callEloMediaWebSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") throw Object.assign(new Error("media_search_fetch_unavailable"), { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER });
+  const cached = getEloMediaWebCache_(query);
+  if (cached) return { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER, results: cached, cache: "hit" };
+  const resultsById = new Map();
+  const queries = buildEloMediaWebQueries_(query);
+  for (const webQuery of queries) {
+    if (resultsById.size >= 8) break;
+    const html = await fetchYoutubeWebSearch_(webQuery, fetchImpl);
+    extractYoutubeWebCandidates_(html)
+      .map((candidate) => normalizeEloMediaWebCandidate_(candidate, query))
+      .filter(Boolean)
+      .sort((a, b) => b.relevance - a.relevance)
+      .forEach((candidate) => {
+        if (resultsById.size < 8 && !resultsById.has(candidate.videoId)) resultsById.set(candidate.videoId, candidate);
+      });
+  }
+  const results = Array.from(resultsById.values()).sort((a, b) => b.relevance - a.relevance).slice(0, 8);
+  setEloMediaWebCache_(query, results);
+  return { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER, results, cache: "miss" };
+}
+
+async function resolveEloMediaSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (getEloMediaSearchApiKey_(env)) {
+    try {
+      return await callEloMediaSearch_(query, env, fetchImpl);
+    } catch (error) {
+      return callEloMediaWebSearch_(query, env, fetchImpl);
+    }
+  }
+  return callEloMediaWebSearch_(query, env, fetchImpl);
 }
 
 function normalizeEloMediaSearchItem_(item) {
