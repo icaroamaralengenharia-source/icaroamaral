@@ -215,12 +215,21 @@
         state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
         render(state.access);
         emitAccessChanged(state.access);
+        if (passwordInput) {
+          passwordInput.value = "";
+          passwordInput.focus();
+        }
         if (errorNode) errorNode.textContent = "E-mail ou senha inválidos.";
         return;
       }
       if (passwordInput) passwordInput.value = "";
       await checkAccess({ force: true });
     } catch (_) {
+      clearSession();
+      state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+      render(state.access);
+      emitAccessChanged(state.access);
+      if (passwordInput) passwordInput.focus();
       if (errorNode) errorNode.textContent = "Não foi possível entrar agora.";
     } finally {
       state.loginBusy = false;
@@ -238,8 +247,9 @@
     emitAccessChanged(state.access);
   }
 
-  async function checkAccess() {
-    if (state.checking) return state.access;
+  async function checkAccess(options = {}) {
+    const force = Boolean(options && options.force);
+    if (state.checking && !force) return state.access;
     state.checking = true;
     try {
       const token = findAccessToken();
@@ -249,13 +259,19 @@
         emitAccessChanged(state.access);
         return state.access;
       }
+      const requestToken = token;
       const response = await fetch(apiBaseUrl() + "/api/apartment-handover/access", {
         method: "GET",
-        headers: { Authorization: "Bearer " + token }
+        headers: { Authorization: "Bearer " + requestToken }
       });
       const body = await response.json().catch(function () { return {}; });
-      if (response.status === 401) clearSession();
-      state.access = Object.assign({ allowed: response.ok && body.allowed === true }, body);
+      if (requestToken !== findAccessToken()) return state.access;
+      if (response.status === 401) {
+        clearSession();
+        state.access = { allowed: false, status: "invalid_session", code: "invalid_session", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+      } else {
+        state.access = Object.assign({ allowed: response.ok && body.allowed === true }, body);
+      }
       render(state.access);
       emitAccessChanged(state.access);
       return state.access;

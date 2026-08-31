@@ -153,6 +153,16 @@ async function openTrial(page, baseUrl, token) {
 }
 
 
+async function openTrialWithStoredToken(page, baseUrl, token) {
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.OBRAREPORT_API_BASE_URL = baseUrl;
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("obrareport-apartment-handover-auth-v1", JSON.stringify({ currentSession: { access_token: token } }));
+  }, { baseUrl, token });
+  await page.goto(`${appUrl}/vistoria-entrega-apartamento-trial/index.html`);
+}
+
 async function openTrialWithoutSession(page, baseUrl) {
   await page.addInitScript(({ baseUrl }) => {
     window.OBRAREPORT_API_BASE_URL = baseUrl;
@@ -289,6 +299,21 @@ test("trial paralelo autentica usuario sem consumir uso", async ({ browser }) =>
     await page.locator("[data-trial-login-password]").fill("errada");
     await page.locator("[data-trial-login-submit]").click();
     await expect(page.locator("[data-trial-login-error]")).toContainText("E-mail ou senha inválidos.");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-login-email]")).toHaveValue("trial@example.com");
+    await expect(page.locator("[data-trial-login-password]")).toBeFocused();
+    await expect(page.locator("[data-trial-login-password]")).toHaveValue("");
+    await expect(page.locator("[data-trial-login-submit]")).toBeEnabled();
+    expect(accessCallsAfterFailedLogin).toBe(0);
+    expect(state.rows[0].trial_used).toBe(0);
+
+    await page.locator("[data-trial-login-password]").fill("errada-de-novo");
+    await page.locator("[data-trial-login-submit]").click();
+    await expect(page.locator("[data-trial-login-error]")).toContainText("E-mail ou senha inválidos.");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-login-submit]")).toBeEnabled();
     expect(accessCallsAfterFailedLogin).toBe(0);
     expect(state.rows[0].trial_used).toBe(0);
 
@@ -309,6 +334,47 @@ test("trial paralelo autentica usuario sem consumir uso", async ({ browser }) =>
     expect(await page.evaluate(() => window.ApartmentHandoverAccess.findAccessToken())).toBe("");
     expect(state.rows[0].trial_used).toBe(0);
 
+    await context.close();
+  } finally {
+    await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+test("trial paralelo volta para login em sessao invalida armazenada", async ({ browser }) => {
+  const state = {
+    pdfBuilderCalls: 0,
+    rows: [{ id: "ent-a", institution_id: institutionA, module_key: "apartment_handover", status: "trial_active", trial_limit: 2, trial_used: 0 }],
+    usages: []
+  };
+  const backend = await startBackend(state);
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await openTrialWithStoredToken(page, backend.baseUrl, "malformed-token");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+    expect(await page.evaluate(() => window.ApartmentHandoverAccess.findAccessToken())).toBe("");
+    expect(state.rows[0].trial_used).toBe(0);
+    await context.close();
+  } finally {
+    await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("trial paralelo mostra bloqueio comercial somente apos access autenticado negado", async ({ browser }) => {
+  const state = {
+    pdfBuilderCalls: 0,
+    rows: [{ id: "ent-a", institution_id: institutionA, module_key: "apartment_handover", status: "trial_active", trial_limit: 2, trial_used: 0 }],
+    usages: []
+  };
+  const backend = await startBackend(state);
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await openTrial(page, backend.baseUrl, "token-other");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-overlay]")).toBeVisible();
+    await expect(page.locator("text=ACESSO INDISPONÍVEL")).toBeVisible();
+    expect(state.rows[0].trial_used).toBe(0);
     await context.close();
   } finally {
     await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
