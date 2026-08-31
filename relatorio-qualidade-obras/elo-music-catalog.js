@@ -198,15 +198,20 @@
           }
       },
       "dire-straits-walk-of-life": {
-          "videoId": "kd9TlGDZGkI",
-          "resolvedTitle": "Dire Straits - Walk Of Life (Official Music Video)",
-          "channel": "DireStraitsVEVO",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
+          "videoId": "mtFqo6Hmxv0",
+          "resolvedTitle": "Dire Straits - Walk Of Life (Live at Wembley 1985)",
+          "channel": "Dire Straits",
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-31T23:48:17.562Z",
           "validationStatus": "ACTIVE",
-          "playConfirmed": false
-      },
-      "dire-straits-money-for-nothing": {
+          "playConfirmed": true,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "PLAY_CONFIRMED",
+              "error": null,
+              "testedCandidateIds": ["kd9TlGDZGkI","h2a20YL5mvg","Sys9LCUo-AU","cvQ-IJihrJM","H55KgeOaanY","mtFqo6Hmxv0","tpKJYpP5xhA","76khS2jGwdI"]
+          }
+      },      "dire-straits-money-for-nothing": {
           "videoId": "J7LzNrdrleQ",
           "resolvedTitle": "'Money For Nothing' (Live at Wembley 1985) @direstraitsofficial  #moneyfornothing",
           "channel": "Dire Straits",
@@ -1180,5 +1185,3 @@
   };
   window.ELO_MUSIC_CATALOG = window.EloMusicCatalog;
 })();
-
-
