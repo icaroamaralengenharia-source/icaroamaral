@@ -70,7 +70,7 @@ function createAuthClient() {
 function createAppForAccess(accessByInstitution, options = {}) {
   const calls = { resolver: [], authorizer: [], generator: 0 };
   const app = createApp({
-    authContextSupabaseClient: createAuthClient(),
+    authContextSupabaseClient: options.authClient || createAuthClient(),
     resolveApartmentHandoverAccess({ institutionId }) {
       calls.resolver.push({ institutionId });
       return accessByInstitution[institutionId] || { allowed: false, status: "no_entitlement", code: "NO_ENTITLEMENT", trialUsed: 0, trialLimit: 0, remaining: 0, canCreate: false };
@@ -107,6 +107,20 @@ test("GET /api/apartment-handover/access exige Authorization Bearer", async () =
   });
 });
 
+
+test("GET /api/apartment-handover/access trata excecao de token invalido como 401", async () => {
+  const authClient = {
+    auth: { async getUser() { throw new Error("jwt malformed"); } },
+    from() { throw new Error("profile lookup should not run"); }
+  };
+  const { app, calls } = createAppForAccess({}, { authClient });
+  await withServer(app, async (base) => {
+    const response = await fetch(base + "/api/apartment-handover/access", { headers: { Authorization: "Bearer malformed-token" } });
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).code, "invalid_session");
+    assert.equal(calls.resolver.length, 0);
+  });
+});
 test("GET /api/apartment-handover/access retorna contagem por institution sem horario", async () => {
   const access = { allowed: true, status: "trial_active", trialUsed: 1, trialLimit: 2, remaining: 1, canCreate: true };
   const { app, calls } = createAppForAccess({ [institutionA]: access });

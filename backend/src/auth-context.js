@@ -34,18 +34,33 @@ export async function resolveAuthContext(request, options = {}) {
     return { ok: false, status: 401, error: "authentication_required" };
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  let userData = null;
+  let userError = null;
+  try {
+    const result = await supabase.auth.getUser(token);
+    userData = result && result.data;
+    userError = result && result.error;
+  } catch (_) {
+    return { ok: false, status: 401, error: "invalid_session" };
+  }
   const user = userData && userData.user;
   if (userError || !user || !clean(user.id)) {
     return { ok: false, status: 401, error: "invalid_session" };
   }
 
-  const { data: profileData, error: profileError } = await supabase
-    .from(options.profileTable || "profiles")
-    .select("id,auth_user_id,institution_id,company_id,unit_id,name,email,role,status")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
+  let profileData = null;
+  let profileError = null;
+  try {
+    const result = await supabase
+      .from(options.profileTable || "profiles")
+      .select("id,auth_user_id,institution_id,company_id,unit_id,name,email,role,status")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    profileData = result && result.data;
+    profileError = result && result.error;
+  } catch (error) {
+    profileError = error;
+  }
   if (profileError) {
     return { ok: false, status: 500, error: "auth_context_profile_lookup_failed" };
   }

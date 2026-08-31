@@ -195,6 +195,8 @@
       if (errorNode) errorNode.textContent = "Informe e-mail e senha.";
       return;
     }
+    clearSession();
+    state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
     state.loginBusy = true;
     if (submit) {
       submit.disabled = true;
@@ -209,6 +211,10 @@
       });
       const body = await response.json().catch(function () { return {}; });
       if (!response.ok || !body || !body.session || !persistSession(body.session)) {
+        clearSession();
+        state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+        render(state.access);
+        emitAccessChanged(state.access);
         if (errorNode) errorNode.textContent = "E-mail ou senha inválidos.";
         return;
       }

@@ -276,6 +276,10 @@ test("trial paralelo autentica usuario sem consumir uso", async ({ browser }) =>
     const context = await browser.newContext();
     const page = await context.newPage();
     await openTrialWithoutSession(page, backend.baseUrl);
+    let accessCallsAfterFailedLogin = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/apartment-handover/access")) accessCallsAfterFailedLogin += 1;
+    });
 
     await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
     await expect(page.locator("text=Acesse sua conta")).toBeVisible();
@@ -285,6 +289,7 @@ test("trial paralelo autentica usuario sem consumir uso", async ({ browser }) =>
     await page.locator("[data-trial-login-password]").fill("errada");
     await page.locator("[data-trial-login-submit]").click();
     await expect(page.locator("[data-trial-login-error]")).toContainText("E-mail ou senha inválidos.");
+    expect(accessCallsAfterFailedLogin).toBe(0);
     expect(state.rows[0].trial_used).toBe(0);
 
     await page.locator("[data-trial-login-password]").fill("correta");
