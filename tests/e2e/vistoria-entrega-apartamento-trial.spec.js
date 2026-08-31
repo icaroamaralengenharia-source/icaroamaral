@@ -122,13 +122,13 @@ function createEntitlementClient(state) {
   };
 }
 
-async function startBackend(state) {
+async function startBackend(state, options = {}) {
   const client = createEntitlementClient(state);
   const app = createApp({
     authContextSupabaseClient: createAuthClient(),
     stockFullSupabaseClient: createStockFullLoginClient(),
     apartmentHandoverEntitlementSupabaseClient: client,
-    resolveApartmentHandoverAccess(input) { return resolveApartmentHandoverAccess({ ...input, supabase: client }); },
+    resolveApartmentHandoverAccess(input) { return options.resolveApartmentHandoverAccess ? options.resolveApartmentHandoverAccess(input) : resolveApartmentHandoverAccess({ ...input, supabase: client }); },
     authorizeApartmentHandoverInspectionUsage(input) { return authorizeApartmentHandoverInspectionUsage({ ...input, supabase: client }); },
     async apartmentHandoverPdfGenerator(payload, outputPath) {
       state.pdfBuilderCalls += 1;
@@ -174,6 +174,18 @@ async function openTrialWithoutSession(page, baseUrl) {
   }, { baseUrl });
   await page.goto(`${appUrl}/vistoria-entrega-apartamento-trial/index.html`);
 }
+
+async function openTrialWithUnrelatedStoredToken(page, baseUrl, token) {
+  await page.addInitScript(({ baseUrl, token }) => {
+    window.OBRAREPORT_API_BASE_URL = baseUrl;
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("supabase.auth.token", JSON.stringify({ currentSession: { access_token: token } }));
+    localStorage.setItem("sb-other-module-auth-token", JSON.stringify({ currentSession: { access_token: token } }));
+  }, { baseUrl, token });
+  await page.goto(`${appUrl}/vistoria-entrega-apartamento-trial/index.html`);
+}
+
 async function protectedPdf(page, inspectionId, mode = "final") {
   return page.evaluate(async (payload) => {
     const response = await fetch(window.OBRAREPORT_API_BASE_URL + "/api/apartment-handover/pdf-protected", {
@@ -374,6 +386,56 @@ test("trial paralelo mostra bloqueio comercial somente apos access autenticado n
     await expect(page.locator("[data-trial-login-overlay]")).toBeHidden();
     await expect(page.locator("[data-trial-overlay]")).toBeVisible();
     await expect(page.locator("text=ACESSO INDISPONÍVEL")).toBeVisible();
+    expect(state.rows[0].trial_used).toBe(0);
+    await context.close();
+  } finally {
+    await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+test("trial paralelo ignora sessao generica de outro modulo", async ({ browser }) => {
+  const state = {
+    pdfBuilderCalls: 0,
+    rows: [{ id: "ent-a", institution_id: institutionA, module_key: "apartment_handover", status: "trial_active", trial_limit: 2, trial_used: 0 }],
+    usages: []
+  };
+  const backend = await startBackend(state);
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    let accessCalls = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/apartment-handover/access")) accessCalls += 1;
+    });
+    await openTrialWithUnrelatedStoredToken(page, backend.baseUrl, "token-a");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeVisible();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-error-overlay]")).toBeHidden();
+    expect(await page.evaluate(() => window.ApartmentHandoverAccess.findAccessToken())).toBe("");
+    expect(accessCalls).toBe(0);
+    expect(state.rows[0].trial_used).toBe(0);
+    await context.close();
+  } finally {
+    await new Promise((resolve, reject) => backend.server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("trial paralelo nao transforma erro tecnico do access em bloqueio comercial", async ({ browser }) => {
+  const state = {
+    pdfBuilderCalls: 0,
+    rows: [{ id: "ent-a", institution_id: institutionA, module_key: "apartment_handover", status: "trial_active", trial_limit: 2, trial_used: 0 }],
+    usages: []
+  };
+  const backend = await startBackend(state, {
+    resolveApartmentHandoverAccess() { throw new Error("access unavailable"); }
+  });
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await openTrial(page, backend.baseUrl, "token-a");
+    await expect(page.locator("[data-trial-login-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-overlay]")).toBeHidden();
+    await expect(page.locator("[data-trial-error-overlay]")).toBeVisible();
+    await expect(page.locator("text=Não foi possível verificar seu acesso.")).toBeVisible();
     expect(state.rows[0].trial_used).toBe(0);
     await context.close();
   } finally {

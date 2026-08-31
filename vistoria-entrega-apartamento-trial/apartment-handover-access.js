@@ -48,23 +48,11 @@
   }
 
   function findAccessToken() {
-    const stored = tokenIn(readStorage(root.localStorage, AUTH_STORAGE_KEY), 0);
+    const stored = tokenIn(readStorage(root.localStorage, AUTH_STORAGE_KEY), 0) || tokenIn(readStorage(root.sessionStorage, AUTH_STORAGE_KEY), 0);
     if (stored) return stored;
-    const direct = text(root.APARTMENT_HANDOVER_AUTH_TOKEN || root.ELO_AUTH_TOKEN || root.OBRAREPORT_AUTH_TOKEN);
-    if (direct) return direct;
-    for (const storage of [root.localStorage, root.sessionStorage].filter(Boolean)) {
-      let keys = [];
-      try {
-        for (let index = 0; index < storage.length; index += 1) keys.push(storage.key(index));
-      } catch (_) {}
-      for (const key of keys) {
-        if (/auth|supabase|sb-/i.test(key || "")) {
-          const found = tokenIn(readStorage(storage, key), 0);
-          if (found) return found;
-        }
-      }
-    }
-    return "";
+    const legacy = tokenIn(readStorage(root.localStorage, LEGACY_TOKEN_KEY), 0) || tokenIn(readStorage(root.sessionStorage, LEGACY_TOKEN_KEY), 0);
+    if (legacy) return legacy;
+    return text(root.APARTMENT_HANDOVER_AUTH_TOKEN);
   }
 
   function apiBaseUrl() {
@@ -130,6 +118,12 @@
     loginOverlay.innerHTML = '<form data-trial-login-form style="width:min(100%,420px);background:#fff;color:#172033;padding:24px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.28);font-family:system-ui;display:grid;gap:14px"><header style="display:grid;gap:6px"><p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#65716d">Vistoria de Entrega</p><h1 style="margin:0;font-size:24px;line-height:1.15">Acesse sua conta</h1></header><label style="display:grid;gap:6px;color:#65716d;font-size:13px;font-weight:800">E-mail<input data-trial-login-email type="email" autocomplete="email" required style="min-height:44px;border:1px solid #d7dfda;border-radius:6px;padding:10px;color:#17221f"></label><label style="display:grid;gap:6px;color:#65716d;font-size:13px;font-weight:800">Senha<input data-trial-login-password type="password" autocomplete="current-password" required style="min-height:44px;border:1px solid #d7dfda;border-radius:6px;padding:10px;color:#17221f"></label><p data-trial-login-error style="margin:0;min-height:20px;color:#b42318;font-size:13px;font-weight:800"></p><button data-trial-login-submit type="submit" style="min-height:44px;border:1px solid #1f6f5b;border-radius:6px;background:#1f6f5b;color:#fff;font-weight:800;cursor:pointer">ENTRAR</button></form>';
     document.body.appendChild(loginOverlay);
 
+    const errorOverlay = document.createElement("div");
+    errorOverlay.setAttribute("data-trial-error-overlay", "");
+    errorOverlay.style.cssText = "position:fixed;inset:0;z-index:85;background:rgba(11,18,32,.82);display:none;align-items:center;justify-content:center;padding:24px";
+    errorOverlay.innerHTML = '<section style="max-width:460px;background:#fff;color:#172033;padding:24px;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.28);font-family:system-ui"><p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#65716d">Vistoria de Entrega</p><h1 style="margin:0 0 12px;font-size:24px;line-height:1.15">Não foi possível verificar seu acesso.</h1><p style="margin:0 0 18px;line-height:1.45">Tente novamente.</p><button data-trial-retry-access type="button" style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border:1px solid #1f6f5b;background:#1f6f5b;color:#fff;border-radius:6px;font-weight:800;cursor:pointer">TENTAR NOVAMENTE</button></section>';
+    document.body.appendChild(errorOverlay);
+
     const logout = document.createElement("button");
     logout.setAttribute("data-trial-logout", "");
     logout.type = "button";
@@ -138,7 +132,9 @@
     document.body.appendChild(logout);
 
     const loginForm = loginOverlay.querySelector("[data-trial-login-form]");
+    const retryAccess = errorOverlay.querySelector("[data-trial-retry-access]");
     if (loginForm) loginForm.addEventListener("submit", login);
+    if (retryAccess) retryAccess.addEventListener("click", function () { checkAccess({ force: true }); });
     logout.addEventListener("click", logoutUser);
   }
 
@@ -151,12 +147,14 @@
     const banner = document.querySelector("[data-trial-banner]");
     const overlay = document.querySelector("[data-trial-overlay]");
     const loginOverlay = document.querySelector("[data-trial-login-overlay]");
+    const errorOverlay = document.querySelector("[data-trial-error-overlay]");
     const logout = document.querySelector("[data-trial-logout]");
     const overlayTitle = document.querySelector("[data-trial-overlay-title]");
     const overlayMessage = document.querySelector("[data-trial-overlay-message]");
     if (banner) banner.hidden = true;
     if (overlay) overlay.style.display = "none";
     if (loginOverlay) loginOverlay.style.display = "none";
+    if (errorOverlay) errorOverlay.style.display = "none";
     if (logout) logout.style.display = "none";
     if (!access) return;
     if (isAuthenticationRequired(access)) {
@@ -171,13 +169,19 @@
       if (logout) logout.style.display = "block";
       return;
     }
-    if (overlayTitle) overlayTitle.textContent = access.code === "MODULE_BLOCKED" ? "ACESSO BLOQUEADO" : "ACESSO INDISPONÍVEL";
-    if (overlayMessage) {
-      overlayMessage.textContent = access.code === "NO_ENTITLEMENT"
-        ? "Este módulo não está habilitado para sua empresa."
-        : "Entre em contato para regularizar o acesso.";
+    const code = text(access.code).toUpperCase();
+    if (code === "NO_ENTITLEMENT" || code === "MODULE_BLOCKED") {
+      if (overlayTitle) overlayTitle.textContent = code === "MODULE_BLOCKED" ? "ACESSO BLOQUEADO" : "ACESSO INDISPONÍVEL";
+      if (overlayMessage) {
+        overlayMessage.textContent = code === "NO_ENTITLEMENT"
+          ? "Este módulo não está habilitado para sua empresa."
+          : "Entre em contato para regularizar o acesso.";
+      }
+      if (overlay) overlay.style.display = "flex";
+      if (logout && findAccessToken()) logout.style.display = "block";
+      return;
     }
-    if (overlay) overlay.style.display = "flex";
+    if (errorOverlay) errorOverlay.style.display = "flex";
     if (logout && findAccessToken()) logout.style.display = "block";
   }
 
@@ -269,9 +273,18 @@
       if (response.status === 401) {
         clearSession();
         state.access = { allowed: false, status: "invalid_session", code: "invalid_session", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+      } else if (!response.ok && response.status >= 500) {
+        if (root.console && typeof root.console.error === "function") root.console.error("apartment_handover_access_check_failed", { status: response.status, code: body && body.code });
+        state.access = Object.assign({ allowed: false, status: "access_check_failed", code: "ACCESS_CHECK_FAILED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false }, body || {});
       } else {
         state.access = Object.assign({ allowed: response.ok && body.allowed === true }, body);
       }
+      render(state.access);
+      emitAccessChanged(state.access);
+      return state.access;
+    } catch (error) {
+      if (root.console && typeof root.console.error === "function") root.console.error("apartment_handover_access_check_failed", error);
+      state.access = { allowed: false, status: "access_check_failed", code: "ACCESS_CHECK_FAILED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
       render(state.access);
       emitAccessChanged(state.access);
       return state.access;
