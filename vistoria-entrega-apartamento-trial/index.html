@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#163832">
+  <title>Vistoria de Entrega de Apartamento</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ObraReport isolado</p>
+        <h1>Vistoria de Entrega</h1>
+      </div>
+      <div class="top-actions">
+        <button class="ghost-button" type="button" data-view-button="dashboard">Dashboard</button>
+        <button class="ghost-button" type="button" data-view-button="ncs">NCs</button>
+        <button class="ghost-button" type="button" data-summary-button>Resumo</button>
+        <button class="primary-button top-report-button" type="button" data-generate-report>Gerar relatório</button>
+      </div>
+    </header>
+
+    <section class="view" data-view="identification">
+      <section class="session-panel identification-panel" aria-label="Identificação da vistoria">
+        <label>Empreendimento<input data-field="projectName" autocomplete="organization" placeholder="Residencial Aurora"></label>
+        <label>Construtora/incorporadora<input data-field="developerName" autocomplete="organization" placeholder="Construtora"></label>
+        <label>Bloco/Torre<input data-field="towerName" autocomplete="off" placeholder="Torre A"></label>
+        <label>Unidade<input data-field="unitName" autocomplete="off" placeholder="Apto 304"></label>
+        <label>Endereço<input data-field="address" autocomplete="street-address" placeholder="Rua, número, cidade"></label>
+        <label>Cliente / proprietário<input data-field="clientName" autocomplete="name" placeholder="Nome do cliente"></label>
+        <label>Responsável pela vistoria<input data-field="technicalResponsible" autocomplete="name" placeholder="Nome do profissional"></label>
+        <label>CREA/CAU<input data-field="professionalRegistry" autocomplete="off" placeholder="Registro profissional"></label>
+        <label>Data da vistoria<input data-field="inspectionDate" type="date"></label>
+        <label>Tipo da vistoria<select data-field="inspectionType"><option>Entrega inicial</option><option>Re-vistoria</option><option>Pré-entrega</option><option>Outro</option></select></label>
+        <label class="wide-field">Observações iniciais<textarea data-field="initialNotes" rows="3" placeholder="Condições de acesso, responsáveis presentes, observações gerais"></textarea></label>
+      </section>
+      <button class="primary-button block-button" type="button" data-start-inspection>Iniciar vistoria</button>
+    </section>
+
+    <section class="view" data-view="dashboard" hidden>
+      <section class="summary-strip" data-summary-strip aria-label="Resumo rápido"></section>
+      <section class="dashboard-grid" data-dashboard-cards></section>
+      <section class="environment-grid" data-environment-grid aria-label="Ambientes da vistoria"></section>
+      <section class="session-panel instrument-panel" aria-label="Instrumentos da vistoria">
+        <label>Tipo<input data-instrument-type placeholder="Ex.: Multímetro"></label>
+        <label>Marca<input data-instrument-brand placeholder="Marca"></label>
+        <label>Modelo<input data-instrument-model placeholder="Modelo"></label>
+        <label>Identificação<input data-instrument-id placeholder="Patrimônio ou código"></label>
+        <label class="wide-field">Observação<input data-instrument-note placeholder="Observação do instrumento"></label>
+        <button class="secondary-button" type="button" data-add-instrument>Cadastrar instrumento</button>
+        <div class="instrument-list" data-instrument-list></div>
+      </section>
+      <div class="finish-panel">
+        <button class="primary-button" type="button" data-finalize-inspection>Finalizar vistoria</button>
+        <button class="secondary-button" type="button" data-reopen-inspection hidden>Reabrir para edição</button>
+        <button class="secondary-button" type="button" data-generate-draft-pdf>Gerar Rascunho</button>
+        <button class="primary-button" type="button" data-generate-final-pdf hidden>Gerar Laudo</button>
+      </div>
+    </section>
+
+    <section class="view" data-view="environment" hidden>
+      <nav class="environment-tabs" data-environment-tabs aria-label="Ambientes"></nav>
+      <nav class="system-tabs" data-system-tabs aria-label="Sistemas"></nav>
+      <section class="field-toolbar" aria-label="Filtros da vistoria">
+        <div class="filter-chips" data-filter-chips>
+          <button type="button" data-filter="all" aria-selected="true">Todos</button>
+          <button type="button" data-filter="pending">Pendentes</button>
+          <button type="button" data-filter="NC">NC</button>
+          <button type="button" data-filter="NV">NV</button>
+        </div>
+        <input data-search-input placeholder="Buscar item, ex.: janela" aria-label="Buscar item">
+      </section>
+      <section class="environment-status" data-environment-status></section>
+      <section class="inspection-list" data-item-list aria-label="Itens de vistoria"></section>
+      <footer class="action-bar">
+        <button class="secondary-button" type="button" data-finish-environment>Finalizar ambiente</button>
+        <button class="secondary-button" type="button" data-mark-environment-na>Ambiente NA</button>
+        <span class="save-state" data-save-state>Salvo localmente</span>
+      </footer>
+    </section>
+
+    <section class="view" data-view="ncs" hidden>
+      <section class="field-toolbar">
+        <div class="filter-chips" data-nc-filter-chips>
+          <button type="button" data-nc-filter="all" aria-selected="true">Todas</button>
+          <button type="button" data-nc-filter="critica">Críticas</button>
+          <button type="button" data-nc-filter="alta">Altas</button>
+          <button type="button" data-nc-filter="media">Médias</button>
+          <button type="button" data-nc-filter="baixa">Baixas</button>
+        </div>
+      </section>
+      <section class="nc-list" data-global-nc-list></section>
+    </section>
+  </main>
+
+  <section class="sheet-backdrop" data-item-sheet hidden>
+    <form class="bottom-sheet" method="dialog" aria-label="Detalhes do item">
+      <div class="sheet-handle"></div>
+      <header>
+        <p class="eyebrow" data-sheet-context>Ambiente · Sistema</p>
+        <h2 data-item-title>Item</h2>
+        <p class="item-meta" data-acceptance-criteria></p>
+      </header>
+      <p class="status-line" data-current-status></p>
+      <div class="status-grid" role="group" aria-label="Status do item">
+        <button class="status-button" type="button" data-sheet-status="C">C</button>
+        <button class="status-button" type="button" data-sheet-status="NC">NC</button>
+        <button class="status-button" type="button" data-sheet-status="NA">NA</button>
+        <button class="status-button" type="button" data-sheet-status="NV">NV</button>
+      </div>
+      <section class="conditional-panel" data-nc-panel hidden>
+        <label>Severidade<select data-nc-severity><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option><option value="critica">Crítica</option></select></label>
+        <label>Descrição técnica<textarea data-nc-notes rows="3" placeholder="Descreva a não conformidade"></textarea></label>
+        <label>Recomendação<textarea data-nc-recommendation rows="2" placeholder="Providência recomendada"></textarea></label>
+                <div class="photo-source-grid" aria-label="Fotos da não conformidade">
+          <label class="photo-source-button">Tirar foto<input data-nc-photo data-nc-photo-camera type="file" accept="image/*" capture="environment" multiple></label>
+          <label class="photo-source-button">Escolher da galeria<input data-nc-photo-gallery type="file" accept="image/*" multiple></label>
+        </div>
+        <p class="photo-status" data-photo-status>Nenhuma foto vinculada</p>
+        <label>Foto principal para IA<select data-primary-photo></select></label>
+        <button class="ghost-button" type="button" data-analyze-ai>Analisar foto com IA</button>
+        <p class="ai-status" data-ai-status></p>
+        <section class="ai-card" data-ai-card hidden>
+          <p class="eyebrow">Sugestão da IA</p>
+          <strong data-ai-heading>Possível não conformidade</strong>
+          <p data-ai-description></p>
+          <p data-ai-recommendation></p>
+          <p data-ai-meta></p>
+          <p data-ai-target></p>
+          <div class="ai-actions">
+            <button class="secondary-button" type="button" data-apply-ai="description">Usar descrição</button>
+            <button class="secondary-button" type="button" data-apply-ai="severity">Usar severidade</button>
+            <button class="secondary-button" type="button" data-apply-ai="recommendation">Usar recomendação</button>
+            <button class="secondary-button" type="button" data-apply-ai="status">Usar status</button>
+            <button class="secondary-button" type="button" data-apply-ai="item">Aceitar item/sistema</button>
+            <button class="secondary-button" type="button" data-apply-ai="environment">Aceitar ambiente</button>
+            <button class="ghost-button" type="button" data-dismiss-ai>Descartar</button>
+          </div>
+        </section>
+      </section>
+      <section class="conditional-panel" data-na-panel hidden>
+        <label>Justificativa NA<textarea data-na-justification rows="2" placeholder="Opcional"></textarea></label>
+      </section>
+      <section class="conditional-panel" data-nv-panel hidden>
+        <label>Motivo NV<select data-nv-reason><option value="acesso_impedido">Acesso impedido</option><option value="equipamento_indisponivel">Equipamento indisponível</option><option value="sistema_nao_energizado">Sistema não energizado</option><option value="nao_foi_possivel_testar">Não foi possível testar</option><option value="outro">Outro</option></select></label>
+      </section>
+      <section class="conditional-panel" data-measurement-panel hidden>
+        <p class="eyebrow">Medição</p>
+        <div class="measurement-grid">
+          <label>Tipo<select data-measurement-type></select></label>
+          <label>Valor<input data-measurement-value inputmode="decimal" placeholder="Ex.: 127"></label>
+          <label>Unidade<select data-measurement-unit></select></label>
+          <label>Instrumento<select data-measurement-instrument></select></label>
+        </div>
+      </section>
+      <label>Observação<textarea data-observation rows="2" placeholder="Observação opcional"></textarea></label>
+      <div class="sheet-actions">
+        <button class="secondary-button" type="button" data-close-sheet>Fechar</button>
+        <button class="primary-button" type="button" data-save-item>Salvar item</button>
+      </div>
+    </form>
+  </section>
+
+  <dialog class="confirm-dialog" data-bulk-dialog><h2>Marcar restantes como conformes?</h2><p>Somente itens ainda não inspecionados deste ambiente serão marcados como C.</p><div class="sheet-actions"><button class="secondary-button" type="button" data-cancel-bulk>Cancelar</button><button class="primary-button" type="button" data-confirm-bulk>Confirmar</button></div></dialog>
+  <dialog class="confirm-dialog" data-env-na-dialog><h2>Marcar ambiente como Não Aplicável?</h2><p>Somente itens ainda não inspecionados serão marcados como NA. Itens já vistoriados serão preservados.</p><div class="sheet-actions"><button class="secondary-button" type="button" data-cancel-env-na>Cancelar</button><button class="primary-button" type="button" data-confirm-env-na>Confirmar</button></div></dialog>
+  <dialog class="confirm-dialog" data-finalize-dialog><h2>Finalizar vistoria?</h2><p data-finalize-warning></p><div class="sheet-actions"><button class="secondary-button" type="button" data-cancel-finalize>Voltar à vistoria</button><button class="primary-button" type="button" data-confirm-finalize>Finalizar mesmo assim</button></div></dialog>
+  <dialog class="summary-dialog" data-summary-dialog><header><p class="eyebrow">Resumo</p><h2>Vistoria de Entrega</h2></header><div data-full-summary></div><button class="primary-button" type="button" data-close-summary>Fechar</button></dialog>
+  <dialog class="summary-dialog pdf-dialog" data-pdf-dialog>
+    <header><p class="eyebrow" data-pdf-eyebrow>Laudo PDF</p><h2 data-pdf-title>Vistoria de Entrega</h2></header>
+    <p class="pdf-status" data-pdf-status></p>
+    <section class="pdf-actions" data-pdf-actions hidden>
+      <a class="primary-button" data-open-pdf target="_blank" rel="noopener">Abrir Laudo</a>
+      <a class="secondary-button" data-download-pdf>Baixar PDF</a>
+    </section>
+    <section class="preflight-panel" data-pdf-preflight hidden>
+      <div><h3>Bloqueios</h3><div data-pdf-blockers></div></div>
+      <div><h3>Alertas</h3><div data-pdf-warnings></div></div>
+    </section>
+    <button class="primary-button" type="button" data-close-pdf-dialog>Fechar</button>
+  </dialog>
+
+  <script src="./inspection-template.js"></script>
+  <script src="./inspection-ai.js"></script>
+  <script src="./apartment-handover-access.js?v=login-20260831c" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>
