@@ -4,7 +4,8 @@
   const root = typeof window !== "undefined" ? window : globalThis;
   const AUTH_STORAGE_KEY = "obrareport-apartment-handover-auth-v1";
   const LEGACY_TOKEN_KEY = "sb-trial-auth-token";
-  const state = { access: null, mounted: false, checking: false, loginBusy: false };
+  const INVITE_SESSION_KEY = "obrareport-apartment-handover-invite-session-v1";
+  const state = { access: null, mounted: false, checking: false, loginBusy: false, inviteRedeeming: false };
 
   function text(value) {
     return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -55,6 +56,35 @@
     return text(root.APARTMENT_HANDOVER_AUTH_TOKEN);
   }
 
+  function findInviteSession() {
+    const stored = json(readStorage(root.sessionStorage, INVITE_SESSION_KEY)) || json(readStorage(root.localStorage, INVITE_SESSION_KEY));
+    return text(stored && stored.invite_session);
+  }
+
+  function persistInviteSession(body) {
+    const session = text(body && body.invite_session);
+    if (!session) return false;
+    writeStorage(root.sessionStorage, INVITE_SESSION_KEY, JSON.stringify({
+      invite_session: session,
+      expires_at: body.invite_session_expires_at || null,
+      savedAt: Date.now()
+    }));
+    return true;
+  }
+
+  function removeRawInviteFromUrl() {
+    try {
+      const url = new URL(root.location.href);
+      if (!url.searchParams.has("invite")) return;
+      url.searchParams.delete("invite");
+      root.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+    } catch (_) {}
+  }
+
+  function inviteTokenFromUrl() {
+    try { return text(new URL(root.location.href).searchParams.get("invite")); } catch (_) { return ""; }
+  }
+
   function apiBaseUrl() {
     return text(root.OBRAREPORT_API_BASE_URL || root.API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
   }
@@ -86,6 +116,8 @@
     removeStorage(root.sessionStorage, AUTH_STORAGE_KEY);
     removeStorage(root.localStorage, LEGACY_TOKEN_KEY);
     removeStorage(root.sessionStorage, LEGACY_TOKEN_KEY);
+    removeStorage(root.localStorage, INVITE_SESSION_KEY);
+    removeStorage(root.sessionStorage, INVITE_SESSION_KEY);
   }
 
   function limitText(access) {
@@ -157,6 +189,13 @@
     if (errorOverlay) errorOverlay.style.display = "none";
     if (logout) logout.style.display = "none";
     if (!access) return;
+    const rawCode = text(access.code || access.error).toLowerCase();
+    if (/^invite_/.test(rawCode)) {
+      if (overlayTitle) overlayTitle.textContent = text(access.message) || "CONVITE INVALIDO";
+      if (overlayMessage) overlayMessage.textContent = rawCode === "invite_expired" ? "Solicite um novo link de acesso." : rawCode === "invite_revoked" ? "Este link foi revogado." : rawCode === "invite_already_used" ? "Este link atingiu o limite de uso." : "Verifique o link recebido.";
+      if (overlay) overlay.style.display = "flex";
+      return;
+    }
     if (isAuthenticationRequired(access)) {
       if (loginOverlay) loginOverlay.style.display = "flex";
       return;
@@ -251,25 +290,62 @@
     emitAccessChanged(state.access);
   }
 
+  async function redeemInviteFromUrl() {
+    const inviteToken = inviteTokenFromUrl();
+    if (!inviteToken || state.inviteRedeeming) return false;
+    state.inviteRedeeming = true;
+    try {
+      const response = await fetch(apiBaseUrl() + "/api/apartment-handover/invite/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteToken })
+      });
+      const body = await response.json().catch(function () { return {}; });
+      removeRawInviteFromUrl();
+      if (!response.ok || !persistInviteSession(body)) {
+        state.access = Object.assign({ allowed: false, trial_used: 0, trial_limit: 0, remaining: 0, can_create: false }, body || {}, { code: body.error || "invite_invalid" });
+        render(state.access);
+        emitAccessChanged(state.access);
+        return false;
+      }
+      state.access = Object.assign({ allowed: true, auth_mode: "invite" }, body.access || {});
+      render(state.access);
+      emitAccessChanged(state.access);
+      return true;
+    } catch (_) {
+      removeRawInviteFromUrl();
+      state.access = { allowed: false, code: "invite_invalid", error: "invite_invalid", message: "CONVITE INVALIDO", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
+      render(state.access);
+      emitAccessChanged(state.access);
+      return false;
+    } finally {
+      state.inviteRedeeming = false;
+    }
+  }
+
   async function checkAccess(options = {}) {
     const force = Boolean(options && options.force);
+    if (inviteTokenFromUrl()) {
+      await redeemInviteFromUrl();
+    }
     if (state.checking && !force) return state.access;
     state.checking = true;
     try {
+      const inviteSession = findInviteSession();
       const token = findAccessToken();
-      if (!token) {
+      if (!inviteSession && !token) {
         state.access = { allowed: false, status: "missing_session", code: "AUTHENTICATION_REQUIRED", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
         render(state.access);
         emitAccessChanged(state.access);
         return state.access;
       }
-      const requestToken = token;
+      const requestToken = inviteSession || token;
       const response = await fetch(apiBaseUrl() + "/api/apartment-handover/access", {
         method: "GET",
-        headers: { Authorization: "Bearer " + requestToken }
+        headers: inviteSession ? { "X-Apartment-Handover-Invite-Session": inviteSession } : { Authorization: "Bearer " + requestToken }
       });
       const body = await response.json().catch(function () { return {}; });
-      if (requestToken !== findAccessToken()) return state.access;
+      if (!inviteSession && requestToken !== findAccessToken()) return state.access;
       if (response.status === 401) {
         clearSession();
         state.access = { allowed: false, status: "invalid_session", code: "invalid_session", trial_used: 0, trial_limit: 0, remaining: 0, can_create: false };
@@ -299,11 +375,13 @@
   }
 
   function authenticatedHeaders(headers) {
+    const inviteSession = findInviteSession();
     const token = findAccessToken();
+    if (inviteSession) return Object.assign({}, headers || {}, { "X-Apartment-Handover-Invite-Session": inviteSession });
     return Object.assign({}, headers || {}, token ? { Authorization: "Bearer " + token } : {});
   }
 
-  root.ApartmentHandoverAccess = { checkAccess, ensureAllowed, authenticatedHeaders, findAccessToken, login, logout: logoutUser, getState: function () { return Object.assign({}, state.access || {}); } };
+  root.ApartmentHandoverAccess = { checkAccess, ensureAllowed, authenticatedHeaders, findAccessToken, findInviteSession, login, logout: logoutUser, getState: function () { return Object.assign({}, state.access || {}); } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", checkAccess);
   else checkAccess();
 })();

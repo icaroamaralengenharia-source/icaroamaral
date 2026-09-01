@@ -28,6 +28,7 @@ import { defaultObraReportTransactionalService } from "./services/obrareport-tra
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
 import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
+import { APARTMENT_HANDOVER_MODULE_KEY, DEFAULT_SESSION_TTL_MINUTES, getApartmentHandoverEntitlement, mapEntitlementAccess, mapInviteRedeemError, redeemApartmentHandoverInvite, verifyApartmentHandoverInviteSession } from "./apartment-handover-invite-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -1069,8 +1070,10 @@ export function createApp(options = {}) {
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
+  const getApartmentHandoverDatabase = (response) => requireApartmentHandoverDatabase_(env, response, options.apartmentHandoverSupabaseClient || stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
   const getApartmentHandoverEntitlementDatabase = () => apartmentHandoverEntitlementSupabaseClient || getAuthContextDatabase();
+  const apartmentHandoverInviteRateLimiter = createApartmentHandoverInviteRateLimiter_();
 
   app.locals.resolveAuthContext = (request) => resolveAuthContext(request, { supabase: getAuthContextDatabase() });
 
@@ -1112,6 +1115,39 @@ export function createApp(options = {}) {
     });
   });
 
+  app.post("/api/apartment-handover/invite/redeem", async (request, response) => {
+    const database = getApartmentHandoverDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const rate = apartmentHandoverInviteRateLimiter.check(request);
+    if (!rate.ok) {
+      response.status(429).json({ ok: false, error: "invite_rate_limited", message: "Muitas tentativas. Tente novamente em instantes." });
+      return;
+    }
+
+    try {
+      const result = await redeemApartmentHandoverInvite(database, {
+        inviteToken: request.body && request.body.inviteToken
+      }, {
+        secret: env.APARTMENT_HANDOVER_INVITE_SECRET,
+        sessionTtlMinutes: Number(env.APARTMENT_HANDOVER_INVITE_SESSION_MINUTES || DEFAULT_SESSION_TTL_MINUTES)
+      });
+      response.json({
+        ok: true,
+        allowed: true,
+        auth_mode: "invite",
+        invite_session: result.session.token,
+        invite_session_expires_at: result.session.expiresAt,
+        access: Object.assign({ auth_mode: "invite" }, result.access)
+      });
+    } catch (error) {
+      const mapped = mapInviteRedeemError(error);
+      response.status(mapped.status).json({ ok: false, error: mapped.error, message: mapped.message });
+    }
+  });
+
   async function resolveApartmentHandoverRequestAccess_(request, response) {
     const context = await app.locals.resolveAuthContext(request);
     if (!context || !context.ok) {
@@ -1128,23 +1164,39 @@ export function createApp(options = {}) {
       institutionId: context.institutionId,
       now: options.apartmentHandoverAccessNow
     });
-    return { context, access };
+    return { context, access, auth: { ok: true, authMode: "supabase", institutionId: context.institutionId } };
   }
 
-  function sendApartmentHandoverAccess_(response, access) {
-    const body = toApartmentHandoverAccessResponse(access);
+  function sendApartmentHandoverAccess_(response, access, extra = {}) {
+    const body = Object.assign({}, access && typeof access === "object" ? access : {}, toApartmentHandoverAccessResponse(access));
     if (access && access.allowed) {
-      response.status(200).json(Object.assign({ ok: true }, body));
+      response.status(200).json(Object.assign({ ok: true }, extra, body));
       return;
     }
-    response.status(403).json(Object.assign({ ok: false }, body));
+    response.status(403).json(Object.assign({ ok: false }, extra, body));
   }
 
   app.get("/api/apartment-handover/access", async (request, response) => {
     try {
-      const resolved = await resolveApartmentHandoverRequestAccess_(request, response);
-      if (!resolved) return;
-      sendApartmentHandoverAccess_(response, resolved.access);
+      const database = getApartmentHandoverDatabase(response);
+      if (!database) return;
+
+      const auth = await resolveApartmentHandoverProtectedAuth_(request, database, env);
+      if (!auth.ok) {
+        response.status(auth.status).json({ ok: false, error: auth.error });
+        return;
+      }
+
+      const access = auth.authMode === "invite"
+        ? await resolveApartmentHandoverAccess_(database, auth.institutionId)
+        : (await resolveApartmentHandoverRequestAccess_(request, response))?.access;
+      if (!access) return;
+      if (access.ok === false) {
+        response.status(access.status).json({ ok: false, error: access.error });
+        return;
+      }
+
+      sendApartmentHandoverAccess_(response, access, { auth_mode: auth.authMode });
     } catch (error) {
       response.status(500).json({ ok: false, allowed: false, code: "APARTMENT_HANDOVER_ACCESS_FAILED" });
     }
@@ -1157,15 +1209,27 @@ export function createApp(options = {}) {
   }
 
   app.post("/api/apartment-handover/pdf-protected", async (request, response) => {
+    const database = getApartmentHandoverDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const auth = await resolveApartmentHandoverProtectedAuth_(request, database, env);
+    if (!auth.ok) {
+      response.status(auth.status).json({ ok: false, error: auth.error });
+      return;
+    }
+
+    const access = auth.authMode === "invite"
+      ? await resolveApartmentHandoverAccess_(database, auth.institutionId)
+      : null;
+    if (access && access.ok === false) {
+      response.status(access.status).json({ ok: false, error: access.error });
+      return;
+    }
+
     let tempPath = "";
     try {
-      const resolved = await resolveApartmentHandoverRequestAccess_(request, response);
-      if (!resolved) return;
-      if (!resolved.access || !resolved.access.allowed) {
-        sendApartmentHandoverAccess_(response, resolved.access);
-        return;
-      }
-
       const payload = request.body && typeof request.body === "object" ? request.body : null;
       const mode = clean_(payload && payload.mode).toLowerCase();
       const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
@@ -1178,47 +1242,58 @@ export function createApp(options = {}) {
         response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_TYPE", error: "invalid_report_type" });
         return;
       }
-      if (!inspectionId) {
+      if (!inspectionId || !isUuidLike_(inspectionId)) {
         response.status(400).json({ ok: false, allowed: false, code: "INSPECTION_ID_REQUIRED", error: "inspection_id_required" });
         return;
       }
 
+      let inspection;
+      try {
+        inspection = obraReportTransactionalService.getApartmentHandoverInspection({ institutionId: auth.institutionId }, inspectionId);
+      } catch (error) {
+        response.status(Number(error && error.status) || 404).json({ ok: false, code: "INSPECTION_NOT_FOUND", error: "inspection_not_found" });
+        return;
+      }
+      const persistedPayload = buildApartmentHandoverPersistedPdfPayload_(inspection, payload, mode);
       const reviewer = options.apartmentHandoverReviewer || reviewApartmentHandoverInspection;
-      const review = reviewer(payload);
+      const review = reviewer(persistedPayload);
       if (mode === "final" && review && review.canGenerateFinal === false) {
         response.status(422).json({ ok: false, code: "INSPECTION_PREFLIGHT_BLOCKED", review });
         return;
       }
 
-      const authorizer = options.authorizeApartmentHandoverInspectionUsage || authorizeApartmentHandoverInspectionUsage;
-      const usageAccess = await authorizer({
-        supabase: getApartmentHandoverEntitlementDatabase(),
-        institutionId: resolved.context.institutionId,
-        inspectionId,
-        consume: mode === "final"
-      });
-      if (!usageAccess || !usageAccess.allowed) {
-        sendApartmentHandoverAccess_(response, usageAccess);
-        return;
+      if (auth.authMode !== "invite") {
+        const authorizer = options.authorizeApartmentHandoverInspectionUsage || authorizeApartmentHandoverInspectionUsage;
+        const usageAccess = await authorizer({
+          supabase: getApartmentHandoverEntitlementDatabase(),
+          institutionId: auth.institutionId,
+          inspectionId,
+          consume: mode === "final"
+        });
+        if (!usageAccess || !usageAccess.allowed) {
+          sendApartmentHandoverAccess_(response, usageAccess, { auth_mode: auth.authMode });
+          return;
+        }
       }
 
       const generator = options.apartmentHandoverPdfGenerator || generateApartmentHandoverInspectionPdf;
       const tempDir = join(REPO_DIR, "tmp", "apartment-handover-endpoint");
       mkdirSync(tempDir, { recursive: true });
       tempPath = join(tempDir, `apartment-handover-protected-${Date.now()}-${randomUUID()}.pdf`);
-      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(payload, mode);
-      const generated = await generator(pdfPayload, tempPath, { mode, review });
+      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(persistedPayload, mode);
+      const generated = await generator(pdfPayload, tempPath, { mode, review, authMode: auth.authMode, institutionId: auth.institutionId, inspectionId });
       if (generated && generated.ok === false) {
         response.status(422).json(generated);
         return;
       }
 
       const pdf = readFileSync(tempPath);
-      const filename = buildApartmentHandoverPdfFilename_(payload);
+      const filename = buildApartmentHandoverPdfFilename_(persistedPayload);
       response.set({
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(pdf.length)
+        "Content-Length": String(pdf.length),
+        "X-Apartment-Handover-Auth-Mode": auth.authMode
       });
       response.status(200).send(pdf);
     } catch (error) {
@@ -3797,6 +3872,85 @@ export function createApp(options = {}) {
   });
 
   return app;
+}
+
+function requireApartmentHandoverDatabase_(env, response, databaseOverride = null) {
+  const database = databaseOverride || getSupabaseClient(env);
+  if (!database) {
+    response.status(503).json({
+      ok: false,
+      error: "apartment_handover_database_not_configured"
+    });
+    return null;
+  }
+  return database;
+}
+
+function createApartmentHandoverInviteRateLimiter_() {
+  const attempts = new Map();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 20;
+  return {
+    check(request) {
+      const forwarded = clean_(request.headers["x-forwarded-for"]).split(",")[0];
+      const key = forwarded || clean_(request.ip) || "unknown";
+      const now = Date.now();
+      const current = (attempts.get(key) || []).filter((item) => now - item < windowMs);
+      current.push(now);
+      attempts.set(key, current);
+      return { ok: current.length <= maxAttempts };
+    }
+  };
+}
+
+async function resolveApartmentHandoverAccess_(database, institutionId) {
+  try {
+    const entitlement = await getApartmentHandoverEntitlement(database, institutionId, APARTMENT_HANDOVER_MODULE_KEY);
+    return mapEntitlementAccess(entitlement);
+  } catch (error) {
+    return { ok: false, status: 500, error: "apartment_handover_access_lookup_failed" };
+  }
+}
+
+async function resolveApartmentHandoverProtectedAuth_(request, database, env) {
+  const inviteSession = clean_(request.headers["x-apartment-handover-invite-session"]);
+  if (inviteSession) {
+    const verified = verifyApartmentHandoverInviteSession(inviteSession, { secret: env.APARTMENT_HANDOVER_INVITE_SECRET });
+    if (!verified.ok) {
+      return verified;
+    }
+    return {
+      ok: true,
+      authMode: "invite",
+      institutionId: verified.institutionId,
+      inviteId: verified.inviteId,
+      sessionId: verified.sessionId
+    };
+  }
+
+  try {
+    const userResult = await getSupabaseUserFromRequest_(request, database);
+    if (!userResult.ok) {
+      return userResult;
+    }
+    const profile = await getStockFullProfileByAuthUser_(database, userResult.user.id);
+    if (!profile || !clean_(profile.institution_id)) {
+      return { ok: false, status: 403, error: "apartment_handover_profile_not_found" };
+    }
+    return {
+      ok: true,
+      authMode: "supabase",
+      user: userResult.user,
+      profile,
+      institutionId: clean_(profile.institution_id)
+    };
+  } catch (error) {
+    return { ok: false, status: 500, error: "apartment_handover_auth_lookup_failed" };
+  }
+}
+
+function isUuidLike_(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean_(value));
 }
 
 function requireStockSaudeDatabase_(env, response, databaseOverride = null) {
@@ -7945,6 +8099,28 @@ function safeValue_(value) {
   return clean_(value) || "-";
 }
 
+
+function buildApartmentHandoverPersistedPdfPayload_(inspection, body = {}, mode = "draft") {
+  const safeBody = body && typeof body === "object" ? body : {};
+  const bodyReport = safeBody.report && typeof safeBody.report === "object" ? safeBody.report : {};
+  const inspectionData = inspection && inspection.inspection_data_json && typeof inspection.inspection_data_json === "object" ? inspection.inspection_data_json : {};
+  const metadata = inspectionData.metadata && typeof inspectionData.metadata === "object" ? inspectionData.metadata : {};
+  return {
+    mode,
+    inspection_id: inspection.id,
+    report: Object.assign({}, bodyReport, {
+      type: "apartment_handover_inspection",
+      empreendimento: inspectionData.empreendimento || metadata.projectName || inspection.title || bodyReport.empreendimento || bodyReport.obra || "",
+      obra: inspectionData.obra || metadata.projectName || inspection.title || bodyReport.obra || bodyReport.empreendimento || "",
+      unidade: inspectionData.unidade || metadata.unitName || bodyReport.unidade || "",
+      cliente: inspectionData.cliente || metadata.clientName || bodyReport.cliente || "",
+      bloco: inspectionData.bloco || metadata.blockName || bodyReport.bloco || "",
+      endereco: inspectionData.endereco || metadata.address || bodyReport.endereco || "",
+      dataVistoria: inspectionData.dataVistoria || inspectionData.startedAt || inspection.created_at || bodyReport.dataVistoria || "",
+      inspection: Object.assign({}, inspectionData, { id: inspection.id })
+    })
+  };
+}
 
 function normalizeApartmentHandoverPdfPayloadForMode_(payload, mode) {
   const cloned = JSON.parse(JSON.stringify(payload || {}));
