@@ -1,6 +1,6 @@
 {
-  "atualizadoEm": "2026-09-01T14:52:23.780Z",
-  "coletadoEm": "2026-09-01T14:52:23.780Z",
+  "atualizadoEm": "2026-09-01T18:29:23.103Z",
+  "coletadoEm": "2026-09-01T18:29:23.103Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
@@ -20,6 +20,20 @@
       "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/09/contrucao.png",
       "imagemAlt": "PIB: Construção recua 0,4% no segundo trimestre, mas cresce 1,1% no semestre",
       "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "2fe4f80cf0ef0b2a",
+      "titulo": "Calor foi responsável por 2.149 mortes na Espanha no mês passado",
+      "resumo": "Estima-se que quase 2.150 pessoas tenham morrido por causas relacionadas ao calor na Espanha em agosto, segundo dados oficiais divulgados nesta terça-feira (1º), após ondas de calor recordes terem assolado a Europa Ocidental durante o verão.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/internacional/noticia/2026-09/calor-foi-responsavel-por-2149-mortes-na-espanha-no-mes-passado",
+      "publicadoEm": "2026-09-01T13:39:00.000Z",
+      "coletadoEm": "2026-09-01T18:29:23.103Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/2co7VwNnMmIfmoIptaIg9mjJnl0=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/06/22/2026-06-18t153531z_640837258_rc2fwlahps35_rtrmadp_3_europe-weather-france-heat.jpg?itok=mGcbff1-",
+      "imagemAlt": "Calor foi responsável por 2.149 mortes na Espanha no mês passado",
+      "imagemOrigem": "Agencia Brasil"
     },
     {
       "id": "e2786ecadb3dad22",
