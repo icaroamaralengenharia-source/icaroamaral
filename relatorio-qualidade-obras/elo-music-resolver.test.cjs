@@ -271,6 +271,42 @@ test('ELO music resolver unit: rejected physical nao retorna videoId direto nem 
   assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Aerosmith Dream On');
 });
 
+test('ELO music resolver unit: rejected physical usa web fallback pendente de validacao fisica', async () => {
+  const requestedUrls = [];
+  const { resolver, context } = loadResolver({
+    fetch(url) {
+      requestedUrls.push(url);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          ok: true,
+          provider: 'youtube-web-search',
+          candidates: [
+            { title: 'Eagles - Hotel California', artist: 'Eagles', channel: 'Eagles', videoId: 'hotelA1', source: 'web_search', provider: 'youtube-web-search', playable: null, embeddable: null },
+            { title: 'Hotel California Live', artist: 'Eagles', channel: 'Eagles', videoId: 'hotelB2', source: 'web_search', provider: 'youtube-web-search', playable: null, embeddable: null }
+          ]
+        })
+      });
+    }
+  });
+
+  const result = await resolver.resolve('toque Hotel California do Eagles');
+  const cache = JSON.parse(context.window.localStorage.getItem('elo_music_catalog_cache_v1') || '{}');
+
+  assert.equal(result.found, true);
+  assert.equal(result.catalogId, 'eagles-hotel-california');
+  assert.equal(result.catalogMatch.validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(result.source, 'web_search');
+  assert.equal(result.videoId, 'hotelA1');
+  assert.equal(result.playable, true);
+  assert.equal(result.embeddable, true);
+  assert.equal(result.requiresPhysicalPlayback, true);
+  assert.equal(result.fallbackCandidates.length, 1);
+  assert.equal(result.fallbackCandidates[0].videoId, 'hotelB2');
+  assert.equal(cache['eagles-hotel-california'], undefined);
+  assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Eagles Hotel California');
+});
 test('ELO music resolver unit: offline nao chama provider nem toca catalogo active', async () => {
   const requestedUrls = [];
   let playCalls = 0;
