@@ -1,10 +1,15 @@
 package br.com.icaroamaral.elophotobridge
 
+import android.util.Log
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 object UserVisitWindowFilter {
+  private const val TAG = "EloPhotoBridge"
+  private val LOG_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+
   fun fromText(command: ParsedCommand, inputText: String): UserVisitWindowRequest? {
     val refinement = VisitRefinementParser().parse(inputText)
     val date = refinement.date ?: command.dateHint ?: return null
@@ -12,11 +17,16 @@ object UserVisitWindowFilter {
     val end = refinement.endTime ?: return null
     return UserVisitWindowRequest(
       date = date,
-      startTime = start,
-      endTime = end,
-      cityHint = refinement.cityHint ?: command.cityHint
+      startTime = normalizeStart(start),
+      endTime = normalizeEnd(end, refinement.endHasSeconds),
+      cityHint = refinement.cityHint ?: command.cityHint,
+      rawStartTime = refinement.rawStartTime ?: start.toString(),
+      rawEndTime = refinement.rawEndTime ?: end.toString(),
+      endHasSeconds = refinement.endHasSeconds
     )
   }
+
+  fun hasInvalidTimeRange(inputText: String): Boolean = VisitRefinementParser().parse(inputText).timeRangeInvalid
 
   fun filterPhotosByUserWindow(
     photos: List<PhotoMetadata>,
@@ -25,12 +35,30 @@ object UserVisitWindowFilter {
     endTime: LocalTime,
     zone: ZoneId = ZoneId.systemDefault()
   ): List<PhotoMetadata> {
-    val inclusiveEnd = if (endTime.second == 0 && endTime.nano == 0) endTime.withSecond(59) else endTime
+    Log.d(TAG, "WINDOW_FILTER_CALLED: true")
+    Log.d(TAG, "PARSED_START: $startTime")
+    Log.d(TAG, "PARSED_END: $endTime")
     return photos.filter { photo ->
-      val local = photo.bestInstant()?.atZone(zone)?.toLocalDateTime() ?: return@filter false
+      val timestamp = photo.bestTimestamp()
+      if (timestamp == null) {
+        Log.d(TAG, "TIMESTAMP_SOURCE: NONE | URI: ${photo.uri}")
+        return@filter false
+      }
+      val local = timestamp.instant.atZone(zone).toLocalDateTime()
+      Log.d(TAG, "TIMESTAMP_SOURCE: ${timestamp.source.name} | TIMESTAMP_RAW: ${timestamp.raw} | TIMESTAMP_LOCAL: ${local.format(LOG_FORMAT)} | URI: ${photo.uri}")
       local.toLocalDate() == date &&
         !local.toLocalTime().isBefore(startTime) &&
-        !local.toLocalTime().isAfter(inclusiveEnd)
+        !local.toLocalTime().isAfter(endTime)
+    }
+  }
+
+  private fun normalizeStart(startTime: LocalTime): LocalTime = startTime.withNano(0)
+
+  private fun normalizeEnd(endTime: LocalTime, endHasSeconds: Boolean): LocalTime {
+    return if (endHasSeconds) {
+      endTime.withNano(999_999_999)
+    } else {
+      endTime.withSecond(59).withNano(999_999_999)
     }
   }
 }
@@ -39,5 +67,8 @@ data class UserVisitWindowRequest(
   val date: LocalDate,
   val startTime: LocalTime,
   val endTime: LocalTime,
-  val cityHint: String?
+  val cityHint: String?,
+  val rawStartTime: String,
+  val rawEndTime: String,
+  val endHasSeconds: Boolean
 )

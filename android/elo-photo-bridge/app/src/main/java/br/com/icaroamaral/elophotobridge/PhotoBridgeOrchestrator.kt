@@ -41,6 +41,7 @@ class PhotoBridgeOrchestrator(
     onProgress: suspend (PhotoBridgeProgress) -> Unit = {}
   ): Result<Pair<ParsedCommand, List<VisitGroup>>> {
     return try {
+      if (UserVisitWindowFilter.hasInvalidTimeRange(commandText)) throw IllegalArgumentException("invalid_time")
       val command = parser.parse(commandText)
       val window = UserVisitWindowFilter.fromText(command, commandText)
       val requestedDate = window?.date ?: command.dateHint ?: return Result.failure(IllegalStateException("date_required"))
@@ -50,11 +51,14 @@ class PhotoBridgeOrchestrator(
       val datePhotos = repository.photosForDate(requestedDate, ZoneId.systemDefault())
       Log.d(TAG, "MEDIASTORE_TOTAL_MATCHES_DATE: ${datePhotos.size}")
       Log.d(TAG, "PHOTOS_AFTER_DATE_FILTER: ${datePhotos.size}")
+      Log.d(TAG, "TIMESTAMP_SOURCE_COUNTS: ${timestampSourceCounts(datePhotos)}")
       coroutineContext.ensureActive()
       onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.READING_METADATA, "Encontradas ${datePhotos.size} fotos em $displayDate.", datePhotos.size, datePhotos.size, datePhotos.size))
 
       val resolvedPhotos = resolveCities(datePhotos, onProgress)
       val timeFilteredPhotos = if (window != null) {
+        Log.d(TAG, "UI_START_TIME_RAW: ${window.rawStartTime}")
+        Log.d(TAG, "UI_END_TIME_RAW: ${window.rawEndTime}")
         Log.d(TAG, "TIME_FILTER_START: ${window.startTime}")
         Log.d(TAG, "TIME_FILTER_END: ${window.endTime}")
         UserVisitWindowFilter.filterPhotosByUserWindow(resolvedPhotos, window.date, window.startTime, window.endTime)
@@ -71,6 +75,9 @@ class PhotoBridgeOrchestrator(
       }
       Log.d(TAG, "PHOTOS_AFTER_CITY_HINT: ${cityFilteredPhotos.size}")
 
+      if (window != null && cityFilteredPhotos.size > timeFilteredPhotos.size) {
+        throw IllegalStateException("no_expansion_invariant_failed")
+      }
       if (datePhotos.isEmpty()) return Result.failure(IllegalStateException("photos_not_found_for_date"))
       if (cityFilteredPhotos.isEmpty()) return Result.failure(IllegalStateException("visit_not_found"))
 
@@ -86,7 +93,13 @@ class PhotoBridgeOrchestrator(
         }
       }
       if (groups.isEmpty()) return Result.failure(IllegalStateException("visit_not_found"))
-      Log.d(TAG, "SELECTED_VISIT_PHOTOS: ${selectGroup(command, groups).photos.size}")
+      val selected = selectGroup(command, groups)
+      if (window != null && selected.photos.size > timeFilteredPhotos.size) {
+        Log.e(TAG, "NO_EXPANSION_INVARIANT_FAILED: selected=${selected.photos.size} timeWindow=${timeFilteredPhotos.size}")
+        throw IllegalStateException("no_expansion_invariant_failed")
+      }
+      Log.d(TAG, "NO_EXPANSION_INVARIANT: PASS selected=${selected.photos.size} timeWindow=${timeFilteredPhotos.size}")
+      Log.d(TAG, "SELECTED_VISIT_PHOTOS: ${selected.photos.size}")
       Result.success(command to groups)
     } catch (error: CancellationException) {
       throw error
@@ -103,6 +116,7 @@ class PhotoBridgeOrchestrator(
     onProgress: suspend (PhotoBridgeProgress) -> Unit = {}
   ): String {
     Log.d(TAG, "PHOTOS_SENT_TO_TIMELINE: ${group.photos.size}")
+    Log.d(TAG, "PHOTOS_SENT_TO_AI: 0")
     return withContext(Dispatchers.Default) {
       coroutineContext.ensureActive()
       onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.PREPARING_REPORT, "Organizando fotos por timeline...", photoCount = group.photos.size))
@@ -160,6 +174,10 @@ class PhotoBridgeOrchestrator(
 
   private fun selectGroup(command: ParsedCommand, groups: List<VisitGroup>): VisitGroup {
     return if (command.latestVisit) groups.maxBy { it.photos.maxOf { photo -> photo.bestInstant() ?: Instant.EPOCH } } else groups.first()
+  }
+
+  private fun timestampSourceCounts(photos: List<PhotoMetadata>): String {
+    return photos.groupingBy { it.timestampSourceName() }.eachCount().toSortedMap().entries.joinToString(",") { "${it.key}=${it.value}" }
   }
 
   private fun normalize(value: String?): String {

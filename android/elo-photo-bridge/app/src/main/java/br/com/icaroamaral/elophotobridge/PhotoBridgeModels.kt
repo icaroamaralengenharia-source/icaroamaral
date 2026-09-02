@@ -28,6 +28,20 @@ enum class ClassificationMode {
   AI_CLASSIFICATION
 }
 
+enum class PhotoTimestampSource {
+  EXIF_DATETIME_ORIGINAL,
+  MEDIASTORE_DATE_TAKEN,
+  EXIF_DATETIME_DIGITIZED,
+  MEDIASTORE_DATE_MODIFIED,
+  MEDIASTORE_DATE_ADDED
+}
+
+data class PhotoTimestamp(
+  val source: PhotoTimestampSource,
+  val instant: Instant,
+  val raw: String
+)
+
 data class PhotoMetadata(
   val uri: Uri,
   val displayName: String,
@@ -39,9 +53,26 @@ data class PhotoMetadata(
   val mimeType: String?,
   val latitude: Double?,
   val longitude: Double?,
-  val city: String? = null
+  val city: String? = null,
+  val dateModified: Instant? = null,
+  val exifDateDigitized: Instant? = null,
+  val exifDateOriginalRaw: String? = null,
+  val exifDateDigitizedRaw: String? = null,
+  val dateTakenRaw: Long? = null,
+  val dateAddedRaw: Long? = null,
+  val dateModifiedRaw: Long? = null
 ) {
-  fun bestInstant(): Instant? = exifDateOriginal ?: dateTaken ?: dateAdded
+  fun bestTimestamp(): PhotoTimestamp? {
+    exifDateOriginal?.let { return PhotoTimestamp(PhotoTimestampSource.EXIF_DATETIME_ORIGINAL, it, exifDateOriginalRaw ?: it.toString()) }
+    dateTaken?.let { return PhotoTimestamp(PhotoTimestampSource.MEDIASTORE_DATE_TAKEN, it, dateTakenRaw?.toString() ?: it.toString()) }
+    exifDateDigitized?.let { return PhotoTimestamp(PhotoTimestampSource.EXIF_DATETIME_DIGITIZED, it, exifDateDigitizedRaw ?: it.toString()) }
+    dateModified?.let { return PhotoTimestamp(PhotoTimestampSource.MEDIASTORE_DATE_MODIFIED, it, dateModifiedRaw?.toString() ?: it.toString()) }
+    dateAdded?.let { return PhotoTimestamp(PhotoTimestampSource.MEDIASTORE_DATE_ADDED, it, dateAddedRaw?.toString() ?: it.toString()) }
+    return null
+  }
+
+  fun bestInstant(): Instant? = bestTimestamp()?.instant
+  fun timestampSourceName(): String = bestTimestamp()?.source?.name ?: "NONE"
 }
 
 data class ParsedCommand(
@@ -66,6 +97,7 @@ data class UserDefinedVisitWindow(
   val cityHint: String?,
   val photos: List<PhotoMetadata>
 )
+
 data class PhotoClassificationResult(
   val category: PhotoCategory,
   val confidence: Double,
@@ -97,6 +129,3 @@ data class BridgeConfig(
   val visualAnalysisUrl: String = "https://obrareport-backend.onrender.com/api/ai/analyze-image",
   val visualClassificationTimeoutMs: Long = 15000L
 )
-
-
-

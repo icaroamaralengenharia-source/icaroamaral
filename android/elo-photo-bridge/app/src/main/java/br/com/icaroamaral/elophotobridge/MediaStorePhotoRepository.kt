@@ -30,8 +30,8 @@ class MediaStorePhotoRepository(private val context: Context) : PhotoRepository 
     val startSeconds = start.epochSecond.toString()
     val endSeconds = end.minusMillis(1).epochSecond.toString()
     queryPhotos(
-      selection = "((${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} <= ?) OR (${MediaStore.Images.Media.DATE_ADDED} >= ? AND ${MediaStore.Images.Media.DATE_ADDED} <= ?))",
-      args = arrayOf(startMillis, endMillis, startSeconds, endSeconds)
+      selection = "((${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} <= ?) OR (${MediaStore.Images.Media.DATE_MODIFIED} >= ? AND ${MediaStore.Images.Media.DATE_MODIFIED} <= ?) OR (${MediaStore.Images.Media.DATE_ADDED} >= ? AND ${MediaStore.Images.Media.DATE_ADDED} <= ?))",
+      args = arrayOf(startMillis, endMillis, startSeconds, endSeconds, startSeconds, endSeconds)
     ).filter { photo ->
       val instant = photo.bestInstant() ?: return@filter false
       !instant.isBefore(start) && instant.isBefore(end)
@@ -45,6 +45,7 @@ class MediaStorePhotoRepository(private val context: Context) : PhotoRepository 
       MediaStore.Images.Media.DISPLAY_NAME,
       MediaStore.Images.Media.DATE_TAKEN,
       MediaStore.Images.Media.DATE_ADDED,
+      MediaStore.Images.Media.DATE_MODIFIED,
       MediaStore.Images.Media.WIDTH,
       MediaStore.Images.Media.HEIGHT,
       MediaStore.Images.Media.MIME_TYPE
@@ -57,6 +58,7 @@ class MediaStorePhotoRepository(private val context: Context) : PhotoRepository 
       val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
       val takenCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
       val addedCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+      val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
       val widthCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
       val heightCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
       val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
@@ -64,19 +66,29 @@ class MediaStorePhotoRepository(private val context: Context) : PhotoRepository 
         val uri = ContentUris.withAppendedId(collection, cursor.getLong(idCol))
         val originalUri = if (Build.VERSION.SDK_INT >= 29) MediaStore.setRequireOriginal(uri) else uri
         val gps = readGps(originalUri)
-        val exifDate = readExifDate(originalUri)
+        val exifDates = readExifDates(originalUri)
+        val dateTakenRaw = cursor.getLongOrNull(takenCol)?.takeIf { it > 0 }
+        val dateAddedRaw = cursor.getLongOrNull(addedCol)?.takeIf { it > 0 }
+        val dateModifiedRaw = cursor.getLongOrNull(modifiedCol)?.takeIf { it > 0 }
         photos.add(
           PhotoMetadata(
             uri = uri,
             displayName = cursor.getString(nameCol) ?: "",
-            dateTaken = cursor.getLongOrNull(takenCol)?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) },
-            dateAdded = cursor.getLongOrNull(addedCol)?.takeIf { it > 0 }?.let { Instant.ofEpochSecond(it) },
-            exifDateOriginal = exifDate,
+            dateTaken = dateTakenRaw?.let { Instant.ofEpochMilli(it) },
+            dateAdded = dateAddedRaw?.let { Instant.ofEpochSecond(it) },
+            exifDateOriginal = exifDates.original?.instant,
             width = cursor.getIntOrNull(widthCol),
             height = cursor.getIntOrNull(heightCol),
             mimeType = cursor.getString(mimeCol),
             latitude = gps?.first,
-            longitude = gps?.second
+            longitude = gps?.second,
+            dateModified = dateModifiedRaw?.let { Instant.ofEpochSecond(it) },
+            exifDateDigitized = exifDates.digitized?.instant,
+            exifDateOriginalRaw = exifDates.original?.raw,
+            exifDateDigitizedRaw = exifDates.digitized?.raw,
+            dateTakenRaw = dateTakenRaw,
+            dateAddedRaw = dateAddedRaw,
+            dateModifiedRaw = dateModifiedRaw
           )
         )
       }
@@ -98,18 +110,31 @@ class MediaStorePhotoRepository(private val context: Context) : PhotoRepository 
     }
   }
 
-  private fun readExifDate(uri: Uri): Instant? {
+  private fun readExifDates(uri: Uri): ExifDates {
     return try {
       context.contentResolver.openInputStream(uri)?.use { input ->
         val exif = ExifInterface(input)
-        val value = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL) ?: return null
-        val parsed = LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss"))
-        parsed.atZone(ZoneId.systemDefault()).toInstant()
-      }
+        ExifDates(
+          original = readExifTimestamp(exif, ExifInterface.TAG_DATETIME_ORIGINAL),
+          digitized = readExifTimestamp(exif, ExifInterface.TAG_DATETIME_DIGITIZED)
+        )
+      } ?: ExifDates()
     } catch (_: Exception) {
-      null
+      ExifDates()
     }
   }
+
+  private fun readExifTimestamp(exif: ExifInterface, tag: String): ExifTimestamp? {
+    val value = exif.getAttribute(tag)?.takeIf(String::isNotBlank) ?: return null
+    val instant = runCatching {
+      val parsed = LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss"))
+      parsed.atZone(ZoneId.systemDefault()).toInstant()
+    }.getOrNull() ?: return null
+    return ExifTimestamp(value, instant)
+  }
+
+  private data class ExifTimestamp(val raw: String, val instant: Instant)
+  private data class ExifDates(val original: ExifTimestamp? = null, val digitized: ExifTimestamp? = null)
 
   private fun android.database.Cursor.getLongOrNull(index: Int): Long? = if (isNull(index)) null else getLong(index)
   private fun android.database.Cursor.getIntOrNull(index: Int): Int? = if (isNull(index)) null else getInt(index)

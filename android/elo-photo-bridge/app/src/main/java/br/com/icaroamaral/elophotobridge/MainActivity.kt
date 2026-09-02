@@ -302,6 +302,13 @@ class MainActivity : ComponentActivity() {
 
 
 
+
+  private fun logUiWindowInputs(commandText: String, parsed: ParsedCommand) {
+    val refinement = VisitRefinementParser().parse(commandText)
+    Log.d("EloPhotoBridge", "UI_DATE_RAW: ${refinement.date ?: parsed.dateHint ?: ""}")
+    Log.d("EloPhotoBridge", "UI_START_TIME_RAW: ${refinement.rawStartTime ?: ""}")
+    Log.d("EloPhotoBridge", "UI_END_TIME_RAW: ${refinement.rawEndTime ?: ""}")
+  }
   private fun startAiClassificationFlow(replaceActive: Boolean = false) {
     if (screenModel.isProcessing) {
       if (!replaceActive) return
@@ -313,6 +320,7 @@ class MainActivity : ComponentActivity() {
   private fun prepareAiClassificationSelection() {
     val commandText = command.text.toString()
     val parsed = CommandParser().parse(commandText)
+    logUiWindowInputs(commandText, parsed)
     if (parsed.dateHint == null && UserVisitWindowFilter.fromText(parsed, commandText) == null) {
       persistState(screenModel.state.withCommand(commandText).copy(
         flowStatus = PhotoBridgeFlowStatus.WAITING_FOR_DATE,
@@ -353,6 +361,8 @@ class MainActivity : ComponentActivity() {
       }.onFailure { error ->
         val message = when (error.message) {
           "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          "invalid_time" -> "Horário inválido"
+          "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
           "visit_not_found" -> "Nenhuma visita compativel encontrada."
           else -> "Nao consegui selecionar a visita para IA."
         }
@@ -401,6 +411,7 @@ class MainActivity : ComponentActivity() {
     }
     val commandText = command.text.toString()
     val parsed = CommandParser().parse(commandText)
+    logUiWindowInputs(commandText, parsed)
     if (parsed.dateHint == null && UserVisitWindowFilter.fromText(parsed, commandText) == null) {
       persistState(screenModel.state.withCommand(commandText).copy(
         flowStatus = PhotoBridgeFlowStatus.WAITING_FOR_DATE,
@@ -442,6 +453,8 @@ class MainActivity : ComponentActivity() {
       }.onFailure { error ->
         val message = when (error.message) {
           "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          "invalid_time" -> "Horário inválido"
+          "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
           "visit_not_found" -> "Nenhuma visita compativel encontrada."
           else -> "Nao consegui abrir a timeline rapida."
         }
@@ -627,6 +640,7 @@ class MainActivity : ComponentActivity() {
   private fun prepareReport() {
     val commandText = command.text.toString()
     val parsed = CommandParser().parse(commandText)
+    logUiWindowInputs(commandText, parsed)
     val requestedDate = parsed.dateHint
     if (requestedDate == null) {
       persistState(screenModel.state.withCommand(commandText).copy(
@@ -701,6 +715,8 @@ class MainActivity : ComponentActivity() {
         } else {
           val message = when (error.message) {
             "multiple_visits" -> "Mais de uma visita encontrada nessa data. Refine horario ou cidade."
+            "invalid_time" -> "Horário inválido"
+            "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
             "visit_not_found" -> "Nenhuma visita compativel encontrada."
             else -> "Nao consegui concluir a busca. Voce pode tentar novamente."
           }
@@ -886,13 +902,18 @@ class MainActivity : ComponentActivity() {
 
   private fun intervalMatches(candidate: CandidateVisitSummary, requestedStart: LocalTime?, requestedEnd: LocalTime?): Boolean {
     if (requestedStart == null && requestedEnd == null) return true
-    val candidateStart = runCatching { LocalTime.parse(candidate.startTime, TIME_FORMAT) }.getOrNull() ?: return false
-    val candidateEnd = runCatching { LocalTime.parse(candidate.endTime, TIME_FORMAT) }.getOrNull() ?: candidateStart
+    val candidateStart = parseFlexibleTime(candidate.startTime) ?: return false
+    val candidateEnd = parseFlexibleTime(candidate.endTime) ?: candidateStart
     val start = requestedStart ?: LocalTime.MIN
     val end = requestedEnd ?: requestedStart ?: LocalTime.MAX
     return !candidateEnd.isBefore(start) && !candidateStart.isAfter(end)
   }
 
+
+  private fun parseFlexibleTime(value: String): LocalTime? {
+    return runCatching { LocalTime.parse(value, TIME_FORMAT) }.getOrNull()
+      ?: runCatching { LocalTime.parse(value, DateTimeFormatter.ofPattern("HH:mm")) }.getOrNull()
+  }
   private fun refinementStatusMessage(refinement: VisitRefinementInput): String {
     val start = refinement.startTime?.format(TIME_FORMAT)
     val end = refinement.endTime?.format(TIME_FORMAT)
@@ -1149,7 +1170,7 @@ class MainActivity : ComponentActivity() {
     webView.evaluateJavascript(script, null)
   }
   companion object {
-    private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
   }
 }
 

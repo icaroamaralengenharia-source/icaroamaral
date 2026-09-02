@@ -558,3 +558,136 @@ test("IA explicita recebe somente as 24 fotos da janela selecionada", () => {
   assert.notEqual(aiPhotos.length, 100);
   assert.notEqual(aiPhotos.length, 300);
 });
+
+function chooseRealTimestamp(photo) {
+  const candidates = [
+    ["EXIF_DATETIME_ORIGINAL", photo.exifDateOriginal, photo.exifDateOriginalRaw],
+    ["MEDIASTORE_DATE_TAKEN", photo.dateTaken, photo.dateTakenRaw],
+    ["EXIF_DATETIME_DIGITIZED", photo.exifDateDigitized, photo.exifDateDigitizedRaw],
+    ["MEDIASTORE_DATE_MODIFIED", photo.dateModified, photo.dateModifiedRaw],
+    ["MEDIASTORE_DATE_ADDED", photo.dateAdded, photo.dateAddedRaw]
+  ];
+  for (const [source, value, raw] of candidates) {
+    if (value) return { source, value, raw: raw ?? value };
+  }
+  return null;
+}
+
+function parseWindowTime(value, isEnd = false) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const hasSeconds = match[3] != null;
+  const second = hasSeconds ? Number(match[3]) : (isEnd ? 59 : 0);
+  const millisecond = isEnd ? 999 : 0;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  return { hour, minute, second, millisecond, hasSeconds, secondsOfDay: hour * 3600 + minute * 60 + second + millisecond / 1000 };
+}
+
+function filterByAbsoluteWindow(photos, date, start, end, cityHint = null) {
+  const parsedStart = parseWindowTime(start, false);
+  const parsedEnd = parseWindowTime(end, true);
+  if (!parsedStart || !parsedEnd) throw new Error("invalid_time");
+  const timeWindowPhotos = photos.filter((photo) => {
+    const timestamp = chooseRealTimestamp(photo);
+    if (!timestamp) return false;
+    if (!String(timestamp.value).startsWith(date)) return false;
+    const time = String(timestamp.value).match(/T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?/);
+    if (!time) return false;
+    const seconds = Number(time[1]) * 3600 + Number(time[2]) * 60 + Number(time[3]) + Number(time[4] || 0) / 1000;
+    return seconds >= parsedStart.secondsOfDay && seconds <= parsedEnd.secondsOfDay;
+  });
+  const cityFiltered = cityHint ? timeWindowPhotos.filter((photo) => cityMatches(photo.city, cityHint)) : timeWindowPhotos;
+  if (cityFiltered.length > timeWindowPhotos.length) throw new Error("no_expansion_invariant_failed");
+  return { timeWindowPhotos, cityFiltered, selectedVisitPhotos: cityFiltered };
+}
+
+function realWindowFixture210() {
+  const photos = [];
+  for (let index = 0; index < 207; index += 1) {
+    photos.push({ uri: `content://wide/${index}`, exifDateOriginal: `2026-08-25T10:${String(index % 60).padStart(2, "0")}:00-03:00`, city: "Ibicoara" });
+  }
+  for (const second of [10, 42, 55]) {
+    photos.push({ uri: `content://window/${second}`, exifDateOriginal: `2026-08-25T09:36:${String(second).padStart(2, "0")}-03:00`, city: "Ibicoara" });
+  }
+  return photos;
+}
+
+test("timestamp-source prioriza captura real antes de DATE_ADDED", () => {
+  const photo = {
+    exifDateOriginal: "2026-08-25T09:36:42-03:00",
+    dateTaken: "2026-08-25T09:36:42-03:00",
+    exifDateDigitized: "2026-08-25T09:36:43-03:00",
+    dateModified: "2026-08-25T12:00:00-03:00",
+    dateAdded: "2026-08-25T18:00:00-03:00"
+  };
+  assert.equal(chooseRealTimestamp(photo).source, "EXIF_DATETIME_ORIGINAL");
+  assert.equal(chooseRealTimestamp({ ...photo, exifDateOriginal: null }).source, "MEDIASTORE_DATE_TAKEN");
+  assert.equal(chooseRealTimestamp({ ...photo, exifDateOriginal: null, dateTaken: null }).source, "EXIF_DATETIME_DIGITIZED");
+});
+
+test("foto real 09:36:42 entra e sai por segundos inclusivos", () => {
+  const photo = { uri: "known", exifDateOriginal: "2026-08-25T09:36:42-03:00", city: "Ibicoara" };
+  assert.deepEqual(filterByAbsoluteWindow([photo], "2026-08-25", "09:36", "09:37").selectedVisitPhotos.map((item) => item.uri), ["known"]);
+  assert.deepEqual(filterByAbsoluteWindow([photo], "2026-08-25", "09:36:40", "09:36:45").selectedVisitPhotos.map((item) => item.uri), ["known"]);
+  assert.deepEqual(filterByAbsoluteWindow([photo], "2026-08-25", "09:36:43", "09:36:50").selectedVisitPhotos, []);
+});
+
+test("HH:mm:ss filtra fim inclusivo sem pegar segundo seguinte", () => {
+  const photos = ["00", "01", "03", "05", "06"].map((second) => ({ uri: second, exifDateOriginal: `2026-08-25T15:02:${second}-03:00` }));
+  const result = filterByAbsoluteWindow(photos, "2026-08-25", "15:02:01", "15:02:05");
+  assert.deepEqual(result.selectedVisitPhotos.map((photo) => photo.uri), ["01", "03", "05"]);
+  assert.equal(result.selectedVisitPhotos.length, 3);
+});
+
+test("210 fotos na data reduzem para 3 na janela absoluta sem reexpandir", () => {
+  const datePhotos = realWindowFixture210();
+  const result = filterByAbsoluteWindow(datePhotos, "2026-08-25", "09:36", "09:37", "Ibicoara");
+  assert.equal(datePhotos.length, 210);
+  assert.equal(result.timeWindowPhotos.length, 3);
+  assert.equal(result.cityFiltered.length, 3);
+  assert.equal(result.selectedVisitPhotos.length, 3);
+  assert.ok(result.selectedVisitPhotos.length <= result.timeWindowPhotos.length);
+});
+
+test("metadata diferente usa horario de captura, nao DATE_ADDED 18:00", () => {
+  const photo = {
+    uri: "metadata-diff",
+    exifDateOriginal: "2026-08-25T09:36:42-03:00",
+    dateTaken: "2026-08-25T09:36:42-03:00",
+    dateAdded: "2026-08-25T18:00:00-03:00",
+    dateAddedRaw: 1787680800
+  };
+  const result = filterByAbsoluteWindow([photo], "2026-08-25", "09:36", "09:37");
+  assert.equal(result.selectedVisitPhotos[0].uri, "metadata-diff");
+  assert.equal(chooseRealTimestamp(photo).source, "EXIF_DATETIME_ORIGINAL");
+});
+
+test("sem EXIF original usa DATE_TAKEN valido", () => {
+  const photo = { uri: "date-taken", dateTaken: "2026-08-25T09:36:42-03:00", dateAdded: "2026-08-25T18:00:00-03:00" };
+  assert.equal(chooseRealTimestamp(photo).source, "MEDIASTORE_DATE_TAKEN");
+  assert.equal(filterByAbsoluteWindow([photo], "2026-08-25", "09:36", "09:37").selectedVisitPhotos.length, 1);
+});
+
+test("fallback usa DATE_MODIFIED ou DATE_ADDED somente sem captura real", () => {
+  const modified = { uri: "modified", dateModified: "2026-08-25T09:36:42-03:00", dateAdded: "2026-08-25T18:00:00-03:00" };
+  const added = { uri: "added", dateAdded: "2026-08-25T09:36:42-03:00" };
+  assert.equal(chooseRealTimestamp(modified).source, "MEDIASTORE_DATE_MODIFIED");
+  assert.equal(chooseRealTimestamp(added).source, "MEDIASTORE_DATE_ADDED");
+});
+
+test("city hint restringe a janela, nunca expande", () => {
+  const photos = [
+    { uri: "ibicoara", exifDateOriginal: "2026-08-25T09:36:42-03:00", city: "Ibicoara" },
+    { uri: "outra", exifDateOriginal: "2026-08-25T09:36:43-03:00", city: "Outra Cidade" }
+  ];
+  const result = filterByAbsoluteWindow(photos, "2026-08-25", "09:36", "09:37", "Ibicoara");
+  assert.equal(result.timeWindowPhotos.length, 2);
+  assert.deepEqual(result.selectedVisitPhotos.map((photo) => photo.uri), ["ibicoara"]);
+  assert.ok(result.selectedVisitPhotos.length <= result.timeWindowPhotos.length);
+});
+
+test("janela invalida nao cai para fotos do dia", () => {
+  assert.throws(() => filterByAbsoluteWindow(realWindowFixture210(), "2026-08-25", "09:99", "09:37"), /invalid_time/);
+});
