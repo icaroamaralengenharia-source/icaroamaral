@@ -18,12 +18,20 @@ class CommandParser {
     val latestVisit = normalized.contains("ultima visita") || normalized.contains("ultimo atendimento")
     val dateHint = parseDate(raw, normalized)
     val cityHint = parseCityHint(raw)
+    val timeRange = TimeRangeTextParser.parse(raw)
+    val timeAttempted = TimeRangeTextParser.hasAttempt(raw)
 
     return ParsedCommand(
       reportType = reportType,
       cityHint = cityHint,
       dateHint = dateHint,
-      latestVisit = latestVisit
+      latestVisit = latestVisit,
+      startTimeHint = timeRange?.startTime,
+      endTimeHint = timeRange?.endTime,
+      rawStartTimeHint = timeRange?.rawStartTime,
+      rawEndTimeHint = timeRange?.rawEndTime,
+      endTimeHasSeconds = timeRange?.endHasSeconds ?: false,
+      timeRangeInvalid = timeAttempted && timeRange == null
     )
   }
 

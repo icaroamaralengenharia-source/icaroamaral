@@ -3,6 +3,7 @@ package br.com.icaroamaral.elophotobridge
 import android.net.Uri
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 
 enum class ReportType { SGTO, STELECOM, UNKNOWN }
 
@@ -79,7 +80,13 @@ data class ParsedCommand(
   val reportType: ReportType,
   val cityHint: String?,
   val dateHint: LocalDate?,
-  val latestVisit: Boolean
+  val latestVisit: Boolean,
+  val startTimeHint: LocalTime? = null,
+  val endTimeHint: LocalTime? = null,
+  val rawStartTimeHint: String? = null,
+  val rawEndTimeHint: String? = null,
+  val endTimeHasSeconds: Boolean = false,
+  val timeRangeInvalid: Boolean = false
 )
 
 data class VisitGroup(

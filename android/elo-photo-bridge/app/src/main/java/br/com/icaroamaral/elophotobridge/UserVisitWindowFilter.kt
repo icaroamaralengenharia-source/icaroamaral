@@ -12,17 +12,18 @@ object UserVisitWindowFilter {
 
   fun fromText(command: ParsedCommand, inputText: String): UserVisitWindowRequest? {
     val refinement = VisitRefinementParser().parse(inputText)
-    val date = refinement.date ?: command.dateHint ?: return null
-    val start = refinement.startTime ?: return null
-    val end = refinement.endTime ?: return null
+    val date = command.dateHint ?: refinement.date ?: return null
+    val start = command.startTimeHint ?: refinement.startTime ?: return null
+    val end = command.endTimeHint ?: refinement.endTime ?: return null
+    val endHasSeconds = command.endTimeHasSeconds || refinement.endHasSeconds
     return UserVisitWindowRequest(
       date = date,
       startTime = normalizeStart(start),
-      endTime = normalizeEnd(end, refinement.endHasSeconds),
+      endTime = normalizeEnd(end, endHasSeconds),
       cityHint = refinement.cityHint ?: command.cityHint,
-      rawStartTime = refinement.rawStartTime ?: start.toString(),
-      rawEndTime = refinement.rawEndTime ?: end.toString(),
-      endHasSeconds = refinement.endHasSeconds
+      rawStartTime = command.rawStartTimeHint ?: refinement.rawStartTime ?: start.toString(),
+      rawEndTime = command.rawEndTimeHint ?: refinement.rawEndTime ?: end.toString(),
+      endHasSeconds = endHasSeconds
     )
   }
 

@@ -34,6 +34,51 @@ function parseDate(input, now = new Date("2026-09-01T12:00:00-03:00")) {
   return null;
 }
 
+function parseTimeRange(input) {
+  const normalized = normalize(input);
+  const time = String.raw`(\d{1,2})(?:[:h](\d{2})(?::(\d{2}))?)?`;
+  const toRange = (match, startIndex, endIndex) => {
+    const start = buildTime(match[startIndex], match[startIndex + 1], match[startIndex + 2]);
+    const end = buildTime(match[endIndex], match[endIndex + 1], match[endIndex + 2]);
+    if (!start || !end) return null;
+    return {
+      startTime: start.value,
+      endTime: end.value,
+      rawStartTime: [match[startIndex], match[startIndex + 1], match[startIndex + 2]].filter(Boolean).join(":"),
+      rawEndTime: [match[endIndex], match[endIndex + 1], match[endIndex + 2]].filter(Boolean).join(":"),
+      startHasSeconds: Boolean(match[startIndex + 2]),
+      endHasSeconds: Boolean(match[endIndex + 2])
+    };
+  };
+  const labeled = normalized.match(new RegExp(String.raw`\b(?:inicio|start|comeco)\s*:?\s*${time}\b.*?\b(?:fim|final|end|termino)\s*:?\s*${time}\b`));
+  if (labeled) return toRange(labeled, 1, 4);
+  const rangeText = normalized.replace(/\b(?:ate|as)\b/g, "a");
+  const range = rangeText.match(new RegExp(String.raw`\b${time}\s*a\s*${time}\b`));
+  return range ? toRange(range, 1, 4) : null;
+}
+
+function hasTimeRangeAttempt(input) {
+  const normalized = normalize(input);
+  return /\b(?:inicio|start|comeco)\b.*\b(?:fim|final|end|termino)\b/.test(normalized) ||
+    /\b\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\s*(?:a|ate|as)\s*\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\b/.test(normalized);
+}
+
+function buildTime(hourText, minuteText = "", secondText = "") {
+  const hour = Number(hourText);
+  const minute = minuteText ? Number(minuteText) : 0;
+  const second = secondText ? Number(secondText) : 0;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) return null;
+  const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}${secondText ? `:${String(second).padStart(2, "0")}` : ""}`;
+  return { value };
+}
+
+function stripTimeRanges(input) {
+  return String(input || "")
+    .replace(/\b(?:inicio|início|start|comeco|começo)\s*:?\s*\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\b.*?\b(?:fim|final|end|termino|término)\s*:?\s*\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\b/giu, " ")
+    .replace(/\bde\s+\d{1,2}[:h]\d{2}(?::\d{2})?\s*(?:a|ate|até|as|às)\s*\d{1,2}[:h]\d{2}(?::\d{2})?\b/giu, " ")
+    .replace(/\bdas\s+\d{1,2}[:h]\d{2}(?::\d{2})?\s*(?:a|ate|até|as|às)\s*\d{1,2}[:h]\d{2}(?::\d{2})?\b/giu, " ")
+    .replace(/\b\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\s*(?:a|ate|até|as|às)\s*\d{1,2}(?:[:h]\d{2}(?::\d{2})?)?\b/giu, " ");
+}
 function parseCommand(input) {
   const text = normalize(input);
   const reportType = text.includes("sgto") ? "SGTO" : (text.includes("stelecom") ? "STELECOM" : "UNKNOWN");
@@ -42,9 +87,20 @@ function parseCommand(input) {
   const cityBeforeDate = String(input).match(/\b(?:de|em)\s+([\p{L}\s]+?)\s+(?:do\s+dia|dia|em|no|na)\b/iu);
   const cityAtEnd = String(input).match(/\b(?:de|em)\s+([\p{L}\s]+)$/iu);
   const cityHint = (cityBeforeDate?.[1] || cityAtEnd?.[1] || "").trim();
-  return { reportType, cityHint: /hoje|ontem|agosto|ultima visita/i.test(normalize(cityHint)) ? null : cityHint || null, dateHint, latestVisit };
+  const timeRange = parseTimeRange(input);
+  return {
+    reportType,
+    cityHint: /hoje|ontem|agosto|ultima visita/i.test(normalize(cityHint)) ? null : cityHint || null,
+    dateHint,
+    latestVisit,
+    startTimeHint: timeRange?.startTime || null,
+    endTimeHint: timeRange?.endTime || null,
+    rawStartTimeHint: timeRange?.rawStartTime || null,
+    rawEndTimeHint: timeRange?.rawEndTime || null,
+    endTimeHasSeconds: Boolean(timeRange?.endHasSeconds),
+    timeRangeInvalid: hasTimeRangeAttempt(input) && !timeRange
+  };
 }
-
 function bestDate(photo) {
   return photo.exifDateOriginal || photo.dateTaken || photo.dateAdded || null;
 }
@@ -62,22 +118,17 @@ function parseVisitRefinement(input) {
   const raw = String(input || "").trim();
   const selectedIndex = /^\d+$/.test(raw) ? Number(raw) : null;
   if (selectedIndex) return { selectedIndex, date: null, startTime: null, endTime: null, cityHint: null };
-  const date = parseDate(raw);
-  const normalized = normalize(raw).replaceAll("as", "a").replaceAll("ate", "a");
-  const time = normalized.match(/\b(\d{1,2})(?:[:h](\d{2}))?\s*(?:a|ate)\s*(\d{1,2})(?:[:h](\d{2}))?\b/);
-  const startTime = time ? `${time[1].padStart(2, "0")}:${time[2] || "00"}` : null;
-  const endTime = time ? `${time[3].padStart(2, "0")}:${time[4] || "00"}` : null;
-  const cityHint = raw
+  const command = parseCommand(raw);
+  const time = parseTimeRange(raw);
+  const cityHint = stripTimeRanges(raw)
     .replace(/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/g, " ")
     .replace(/\b\d{1,2}\s+de\s+[\p{L}]+(?:\s+de\s+\d{4})?\b/giu, " ")
-    .replace(/\bde\s+\d{1,2}[:h]\d{2}\s*(?:a|ate|até|as|às)\s*\d{1,2}[:h]\d{2}\b/giu, " ")
-    .replace(/\b\d{1,2}(?:[:h]\d{2})?\s*(?:a|ate|até|as|às)\s*\d{1,2}(?:[:h]\d{2})?\b/giu, " ")
-    .replace(/\b(?:do|dia|em|no|na|de|ate|até|as|às)\b/giu, " ")
+    .replace(/\b(?:monte|montar|faca|faça|gerar|gere|relatorio|relatório|sgto|stelecom|photo|bridge|elo)\b/giu, " ")
+    .replace(/\b(?:o|a|do|dia|data|em|no|na|de|ate|até|as|às|inicio|início|fim|final)\b/giu, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return { selectedIndex: null, date, startTime, endTime, cityHint: cityHint || null };
+  return { selectedIndex: null, date: command.dateHint, startTime: time?.startTime || null, endTime: time?.endTime || null, cityHint: cityHint || null };
 }
-
 function cityMatches(candidate, hint) {
   const c = normalize(candidate);
   const h = normalize(hint);
@@ -170,7 +221,7 @@ function fixturePhotos() {
 }
 
 test("parser extrai tipo, cidade e ultima visita", () => {
-  assert.deepEqual(parseCommand("monte o sgto de Malhada de Pedras"), { reportType: "SGTO", cityHint: "Malhada de Pedras", dateHint: null, latestVisit: false });
+  assert.deepEqual(parseCommand("monte o sgto de Malhada de Pedras"), { reportType: "SGTO", cityHint: "Malhada de Pedras", dateHint: null, latestVisit: false, startTimeHint: null, endTimeHint: null, rawStartTimeHint: null, rawEndTimeHint: null, endTimeHasSeconds: false, timeRangeInvalid: false });
   assert.equal(parseCommand("faca o stelecom de Tremedal").reportType, "STELECOM");
   assert.equal(parseCommand("monte o sgto da ultima visita").latestVisit, true);
 });
@@ -893,4 +944,59 @@ test("janela vazia nao faz fallback para dia inteiro", () => {
   assert.equal(result.cityInput.length, 0);
   assert.equal(result.selected.length, 0);
   assert.notEqual(result.selected.length, 214);
+});
+
+
+
+test("parser propaga inicio e fim rotulados para o comando estruturado", () => {
+  const parsed = parseCommand("25/08/2026 início 09:36 fim 09:37");
+  assert.equal(parsed.reportType, "UNKNOWN");
+  assert.equal(parsed.dateHint, "2026-08-25");
+  assert.equal(parsed.startTimeHint, "09:36");
+  assert.equal(parsed.endTimeHint, "09:37");
+  assert.equal(parsed.rawStartTimeHint, "09:36");
+  assert.equal(parsed.rawEndTimeHint, "09:37");
+  assert.equal(parsed.timeRangeInvalid, false);
+});
+
+test("parser propaga inicio e fim com comando monte sgto", () => {
+  const parsed = parseCommand("monte sgto 25/08/2026 início 09:36 fim 09:37");
+  const refinement = parseVisitRefinement("monte sgto 25/08/2026 início 09:36 fim 09:37");
+  assert.equal(parsed.reportType, "SGTO");
+  assert.equal(parsed.dateHint, "2026-08-25");
+  assert.equal(parsed.startTimeHint, "09:36");
+  assert.equal(parsed.endTimeHint, "09:37");
+  assert.equal(refinement.cityHint, null);
+});
+
+test("parser aceita variacoes naturais de janela", () => {
+  for (const command of [
+    "25/08/2026 início 09:36 fim 09:37",
+    "25/08/2026 inicio 09:36 fim 09:37",
+    "data 25/08/2026 início 09:36 fim 09:37",
+    "monte sgto 25/08/2026 início 09:36 fim 09:37",
+    "25/08/2026 de 09:36 até 09:37",
+    "25/08/2026 das 09:36 às 09:37"
+  ]) {
+    const parsed = parseCommand(command);
+    assert.equal(parsed.dateHint, "2026-08-25", command);
+    assert.equal(parsed.startTimeHint, "09:36", command);
+    assert.equal(parsed.endTimeHint, "09:37", command);
+  }
+});
+
+test("parser aceita segundos em inicio e fim rotulados", () => {
+  const parsed = parseCommand("25/08/2026 início 09:36:40 fim 09:36:45");
+  assert.equal(parsed.dateHint, "2026-08-25");
+  assert.equal(parsed.startTimeHint, "09:36:40");
+  assert.equal(parsed.endTimeHint, "09:36:45");
+  assert.equal(parsed.endTimeHasSeconds, true);
+});
+
+test("guard acusa horario semanticamente informado mas invalido", () => {
+  const parsed = parseCommand("25/08/2026 início 09:99 fim 09:37");
+  assert.equal(parsed.dateHint, "2026-08-25");
+  assert.equal(parsed.startTimeHint, null);
+  assert.equal(parsed.endTimeHint, null);
+  assert.equal(parsed.timeRangeInvalid, true);
 });

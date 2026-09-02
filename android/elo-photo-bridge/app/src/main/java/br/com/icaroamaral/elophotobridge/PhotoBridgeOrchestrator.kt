@@ -42,7 +42,9 @@ class PhotoBridgeOrchestrator(
   ): Result<Pair<ParsedCommand, List<VisitGroup>>> {
     return try {
       val command = parser.parse(commandText)
-      val invalidTime = UserVisitWindowFilter.hasInvalidTimeRange(commandText)
+      Log.d(TAG, "PARSED_COMMAND_START: ${command.startTimeHint ?: ""}")
+      Log.d(TAG, "PARSED_COMMAND_END: ${command.endTimeHint ?: ""}")
+      val invalidTime = command.timeRangeInvalid || UserVisitWindowFilter.hasInvalidTimeRange(commandText)
       val window = UserVisitWindowFilter.fromText(command, commandText)
       SelectionDiagnosticStore.start(commandText, command, window, invalidTime)
       if (invalidTime) throw IllegalArgumentException("invalid_time")
@@ -62,6 +64,8 @@ class PhotoBridgeOrchestrator(
         Log.d(TAG, "UI_END_TIME_RAW: ${window.rawEndTime}")
         Log.d(TAG, "TIME_FILTER_START: ${window.startTime}")
         Log.d(TAG, "TIME_FILTER_END: ${window.endTime}")
+        Log.d(TAG, "WINDOW_FILTER_START: ${window.startTime}")
+        Log.d(TAG, "WINDOW_FILTER_END: ${window.endTime}")
         UserVisitWindowFilter.filterPhotosByUserWindow(datePhotos, window.date, window.startTime, window.endTime)
       } else {
         datePhotos
