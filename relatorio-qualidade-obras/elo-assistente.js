@@ -3361,16 +3361,158 @@
     return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
   }
 
+  function addUniqueEloMemoryLine_(lines, seen, section, text) {
+    const cleanText = sanitizeUserText(text);
+    if (!cleanText || hasSensitiveMemoryTerm(cleanText)) {
+      return false;
+    }
+    const key = normalizeText(section + " " + cleanText);
+    if (!key || seen[key]) {
+      return false;
+    }
+    seen[key] = true;
+    lines.push(section + ": " + cleanText);
+    return true;
+  }
+
+  function addUniqueEloMemoryList_(lines, seen, section, values, limit) {
+    const list = (Array.isArray(values) ? values : [])
+      .map(sanitizeUserText)
+      .filter(function (item) { return item && !hasSensitiveMemoryTerm(item); });
+    const selectedKeys = [];
+    const selectedValues = [];
+    list.forEach(function (item) {
+      const key = normalizeText(item);
+      if (key && selectedKeys.indexOf(key) < 0) {
+        selectedKeys.push(key);
+        selectedValues.push(item);
+      }
+    });
+    const display = selectedValues.slice(0, limit || 5);
+    if (!display.length) {
+      return false;
+    }
+    return addUniqueEloMemoryLine_(lines, seen, section, display.join("; "));
+  }
+
+  function logEloMemorySummaryEvent_(event, flags) {
+    try {
+      if (!window.console || !window.console.info) {
+        return;
+      }
+      window.console.info("[ELO_MEMORY]", event, Object.assign({
+        hasProfile: false,
+        hasProject: false,
+        hasPreference: false,
+        hasExplicit: false
+      }, flags || {}));
+    } catch (error) {
+      // Log tecnico nao deve interferir na conversa.
+    }
+  }
+
   function buildEloMemorySummary() {
-    const memories = getEloLongTermMemories().sort(compareEloLongTermMemory).slice(0, 12);
-    if (!memories.length) {
-      return "";
+    const lines = [];
+    const seen = {};
+    const flags = {
+      hasProfile: false,
+      hasProject: false,
+      hasPreference: false,
+      hasExplicit: false,
+      hasGoal: false,
+      hasImportant: false,
+      hasTimeline: false
+    };
+    const profile = getUserProfile();
+    const initialProfile = getInitialProfile();
+    const snapshot = getConnectedMemorySnapshot();
+    const memories = getEloLongTermMemories().sort(compareEloLongTermMemory).slice(0, 8);
+    const important = getImportantMemoriesStorage();
+    const timelineEvents = (getTimelineStorage().events || [])
+      .filter(function (event) {
+        return event && (event.importance === "alta" || ["marco", "conquista", "objetivo", "decisao"].indexOf(event.type) >= 0);
+      })
+      .sort(function (first, second) {
+        return String(second.createdAt).localeCompare(String(first.createdAt));
+      })
+      .slice(0, 3);
+
+    flags.hasProfile = Boolean(profile.userName || initialProfile.nome || initialProfile.profissao || initialProfile.empresa || initialProfile.cidade);
+    flags.hasProject = Boolean(snapshot.mainProject || snapshot.projects.length);
+    flags.hasPreference = Boolean(profile.answerStyle || snapshot.preferences.length);
+    flags.hasExplicit = Boolean(memories.length);
+    flags.hasGoal = Boolean(snapshot.goals.length);
+    flags.hasImportant = Boolean((important.projetos || []).length || (important.objetivos || []).length || (important.preferencias || []).length);
+    flags.hasTimeline = Boolean(timelineEvents.length);
+
+    memories.forEach(function (item) {
+      if (addUniqueEloMemoryLine_(lines, seen, "MEMORIA EXPLICITA", "[" + item.category + "; importancia " + item.importance + "] " + item.text)) {
+        flags.hasExplicit = true;
+      }
+    });
+    if (flags.hasExplicit) {
+      logEloMemorySummaryEvent_("MEMORY_EXPLICIT_INCLUDED", { hasExplicit: true });
     }
 
-    return memories.map(function (item) {
-      return "- [" + item.category + "; importancia " + item.importance + "] " + item.text;
-    }).join("\n");
+    if (flags.hasProject) {
+      addUniqueEloMemoryLine_(lines, seen, "PROJETO ATUAL", snapshot.mainProject || snapshot.projects[0]);
+      addUniqueEloMemoryList_(lines, seen, "PROJETOS", snapshot.projects, 5);
+      logEloMemorySummaryEvent_("MEMORY_PROJECT_INCLUDED", { hasProject: true });
+    }
+
+    if (flags.hasPreference) {
+      addUniqueEloMemoryList_(lines, seen, "PREFERENCIAS", snapshot.preferences.concat(profile.answerStyle ? ["respostas " + profile.answerStyle] : []), 5);
+      logEloMemorySummaryEvent_("MEMORY_PREFERENCE_INCLUDED", { hasPreference: true });
+    }
+
+    if (flags.hasGoal) {
+      addUniqueEloMemoryList_(lines, seen, "OBJETIVOS", snapshot.goals, 5);
+    }
+
+    if (flags.hasProfile) {
+      addUniqueEloMemoryLine_(lines, seen, "IDENTIDADE", [
+        profile.userName || initialProfile.nome ? "nome " + (profile.userName || initialProfile.nome) : "",
+        initialProfile.profissao ? "profissao " + initialProfile.profissao : "",
+        initialProfile.empresa ? "empresa " + initialProfile.empresa : "",
+        initialProfile.cidade ? "cidade " + initialProfile.cidade : ""
+      ].filter(Boolean).join("; "));
+      logEloMemorySummaryEvent_("MEMORY_PROFILE_INCLUDED", { hasProfile: true });
+    }
+
+    addUniqueEloMemoryList_(lines, seen, "MEMORIAS IMPORTANTES - PROJETOS", (important.projetos || []).map(function (item) {
+      return [item.titulo, item.status].filter(Boolean).join(" - ");
+    }), 4);
+    addUniqueEloMemoryList_(lines, seen, "MEMORIAS IMPORTANTES - OBJETIVOS", (important.objetivos || []).map(function (item) {
+      return [item.titulo, item.status].filter(Boolean).join(" - ");
+    }), 4);
+    addUniqueEloMemoryList_(lines, seen, "MEMORIAS IMPORTANTES - PREFERENCIAS", (important.preferencias || []).map(function (item) {
+      return [item.titulo, item.descricao].filter(Boolean).join(" - ");
+    }), 4);
+
+    const initialSummary = getInitialProfileSummary();
+    if (initialSummary) {
+      addUniqueEloMemoryLine_(lines, seen, "PERFIL INICIAL", initialSummary);
+    }
+
+    if (timelineEvents.length) {
+      addUniqueEloMemoryList_(lines, seen, "CONTEXTO RECENTE", timelineEvents.map(formatTimelineEventLine), 3);
+    }
+
+    const summary = lines.join("\n").slice(0, 2200);
+    logEloMemorySummaryEvent_("MEMORY_SUMMARY_BUILD", {
+      hasProfile: flags.hasProfile,
+      hasProject: flags.hasProject,
+      hasPreference: flags.hasPreference,
+      hasExplicit: flags.hasExplicit,
+      hasGoal: flags.hasGoal,
+      hasImportant: flags.hasImportant,
+      hasTimeline: flags.hasTimeline,
+      lineCount: lines.length
+    });
+
+    return summary || "";
   }
+
 
   function detectEloLongTermMemoryCommand(message) {
     const cleanMessage = sanitizeUserText(message);
@@ -7440,6 +7582,7 @@
         eloContext: eloContext
       }
     };
+    logEloMemorySummaryEvent_("MEMORY_CONTEXT_SENT", { hasExplicit: Boolean(payload.context.memoriesSummary) });
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
     if (!files.length) {
       applyEloActiveDocumentContextToPayload_(payload, payload.message);
@@ -7885,7 +8028,7 @@
 
   function hasSensitiveMemoryTerm(question) {
     const text = normalizeText(question);
-    return ["senha", "cpf", "cartao", "cartao de credito", "token", "chave api", "api key", "banco", "dados bancarios", "pix"].some(function (term) {
+    return ["senha", "cpf", "cartao", "cartao de credito", "token", "chave api", "api key", "chave privada", "chaves privadas", "credencial", "credenciais", "banco", "dados bancarios", "pix"].some(function (term) {
       return text.indexOf(term) >= 0;
     });
   }
@@ -32948,6 +33091,8 @@ function isEloResidentialNewPipelineEnabled_() {
     getBudgetRecordsForTest: getEloBudgetRecords_,
     getBudgetOrchestratorV2StateForTest: function () { return Object.assign({}, ELO_SESSION_MEMORY.budgetOrchestratorV2 || {}); },
     clearBudgetRecordsForTest: function () { setEloBudgetRecords_([]); writeEloBudgetJsonToStorage_(ELO_CONFIG.budgetCounterStorageKey, {}); ELO_SESSION_MEMORY.lastBudgetSource = null; ELO_SESSION_MEMORY.activeResidentialBudgetState = null; ELO_SESSION_MEMORY.budgetOrchestratorV2 = null; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = null; },
+    buildMemorySummaryForTest: buildEloMemorySummary,
+    requestOnlineAnswerForTest: requestEloOnlineAnswer,
     resetStockObrasBriefingForTest: resetEloStockObrasCompositionBriefing_,
     getStockObrasBriefingForTest: function () {
       return cloneEloStockObrasCompositionBriefing_(ELO_SESSION_MEMORY.stockObrasCompositionBriefing);

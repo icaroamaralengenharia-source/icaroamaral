@@ -6732,6 +6732,138 @@ function writeEloVectorTestFile_(path, items) {
   }, null, 2), "utf8");
 }
 
+
+test("Elo memoria mestre consolida perfil projeto preferencia memoria e timeline", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const now = "2026-09-01T12:00:00.000Z";
+
+  sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
+    userName: "\u00cdcaro",
+    mainProject: "Photo Bridge",
+    weeklyGoal: "finalizar memoria do Elo",
+    expectedHelp: "respostas diretas sobre produto",
+    answerStyle: "curtas",
+    updatedAt: now
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_perfil_inicial_v1", JSON.stringify({
+    nome: "\u00cdcaro",
+    profissao: "Engenheiro Civil",
+    empresa: "Wia Engenharia",
+    cidade: "Vit\u00f3ria da Conquista",
+    projetos: ["Photo Bridge"],
+    objetivos: ["memoria util entre conversas"],
+    preferencias: ["respostas diretas"],
+    createdAt: now,
+    updatedAt: now
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_memorias_importantes_v1", JSON.stringify({
+    projetos: [{ titulo: "Photo Bridge", status: "ativo" }],
+    objetivos: [{ titulo: "memoria util entre conversas", status: "ativo" }],
+    preferencias: [{ titulo: "respostas diretas", descricao: "prefere respostas diretas" }]
+  }));
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: now, updatedAt: now }
+  ]));
+  sandbox.localStorage.setItem("obrareport_elo_timeline_v1", JSON.stringify({
+    events: [{ id: "evt_mem", type: "marco", title: "Memoria do Elo consolidada", content: "Contexto mestre", project: "Photo Bridge", importance: "alta", createdAt: now }]
+  }));
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+  assert.match(summary, /PROJETO ATUAL: Photo Bridge/i);
+  assert.match(summary, /PREFERENCIAS:.*respostas diretas/i);
+  assert.match(summary, /OBJETIVOS:.*memoria util entre conversas/i);
+  assert.match(summary, /IDENTIDADE:.*\u00cdcaro.*Engenheiro Civil/i);
+  assert.match(summary, /MEMORIAS IMPORTANTES - PROJETOS:.*Photo Bridge/i);
+  assert.match(summary, /CONTEXTO RECENTE:.*Memoria do Elo consolidada/i);
+  assert.ok(summary.length <= 2200);
+  assert.equal((summary.match(/Thor/g) || []).length, 1);
+});
+
+test("Elo memoria mestre persiste depois de reload local", async () => {
+  const first = await loadEloOperationalSandbox_([]);
+  first.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" }
+  ]));
+  const savedLongTerm = first.localStorage.getItem("elo_long_term_memory_v1");
+
+  const reloaded = await loadEloOperationalSandbox_([]);
+  reloaded.localStorage.setItem("elo_long_term_memory_v1", savedLongTerm);
+  const summary = reloaded.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+});
+
+test("Elo envia memoriesSummary consolidado no payload online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  let chatPayload = null;
+
+  sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
+    userName: "\u00cdcaro",
+    mainProject: "Photo Bridge",
+    answerStyle: "curtas"
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_memorias_importantes_v1", JSON.stringify({
+    projetos: [{ titulo: "Photo Bridge", status: "ativo" }],
+    objetivos: [],
+    preferencias: [{ titulo: "respostas diretas", descricao: "prefere respostas diretas" }]
+  }));
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" }
+  ]));
+
+  sandbox.fetch = async (url, options = {}) => {
+    if (String(url).indexOf("/api/elo/chat") >= 0) {
+      chatPayload = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ ok: true, answer: "ok", savePrompt: { show: false } }) };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  sandbox.window.fetch = sandbox.fetch;
+
+  await sandbox.window.EloAssistente.requestOnlineAnswerForTest("qual o nome do meu cachorro?");
+
+  assert.ok(chatPayload);
+  assert.match(chatPayload.context.memoriesSummary, /Thor/i);
+  assert.match(chatPayload.context.memoriesSummary, /Photo Bridge/i);
+  assert.match(chatPayload.context.memoriesSummary, /respostas diretas/i);
+});
+
+test("Elo system prompt recebe memoriesSummary consolidado", () => {
+  const prompt = buildEloSystemPrompt_({
+    eloContext: "geral",
+    memoriesSummary: "MEMORIA EXPLICITA: meu cachorro se chama Thor\nPROJETO ATUAL: Photo Bridge\nPREFERENCIAS: respostas diretas"
+  });
+
+  assert.match(prompt, /Contexto salvo sobre a pessoa/i);
+  assert.match(prompt, /Thor/i);
+  assert.match(prompt, /Photo Bridge/i);
+  assert.match(prompt, /respostas diretas/i);
+});
+
+test("Elo backend nao usa perfil hardcoded como fonte de verdade", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.doesNotMatch(content, /userProfile:\s*\{\s*name:\s*["']\u00cdcaro Amaral/i);
+  assert.doesNotMatch(content, /constr\u00f3i SaaS pr\u00f3prios/i);
+  assert.match(content, /use apenas o contexto recebido no payload/i);
+});
+
+test("Elo memoria mestre nao inclui segredos no contexto online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "segredo", text: "minha api key e sk-teste", category: "outro", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" },
+    { id: "thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:01:00.000Z", updatedAt: "2026-09-01T12:01:00.000Z" }
+  ]));
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /Thor/i);
+  assert.doesNotMatch(summary, /sk-teste|api key/i);
+});
+
 function loadEloTechnicalValidatorSandbox_() {
   const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
   const sandbox = { console, window: {} };

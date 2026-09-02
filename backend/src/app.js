@@ -615,11 +615,15 @@ export function getEloPersonalityPrompt_(input = "geral") {
   if (input && typeof input === "object" && input.interpretation) {
     const interpretation = input.interpretation;
     const userProfile = interpretation.userProfile || {};
-    const userName = clean_(userProfile.name || "Ícaro Amaral");
-    const userStyle = clean_(userProfile.style || "direto, prático e objetivo");
+    const userName = clean_(userProfile.name || "");
+    const userStyle = clean_(userProfile.style || "");
+    const profileLine = [
+      userName ? "Nome: " + userName : "",
+      userStyle ? "Estilo preferido: " + userStyle : ""
+    ].filter(Boolean).join("\n");
     return [
-      "Você é o Elo, assistente técnico e estratégico de " + userName + ".",
-      "Perfil do usuário:\nNome: " + userName + "\nEstilo preferido: " + userStyle,
+      userName ? "Você é o Elo, assistente técnico e estratégico de " + userName + "." : "Você é o Elo, assistente técnico e estratégico.",
+      profileLine ? "Perfil do usuário:\n" + profileLine : "Perfil do usuário: use apenas o contexto recebido no payload; se não houver contexto, mantenha postura neutra.",
       "Antes de responder, considere esta interpretação da mensagem do usuário:",
       "Mensagem original:\n" + clean_(interpretation.originalMessage),
       "Mensagem normalizada:\n" + clean_(interpretation.normalizedMessage),
@@ -3627,10 +3631,7 @@ export function createApp(options = {}) {
       message: validation.payload.message,
       history: validation.payload.history,
       context: validation.payload.context.eloContext,
-      userProfile: {
-        name: "Ícaro Amaral",
-        style: "direto, prático, informal, constrói SaaS próprios"
-      }
+      userProfile: {}
     });
     validation.payload.eloIntent = detectEloIntent_(validation.payload.message, validation.payload.context, validation.payload.history, {
       hasAttachments: Boolean(chatRequest.documents.length || chatRequest.attachmentErrors.length)
@@ -7064,10 +7065,7 @@ async function callOpenAiElo_(payload, env) {
     message: payload.message,
     history: payload.history,
     context: payload.context && payload.context.eloContext,
-    userProfile: {
-      name: "Ícaro Amaral",
-      style: "direto, prático, informal, constrói SaaS próprios"
-    }
+    userProfile: {}
   });
   const input = [
     {
