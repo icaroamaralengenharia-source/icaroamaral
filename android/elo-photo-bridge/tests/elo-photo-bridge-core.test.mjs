@@ -1000,3 +1000,27 @@ test("guard acusa horario semanticamente informado mas invalido", () => {
   assert.equal(parsed.endTimeHint, null);
   assert.equal(parsed.timeRangeInvalid, true);
 });
+
+test("integracao parte do comando real e aplica janela antes de cidade", () => {
+  const commandText = "monte sgto 25/08/2026 início 09:36 fim 09:37";
+  const parsed = parseCommand(commandText);
+  const result = runPhysicalPipeline({
+    photos: physicalPrintFixture214(),
+    date: parsed.dateHint,
+    start: parsed.startTimeHint,
+    end: parsed.endTimeHint,
+    cityHint: parseVisitRefinement(commandText).cityHint
+  });
+  assert.equal(parsed.reportType, "SGTO");
+  assert.equal(parsed.dateHint, "2026-08-25");
+  assert.equal(parsed.startTimeHint, "09:36");
+  assert.equal(parsed.endTimeHint, "09:37");
+  assert.equal(result.afterDate, 214);
+  assert.deepEqual(result.calls.slice(0, 3), ["date:214", "time:3", "city:3"]);
+  assert.equal(result.afterTime.length, 3);
+  assert.equal(result.afterCity.length, 3);
+  assert.equal(result.visitGrouperCalls, 0);
+  assert.equal(result.timeline.length, 3);
+  assert.equal(result.ai, 0);
+  assert.ok(result.selected.length <= result.afterTime.length);
+});
