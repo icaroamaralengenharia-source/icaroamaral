@@ -33,6 +33,7 @@ object SelectionDiagnosticStore {
     selectedPhotos: List<PhotoMetadata>,
     visitGrouperBypass: Boolean,
     windowFilterCalled: Boolean,
+    cityInputPhotos: Int,
     photosSentToTimeline: Int? = null,
     photosSentToAi: Int? = null,
     zone: ZoneId = ZoneId.systemDefault()
@@ -44,6 +45,7 @@ object SelectionDiagnosticStore {
       photosAfterDate = datePhotos.size,
       photosAfterTime = timeWindowPhotos.size,
       photosAfterCity = cityPhotos.size,
+      cityInputPhotos = cityInputPhotos,
       selectedVisitPhotos = selectedPhotos.size,
       photosSentToTimeline = photosSentToTimeline ?: snapshot.photosSentToTimeline,
       photosSentToAi = photosSentToAi ?: snapshot.photosSentToAi,
@@ -68,7 +70,7 @@ object SelectionDiagnosticStore {
   fun compactText(): String = snapshot.toDiagnosticText()
 
   private fun sourceCounts(photos: List<PhotoMetadata>): Map<PhotoTimestampSource, Int> {
-    return PhotoTimestampSource.entries.associateWith { source -> photos.count { it.bestTimestamp()?.source == source } }
+    return PhotoTimestampSource.values().associateWith { source -> photos.count { it.bestTimestamp()?.source == source } }
   }
 
   private fun PhotoMetadata.toDiagnosticSample(zone: ZoneId, insideWindow: Boolean): SelectionDiagnosticPhotoSample {
@@ -100,6 +102,7 @@ data class SelectionDiagnosticSnapshot(
   val photosAfterDate: Int = 0,
   val photosAfterTime: Int = 0,
   val photosAfterCity: Int = 0,
+  val cityInputPhotos: Int = 0,
   val selectedVisitPhotos: Int = 0,
   val photosSentToTimeline: Int = 0,
   val photosSentToAi: Int = 0,
@@ -127,6 +130,7 @@ data class SelectionDiagnosticSnapshot(
       appendLine("AFTER_DATE=$photosAfterDate")
       appendLine("AFTER_TIME=$photosAfterTime")
       appendLine("AFTER_CITY=$photosAfterCity")
+      appendLine("CITY_INPUT=$cityInputPhotos")
       appendLine("SELECTED=$selectedVisitPhotos")
       appendLine("VISITGROUPER_BYPASS=$visitGrouperBypass")
       appendLine("EXPANDED_AFTER_FILTER=$expandedAfterFilter")

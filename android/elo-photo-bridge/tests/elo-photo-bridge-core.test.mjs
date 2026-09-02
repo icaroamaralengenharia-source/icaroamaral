@@ -831,3 +831,66 @@ test("copy diagnostic usa texto compacto sem dados sensiveis", () => {
   assert.doesNotMatch(text, /api[_-]?key|token|secret|password/i);
   assert.doesNotMatch(text, /C:\\/);
 });
+
+function runPhysicalPipeline({ photos, date, start, end, cityHint = null }) {
+  const calls = [];
+  calls.push(`date:${photos.length}`);
+  const afterTime = filterByAbsoluteWindow(photos, date, start, end).timeWindowPhotos;
+  calls.push(`time:${afterTime.length}`);
+  const cityInput = afterTime;
+  calls.push(`city:${cityInput.length}`);
+  const afterCity = cityHint ? cityInput.filter((photo) => cityMatches(photo.city, cityHint)) : cityInput;
+  calls.push(`city-filter:${afterCity.length}`);
+  let visitGrouperCalls = 0;
+  const selected = afterCity;
+  calls.push(`selected:${selected.length}`);
+  const timeline = selected;
+  calls.push(`timeline:${timeline.length}`);
+  return { calls, afterDate: photos.length, afterTime, cityInput, afterCity, visitGrouperCalls, selected, timeline, ai: 0 };
+}
+
+function physicalPrintFixture214() {
+  const photos = [];
+  for (let index = 0; index < 207; index += 1) {
+    photos.push({ uri: `content://outside/${index}`, exifDateOriginal: `2026-08-25T10:${String(index % 60).padStart(2, "0")}:00-03:00`, city: "Ibicoara" });
+  }
+  for (let index = 0; index < 4; index += 1) {
+    photos.push({ uri: `content://other-city/${index}`, exifDateOriginal: `2026-08-25T11:${String(index).padStart(2, "0")}:00-03:00`, city: "Outra Cidade" });
+  }
+  for (const second of [10, 42, 55]) {
+    photos.push({ uri: `content://window/${second}`, exifDateOriginal: `2026-08-25T09:36:${String(second).padStart(2, "0")}-03:00`, city: "Ibicoara" });
+  }
+  return photos;
+}
+
+test("pipeline physical reproduz print 214 e restringe janela antes de cidade", () => {
+  const result = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37", cityHint: "Ibicoara" });
+  assert.equal(result.afterDate, 214);
+  assert.equal(result.afterTime.length, 3);
+  assert.equal(result.cityInput.length, 3);
+  assert.equal(result.visitGrouperCalls, 0);
+  assert.ok(result.selected.length <= 3);
+  assert.ok(result.timeline.length <= 3);
+  assert.equal(result.ai, 0);
+});
+
+test("pipeline order prova time filter antes de identificar cidade", () => {
+  const result = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37" });
+  assert.deepEqual(result.calls.slice(0, 3), ["date:214", "time:3", "city:3"]);
+  assert.ok(result.calls.indexOf("time:3") < result.calls.indexOf("city:3"));
+  assert.ok(result.calls.indexOf("city:3") < result.calls.indexOf("timeline:3"));
+});
+
+test("com janela completa VisitGrouper nao e chamado no caminho real", () => {
+  const result = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37" });
+  assert.equal(result.visitGrouperCalls, 0);
+});
+
+test("janela vazia nao faz fallback para dia inteiro", () => {
+  const result = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "08:00", end: "08:01" });
+  assert.equal(result.afterDate, 214);
+  assert.equal(result.afterTime.length, 0);
+  assert.equal(result.cityInput.length, 0);
+  assert.equal(result.selected.length, 0);
+  assert.notEqual(result.selected.length, 214);
+});

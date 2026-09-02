@@ -388,6 +388,8 @@ class MainActivity : ComponentActivity() {
       }.onFailure { error ->
         val message = when (error.message) {
           "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
+          "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
           "invalid_time" -> "Horário inválido"
           "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
           "visit_not_found" -> "Nenhuma visita compativel encontrada."
@@ -480,6 +482,8 @@ class MainActivity : ComponentActivity() {
       }.onFailure { error ->
         val message = when (error.message) {
           "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
+          "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
           "invalid_time" -> "Horário inválido"
           "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
           "visit_not_found" -> "Nenhuma visita compativel encontrada."
@@ -742,6 +746,8 @@ class MainActivity : ComponentActivity() {
         } else {
           val message = when (error.message) {
             "multiple_visits" -> "Mais de uma visita encontrada nessa data. Refine horario ou cidade."
+            "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
+            "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
             "invalid_time" -> "Horário inválido"
             "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
             "visit_not_found" -> "Nenhuma visita compativel encontrada."
