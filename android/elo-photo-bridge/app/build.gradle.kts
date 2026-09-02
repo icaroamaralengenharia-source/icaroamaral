@@ -13,8 +13,17 @@ android {
     targetSdk = 35
     versionCode = 1
     versionName = "0.1.0"
+    manifestPlaceholders["appLabel"] = "ELO Photo Bridge"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  buildTypes {
+    debug {
+      applicationIdSuffix = ".physicaltest"
+      versionNameSuffix = "-physicaltest"
+      manifestPlaceholders["appLabel"] = "ELO Photo Bridge TESTE"
+    }
   }
 
   compileOptions {

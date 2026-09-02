@@ -8,7 +8,7 @@
 
   <application
     android:allowBackup="false"
-    android:label="ELO Photo Bridge"
+    android:label="${appLabel}"
     android:supportsRtl="true"
     android:theme="@style/AppTheme">
     <activity
