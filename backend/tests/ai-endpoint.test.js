@@ -6781,6 +6781,21 @@ test("Elo memoria mestre consolida perfil projeto preferencia memoria e timeline
   assert.equal((summary.match(/Thor/g) || []).length, 1);
 });
 
+
+test("Elo comando explicito lembre salva antes do fallback conversacional", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.document.body.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
+  const panel = sandbox.document.createElement("div");
+  const messages = sandbox.document.createElement("div");
+  sandbox.window.EloAssistente.setCorePanelElementForTest(panel);
+  sandbox.window.EloAssistente.setCoreMessagesElementForTest(messages);
+
+  sandbox.window.EloAssistente.ask("lembre que meu cachorro se chama Thor", [], "test");
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+});
+
 test("Elo memoria mestre persiste depois de reload local", async () => {
   const first = await loadEloOperationalSandbox_([]);
   first.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([

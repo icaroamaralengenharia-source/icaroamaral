@@ -28623,6 +28623,28 @@ function isEloResidentialNewPipelineEnabled_() {
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+
+    const longTermMemoryCandidate = detectEloLongTermMemoryCommand(cleanQuestion);
+    if (longTermMemoryCandidate) {
+      const memoryItem = saveEloLongTermMemory(longTermMemoryCandidate);
+      const answer = memoryItem
+        ? "Guardei isso na memória permanente deste navegador: " + memoryItem.text + "."
+        : "Não consegui guardar essa memória agora.";
+      const response = {
+        shortAnswer: answer,
+        fullAnswer: memoryItem ? "Categoria: " + memoryItem.category + ". Importância: " + memoryItem.importance + "." : answer,
+        nextAction: "Pode recarregar a página e me perguntar o que eu lembro.",
+        canSave: false,
+        sessionTheme: "memoria",
+        sessionIntent: "memoria_permanente"
+      };
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      return;
+    }
+
+
     if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
       generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
       return;
@@ -29026,26 +29048,6 @@ function isEloResidentialNewPipelineEnabled_() {
           return item.text;
         }).join("\n") : answer,
         nextAction: "Quando quiser, você pode me pedir para lembrar outra informação importante.",
-        canSave: false,
-        sessionTheme: "memoria",
-        sessionIntent: "memoria_permanente"
-      };
-      appendAssistantMessage(cleanQuestion, answer, false, response);
-      saveConversation(cleanQuestion, answer);
-      rememberSessionTurn(cleanQuestion, response, answer);
-      return;
-    }
-
-    const longTermMemoryCandidate = detectEloLongTermMemoryCommand(cleanQuestion);
-    if (longTermMemoryCandidate) {
-      const memoryItem = saveEloLongTermMemory(longTermMemoryCandidate);
-      const answer = memoryItem
-        ? "Guardei isso na memória permanente deste navegador: " + memoryItem.text + "."
-        : "Não consegui guardar essa memória agora.";
-      const response = {
-        shortAnswer: answer,
-        fullAnswer: memoryItem ? "Categoria: " + memoryItem.category + ". Importância: " + memoryItem.importance + "." : answer,
-        nextAction: "Pode recarregar a página e me perguntar o que eu lembro.",
         canSave: false,
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
