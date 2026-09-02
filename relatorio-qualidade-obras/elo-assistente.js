@@ -2474,7 +2474,7 @@
     appendEloOpeningMessageVisual_(buildEloOpeningMessage_());
     return true;
   }
-  function replayEloCoreMessages_(messages) { if (!ELO_UI.messages) return; removeTypingIndicator(); ELO_UI.replayingCoreHistory = true; ELO_UI.messages.textContent = ""; (messages || []).forEach(function (item) { appendMessage(item.role === "user" ? "user" : "assistant", item.content || ""); }); ELO_UI.replayingCoreHistory = false; setEloCoreWelcomeVisible_(); scrollEloConversationToBottom_({ force: true }); }
+  function replayEloCoreMessages_(messages) { if (!ELO_UI.messages) return; removeTypingIndicator(); ELO_UI.replayingCoreHistory = true; ELO_UI.messages.textContent = ""; (messages || []).forEach(function (item) { appendMessage(item.role === "user" ? "user" : "assistant", item.content || "", { historical: true, responseLifecycle: "historical", responseId: item.id || item.messageId || item.turnId || "" }); }); ELO_UI.replayingCoreHistory = false; setEloCoreWelcomeVisible_(); scrollEloConversationToBottom_({ force: true }); }
   function loadEloCoreConversation_(id) { const conversationId = sanitizeUserText(id); if (!conversationId) return Promise.resolve(false); return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { setEloCoreCurrentConversationId_(conversationId); replayEloCoreMessages_(data.messages || []); return true; }).catch(function () { setEloCoreCurrentConversationId_(""); return false; }); }
   function loadEloCoreMemories_() { return eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { ELO_UI.coreMemories = data.memories || []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = true; recordEloCoreReliabilityEvent_("memory_loaded", { count: ELO_UI.coreMemories.length }); return ELO_UI.coreMemories; }).catch(function (error) { ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "load_failed" }); setEloCoreAuthStatus_("Nao consegui carregar suas memorias agora", true); return []; }); }
   function ensureEloCoreAuthMerge_() { if (!getEloCoreAuthToken_()) return Promise.resolve(false); if (ELO_UI.coreAuthMergePromise) return ELO_UI.coreAuthMergePromise; ELO_UI.coreAuthMergePromise = eloCoreFetch_("/api/elo/identity/merge", { method: "POST", body: JSON.stringify({ anonymousId: getEloCoreAnonymousId_() }) }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); recordEloCoreReliabilityEvent_("identity_merged", { authenticated: true }); return true; }).catch(function (error) { recordEloCoreReliabilityEvent_("identity_merge_failed", { reason: error && error.message ? error.message : "merge_failed" }); return false; }); return ELO_UI.coreAuthMergePromise; }
@@ -26393,6 +26393,10 @@ function isEloResidentialNewPipelineEnabled_() {
     neuralSpeechAudio: null,
     ttsAudit: null,
     autoTtsSequence: 0,
+    assistantResponseSequence: 0,
+    spokenResponseIds: {},
+    activeSpeechGenerationId: 0,
+    activeSpeechResponseId: "",
     openingMessageShown: false,
     attachmentStatus: null,
     localReportButton: null,
@@ -29377,11 +29381,16 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
-  function maybeSpeakEloVoiceModeResponse_(message, text) {
+  function maybeSpeakEloVoiceModeResponse_(message, text, options) {
+    const metadata = options || {};
     if (!ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
+    if (metadata.responseLifecycle !== "new") {
+      logEloTtsLifecycle_("TTS_BACKGROUND_EVENT_SKIPPED", { responseId: metadata.responseId || "", generationId: ELO_UI.activeSpeechGenerationId, lifecycle: metadata.responseLifecycle || "unknown" });
+      return false;
+    }
     ELO_UI.voiceModeAwaitingResponse = false;
     const button = message && message.querySelector ? message.querySelector(".elo-speech-button") : null;
-    const started = speakEloText_(text, button);
+    const started = speakEloText_(text, button, { auto: true, responseId: metadata.responseId || "" });
     if (started) {
       setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
     } else {
@@ -29390,16 +29399,32 @@ function isEloResidentialNewPipelineEnabled_() {
     return started;
   }
 
-  function maybeAutoSpeakEloResponse_(message, text) {
-    if (!message || ELO_UI.replayingCoreHistory || !isEloAutoTtsSpeakableResponse_(text)) return false;
-    if (message.dataset && message.dataset.eloAutoTtsDone === "true") return false;
+  function maybeAutoSpeakEloResponse_(message, text, options) {
+    const metadata = options || {};
+    const lifecycle = metadata.historical || ELO_UI.replayingCoreHistory ? "historical" : sanitizeUserText(metadata.responseLifecycle || "background");
+    const responseId = sanitizeUserText(metadata.responseId || message && message.dataset && message.dataset.eloResponseId || "");
+    if (!message || !isEloAutoTtsSpeakableResponse_(text)) return false;
+    if (lifecycle === "historical") {
+      logEloTtsLifecycle_("TTS_HISTORICAL_SKIPPED", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId });
+      return false;
+    }
+    if (lifecycle !== "new" || !responseId) {
+      logEloTtsLifecycle_("TTS_BACKGROUND_EVENT_SKIPPED", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId, lifecycle: lifecycle });
+      return false;
+    }
+    if (ELO_UI.spokenResponseIds[responseId] === true || message.dataset && message.dataset.eloAutoTtsDone === "true") {
+      logEloTtsLifecycle_("TTS_DUPLICATE_SKIPPED", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId });
+      return false;
+    }
     const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
+    ELO_UI.spokenResponseIds[responseId] = true;
     if (message.dataset) {
       ELO_UI.autoTtsSequence += 1;
       message.dataset.eloAutoTtsDone = "true";
       message.dataset.eloAutoTtsSequence = String(ELO_UI.autoTtsSequence);
     }
-    return speakEloText_(text, button, { auto: true });
+    logEloTtsLifecycle_("TTS_NEW_RESPONSE", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId });
+    return speakEloText_(text, button, { auto: true, responseId: responseId });
   }
   function setEloSpeechButtonState_(button, speaking) {
     if (!button) return;
@@ -29464,7 +29489,9 @@ function isEloResidentialNewPipelineEnabled_() {
       playbackRate: 1,
       preservesPitch: true,
       fallback: false,
-      fallbackReason: ""
+      fallbackReason: "",
+      responseId: "",
+      generationId: 0
     }, audit || {});
     logEloMusicEvent_("TTS_AUDIT", {
       TTS_MODE: ELO_UI.ttsAudit.mode,
@@ -29475,9 +29502,31 @@ function isEloResidentialNewPipelineEnabled_() {
       TTS_PITCH: ELO_UI.ttsAudit.pitch,
       TTS_FALLBACK_REASON: ELO_UI.ttsAudit.fallbackReason,
       playbackRate: ELO_UI.ttsAudit.playbackRate,
-      preservesPitch: ELO_UI.ttsAudit.preservesPitch
+      preservesPitch: ELO_UI.ttsAudit.preservesPitch,
+      responseId: ELO_UI.ttsAudit.responseId,
+      generationId: ELO_UI.ttsAudit.generationId
     });
     return ELO_UI.ttsAudit;
+  }
+
+  function logEloTtsLifecycle_(eventName, details) {
+    const safe = details || {};
+    logEloMusicEvent_(eventName, {
+      responseId: sanitizeUserText(safe.responseId || "").slice(0, 120),
+      generationId: Number(safe.generationId || 0),
+      lifecycle: sanitizeUserText(safe.lifecycle || "").slice(0, 40)
+    });
+  }
+
+  function createEloAssistantResponseId_(question, answer, response) {
+    const explicit = response && (response.responseId || response.messageId || response.turnId || response.id);
+    if (explicit) return sanitizeUserText(explicit).slice(0, 120);
+    ELO_UI.assistantResponseSequence += 1;
+    return "elo_response_" + ELO_UI.assistantResponseSequence + "_" + Date.now().toString(36);
+  }
+
+  function isEloCurrentSpeechGeneration_(generationId, responseId) {
+    return Number(generationId || 0) === ELO_UI.activeSpeechGenerationId && (!responseId || responseId === ELO_UI.activeSpeechResponseId);
   }
 
   function normalizeEloTtsPayload_(data) {
@@ -29491,8 +29540,15 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
-  function playEloNeuralSpeechAudio_(payload, button) {
+  function playEloNeuralSpeechAudio_(payload, button, options) {
+    const metadata = options || {};
+    const generationId = Number(metadata.generationId || 0);
+    const responseId = sanitizeUserText(metadata.responseId || "");
     const AudioCtor = getEloAudioConstructor_();
+    if (!isEloCurrentSpeechGeneration_(generationId, responseId)) {
+      logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      return Promise.resolve(false);
+    }
     if (!AudioCtor || !payload || !payload.audioUrl) return Promise.resolve(false);
     const audio = new AudioCtor(payload.audioUrl);
     ELO_UI.neuralSpeechAudio = audio;
@@ -29500,35 +29556,54 @@ function isEloResidentialNewPipelineEnabled_() {
     audio.preservesPitch = true;
     audio.mozPreservesPitch = true;
     audio.webkitPreservesPitch = true;
-    audio.onended = function () { resetEloSpeechButton_(button); };
-    audio.onerror = function () { resetEloSpeechButton_(button); };
-    setEloTtsAudit_({ mode: "neural", provider: payload.provider, endpoint: getEloTtsEndpoint_(), voice: payload.voice, playbackRate: audio.playbackRate, preservesPitch: audio.preservesPitch !== false, fallback: false });
+    audio.onended = function () {
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      logEloTtsLifecycle_("TTS_FINISHED", { responseId: responseId, generationId: generationId });
+      resetEloSpeechButton_(button);
+    };
+    audio.onerror = function () {
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      resetEloSpeechButton_(button);
+    };
+    setEloTtsAudit_({ mode: "neural", provider: payload.provider, endpoint: getEloTtsEndpoint_(), voice: payload.voice, playbackRate: audio.playbackRate, preservesPitch: audio.preservesPitch !== false, fallback: false, responseId: responseId, generationId: generationId });
+    logEloTtsLifecycle_("TTS_PLAY", { responseId: responseId, generationId: generationId });
     const played = typeof audio.play === "function" ? audio.play() : true;
-    return Promise.resolve(played).then(function () { return true; });
+    return Promise.resolve(played).then(function () { return isEloCurrentSpeechGeneration_(generationId, responseId); });
   }
 
-  function requestEloNeuralSpeech_(speechText, button) {
+  function requestEloNeuralSpeech_(speechText, button, options) {
+    const metadata = options || {};
     const endpoint = getEloTtsEndpoint_();
+    if (!isEloCurrentSpeechGeneration_(metadata.generationId, metadata.responseId)) return Promise.resolve(false);
     if (!isEloOnline_()) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "tts" });
       return Promise.resolve(false);
     }
     if (!window.fetch || !endpoint) return Promise.resolve(false);
+    logEloTtsLifecycle_("TTS_REQUEST", { responseId: metadata.responseId || "", generationId: metadata.generationId || 0 });
     return window.fetch(endpoint, {
       method: "POST",
       headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()),
       body: JSON.stringify({ text: speechText, voice: sanitizeUserText(window.ELO_TTS_VOICE || "") })
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!isEloCurrentSpeechGeneration_(metadata.generationId, metadata.responseId)) {
+          logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: metadata.responseId || "", generationId: metadata.generationId || 0 });
+          return false;
+        }
         if (!response.ok || data.ok === false) throw new Error(data.error || "tts_request_failed");
         const payload = normalizeEloTtsPayload_(data);
         if (!payload || !payload.audioUrl) throw new Error("tts_audio_missing");
-        return playEloNeuralSpeechAudio_(payload, button);
+        return playEloNeuralSpeechAudio_(payload, button, metadata);
       });
     });
   }
 
   function stopEloSpeechOutput_() {
+    const stoppedGenerationId = ELO_UI.activeSpeechGenerationId;
+    const stoppedResponseId = ELO_UI.activeSpeechResponseId;
+    ELO_UI.activeSpeechGenerationId += 1;
+    ELO_UI.activeSpeechResponseId = "";
     const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
     if (ELO_UI.neuralSpeechAudio && typeof ELO_UI.neuralSpeechAudio.pause === "function") {
@@ -29536,11 +29611,19 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     ELO_UI.neuralSpeechAudio = null;
     resetEloSpeechButton_();
+    logEloTtsLifecycle_("TTS_STOP", { responseId: stoppedResponseId, generationId: stoppedGenerationId });
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
     return true;
   }
 
-  function speakEloTextFallback_(speechText, button, reason) {
+  function speakEloTextFallback_(speechText, button, reason, options) {
+    const metadata = options || {};
+    const generationId = Number(metadata.generationId || 0);
+    const responseId = sanitizeUserText(metadata.responseId || "");
+    if (!isEloCurrentSpeechGeneration_(generationId, responseId)) {
+      logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      return false;
+    }
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
     if (!synthesis || !Utterance) {
@@ -29549,7 +29632,7 @@ function isEloResidentialNewPipelineEnabled_() {
         button.textContent = "Sem voz";
         button.title = "Leitura em voz alta nao suportada neste navegador";
       }
-      setEloTtsAudit_({ mode: "unavailable", provider: "none", endpoint: getEloTtsEndpoint_(), fallback: true, fallbackReason: reason || "speech_unavailable" });
+      setEloTtsAudit_({ mode: "unavailable", provider: "none", endpoint: getEloTtsEndpoint_(), fallback: true, fallbackReason: reason || "speech_unavailable", responseId: responseId, generationId: generationId });
       return false;
     }
     const utterance = new Utterance(speechText);
@@ -29558,22 +29641,29 @@ function isEloResidentialNewPipelineEnabled_() {
     utterance.lang = voice && voice.lang ? voice.lang : "pt-BR";
     utterance.rate = 1;
     utterance.pitch = 1;
-    utterance.onend = function () { resetEloSpeechButton_(button); };
+    utterance.onend = function () {
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      logEloTtsLifecycle_("TTS_FINISHED", { responseId: responseId, generationId: generationId });
+      resetEloSpeechButton_(button);
+    };
     utterance.onerror = function () {
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
       resetEloSpeechButton_(button);
       if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
     };
     ELO_UI.speechSynthesisUtterance = utterance;
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
-    setEloTtsAudit_({ mode: "speechSynthesis", provider: "browser", endpoint: getEloTtsEndpoint_(), voice: voice && voice.name || "", rate: utterance.rate, pitch: utterance.pitch, fallback: true, fallbackReason: reason || "neural_unavailable" });
+    setEloTtsAudit_({ mode: "speechSynthesis", provider: "browser", endpoint: getEloTtsEndpoint_(), voice: voice && voice.name || "", rate: utterance.rate, pitch: utterance.pitch, fallback: true, fallbackReason: reason || "neural_unavailable", responseId: responseId, generationId: generationId });
     setEloSpeechButtonState_(button, true);
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    logEloTtsLifecycle_("TTS_PLAY", { responseId: responseId, generationId: generationId });
     synthesis.speak(utterance);
     return true;
   }
 
   function speakEloText_(text, button, options) {
+    const metadata = options || {};
     if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       stopEloVoiceInput_();
@@ -29581,18 +29671,27 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    if (ELO_UI.neuralSpeechAudio && typeof ELO_UI.neuralSpeechAudio.pause === "function") {
+      try { ELO_UI.neuralSpeechAudio.pause(); } catch (error) {}
+    }
     resetEloSpeechButton_();
     const speechText = cleanEloTextForSpeech_(text);
     if (!speechText) return false;
+    const responseId = sanitizeUserText(metadata.responseId || "manual_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8));
+    ELO_UI.activeSpeechGenerationId += 1;
+    const generationId = ELO_UI.activeSpeechGenerationId;
+    ELO_UI.activeSpeechResponseId = responseId;
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
     setEloSpeechButtonState_(button, true);
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
-    requestEloNeuralSpeech_(speechText, button).then(function (ok) {
+    requestEloNeuralSpeech_(speechText, button, { responseId: responseId, generationId: generationId }).then(function (ok) {
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
       if (ok) return true;
-      return speakEloTextFallback_(speechText, button, isEloOnline_() ? "neural_unavailable" : "offline");
+      return speakEloTextFallback_(speechText, button, isEloOnline_() ? "neural_unavailable" : "offline", { responseId: responseId, generationId: generationId });
     }).catch(function (error) {
-      return speakEloTextFallback_(speechText, button, sanitizeUserText(error && error.message).slice(0, 120) || "neural_failed");
+      if (!isEloCurrentSpeechGeneration_(generationId, responseId)) return logEloTtsLifecycle_("TTS_STALE_CALLBACK_SKIPPED", { responseId: responseId, generationId: generationId });
+      return speakEloTextFallback_(speechText, button, sanitizeUserText(error && error.message).slice(0, 120) || "neural_failed", { responseId: responseId, generationId: generationId });
     });
     return true;
   }
@@ -30107,15 +30206,18 @@ function isEloResidentialNewPipelineEnabled_() {
     return parts.join("\n\n") || "Imagem analisada, mas a resposta veio sem conteudo textual.";
   }
 
-  function updateEloMessage_(message, text) {
+  function updateEloMessage_(message, text, options) {
+    const metadata = options || {};
     const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     const bubble = message && message.querySelector ? message.querySelector(".elo-message-bubble") : null;
     if (bubble) {
       bubble.textContent = text;
     }
     if (message && message.classList && message.classList.contains("assistant")) {
+      if (metadata.responseId && message.dataset) message.dataset.eloResponseId = sanitizeUserText(metadata.responseId).slice(0, 120);
+      if (metadata.responseLifecycle && message.dataset) message.dataset.eloResponseLifecycle = sanitizeUserText(metadata.responseLifecycle).slice(0, 40);
       refreshEloSpeechAction_(message, text);
-      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
+      if (!maybeSpeakEloVoiceModeResponse_(message, text, metadata)) maybeAutoSpeakEloResponse_(message, text, metadata);
     }
     scrollEloConversationToBottom_({ force: shouldStick });
   }
@@ -30246,7 +30348,8 @@ function isEloResidentialNewPipelineEnabled_() {
     return avatar;
   }
 
-  function appendMessage(kind, text) {
+  function appendMessage(kind, text, options) {
+    const metadata = options || {};
     const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
@@ -30261,8 +30364,15 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     message.appendChild(bubble);
     if (kind === "assistant") {
+      const lifecycle = metadata.historical || ELO_UI.replayingCoreHistory ? "historical" : sanitizeUserText(metadata.responseLifecycle || "background");
+      const responseId = sanitizeUserText(metadata.responseId || "").slice(0, 120);
+      if (message.dataset) {
+        message.dataset.eloResponseLifecycle = lifecycle;
+        if (responseId) message.dataset.eloResponseId = responseId;
+      }
       appendEloSpeechAction_(message, text);
-      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
+      const speechMetadata = Object.assign({}, metadata, { responseLifecycle: lifecycle, responseId: responseId });
+      if (!maybeSpeakEloVoiceModeResponse_(message, text, speechMetadata)) maybeAutoSpeakEloResponse_(message, text, speechMetadata);
     }
     ELO_UI.messages.appendChild(message);
     setEloCoreWelcomeVisible_();
@@ -30610,7 +30720,8 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     ELO_UI.pendingSavePrompt = null;
 
-    const message = appendMessage("assistant", cleanAnswer);
+    const responseId = createEloAssistantResponseId_(question, cleanAnswer, response);
+    const message = appendMessage("assistant", cleanAnswer, { responseLifecycle: "new", responseId: responseId });
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {
@@ -33140,6 +33251,9 @@ function isEloResidentialNewPipelineEnabled_() {
     stopSpeechOutputForTest: stopEloSpeechOutput_,
     choosePortugueseVoiceForTest: chooseEloPortugueseVoice_,
     getTtsAuditForTest: function () { return ELO_UI.ttsAudit ? Object.assign({}, ELO_UI.ttsAudit) : null; },
+    getTtsRuntimeForTest: function () { return { activeSpeechGenerationId: ELO_UI.activeSpeechGenerationId, activeSpeechResponseId: ELO_UI.activeSpeechResponseId, spokenResponseIds: Object.assign({}, ELO_UI.spokenResponseIds), speechSynthesisState: ELO_UI.speechSynthesisState }; },
+    autoSpeakResponseForTest: maybeAutoSpeakEloResponse_,
+    updateMessageForTest: updateEloMessage_,
     getTtsEndpointForTest: getEloTtsEndpoint_,
     detectMusicPlayIntentForTest: parseEloMusicPlayIntent_,
     stripWakePrefixForRoutingForTest: stripEloWakePrefixForRouting_,

@@ -3048,11 +3048,13 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
 
-  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.');
+  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.', { responseLifecycle: 'new', responseId: 'resp-auto-tts-1' });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCalls, 1);
   assert.equal(message.dataset.eloAutoTtsDone, 'true');
+  assert.equal(message.dataset.eloResponseLifecycle, 'new');
+  assert.equal(message.dataset.eloResponseId, 'resp-auto-tts-1');
   assert.equal(audioInstances.length, 1);
   assert.equal(audioInstances[0].playbackRate, 1);
   assert.equal(audioInstances[0].preservesPitch, true);
@@ -3060,6 +3062,80 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
   assert.equal(audit.mode, 'neural');
   assert.equal(audit.provider, 'openai-tts');
   assert.equal(audit.fallback, false);
+  assert.equal(audit.responseId, 'resp-auto-tts-1');
+  assert.equal(audit.generationId, 1);
+});
+
+test('ELO auto-TTS: render, historico e rerender sem nova responseId nao falam', async () => {
+  let fetchCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, console: fakeConsole },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:blocked' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Oi. Estou pronto.');
+  elo.appendMessageForLayoutTest('assistant', 'Mensagem antiga restaurada.', { historical: true, responseLifecycle: 'historical', responseId: 'old-response' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 0);
+  assert.ok(events.some((event) => event.name === 'TTS_BACKGROUND_EVENT_SKIPPED'));
+  assert.ok(events.some((event) => event.name === 'TTS_HISTORICAL_SKIPPED' && event.payload.responseId === 'old-response'));
+});
+
+test('ELO auto-TTS: mesma responseId fala uma vez e pula duplicata', async () => {
+  let fetchCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', console: fakeConsole },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:once', provider: 'openai-tts' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta nova e final.', { responseLifecycle: 'new', responseId: 'same-response' });
+  elo.appendMessageForLayoutTest('assistant', 'Resposta nova e final.', { responseLifecycle: 'new', responseId: 'same-response' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(elo.getTtsRuntimeForTest().spokenResponseIds['same-response'], true);
+  assert.ok(events.some((event) => event.name === 'TTS_NEW_RESPONSE' && event.payload.responseId === 'same-response'));
+  assert.ok(events.some((event) => event.name === 'TTS_DUPLICATE_SKIPPED' && event.payload.responseId === 'same-response'));
+});
+
+test('ELO auto-TTS: PARAR invalida callback antigo e nao aciona fallback', async () => {
+  let resolveFetch;
+  let audioInstances = 0;
+  let speechCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: {
+      Audio: function Audio() { audioInstances += 1; this.play = () => Promise.resolve(true); this.pause = () => {}; },
+      ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; },
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak() { speechCalls += 1; } },
+      console: fakeConsole
+    },
+    fetch() { return new Promise((resolve) => { resolveFetch = resolve; }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta longa para interromper.', { responseLifecycle: 'new', responseId: 'stop-response' });
+  assert.equal(elo.stopSpeechOutputForTest(), true);
+  resolveFetch({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late', provider: 'openai-tts' }) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(audioInstances, 0);
+  assert.equal(speechCalls, 0);
+  assert.ok(events.some((event) => event.name === 'TTS_STOP' && event.payload.responseId === 'stop-response'));
+  assert.ok(events.some((event) => event.name === 'TTS_STALE_CALLBACK_SKIPPED' && event.payload.responseId === 'stop-response'));
 });
 
 test('ELO auto-TTS: nao fala musica nem status interno', async () => {
@@ -3094,7 +3170,7 @@ test('ELO auto-TTS: nova pergunta cancela fala anterior', async () => {
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
 
-  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.');
+  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.', { responseLifecycle: 'new', responseId: 'resp-cancel-prev' });
   await new Promise((resolve) => setTimeout(resolve, 0));
   elo.ask('Nova pergunta do usuário');
 
