@@ -1,0 +1,42 @@
+name: ELO Photo Bridge APK
+
+on:
+  push:
+    branches:
+      - build/elo-photo-bridge-physical-test-2026-09-01
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android/elo-photo-bridge
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      - name: Run bridge core tests
+        run: node --test tests/elo-photo-bridge-core.test.mjs
+
+      - name: Run bridge state tests
+        run: node --test tests/elo-photo-bridge-state.test.mjs
+
+      - name: Build debug APK
+        run: ./gradlew clean assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: elo-photo-bridge-debug
+          path: android/elo-photo-bridge/app/build/outputs/apk/debug/*.apk
