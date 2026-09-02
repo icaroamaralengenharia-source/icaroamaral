@@ -6733,6 +6733,136 @@ function writeEloVectorTestFile_(path, items) {
 }
 
 
+
+test("elo chat header expoe metricas detalhadas de latencia sem conteudo sensivel", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta curta do Elo." }] }],
+        _testInputChars: JSON.stringify(payload.input || []).length
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({
+          message: "qual o nome do meu gato?",
+          history: [{ role: "user", content: "lembre que meu gato se chama Sicrano" }],
+          context: {
+            source: "elo",
+            mode: "standalone",
+            eloContext: "geral",
+            deviceId: "elo_dev_latency_header_test",
+            memoriesSummary: "MEMORIA EXPLICITA: meu gato se chama Sicrano",
+            librarySummary: "Biblioteca curta"
+          }
+        })
+      });
+      const metrics = JSON.parse(response.headers.get("x-elo-latency") || "{}");
+      const data = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.equal(data.answer, "Resposta curta do Elo.");
+      assert.match(metrics.requestId, /^elo_chat_/);
+      assert.equal(metrics.openAiCalls, 1);
+      assert.equal(metrics.model, "gpt-4.1-mini");
+      assert.equal(metrics.maxOutputTokens, 1800);
+      assert.equal(metrics.temperature, 0.7);
+      assert.equal(metrics.streaming, false);
+      assert.equal(metrics.historyMessages, 1);
+      assert.ok(metrics.inputChars > 0);
+      assert.ok(metrics.systemPromptChars > 0);
+      assert.ok(metrics.memoriesSummaryChars > 0);
+      assert.ok(metrics.outputChars > 0);
+      assert.equal(JSON.stringify(metrics).includes("Sicrano"), false);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("elo vector memory reutiliza embedding de consulta repetida", async () => {
+  const originalFetch = globalThis.fetch;
+  let embeddingCalls = 0;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      embeddingCalls += 1;
+      return new Response(JSON.stringify({
+        data: [{ embedding: Array.from({ length: 1536 }, (_, index) => (index % 11) / 11) }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const store = createEloVectorMemoryStore_({ memoryOnly: true, env: { OPENAI_API_KEY: "test-key" } });
+    const deviceId = "elo_dev_latency_cache_test";
+    await store.upsert({
+      id: "mem_cache",
+      ownerId: deviceId,
+      text: "O gato do usuario se chama Sicrano e o projeto atual e Photo Bridge",
+      category: "pessoal"
+    });
+    embeddingCalls = 0;
+
+    const payload = {
+      message: "qual o nome do meu gato?",
+      history: [],
+      context: { eloContext: "geral", deviceId, memoriesSummary: "" },
+      eloIntent: detectEloIntent_("qual o nome do meu gato?", { eloContext: "geral" }, [])
+    };
+    const firstMetrics = createTestMetrics_();
+    const secondMetrics = createTestMetrics_();
+
+    const first = await getEloRelevantContext_({ payload, memoryStore: store, metrics: firstMetrics });
+    const second = await getEloRelevantContext_({ payload, memoryStore: store, metrics: secondMetrics });
+
+    assert.match(first.context.relevantMemoriesSummary, /Sicrano|Photo Bridge/i);
+    assert.match(second.context.relevantMemoriesSummary, /Sicrano|Photo Bridge/i);
+    assert.equal(embeddingCalls, 1);
+    assert.equal(firstMetrics.embeddingCacheHit, false);
+    assert.equal(secondMetrics.embeddingCacheHit, true);
+    assert.ok(firstMetrics.embeddingMs >= 0);
+    assert.equal(secondMetrics.embeddingMs, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function createTestMetrics_() {
+  return {
+    memoryLookupMs: 0,
+    memoryVectorMs: 0,
+    embeddingMs: 0,
+    memoryCandidateCount: 0,
+    memoryReturnedCount: 0,
+    embeddingSkipped: false,
+    embeddingCacheHit: false
+  };
+}
+
 test("Elo memoria mestre consolida perfil projeto preferencia memoria e timeline", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const now = "2026-09-01T12:00:00.000Z";

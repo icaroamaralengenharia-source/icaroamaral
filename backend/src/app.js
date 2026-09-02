@@ -46,6 +46,32 @@ const ELO_OPENAI_VECTOR_DIMENSIONS = 1536;
 const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
 const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const ELO_VECTOR_SCHEMA_VERSION = 2;
+const ELO_VECTOR_QUERY_CACHE_TTL_MS = 60 * 1000;
+const ELO_VECTOR_QUERY_CACHE_MAX = 80;
+const ELO_VECTOR_QUERY_CACHE = new Map();
+function buildEloVectorQueryCacheKey_(ownerId, query, env) {
+  const provider = env && env.OPENAI_API_KEY ? "openai" : "local";
+  return [provider, ownerId, clean_(query).slice(0, MAX_ELO_VECTOR_TEXT_LENGTH)].join("|");
+}
+
+function getCachedEloVectorQueryEmbedding_(key) {
+  const entry = ELO_VECTOR_QUERY_CACHE.get(key);
+  if (!entry || nowMs_() - entry.createdAt > ELO_VECTOR_QUERY_CACHE_TTL_MS) {
+    ELO_VECTOR_QUERY_CACHE.delete(key);
+    return null;
+  }
+  return entry.embedding;
+}
+
+function setCachedEloVectorQueryEmbedding_(key, embedding) {
+  if (!key || !embedding) return;
+  ELO_VECTOR_QUERY_CACHE.set(key, { embedding, createdAt: nowMs_() });
+  while (ELO_VECTOR_QUERY_CACHE.size > ELO_VECTOR_QUERY_CACHE_MAX) {
+    const firstKey = ELO_VECTOR_QUERY_CACHE.keys().next().value;
+    ELO_VECTOR_QUERY_CACHE.delete(firstKey);
+  }
+}
+
 const ELO_MUSIC_SEED_CATALOG = [
   {
     title: "Sultans of Swing",
@@ -87,29 +113,80 @@ function nowMs_() {
 
 function createEloLatencyMetrics_() {
   return {
+    requestId: "elo_chat_" + randomUUID().slice(0, 8),
+    requestReceivedMs: 0,
+    authContextMs: 0,
+    bodyParseMs: 0,
+    memoryVectorMs: 0,
     memoryLookupMs: 0,
     embeddingMs: 0,
+    promptBuildMs: 0,
+    modelFirstResponseMs: 0,
+    modelTotalMs: 0,
     modelMs: 0,
+    postProcessMs: 0,
+    responseSendMs: 0,
     totalMs: 0,
     memoryCandidateCount: 0,
-    embeddingSkipped: false
+    memoryReturnedCount: 0,
+    embeddingSkipped: false,
+    embeddingCacheHit: false,
+    openAiCalls: 0,
+    model: "",
+    inputChars: 0,
+    outputChars: 0,
+    maxOutputTokens: 0,
+    temperature: null,
+    streaming: false,
+    systemPromptChars: 0,
+    historyMessages: 0,
+    historyChars: 0,
+    memoriesSummaryChars: 0,
+    relevantMemoriesSummaryChars: 0,
+    librarySummaryChars: 0,
+    eloContextChars: 0,
+    documentsSummaryChars: 0
   };
 }
 
 function finalizeEloLatencyMetrics_(metrics, startedAt) {
   const safe = metrics && typeof metrics === "object" ? metrics : createEloLatencyMetrics_();
+  const numericKeys = [
+    "requestReceivedMs", "authContextMs", "bodyParseMs", "memoryVectorMs", "memoryLookupMs", "embeddingMs",
+    "promptBuildMs", "modelFirstResponseMs", "modelTotalMs", "modelMs", "postProcessMs", "responseSendMs",
+    "memoryCandidateCount", "memoryReturnedCount", "openAiCalls", "inputChars", "outputChars", "maxOutputTokens",
+    "systemPromptChars", "historyMessages", "historyChars", "memoriesSummaryChars", "relevantMemoriesSummaryChars",
+    "librarySummaryChars", "eloContextChars", "documentsSummaryChars"
+  ];
   safe.totalMs = Math.max(0, Math.round(nowMs_() - startedAt));
-  safe.memoryLookupMs = Math.max(0, Math.round(Number(safe.memoryLookupMs) || 0));
-  safe.embeddingMs = Math.max(0, Math.round(Number(safe.embeddingMs) || 0));
-  safe.modelMs = Math.max(0, Math.round(Number(safe.modelMs) || 0));
-  safe.memoryCandidateCount = Math.max(0, Math.round(Number(safe.memoryCandidateCount) || 0));
+  numericKeys.forEach((key) => {
+    safe[key] = Math.max(0, Math.round(Number(safe[key]) || 0));
+  });
+  safe.memoryLookupMs = safe.memoryVectorMs || safe.memoryLookupMs;
+  safe.modelMs = safe.modelTotalMs || safe.modelMs;
   safe.embeddingSkipped = safe.embeddingSkipped === true;
+  safe.embeddingCacheHit = safe.embeddingCacheHit === true;
+  safe.streaming = safe.streaming === true;
+  safe.model = clean_(safe.model || "").slice(0, 80);
   return safe;
 }
 
 function setEloLatencyHeader_(response, metrics, startedAt) {
   try {
-    response.set("X-Elo-Latency", JSON.stringify(finalizeEloLatencyMetrics_(metrics, startedAt)));
+    const finalMetrics = finalizeEloLatencyMetrics_(metrics, startedAt);
+    response.set("X-Elo-Latency", JSON.stringify(finalMetrics));
+    if (process.env.ELO_LATENCY_LOGS === "true") {
+      console.info("ELO_CHAT_RESPONSE_SENT", {
+        requestId: finalMetrics.requestId,
+        totalMs: finalMetrics.totalMs,
+        memoryVectorMs: finalMetrics.memoryVectorMs,
+        promptBuildMs: finalMetrics.promptBuildMs,
+        modelTotalMs: finalMetrics.modelTotalMs,
+        postProcessMs: finalMetrics.postProcessMs,
+        responseSendMs: finalMetrics.responseSendMs,
+        openAiCalls: finalMetrics.openAiCalls
+      });
+    }
   } catch (error) {}
 }
 const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
@@ -3598,7 +3675,9 @@ export function createApp(options = {}) {
     let chatRequest;
 
     try {
-      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore);
+      const bodyParseStartedAt = nowMs_();
+      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics);
+      latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
     } catch (error) {
       const message = error && error.message ? error.message : "Nao consegui receber o anexo enviado.";
       response.status(error && error.status ? error.status : 400).json({
@@ -3644,6 +3723,7 @@ export function createApp(options = {}) {
 
     let municipalAnswer = null;
     try {
+      const authContextStartedAt = nowMs_();
       municipalAnswer = await buildEloMunicipalAnswerIfNeeded({
         request,
         message: validation.payload.message,
@@ -3758,6 +3838,7 @@ export function createApp(options = {}) {
     }
 
     try {
+      const premodelStartedAt = nowMs_();
       const relevantContext = await getEloRelevantContext_({
         payload: validation.payload,
         memoryStore: eloVectorMemoryStore,
@@ -3771,15 +3852,35 @@ export function createApp(options = {}) {
       if (relevantContext.context.stockIaLaunchPlan) {
         validation.payload.stockIaLaunchPlan = relevantContext.context.stockIaLaunchPlan;
       }
+      if (process.env.ELO_LATENCY_LOGS === "true") {
+        console.info("ELO_CHAT_PREMODEL_DONE", {
+          requestId: latencyMetrics.requestId,
+          preModelMs: Math.round(nowMs_() - premodelStartedAt),
+          memoryVectorMs: Math.round(latencyMetrics.memoryVectorMs || 0),
+          promptBuildMs: Math.round(latencyMetrics.promptBuildMs || 0)
+        });
+      }
       const modelStartedAt = nowMs_();
-      const answer = sanitizeEloAnswerText_(await callOpenAiElo_(validation.payload, env));
+      const rawAnswer = await callOpenAiElo_(validation.payload, env, latencyMetrics);
       latencyMetrics.modelMs += nowMs_() - modelStartedAt;
+      const postProcessStartedAt = nowMs_();
+      const answer = sanitizeEloAnswerText_(rawAnswer);
       const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
         userMessage: validation.payload.message,
         assistantResponse: answer,
         context: validation.payload.context,
         intent: validation.payload.interpretation.detectedIntent
       }));
+      latencyMetrics.postProcessMs += nowMs_() - postProcessStartedAt;
+      if (process.env.ELO_LATENCY_LOGS === "true") {
+        console.info("ELO_CHAT_MODEL_DONE", {
+          requestId: latencyMetrics.requestId,
+          modelTotalMs: Math.round(latencyMetrics.modelTotalMs || latencyMetrics.modelMs || 0),
+          outputChars: Math.round(latencyMetrics.outputChars || 0)
+        });
+      }
+      const responseSendStartedAt = nowMs_();
+      latencyMetrics.responseSendMs = nowMs_() - responseSendStartedAt;
       setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
       response.json({
         ok: true,
@@ -5035,7 +5136,7 @@ function validateImageRequest_(body) {
   };
 }
 
-async function buildEloChatRequest_(request, env, memoryStore) {
+async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
   if (!/^multipart\/form-data/i.test(String(request.headers["content-type"] || ""))) {
     return {
       body: request.body || {},
@@ -5045,7 +5146,9 @@ async function buildEloChatRequest_(request, env, memoryStore) {
     };
   }
 
+  const multipartStartedAt = nowMs_();
   const parsed = await parseEloMultipartFormData_(request, env);
+  if (metrics) metrics.bodyParseMs += nowMs_() - multipartStartedAt;
   const body = {
     message: parsed.fields.message || "",
     eloContext: parsed.fields.eloContext || "",
@@ -5900,6 +6003,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   const query = buildEloContextQuery_(safePayload.message, intent);
   const conversationSummary = buildConversationSummary_(safePayload.history);
   const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
+  const vectorStartedAt = nowMs_();
   const relevantMemoriesSummary = await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
     categories: intent.categories,
     keywords: contextKeywords,
@@ -5908,6 +6012,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     limit: 5,
     metrics
   });
+  if (metrics) metrics.memoryVectorMs += nowMs_() - vectorStartedAt;
   const filteredLocalMemories = filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
     keywords: contextKeywords,
     historyText: recentHistoryText
@@ -6232,13 +6337,22 @@ export function createEloVectorMemoryStore_(options = {}) {
         if (metrics) metrics.embeddingSkipped = true;
         return [];
       }
-      const embeddingStartedAt = nowMs_();
-      const queryEmbedding = await buildEloEmbedding_(query, env);
-      if (metrics) {
-        metrics.embeddingMs += nowMs_() - embeddingStartedAt;
+      const cacheKey = buildEloVectorQueryCacheKey_(safeOwnerId, query, env);
+      let queryEmbedding = getCachedEloVectorQueryEmbedding_(cacheKey);
+      if (queryEmbedding && metrics) {
+        metrics.embeddingCacheHit = true;
         metrics.embeddingSkipped = false;
       }
-      return ownerItems
+      if (!queryEmbedding) {
+        const embeddingStartedAt = nowMs_();
+        queryEmbedding = await buildEloEmbedding_(query, env);
+        if (metrics) {
+          metrics.embeddingMs += nowMs_() - embeddingStartedAt;
+          metrics.embeddingSkipped = false;
+        }
+        setCachedEloVectorQueryEmbedding_(cacheKey, queryEmbedding);
+      }
+      const results = ownerItems
         .filter((item) => isCompatibleEmbedding_(queryEmbedding, item))
         .map((item) => ({
           ...item,
@@ -6247,6 +6361,8 @@ export function createEloVectorMemoryStore_(options = {}) {
         .filter((item) => item.score > 0.08)
         .sort((first, second) => second.score - first.score)
         .slice(0, limit);
+      if (metrics) metrics.memoryReturnedCount = results.length;
+      return results;
     },
     getOwnerMemoryCount(ownerId) {
       const safeOwnerId = sanitizeEloDeviceId_(ownerId);
@@ -7059,7 +7175,7 @@ async function callOpenAiVision_(payload, env) {
   return parseImageAnalysis_(outputText);
 }
 
-async function callOpenAiElo_(payload, env) {
+async function callOpenAiElo_(payload, env, metrics = null) {
   const model = env.OPENAI_ELO_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
   const interpretation = payload.interpretation || interpretEloUserMessage({
     message: payload.message,
@@ -7067,16 +7183,16 @@ async function callOpenAiElo_(payload, env) {
     context: payload.context && payload.context.eloContext,
     userProfile: {}
   });
+  const promptBuildStartedAt = nowMs_();
+  const systemPrompt = buildEloSystemPrompt_(payload.context);
+  const personalityPrompt = getEloPersonalityPrompt_({
+    interpretation,
+    context: payload.context && payload.context.eloContext
+  });
   const input = [
     {
       role: "system",
-      content: [
-        buildEloSystemPrompt_(payload.context),
-        getEloPersonalityPrompt_({
-          interpretation,
-          context: payload.context && payload.context.eloContext
-        })
-      ].join("\n\n")
+      content: [systemPrompt, personalityPrompt].join("\n\n")
     }
   ];
 
@@ -7101,21 +7217,43 @@ async function callOpenAiElo_(payload, env) {
     ].join("\n")
   });
 
+  const requestBody = {
+    model,
+    input,
+    temperature: 0.7,
+    max_output_tokens: 1800
+  };
+  const requestBodyText = JSON.stringify(requestBody);
+  if (metrics) {
+    metrics.promptBuildMs += nowMs_() - promptBuildStartedAt;
+    metrics.model = model;
+    metrics.inputChars = requestBodyText.length;
+    metrics.maxOutputTokens = requestBody.max_output_tokens;
+    metrics.temperature = requestBody.temperature;
+    metrics.streaming = false;
+    metrics.systemPromptChars = systemPrompt.length + personalityPrompt.length;
+    metrics.historyMessages = Array.isArray(payload.history) ? payload.history.length : 0;
+    metrics.historyChars = Array.isArray(payload.history) ? payload.history.reduce((total, item) => total + clean_(item && item.content).length, 0) : 0;
+    metrics.memoriesSummaryChars = clean_(payload.context && payload.context.memoriesSummary).length;
+    metrics.relevantMemoriesSummaryChars = clean_(payload.context && payload.context.relevantMemoriesSummary).length;
+    metrics.librarySummaryChars = clean_(payload.context && (payload.context.librarySummary || payload.context.libraryRelevantSummary)).length;
+    metrics.eloContextChars = clean_(payload.context && payload.context.eloContext).length;
+    metrics.documentsSummaryChars = clean_(payload.context && payload.context.documentsSummary).length;
+  }
+  const modelFetchStartedAt = nowMs_();
+  if (metrics) metrics.openAiCalls += 1;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + env.OPENAI_API_KEY,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model,
-      input,
-      temperature: 0.7,
-      max_output_tokens: 1800
-    })
+    body: requestBodyText
   });
+  if (metrics) metrics.modelFirstResponseMs += nowMs_() - modelFetchStartedAt;
 
   const data = await response.json().catch(() => null);
+  if (metrics) metrics.modelTotalMs += nowMs_() - modelFetchStartedAt;
 
   if (!response.ok || !data) {
     const message = data && data.error && data.error.message ? data.error.message : "Resposta inválida da API OpenAI.";
@@ -7123,6 +7261,7 @@ async function callOpenAiElo_(payload, env) {
   }
 
   const outputText = extractOutputText_(data);
+  if (metrics) metrics.outputChars = clean_(outputText).length;
 
   if (!outputText) {
     throw new Error("O Elo online respondeu sem texto utilizável.");
