@@ -3,6 +3,8 @@ package br.com.icaroamaral.elophotobridge
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.provider.MediaStore
@@ -54,6 +56,7 @@ class MainActivity : ComponentActivity() {
   private lateinit var retryButton: Button
   private lateinit var cancelButton: Button
   private lateinit var clearButton: Button
+  private lateinit var diagnosticButton: Button
   private var pendingPayloadJson: String? = null
   private var activeJob: Job? = null
   private var candidateGroupsById: Map<String, Pair<ParsedCommand, VisitGroup>> = emptyMap()
@@ -133,6 +136,10 @@ class MainActivity : ComponentActivity() {
       text = "LIMPAR"
       setOnClickListener { confirmClearState() }
     }
+    diagnosticButton = Button(this).apply {
+      text = "DIAGNÓSTICO DA SELEÇÃO"
+      setOnClickListener { showSelectionDiagnosticPanel() }
+    }
     jsBridge = SelectedPhotoJavascriptBridge(
       context = this,
       onBridgeReady = {
@@ -201,11 +208,31 @@ class MainActivity : ComponentActivity() {
         addView(retryButton)
         addView(cancelButton)
         addView(clearButton)
+        if (isPhysicalTestBuild()) addView(diagnosticButton)
       })
       addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     })
   }
 
+
+  private fun isPhysicalTestBuild(): Boolean = packageName == "br.com.icaroamaral.elophotobridge.physicaltest"
+
+  private fun showSelectionDiagnosticPanel() {
+    if (!isPhysicalTestBuild()) return
+    val snapshot = SelectionDiagnosticStore.current()
+    AlertDialog.Builder(this)
+      .setTitle("Diagnóstico da seleção")
+      .setMessage(snapshot.toDiagnosticText())
+      .setPositiveButton("COPIAR DIAGNÓSTICO") { _, _ -> copyDiagnosticToClipboard(snapshot.toDiagnosticText()) }
+      .setNegativeButton("FECHAR", null)
+      .show()
+  }
+
+  private fun copyDiagnosticToClipboard(text: String) {
+    val clipboard = getSystemService(ClipboardManager::class.java)
+    clipboard.setPrimaryClip(ClipData.newPlainText("ELO Photo Bridge diagnostic", text))
+    setStatus("Diagnóstico copiado.", screenModel.state.flowStatus)
+  }
   private fun restoreUi(state: PhotoBridgeUiState) {
     restoringText = true
     command.setText(state.commandText)

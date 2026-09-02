@@ -41,9 +41,11 @@ class PhotoBridgeOrchestrator(
     onProgress: suspend (PhotoBridgeProgress) -> Unit = {}
   ): Result<Pair<ParsedCommand, List<VisitGroup>>> {
     return try {
-      if (UserVisitWindowFilter.hasInvalidTimeRange(commandText)) throw IllegalArgumentException("invalid_time")
       val command = parser.parse(commandText)
+      val invalidTime = UserVisitWindowFilter.hasInvalidTimeRange(commandText)
       val window = UserVisitWindowFilter.fromText(command, commandText)
+      SelectionDiagnosticStore.start(commandText, command, window, invalidTime)
+      if (invalidTime) throw IllegalArgumentException("invalid_time")
       val requestedDate = window?.date ?: command.dateHint ?: return Result.failure(IllegalStateException("date_required"))
       val displayDate = requestedDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
       onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.SEARCHING_PHOTOS, "Procurando fotos de $displayDate..."))
@@ -98,6 +100,14 @@ class PhotoBridgeOrchestrator(
         Log.e(TAG, "NO_EXPANSION_INVARIANT_FAILED: selected=${selected.photos.size} timeWindow=${timeFilteredPhotos.size}")
         throw IllegalStateException("no_expansion_invariant_failed")
       }
+      SelectionDiagnosticStore.recordFilterPipeline(
+        datePhotos = datePhotos,
+        timeWindowPhotos = timeFilteredPhotos,
+        cityPhotos = cityFilteredPhotos,
+        selectedPhotos = selected.photos,
+        visitGrouperBypass = window != null,
+        windowFilterCalled = window != null
+      )
       Log.d(TAG, "NO_EXPANSION_INVARIANT: PASS selected=${selected.photos.size} timeWindow=${timeFilteredPhotos.size}")
       Log.d(TAG, "SELECTED_VISIT_PHOTOS: ${selected.photos.size}")
       Result.success(command to groups)
@@ -117,6 +127,7 @@ class PhotoBridgeOrchestrator(
   ): String {
     Log.d(TAG, "PHOTOS_SENT_TO_TIMELINE: ${group.photos.size}")
     Log.d(TAG, "PHOTOS_SENT_TO_AI: 0")
+    SelectionDiagnosticStore.recordTimelineSend(group.photos.size)
     return withContext(Dispatchers.Default) {
       coroutineContext.ensureActive()
       onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.PREPARING_REPORT, "Organizando fotos por timeline...", photoCount = group.photos.size))
@@ -154,6 +165,7 @@ class PhotoBridgeOrchestrator(
 
   private suspend fun classifyPhotos(photos: List<PhotoMetadata>, onProgress: suspend (PhotoBridgeProgress) -> Unit): List<ClassifiedPhoto> {
     Log.d(TAG, "PHOTOS_SENT_TO_AI: ${photos.size}")
+    SelectionDiagnosticStore.recordAiSend(photos.size)
     val counts = mutableMapOf<String, Int>()
     return photos.mapIndexed { index, photo ->
       coroutineContext.ensureActive()

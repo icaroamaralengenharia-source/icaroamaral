@@ -691,3 +691,143 @@ test("city hint restringe a janela, nunca expande", () => {
 test("janela invalida nao cai para fotos do dia", () => {
   assert.throws(() => filterByAbsoluteWindow(realWindowFixture210(), "2026-08-25", "09:99", "09:37"), /invalid_time/);
 });
+
+function makeDiagnosticSnapshot(overrides = {}) {
+  const snapshot = {
+    dateRaw: "2026-08-25",
+    startTimeRaw: "09:36",
+    endTimeRaw: "09:37",
+    parsedStart: "09:36",
+    parsedEnd: "09:37:59.999999999",
+    timezone: "America/Bahia",
+    completeWindowInformed: true,
+    invalidTime: false,
+    windowFilterCalled: true,
+    photosAfterDate: 210,
+    photosAfterTime: 3,
+    photosAfterCity: 3,
+    selectedVisitPhotos: 3,
+    photosSentToTimeline: 3,
+    photosSentToAi: 0,
+    visitGrouperBypass: true,
+    timestampSourceCounts: {
+      EXIF_DATETIME_ORIGINAL: 2,
+      MEDIASTORE_DATE_TAKEN: 1,
+      EXIF_DATETIME_DIGITIZED: 0,
+      MEDIASTORE_DATE_MODIFIED: 0,
+      MEDIASTORE_DATE_ADDED: 0
+    },
+    datePhotoSamples: [{ idOrName: "known.jpg", timestampSource: "EXIF_DATETIME_ORIGINAL", timestampRaw: "2026:08:25 09:36:42", timestampLocal: "2026-08-25 09:36:42", insideWindow: true, city: "Ibicoara" }],
+    timeWindowSamples: [{ idOrName: "known.jpg", timestampSource: "EXIF_DATETIME_ORIGINAL", timestampRaw: "2026:08:25 09:36:42", timestampLocal: "2026-08-25 09:36:42", insideWindow: true, city: "Ibicoara" }],
+    selectedSamples: [{ idOrName: "known.jpg", timestampSource: "EXIF_DATETIME_ORIGINAL", timestampRaw: "2026:08:25 09:36:42", timestampLocal: "2026-08-25 09:36:42", insideWindow: true, city: "Ibicoara" }],
+    ...overrides
+  };
+  snapshot.expandedAfterFilter = snapshot.selectedVisitPhotos > snapshot.photosAfterTime;
+  snapshot.filterNotCalledWithCompleteWindow = snapshot.completeWindowInformed && !snapshot.windowFilterCalled;
+  snapshot.visitGrouperUsedWithCompleteWindow = snapshot.completeWindowInformed && !snapshot.visitGrouperBypass;
+  snapshot.cityFilterZeroedWindow = snapshot.photosAfterTime > 0 && snapshot.photosAfterCity === 0;
+  snapshot.timeFilterDidNotReduce = snapshot.photosAfterDate === 210 && snapshot.photosAfterTime === 210;
+  return snapshot;
+}
+
+function diagnosticText(snapshot) {
+  const lines = [
+    `DATE_RAW=${snapshot.dateRaw}`,
+    `START_RAW=${snapshot.startTimeRaw}`,
+    `END_RAW=${snapshot.endTimeRaw}`,
+    `START_PARSED=${snapshot.parsedStart}`,
+    `END_PARSED=${snapshot.parsedEnd}`,
+    `TIMEZONE=${snapshot.timezone}`,
+    `WINDOW_FILTER_CALLED=${snapshot.windowFilterCalled}`,
+    `AFTER_DATE=${snapshot.photosAfterDate}`,
+    `AFTER_TIME=${snapshot.photosAfterTime}`,
+    `AFTER_CITY=${snapshot.photosAfterCity}`,
+    `SELECTED=${snapshot.selectedVisitPhotos}`,
+    `VISITGROUPER_BYPASS=${snapshot.visitGrouperBypass}`,
+    `EXPANDED_AFTER_FILTER=${snapshot.expandedAfterFilter}`,
+    `SENT_TIMELINE=${snapshot.photosSentToTimeline}`,
+    `SENT_AI=${snapshot.photosSentToAi}`,
+    "TIMESTAMP_SOURCE_COUNTS:",
+    `EXIF_DATETIME_ORIGINAL=${snapshot.timestampSourceCounts.EXIF_DATETIME_ORIGINAL || 0}`,
+    `MEDIASTORE_DATE_TAKEN=${snapshot.timestampSourceCounts.MEDIASTORE_DATE_TAKEN || 0}`,
+    "SAMPLE_DATE:",
+    ...snapshot.datePhotoSamples.map((sample) => `ID=${sample.idOrName} | SOURCE=${sample.timestampSource} | RAW=${sample.timestampRaw} | LOCAL=${sample.timestampLocal} | IN_WINDOW=${sample.insideWindow ? "SIM" : "NAO"} | CITY=${sample.city}`),
+    "SAMPLE_TIME:",
+    ...snapshot.timeWindowSamples.map((sample) => `ID=${sample.idOrName} | SOURCE=${sample.timestampSource}`),
+    "SAMPLE_SELECTED:",
+    ...snapshot.selectedSamples.map((sample) => `ID=${sample.idOrName} | SOURCE=${sample.timestampSource}`)
+  ];
+  if (snapshot.filterNotCalledWithCompleteWindow) lines.push("ERRO=JANELA COMPLETA INFORMADA, MAS FILTRO HORARIO NAO FOI EXECUTADO");
+  if (snapshot.timeFilterDidNotReduce) lines.push("ALERTA=FILTRO HORARIO NAO REDUZIU O CONJUNTO");
+  if (snapshot.expandedAfterFilter) lines.push("ERRO=CONJUNTO FOI EXPANDIDO APOS O FILTRO HORARIO");
+  if (snapshot.visitGrouperUsedWithCompleteWindow) lines.push("ERRO=VISITGROUPER FOI USADO COM JANELA COMPLETA");
+  if (snapshot.cityFilterZeroedWindow) lines.push("ALERTA=FILTRO DE CIDADE ZEROU A JANELA");
+  return lines.join("\n");
+}
+
+test("diagnostic snapshot recebe UI raw e valores parseados", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot());
+  assert.match(text, /DATE_RAW=2026-08-25/);
+  assert.match(text, /START_RAW=09:36/);
+  assert.match(text, /END_RAW=09:37/);
+  assert.match(text, /START_PARSED=09:36/);
+  assert.match(text, /END_PARSED=09:37:59/);
+  assert.match(text, /TIMEZONE=America\/Bahia/);
+});
+
+test("diagnostic snapshot mostra contadores principais", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot());
+  assert.match(text, /AFTER_DATE=210/);
+  assert.match(text, /AFTER_TIME=3/);
+  assert.match(text, /AFTER_CITY=3/);
+  assert.match(text, /SELECTED=3/);
+  assert.match(text, /SENT_TIMELINE=3/);
+  assert.match(text, /SENT_AI=0/);
+});
+
+test("diagnostic snapshot mostra fontes de timestamp e amostras", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot());
+  assert.match(text, /TIMESTAMP_SOURCE_COUNTS/);
+  assert.match(text, /EXIF_DATETIME_ORIGINAL=2/);
+  assert.match(text, /MEDIASTORE_DATE_TAKEN=1/);
+  assert.match(text, /SAMPLE_DATE/);
+  assert.match(text, /SAMPLE_TIME/);
+  assert.match(text, /SAMPLE_SELECTED/);
+  assert.match(text, /LOCAL=2026-08-25 09:36:42/);
+  assert.match(text, /IN_WINDOW=SIM/);
+});
+
+test("diagnostic snapshot acusa expansao apos filtro", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot({ photosAfterTime: 3, selectedVisitPhotos: 210 }));
+  assert.match(text, /EXPANDED_AFTER_FILTER=true/);
+  assert.match(text, /CONJUNTO FOI EXPANDIDO APOS O FILTRO HORARIO/);
+});
+
+test("diagnostic snapshot acusa filtro nao chamado com janela completa", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot({ windowFilterCalled: false }));
+  assert.match(text, /WINDOW_FILTER_CALLED=false/);
+  assert.match(text, /JANELA COMPLETA INFORMADA, MAS FILTRO HORARIO NAO FOI EXECUTADO/);
+});
+
+test("diagnostic snapshot acusa VisitGrouper usado com janela completa", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot({ visitGrouperBypass: false }));
+  assert.match(text, /VISITGROUPER_BYPASS=false/);
+  assert.match(text, /VISITGROUPER FOI USADO COM JANELA COMPLETA/);
+});
+
+test("diagnostic snapshot acusa filtro horario sem reducao", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot({ photosAfterDate: 210, photosAfterTime: 210 }));
+  assert.match(text, /FILTRO HORARIO NAO REDUZIU O CONJUNTO/);
+});
+
+test("diagnostic snapshot acusa cidade zerando janela", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot({ photosAfterTime: 3, photosAfterCity: 0, selectedVisitPhotos: 0 }));
+  assert.match(text, /FILTRO DE CIDADE ZEROU A JANELA/);
+});
+
+test("copy diagnostic usa texto compacto sem dados sensiveis", () => {
+  const text = diagnosticText(makeDiagnosticSnapshot());
+  assert.match(text, /DATE_RAW=/);
+  assert.doesNotMatch(text, /api[_-]?key|token|secret|password/i);
+  assert.doesNotMatch(text, /C:\\/);
+});
