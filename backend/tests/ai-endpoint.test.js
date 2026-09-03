@@ -6820,6 +6820,109 @@ test("prompt do Elo instrui continuidade, profundidade e prioridade da pergunta 
   assert.match(prompt, /Normas: cite norma aplicavel somente quando houver confianca/i);
   assert.match(prompt, /Memoria de trabalho da conversa atual/i);
 });
+test("endpoint do Elo preserva workingMemorySummary da request ate o system prompt", async () => {
+  const originalFetch = globalThis.fetch;
+  let promptText = "";
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      promptText = payload.input[0].content;
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta contextual do Elo." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({
+          message: "fale mais sobre a primeira",
+          history: [],
+          context: {
+            source: "elo",
+            workingMemorySummary: "ACTIVE TOPIC: paisagismo\nLAST ENUMERATED ITEMS: arvores | arbustos | trepadeiras"
+          }
+        })
+      });
+
+      const data = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.match(promptText, /Memoria de trabalho da conversa atual/i);
+      assert.match(promptText, /ACTIVE TOPIC: paisagismo/);
+      assert.match(promptText, /LAST ENUMERATED ITEMS: arvores \| arbustos \| trepadeiras/);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo sanitiza workingMemorySummary antes do system prompt", async () => {
+  const originalFetch = globalThis.fetch;
+  const prompts = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      prompts.push(payload.input[0].content);
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta contextual do Elo." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const cases = [123, { topic: "paisagismo" }, null];
+      for (const value of cases) {
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+          body: JSON.stringify({ message: "fale mais", history: [], context: { workingMemorySummary: value } })
+        });
+        assert.equal(response.status, 200);
+      }
+
+      const longSummary = "wm:" + "z".repeat(1500);
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({ message: "aprofunde mais", history: [], context: { workingMemorySummary: longSummary } })
+      });
+      assert.equal(response.status, 200);
+
+      assert.equal(prompts.length, 4);
+      assert.doesNotMatch(prompts[0], /Memoria de trabalho da conversa atual/i);
+      assert.doesNotMatch(prompts[1], /Memoria de trabalho da conversa atual/i);
+      assert.doesNotMatch(prompts[2], /Memoria de trabalho da conversa atual/i);
+      const marker = "Memoria de trabalho da conversa atual:\n";
+      const markerIndex = prompts[3].indexOf(marker);
+      assert.ok(markerIndex >= 0);
+      const preserved = prompts[3].slice(markerIndex + marker.length).split("\n\n")[0];
+      assert.equal(preserved.length, 1200);
+      assert.match(preserved, /^wm:z+/);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("frontend Elo higieniza nomes e flags internos antes de renderizar", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const answer = sandbox.window.EloAssistente.sanitizeHumanFacingAnswerForTest([

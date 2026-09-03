@@ -5893,6 +5893,9 @@ function validateEloChatRequest_(body) {
   const projectContext = context.projectContext && typeof context.projectContext === "object"
     ? context.projectContext
     : (body.projectContext && typeof body.projectContext === "object" ? body.projectContext : {});
+  const workingMemorySummary = typeof context.workingMemorySummary === "string"
+    ? cleanMultiline_(context.workingMemorySummary).slice(0, 1200)
+    : "";
   const rawHistory = Array.isArray(body.history) ? body.history : [];
   const history = rawHistory
     .filter((item) => item && (item.role === "user" || item.role === "assistant"))
@@ -5943,6 +5946,7 @@ function validateEloChatRequest_(body) {
         productContext: clean_(context.productContext || "").slice(0, 80),
         screenContext: clean_(context.screenContext || "").slice(0, 1200),
         productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
+        workingMemorySummary,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
         projectContext
       }
