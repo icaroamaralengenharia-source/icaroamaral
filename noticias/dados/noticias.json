@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-09-03T14:33:29.660Z",
-  "coletadoEm": "2026-09-03T14:33:29.660Z",
+  "atualizadoEm": "2026-09-03T18:37:34.785Z",
+  "coletadoEm": "2026-09-03T18:37:34.785Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "52554ae919c2f8d3",
+      "titulo": "Confira a agenda dos presidenciáveis nesta quinta-feira (3)",
+      "resumo": "A agenda dos presidenciáveis inclui entrevistas e sabatinas em veículos de comunicação, encontros com lideranças religiosas, visitas a instituições e obras sociais. Também estão previstas panfletagem e apresentação de programa eleitoral, além de atividades partidárias.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/politica/noticia/2026-09/confira-agenda-dos-presidenciaveis-nesta-quinta-feira-3",
+      "publicadoEm": "2026-09-03T11:30:00.000Z",
+      "coletadoEm": "2026-09-03T18:37:34.785Z",
+      "categoria": "Infraestrutura e Obras",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/mHxHjf7pDxiKyHWFE1hh6tGdJMg=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/18/banner_agenda_-_1170x700.png?itok=t-rMkLxv",
+      "imagemAlt": "Confira a agenda dos presidenciáveis nesta quinta-feira (3)",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "fe5beebabde5dcb9",
       "titulo": "Programa Trilhas Profissionais da Construção é lançado pelo SindusCon-SP",
