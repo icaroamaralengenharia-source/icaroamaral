@@ -1,0 +1,181 @@
+[
+  {
+    "id": "beethoven-fur-elise",
+    "title": "Für Elise",
+    "composer": "Ludwig van Beethoven",
+    "performer": "V Gao / Gaodifan",
+    "recordingYear": "2006",
+    "files": [
+      {
+        "path": "offline-media/classical/beethoven/fur-elise.ogg",
+        "format": "ogg",
+        "duration": "2:57",
+        "bitrate": "~97 kbps",
+        "sizeBytes": 2144088
+      }
+    ],
+    "aliases": [
+      "fur elise",
+      "für elise",
+      "para elisa",
+      "beethoven",
+      "beethoven fur elise",
+      "toque beethoven",
+      "toque fur elise",
+      "toque für elise"
+    ],
+    "license": "Public Domain / CC0 1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:FurElise.ogg",
+    "publicDomain": true,
+    "downloadPermitted": true,
+    "offlineStoragePermitted": true,
+    "offlineAllowed": true,
+    "legalStatus": "CLEAR"
+  },
+  {
+    "id": "debussy-clair-de-lune",
+    "title": "Clair de Lune",
+    "composer": "Claude Debussy",
+    "performer": "Laurens Goedhart",
+    "recordingYear": "2011",
+    "files": [
+      {
+        "path": "offline-media/classical/debussy/clair-de-lune.ogg",
+        "format": "ogg",
+        "duration": "5:04",
+        "bitrate": "414 kbps",
+        "sizeBytes": 15740765
+      }
+    ],
+    "aliases": [
+      "clair de lune",
+      "claro de lua",
+      "debussy",
+      "debussy clair de lune",
+      "toque clair de lune",
+      "toque debussy"
+    ],
+    "license": "Creative Commons Attribution 3.0 Unported",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Clair_de_lune_(Claude_Debussy)_Suite_bergamasque.ogg",
+    "publicDomain": false,
+    "downloadPermitted": true,
+    "offlineStoragePermitted": true,
+    "offlineAllowed": true,
+    "legalStatus": "CLEAR"
+  },
+  {
+    "id": "vivaldi-four-seasons-spring",
+    "title": "The Four Seasons: Spring / Primavera",
+    "composer": "Antonio Vivaldi",
+    "performer": "John Harrison, Robert Turizziani, Wichita State University Chamber Players",
+    "recordingYear": "2000",
+    "files": [
+      {
+        "path": "offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
+        "format": "oga",
+        "duration": "3:35",
+        "bitrate": "160 kbps",
+        "sizeBytes": 4299414
+      },
+      {
+        "path": "offline-media/classical/vivaldi/spring-mvt-2-largo.oga",
+        "format": "oga",
+        "duration": "2:52",
+        "bitrate": "153 kbps",
+        "sizeBytes": 3288210
+      },
+      {
+        "path": "offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
+        "format": "oga",
+        "duration": "4:04",
+        "bitrate": "162 kbps",
+        "sizeBytes": 4944578
+      }
+    ],
+    "aliases": [
+      "primavera de vivaldi",
+      "quatro estações primavera",
+      "quatro estacoes primavera",
+      "vivaldi primavera",
+      "spring vivaldi",
+      "vivaldi",
+      "toque vivaldi",
+      "toque vivaldi primavera"
+    ],
+    "license": "Creative Commons Attribution-ShareAlike 4.0 International or compatible listed versions",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Vivaldi_-_Four_Seasons_1_Spring_mvt_1_Allegro_-_John_Harrison_violin.oga",
+    "publicDomain": false,
+    "downloadPermitted": true,
+    "offlineStoragePermitted": true,
+    "offlineAllowed": true,
+    "legalStatus": "CLEAR"
+  },
+  {
+    "id": "pachelbel-canon-in-d",
+    "title": "Canon in D Major",
+    "composer": "Johann Pachelbel",
+    "performer": "Kevin MacLeod",
+    "recordingYear": "2006",
+    "files": [
+      {
+        "path": "offline-media/classical/pachelbel/canon-in-d.mp3",
+        "format": "mp3",
+        "duration": "4:25",
+        "bitrate": "158 kbps",
+        "sizeBytes": 5226209
+      }
+    ],
+    "aliases": [
+      "canon in d",
+      "canon de pachelbel",
+      "pachelbel canon",
+      "pachelbel",
+      "toque canon in d",
+      "toque pachelbel"
+    ],
+    "license": "Creative Commons Attribution 3.0 Unported",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Canon_in_D_Major_(ISRC_USUAN1100301).mp3",
+    "publicDomain": false,
+    "downloadPermitted": true,
+    "offlineStoragePermitted": true,
+    "offlineAllowed": true,
+    "legalStatus": "CLEAR"
+  },
+  {
+    "id": "chopin-nocturne-op-9-no-2",
+    "title": "Nocturne Op. 9 No. 2",
+    "composer": "Frédéric Chopin",
+    "performer": "Membeth",
+    "recordingYear": "2013",
+    "files": [
+      {
+        "path": "offline-media/classical/chopin/nocturne-op-9-no-2.ogg",
+        "format": "ogg",
+        "duration": "4:00",
+        "bitrate": "142 kbps",
+        "sizeBytes": 4260399
+      }
+    ],
+    "aliases": [
+      "nocturne op 9 numero 2",
+      "noturno de chopin",
+      "chopin nocturne",
+      "chopin noturno",
+      "chopin",
+      "toque chopin",
+      "toque noturno de chopin"
+    ],
+    "license": "CC0 1.0 Universal Public Domain Dedication",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chopin.Nocturne.Es-Dur.opus.9.2.ogg",
+    "publicDomain": true,
+    "downloadPermitted": true,
+    "offlineStoragePermitted": true,
+    "offlineAllowed": true,
+    "legalStatus": "CLEAR"
+  }
+]
