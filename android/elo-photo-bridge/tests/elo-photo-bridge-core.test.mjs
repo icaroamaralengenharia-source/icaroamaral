@@ -483,7 +483,15 @@ function assertDefaultCuts(count) {
 }
 
 test("SGTO_FAST_TIMELINE distribui 50 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(50));
-test("SGTO_FAST_TIMELINE distribui 100 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(100));
+test("SGTO_FAST_TIMELINE distribui 51 fotos pelos cortes fisicos 1,13,27,34,42", () => {
+  const payload = distributeTimeline(timelinePhotos(51), { CAMERAS: 0, TOMADAS: 12, RACK: 26, MASTRO_ANTENA: 33, CAIXA_FUNDO_MADEIRA: 41 });
+  assert.equal(payload.photos.cameras.length, 12);
+  assert.equal(payload.photos.tomadas.length, 14);
+  assert.equal(payload.photos.rack.length, 7);
+  assert.equal(payload.photos.mastroAntena.length, 8);
+  assert.equal(payload.photos.caixaFundoMadeira.length, 10);
+  assert.equal(payload.photos.cameras[0].classification.source, "SGTO_FAST_TIMELINE");
+});test("SGTO_FAST_TIMELINE distribui 100 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(100));
 test("SGTO_FAST_TIMELINE distribui 200 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(200));
 
 test("SGTO_FAST_TIMELINE bloqueia ordem invalida, corte duplicado e bloco vazio", () => {

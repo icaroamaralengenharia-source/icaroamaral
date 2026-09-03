@@ -60,6 +60,61 @@ class UserVisitWindowSelectionTest {
     assertTrue(VisitRefinementParser.cityMatches("UNKNOWN", "malhada"))
   }
 
+  @Test
+  fun fastTimelineDistributes51PhotosFromGuidedStarts() {
+    val zone = ZoneId.systemDefault()
+    val date = LocalDate.of(2026, 8, 28)
+    val photos = (0 until 51).map { index ->
+      photo(index, date.atTime(LocalTime.of(16, 50).plusSeconds(index.toLong() * 16)).atZone(zone).toInstant(), if (index % 2 == 0) "Malhada de Pedras" else null)
+    }
+    val cuts = mapOf(
+      PhotoCategory.CAMERAS to 0,
+      PhotoCategory.TOMADAS to 12,
+      PhotoCategory.RACK to 26,
+      PhotoCategory.MASTRO_ANTENA to 33,
+      PhotoCategory.CAIXA_FUNDO_MADEIRA to 41
+    )
+
+    val distributed = TimelineOrganizer.distribute(photos, cuts)
+    val counts = distributed.groupingBy { it.category }.eachCount()
+
+    assertEquals(12, counts[PhotoCategory.CAMERAS])
+    assertEquals(14, counts[PhotoCategory.TOMADAS])
+    assertEquals(7, counts[PhotoCategory.RACK])
+    assertEquals(8, counts[PhotoCategory.MASTRO_ANTENA])
+    assertEquals(10, counts[PhotoCategory.CAIXA_FUNDO_MADEIRA])
+    assertTrue(distributed.all { it.source == PhotoBridgeMode.SGTO_FAST_TIMELINE.name })
+  }
+
+  @Test
+  fun fastTimelineRejectsInvalidOrderAndDuplicatedStart() {
+    val invalidOrder = mapOf(
+      PhotoCategory.CAMERAS to 0,
+      PhotoCategory.TOMADAS to 12,
+      PhotoCategory.RACK to 10,
+      PhotoCategory.MASTRO_ANTENA to 33,
+      PhotoCategory.CAIXA_FUNDO_MADEIRA to 41
+    )
+    val duplicated = mapOf(
+      PhotoCategory.CAMERAS to 0,
+      PhotoCategory.TOMADAS to 12,
+      PhotoCategory.RACK to 12,
+      PhotoCategory.MASTRO_ANTENA to 33,
+      PhotoCategory.CAIXA_FUNDO_MADEIRA to 41
+    )
+
+    assertFalse(TimelineOrganizer.validateCuts(51, invalidOrder).ok)
+    assertFalse(TimelineOrganizer.validateCuts(51, duplicated).ok)
+  }
+
+  @Test
+  fun fastTimelineDefaultAndClearedStateRequireOnlyManualStartsAfterCameras() {
+    val defaults = TimelineOrganizer.defaultCuts(51)
+
+    assertEquals(0, defaults[PhotoCategory.CAMERAS])
+    assertFalse(TimelineOrganizer.validateCuts(51, defaults).ok)
+    assertEquals("Tomadas ainda precisa de ponto de inicio.", TimelineOrganizer.validateCuts(51, defaults).message)
+  }
   private fun buildControlledFixture(date: LocalDate, zone: ZoneId): List<PhotoMetadata> {
     val insideWindow = (0 until 20).map { index ->
       val time = LocalTime.of(15, 40).plusMinutes(index.toLong())

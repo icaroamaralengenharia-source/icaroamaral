@@ -7,6 +7,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Typeface
 import android.provider.MediaStore
 import android.util.Size
 import android.os.Build
@@ -19,6 +21,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.GridView
 import android.widget.ImageView
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -57,12 +60,20 @@ class MainActivity : ComponentActivity() {
   private lateinit var cancelButton: Button
   private lateinit var clearButton: Button
   private lateinit var diagnosticButton: Button
+  private lateinit var timelinePanel: LinearLayout
+  private lateinit var timelineHeader: TextView
+  private lateinit var timelineInstruction: TextView
+  private lateinit var timelineGrid: GridView
+  private lateinit var timelineReviewButton: Button
+  private lateinit var timelineClearButton: Button
+  private lateinit var timelineCloseButton: Button
+  private val timelineActionButtons: MutableMap<PhotoCategory, Button> = mutableMapOf()
   private var pendingPayloadJson: String? = null
   private var activeJob: Job? = null
   private var candidateGroupsById: Map<String, Pair<ParsedCommand, VisitGroup>> = emptyMap()
   private var currentTimelineCommand: ParsedCommand? = null
   private var currentTimelineGroup: VisitGroup? = null
-  private var selectedTimelinePhotoIndex: Int = 0
+  private var selectedTimelinePhotoIndex: Int = -1
   private var timelineCuts: MutableMap<PhotoCategory, Int> = mutableMapOf()
   private var restoringText = false
 
@@ -122,11 +133,11 @@ class MainActivity : ComponentActivity() {
     }
     updateButton = Button(this).apply {
       text = "ATUALIZAR"
-      setOnClickListener { startAiClassificationFlow(replaceActive = true) }
+      setOnClickListener { updateCurrentSelection() }
     }
     retryButton = Button(this).apply {
       text = "TENTAR NOVAMENTE"
-      setOnClickListener { startAiClassificationFlow(replaceActive = true) }
+      setOnClickListener { updateCurrentSelection() }
     }
     cancelButton = Button(this).apply {
       text = "CANCELAR"
@@ -140,6 +151,59 @@ class MainActivity : ComponentActivity() {
       text = "DIAGNÓSTICO DA SELEÇÃO"
       setOnClickListener { showSelectionDiagnosticPanel() }
     }
+    timelinePanel = LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      visibility = android.view.View.GONE
+      setPadding(0, 16, 0, 16)
+    }
+    timelineHeader = TextView(this).apply {
+      textSize = 18f
+      setTypeface(typeface, Typeface.BOLD)
+    }
+    timelineInstruction = TextView(this).apply {
+      textSize = 16f
+      setPadding(0, 10, 0, 10)
+    }
+    timelineGrid = GridView(this).apply {
+      numColumns = 3
+      verticalSpacing = 10
+      horizontalSpacing = 10
+      stretchMode = GridView.STRETCH_COLUMN_WIDTH
+      choiceMode = GridView.CHOICE_MODE_SINGLE
+      setOnItemClickListener { _, _, position, _ -> onTimelinePhotoTapped(position) }
+    }
+    timelineReviewButton = Button(this).apply {
+      text = "REVISAR BLOCOS"
+      setOnClickListener { showFastTimelineBlocksReview() }
+    }
+    timelineClearButton = Button(this).apply {
+      text = "LIMPAR ORGANIZAÇÃO"
+      setOnClickListener { clearTimelineOrganization() }
+    }
+    timelineCloseButton = Button(this).apply {
+      text = "FECHAR"
+      setOnClickListener { hideTimelinePanel() }
+    }
+    timelinePanel.addView(timelineHeader)
+    timelinePanel.addView(timelineInstruction)
+    timelinePanel.addView(LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      TimelineOrganizer.orderedCategories.drop(1).forEach { category ->
+        val button = Button(this@MainActivity).apply {
+          text = "INÍCIO ${categoryLabel(category).uppercase()}"
+          setOnClickListener { assignTimelineCutFromSelection(category) }
+        }
+        timelineActionButtons[category] = button
+        addView(button)
+      }
+    })
+    timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620))
+    timelinePanel.addView(LinearLayout(this).apply {
+      orientation = LinearLayout.HORIZONTAL
+      addView(timelineReviewButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+      addView(timelineClearButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+      addView(timelineCloseButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    })
     jsBridge = SelectedPhotoJavascriptBridge(
       context = this,
       onBridgeReady = {
@@ -210,6 +274,7 @@ class MainActivity : ComponentActivity() {
         addView(clearButton)
         if (isPhysicalTestBuild()) addView(diagnosticButton)
       })
+      addView(timelinePanel)
       addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     })
   }
@@ -303,6 +368,7 @@ class MainActivity : ComponentActivity() {
     retryButton.isEnabled = !processing && state.flowStatus == PhotoBridgeFlowStatus.ERROR
     cancelButton.isEnabled = processing
     clearButton.isEnabled = !processing
+    updateTimelineControls()
   }
 
   private fun requestNeededPermissions() {
@@ -324,6 +390,11 @@ class MainActivity : ComponentActivity() {
       openReportWebViewForReview()
       return
     }
+    if (screenModel.state.classificationMode == ClassificationMode.FAST_TIMELINE.name) {
+      currentTimelineCommand?.let { parsed -> currentTimelineGroup?.let { group -> showFastTimelineOrganizer(parsed, group) } }
+      setStatus("Organização rápida em andamento. Marque os pontos de início na timeline.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+      return
+    }
     startAiClassificationFlow()
   }
 
@@ -335,6 +406,13 @@ class MainActivity : ComponentActivity() {
     Log.d("EloPhotoBridge", "UI_DATE_RAW: ${refinement.date ?: parsed.dateHint ?: ""}")
     Log.d("EloPhotoBridge", "UI_START_TIME_RAW: ${refinement.rawStartTime ?: ""}")
     Log.d("EloPhotoBridge", "UI_END_TIME_RAW: ${refinement.rawEndTime ?: ""}")
+  }
+  private fun updateCurrentSelection() {
+    if (screenModel.state.classificationMode == ClassificationMode.FAST_TIMELINE.name) {
+      prepareFastTimelineSearch()
+      return
+    }
+    setStatus("Use CLASSIFICAR COM IA para iniciar análise visual.", screenModel.state.flowStatus)
   }
   private fun startAiClassificationFlow(replaceActive: Boolean = false) {
     if (screenModel.isProcessing) {
@@ -523,14 +601,7 @@ class MainActivity : ComponentActivity() {
       TimelineOrganizer.defaultCuts(ordered.size).toMutableMap()
     }
     persistTimelineState(ids, if (!samePhotos && screenModel.state.timelinePhotoIds.isNotEmpty()) "Conjunto de fotos mudou. Revise os cortes." else null)
-    AlertDialog.Builder(this)
-      .setTitle("Organizar fotos da visita")
-      .setMessage(visitTimelineHeader(group, ordered))
-      .setAdapter(TimelinePhotoAdapter(ordered)) { _, index -> showTimelineCutPicker(index) }
-      .setPositiveButton("REVISAR BLOCOS") { _, _ -> confirmFastTimelinePayload() }
-      .setNeutralButton("LIMPAR ORGANIZAÇÃO") { _, _ -> clearTimelineOrganization() }
-      .setNegativeButton("FECHAR", null)
-      .show()
+    showTimelinePanel()
   }
 
 
@@ -541,20 +612,28 @@ class MainActivity : ComponentActivity() {
 
     override fun getView(position: Int, convertView: android.view.View?, parent: ViewGroup?): android.view.View {
       val row = (convertView as? LinearLayout) ?: LinearLayout(this@MainActivity).apply {
-        orientation = LinearLayout.HORIZONTAL
+        orientation = LinearLayout.VERTICAL
         setPadding(8, 8, 8, 8)
-        addView(ImageView(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(160, 160) })
-        addView(TextView(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
+        addView(ImageView(this@MainActivity).apply {
+          layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180)
+          scaleType = ImageView.ScaleType.CENTER_CROP
+        })
+        addView(TextView(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) })
       }
       val image = row.getChildAt(0) as ImageView
       val label = row.getChildAt(1) as TextView
       val photo = photos[position]
       val time = photo.bestInstant()?.atZone(ZoneId.systemDefault())?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm:ss")).orEmpty()
-      val marker = timelineCuts.entries.firstOrNull { it.value == position }?.key?.let { "\n[${categoryLabel(it)} começa aqui]" }.orEmpty()
+      val marker = timelineCuts.entries.firstOrNull { it.value == position }?.key?.let { "\n${categoryLabel(it).uppercase()}" }.orEmpty()
       val gap = photos.getOrNull(position - 1)?.bestInstant()?.let { previous ->
         photo.bestInstant()?.let { current -> java.time.Duration.between(previous, current).toMinutes().takeIf { it >= 2 }?.let { "\nGap: ${it}min" } }
       }.orEmpty()
-      label.text = "#${(position + 1).toString().padStart(2, '0')}  $time$gap$marker\n${photo.displayName}"
+      label.text = "#${(position + 1).toString().padStart(2, '0')}\n$time$gap$marker"
+      row.setBackgroundColor(when {
+        position == selectedTimelinePhotoIndex -> Color.rgb(205, 230, 255)
+        marker.isNotBlank() -> Color.rgb(220, 245, 226)
+        else -> Color.rgb(245, 245, 245)
+      })
       image.setImageDrawable(null)
       lifecycleScope.launch(Dispatchers.IO) {
         val bitmap = runCatching {
@@ -569,35 +648,141 @@ class MainActivity : ComponentActivity() {
       return row
     }
   }
-  private fun showTimelineCutPicker(photoIndex: Int) {
+  private fun showTimelinePanel() {
+    timelinePanel.visibility = android.view.View.VISIBLE
+    webView.visibility = android.view.View.GONE
+    timelineGrid.adapter = TimelinePhotoAdapter(currentTimelineGroup?.photos.orEmpty())
+    updateTimelineControls()
+  }
+
+  private fun hideTimelinePanel() {
+    timelinePanel.visibility = android.view.View.GONE
+    webView.visibility = android.view.View.VISIBLE
+  }
+
+  private fun onTimelinePhotoTapped(photoIndex: Int) {
     selectedTimelinePhotoIndex = photoIndex
-    val categories = TimelineOrganizer.orderedCategories.drop(1)
-    val labels = categories.map { "INÍCIO ${categoryLabel(it)}" }.toTypedArray()
+    val next = nextMissingTimelineCategory()
+    if (next != null) {
+      assignTimelineCut(next, photoIndex)
+    } else {
+      setStatus("Foto #${photoIndex + 1} selecionada. Use um botão de início para ajustar um corte.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+    }
+    updateTimelineControls()
+  }
+
+  private fun assignTimelineCutFromSelection(category: PhotoCategory) {
+    if (selectedTimelinePhotoIndex < 0) {
+      setStatus("Toque em uma foto primeiro.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+      return
+    }
+    assignTimelineCut(category, selectedTimelinePhotoIndex)
+  }
+
+  private fun assignTimelineCut(category: PhotoCategory, photoIndex: Int) {
+    val photos = currentTimelineGroup?.photos.orEmpty()
+    val error = validateTimelineCut(category, photoIndex, photos.size)
+    if (error != null) {
+      setStatus(error, PhotoBridgeFlowStatus.FAST_TIMELINE)
+      return
+    }
+    timelineCuts[category] = photoIndex
+    persistTimelineState(photos.map { it.uri.toString() }, null)
+    setStatus("${categoryLabel(category)} começa em #${photoIndex + 1}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+    updateTimelineControls()
+  }
+
+  private fun validateTimelineCut(category: PhotoCategory, photoIndex: Int, photoCount: Int): String? {
+    if (photoIndex !in 0 until photoCount) return "${categoryLabel(category)} aponta para uma foto fora da visita."
+    val orderIndex = TimelineOrganizer.orderedCategories.indexOf(category)
+    val previous = TimelineOrganizer.orderedCategories.getOrNull(orderIndex - 1)
+    val next = TimelineOrganizer.orderedCategories.getOrNull(orderIndex + 1)
+    if (timelineCuts.any { it.key != category && it.value == photoIndex }) return "Dois blocos não podem começar na mesma foto."
+    if (previous != null && (timelineCuts[previous] ?: -1) >= photoIndex) return "${categoryLabel(category)} deve começar depois de ${categoryLabel(previous)}."
+    if (next != null && (timelineCuts[next] ?: Int.MAX_VALUE) <= photoIndex) return "${categoryLabel(category)} deve começar antes de ${categoryLabel(next)}."
+    return null
+  }
+
+  private fun nextMissingTimelineCategory(): PhotoCategory? {
+    return TimelineOrganizer.orderedCategories.drop(1).firstOrNull { timelineCuts[it] == null }
+  }
+
+  private fun updateTimelineControls() {
+    if (!::timelinePanel.isInitialized) return
+    val photos = currentTimelineGroup?.photos.orEmpty()
+    if (photos.isEmpty()) {
+      timelineReviewButton.isEnabled = false
+      timelineActionButtons.values.forEach { it.isEnabled = false }
+      return
+    }
+    val group = currentTimelineGroup ?: return
+    timelineHeader.text = visitTimelineHeader(group, photos)
+    timelineInstruction.text = timelineInstructionText()
+    val hasSelection = selectedTimelinePhotoIndex in photos.indices
+    timelineActionButtons.forEach { (category, button) ->
+      val cut = timelineCuts[category]
+      button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "INÍCIO ${categoryLabel(category).uppercase()}"
+      button.isEnabled = hasSelection && !screenModel.isProcessing
+    }
+    timelineReviewButton.isEnabled = !screenModel.isProcessing && TimelineOrganizer.validateCuts(photos.size, timelineCuts).ok
+    (timelineGrid.adapter as? BaseAdapter)?.notifyDataSetChanged()
+  }
+
+  private fun timelineInstructionText(): String {
+    val next = nextMissingTimelineCategory()
+    val selected = if (selectedTimelinePhotoIndex >= 0) "Foto #${selectedTimelinePhotoIndex + 1} selecionada." else "Nenhuma foto selecionada."
+    return if (next != null) {
+      val step = TimelineOrganizer.orderedCategories.drop(1).indexOf(next) + 1
+      "ETAPA $step DE 4\nToque na primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
+    } else {
+      "Cortes completos.\n$selected\nRevise os blocos antes de abrir o relatório."
+    }
+  }
+
+  private fun showFastTimelineBlocksReview() {
+    val group = currentTimelineGroup ?: return
+    val validation = TimelineOrganizer.validateCuts(group.photos.size, timelineCuts)
+    if (!validation.ok) {
+      setStatus(validation.message, PhotoBridgeFlowStatus.FAST_TIMELINE)
+      updateTimelineControls()
+      return
+    }
+    val labels = TimelineOrganizer.orderedCategories.map { category ->
+      val range = timelineRangeFor(category, group.photos.size)
+      "${categoryLabel(category)} — ${range.last - range.first + 1} fotos"
+    }.toTypedArray()
     AlertDialog.Builder(this)
-      .setTitle("Foto #${photoIndex + 1}")
-      .setItems(labels) { _, index ->
-        val category = categories[index]
-        val previous = TimelineOrganizer.orderedCategories.getOrNull(TimelineOrganizer.orderedCategories.indexOf(category) - 1)
-        if (previous != null && (timelineCuts[previous] ?: -1) >= photoIndex) {
-          setStatus("${categoryLabel(category)} deve começar depois de ${categoryLabel(previous)}.", PhotoBridgeFlowStatus.READY_TO_REVIEW)
-        } else {
-          timelineCuts[category] = photoIndex
-          persistTimelineState(currentTimelineGroup?.photos.orEmpty().map { it.uri.toString() }, null)
-          setStatus("${categoryLabel(category)} começa em #${photoIndex + 1}.", PhotoBridgeFlowStatus.READY_TO_REVIEW)
-          currentTimelineCommand?.let { command -> currentTimelineGroup?.let { group -> showFastTimelineOrganizer(command, group) } }
-        }
-      }
-      .setNegativeButton("CANCELAR", null)
+      .setTitle("Revisar blocos")
+      .setItems(labels) { _, index -> showTimelineBlockPhotos(TimelineOrganizer.orderedCategories[index]) }
+      .setPositiveButton("GERAR RELATÓRIO") { _, _ -> confirmFastTimelinePayload() }
+      .setNegativeButton("VOLTAR", null)
       .show()
   }
 
+  private fun showTimelineBlockPhotos(category: PhotoCategory) {
+    val group = currentTimelineGroup ?: return
+    val range = timelineRangeFor(category, group.photos.size)
+    val photos = group.photos.slice(range)
+    AlertDialog.Builder(this)
+      .setTitle("${categoryLabel(category)} — ${photos.size} fotos")
+      .setAdapter(TimelinePhotoAdapter(photos), null)
+      .setPositiveButton("FECHAR", null)
+      .show()
+  }
+
+  private fun timelineRangeFor(category: PhotoCategory, photoCount: Int): IntRange {
+    val index = TimelineOrganizer.orderedCategories.indexOf(category)
+    val start = timelineCuts.getValue(category)
+    val end = TimelineOrganizer.orderedCategories.getOrNull(index + 1)?.let { timelineCuts.getValue(it) - 1 } ?: photoCount - 1
+    return start..end
+  }
   private fun confirmFastTimelinePayload() {
     val parsedCommand = currentTimelineCommand ?: return
     val group = currentTimelineGroup ?: return
     val validation = TimelineOrganizer.validateCuts(group.photos.size, timelineCuts)
     if (!validation.ok) {
-      setStatus(validation.message, PhotoBridgeFlowStatus.READY_TO_REVIEW)
-      showFastTimelineOrganizer(parsedCommand, group)
+      setStatus(validation.message, PhotoBridgeFlowStatus.FAST_TIMELINE)
+      updateTimelineControls()
       return
     }
     val orchestrator = PhotoBridgeOrchestrator(MediaStorePhotoRepository(this), { photo -> photo }, config = config)
@@ -617,6 +802,7 @@ class MainActivity : ComponentActivity() {
         statusMessage = "Organização rápida pronta. Revise os blocos ou abra o relatório."
       ).withEvent("SGTO_FAST_TIMELINE pronto sem chamadas de IA.")
       persistState(next)
+      hideTimelinePanel()
       showClassificationReviewDialog()
     }
   }
@@ -657,24 +843,22 @@ class MainActivity : ComponentActivity() {
       timelineManualCategoriesJson = "",
       statusMessage = "Organização limpa. Data, cidade e visita preservadas."
     ).withEvent("Pontos de corte e ajustes manuais removidos."))
+    selectedTimelinePhotoIndex = -1
+    updateTimelineControls()
   }
 
   private fun visitTimelineHeader(group: VisitGroup, photos: List<PhotoMetadata>): String {
-    val preview = TimelineOrganizer.validateCuts(photos.size, timelineCuts).let { validation ->
-      if (!validation.ok) validation.message else TimelineOrganizer.orderedCategories.joinToString("\n") { category ->
-        val start = timelineCuts.getValue(category)
-        val end = TimelineOrganizer.orderedCategories.getOrNull(TimelineOrganizer.orderedCategories.indexOf(category) + 1)?.let { timelineCuts.getValue(it) - 1 } ?: photos.lastIndex
-        "${categoryLabel(category)} - ${end - start + 1} fotos"
-      }
-    }
+    val zone = ZoneId.systemDefault()
+    val times = photos.mapNotNull { it.bestInstant()?.atZone(zone)?.toLocalTime() }.sorted()
+    val date = group.date?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "AMBIGUOUS"
+    val interval = if (times.isNotEmpty()) "${times.first().format(DateTimeFormatter.ofPattern("HH:mm"))}–${times.last().format(DateTimeFormatter.ofPattern("HH:mm"))}" else "--:--"
     return listOf(
-      "Cidade: ${group.city ?: "UNKNOWN"}",
-      "Data: ${group.date ?: "AMBIGUOUS"}",
-      "Unidade: ${screenModel.state.workType.ifBlank { "-" }}",
-      "Quantidade de fotos: ${photos.size}",
-      preview
+      "Organizar fotos da visita",
+      group.city ?: "UNKNOWN",
+      "$date  $interval  ${photos.size} fotos"
     ).joinToString("\n")
   }
+
   private fun startReportPreparation(replaceActive: Boolean) {
     startAiClassificationFlow(replaceActive)
   }
@@ -976,6 +1160,10 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun applyProgress(progress: PhotoBridgeProgress) {
+    if (progress.status == PhotoBridgeFlowStatus.CLASSIFYING_PHOTOS && screenModel.state.classificationMode != ClassificationMode.AI_CLASSIFICATION.name) {
+      Log.d("EloPhotoBridge", "CLASSIFYING_PHOTOS_IGNORED_FAST_TIMELINE")
+      return
+    }
     val detail = when {
       progress.current != null && progress.total != null -> "${progress.message} (${progress.current} de ${progress.total})"
       else -> progress.message
