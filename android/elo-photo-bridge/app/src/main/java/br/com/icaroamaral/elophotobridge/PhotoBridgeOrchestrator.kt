@@ -73,7 +73,7 @@ class PhotoBridgeOrchestrator(
       Log.d(TAG, "PHOTOS_AFTER_TIME_FILTER: ${timeFilteredPhotos.size}")
 
       if (datePhotos.isEmpty()) return Result.failure(IllegalStateException("photos_not_found_for_date"))
-      if (window != null && timeFilteredPhotos.isEmpty()) return Result.failure(IllegalStateException("photos_not_found_for_window"))
+      if (window != null && timeFilteredPhotos.isEmpty()) return Result.failure(IllegalStateException("photos_not_found_for_window|$displayDate|${window.startTime}|${window.endTime}"))
 
       Log.d(TAG, "CITY_INPUT_PHOTOS: ${timeFilteredPhotos.size}")
       val resolvedPhotos = resolveCities(timeFilteredPhotos, onProgress)
@@ -83,11 +83,12 @@ class PhotoBridgeOrchestrator(
       }
 
       val cityHint = window?.cityHint ?: command.cityHint
-      val cityFilteredPhotos = if (cityHint.isNullOrBlank()) {
+      val cityMatchedPhotos = if (cityHint.isNullOrBlank()) {
         resolvedPhotos
       } else {
         resolvedPhotos.filter { VisitRefinementParser.cityMatches(it.city, cityHint) }
       }
+      val cityFilteredPhotos = if (window != null) resolvedPhotos else cityMatchedPhotos
       Log.d(TAG, "PHOTOS_AFTER_CITY_HINT: ${cityFilteredPhotos.size}")
 
       if (window != null && cityFilteredPhotos.size > timeFilteredPhotos.size) {

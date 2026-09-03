@@ -65,7 +65,7 @@ class VisitRefinementParser(private val commandParser: CommandParser = CommandPa
       val normalizedCandidate = normalize(candidate)
       val normalizedHint = normalize(hint)
       if (normalizedHint.isBlank()) return true
-      if (normalizedCandidate.isBlank() || normalizedCandidate == "unknown") return false
+      if (normalizedCandidate.isBlank() || normalizedCandidate == "unknown") return true
       return normalizedCandidate == normalizedHint ||
         normalizedCandidate.contains(normalizedHint) ||
         normalizedHint.contains(normalizedCandidate)

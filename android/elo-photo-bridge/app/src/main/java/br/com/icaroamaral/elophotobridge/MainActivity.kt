@@ -386,13 +386,13 @@ class MainActivity : ComponentActivity() {
           confirmAiClassification(command, group)
         }
       }.onFailure { error ->
-        val message = when (error.message) {
-          "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
-          "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
-          "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
-          "invalid_time" -> "Horário inválido"
-          "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
-          "visit_not_found" -> "Nenhuma visita compativel encontrada."
+        val message = when {
+          error.message == "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          error.message?.startsWith("photos_not_found_for_window") == true -> windowNotFoundMessage(error.message.orEmpty())
+          error.message == "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
+          error.message == "invalid_time" -> "Horário inválido"
+          error.message == "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
+          error.message == "visit_not_found" -> "Nenhuma visita compativel encontrada."
           else -> "Nao consegui selecionar a visita para IA."
         }
         persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.ERROR, statusMessage = message).withEvent(message))
@@ -400,6 +400,17 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  private fun windowNotFoundMessage(errorMessage: String): String {
+    val parts = errorMessage.split("|")
+    val date = parts.getOrNull(1).orEmpty()
+    val start = parts.getOrNull(2)?.take(5).orEmpty()
+    val end = parts.getOrNull(3)?.take(5).orEmpty()
+    return if (date.isNotBlank() && start.isNotBlank() && end.isNotBlank()) {
+      "Não encontrei fotos entre $start e $end em $date."
+    } else {
+      "Nenhuma foto encontrada neste intervalo."
+    }
+  }
   private fun confirmAiClassification(parsedCommand: ParsedCommand, group: VisitGroup) {
     persistState(screenModel.state.copy(
       flowStatus = PhotoBridgeFlowStatus.AI_CONFIRMATION,
@@ -480,13 +491,13 @@ class MainActivity : ComponentActivity() {
         persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.MODE_SELECTION, classificationMode = ClassificationMode.FAST_TIMELINE.name, photoCount = group.photos.size, statusMessage = "Visita selecionada: ${group.photos.size} fotos.").withEvent("PHOTOS_SENT_TO_TIMELINE: ${group.photos.size}"))
         showFastTimelineOrganizer(command, group)
       }.onFailure { error ->
-        val message = when (error.message) {
-          "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
-          "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
-          "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
-          "invalid_time" -> "Horário inválido"
-          "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
-          "visit_not_found" -> "Nenhuma visita compativel encontrada."
+        val message = when {
+          error.message == "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          error.message?.startsWith("photos_not_found_for_window") == true -> windowNotFoundMessage(error.message.orEmpty())
+          error.message == "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
+          error.message == "invalid_time" -> "Horário inválido"
+          error.message == "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
+          error.message == "visit_not_found" -> "Nenhuma visita compativel encontrada."
           else -> "Nao consegui abrir a timeline rapida."
         }
         persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.ERROR, statusMessage = message).withEvent(message))
@@ -744,13 +755,13 @@ class MainActivity : ComponentActivity() {
         } else if (error is CancellationException) {
           persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.CANCELLED, statusMessage = "Busca cancelada. Dados preservados.").withEvent("Busca cancelada."))
         } else {
-          val message = when (error.message) {
-            "multiple_visits" -> "Mais de uma visita encontrada nessa data. Refine horario ou cidade."
-            "photos_not_found_for_window" -> "Nenhuma foto encontrada neste intervalo."
-            "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
-            "invalid_time" -> "Horário inválido"
-            "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
-            "visit_not_found" -> "Nenhuma visita compativel encontrada."
+          val message = when {
+            error.message == "multiple_visits" -> "Mais de uma visita encontrada nessa data. Refine horario ou cidade."
+            error.message?.startsWith("photos_not_found_for_window") == true -> windowNotFoundMessage(error.message.orEmpty())
+            error.message == "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
+            error.message == "invalid_time" -> "Horário inválido"
+            error.message == "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
+            error.message == "visit_not_found" -> "Nenhuma visita compativel encontrada."
             else -> "Nao consegui concluir a busca. Voce pode tentar novamente."
           }
           val nextStatus = if (error.message == "date_required") PhotoBridgeFlowStatus.WAITING_FOR_DATE else if (error.message == "multiple_visits") PhotoBridgeFlowStatus.MULTIPLE_VISITS else PhotoBridgeFlowStatus.ERROR
@@ -1206,19 +1217,3 @@ class MainActivity : ComponentActivity() {
     private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
