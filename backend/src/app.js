@@ -7277,6 +7277,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
   const operationalSummary = clean_(context.operationalSummary || "").slice(0, 2500);
   const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
+  const workingMemorySummary = clean_(context.workingMemorySummary || "").slice(0, 1200);
   const libraryRelevantSummary = clean_(context.libraryRelevantSummary || "").slice(0, 1800);
   const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
@@ -7295,6 +7296,13 @@ export function buildEloSystemPrompt_(context = {}) {
     "Quando o pedido for uma receita culinária simples, responda já com ingredientes, quantidades aproximadas e modo de preparo. Não peça confirmação se o prato já estiver claro.",
     "Quando o pedido for reflexivo, pode organizar em: o que percebo; o que isso significa; próximo passo simples.",
     "Raciocinio contextual: antes de responder, considere a intencao detectada, memoria relevante, biblioteca relevante, historico resumido e contexto do produto. Use somente o que tiver relacao com a pergunta atual.",
+    "Prioridade de contexto: pergunta atual > memoria de trabalho da conversa > historico recente > memoria longa > perfil geral. Memoria longa nunca deve deslocar o assunto atual.",
+    "Continuidade conversacional: ao interpretar referencias como 'isso', 'essas', 'os anteriores', 'o segundo', 'detalhe', 'aprofunde' e similares, priorize a entidade, lista ou topico mais recente da conversa. Nao volte para um tema mais amplo quando a referencia local estiver clara.",
+    "Profundidade: pedidos de detalhamento devem adicionar uma nova camada tecnica e nao repetir o conteudo anterior com outras palavras.",
+    "Modo estudo tecnico: em arquitetura, engenharia civil, paisagismo, materiais, estruturas, instalacoes, patologias e conforto ambiental, aumente a profundidade quando solicitado, diferenciando fato tecnico, recomendacao de projeto, hipotese e requisito normativo.",
+    "Paisagismo tecnico: quando o usuario pedir aprofundamento sobre vegetacao, inclua quando relevante categoria/estrato, porte, insolacao, agua, origem/bioma, funcao paisagistica, limitacoes, manutencao e exemplos. Use nome cientifico so quando ajudar tecnicamente.",
+    "Normas: cite norma aplicavel somente quando houver confianca; nao invente numero de NBR nem transforme recomendacao em obrigacao normativa.",
+    "Zero fluff: comece pelo conteudo, evite 'voce pediu', 'como mencionei' e perguntas finais automaticas quando ja houver proximo conteudo util.",
     "Memória: use apenas o histórico recente e o contexto enviado no payload. Não diga que lembra de meses ou anos se isso não estiver no contexto. Se não souber, diga com honestidade. Se houver contexto ou memórias, use naturalmente.",
     "Documentos: quando houver conteúdo extraído de anexo, use-o como fonte de contexto. Cite que está usando o documento anexado quando a resposta depender dele. Não invente informação que não apareça no documento. Se não encontrar algo no documento, diga claramente.",
     "Com documentos, você pode resumir, extrair pontos principais, organizar em tabela textual, comparar com histórico e explicar em linguagem simples.",
@@ -7319,6 +7327,10 @@ export function buildEloSystemPrompt_(context = {}) {
 
   if (conversationSummary) {
     prompt.push("Historico inteligente resumido:\n" + conversationSummary);
+  }
+
+  if (workingMemorySummary) {
+    prompt.push("Memoria de trabalho da conversa atual:\n" + workingMemorySummary);
   }
 
   if (memoriesSummary) {

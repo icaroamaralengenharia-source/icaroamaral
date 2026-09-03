@@ -6695,6 +6695,131 @@ test("frontend Elo separa conversa, busca atual e continuacao tecnica por intenc
   assert.equal(classify("e com 10%?", { active: false, topic: "" }).intent, "conversa_geral");
 });
 
+test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  const persistentBefore = elo.buildMemorySummaryForTest();
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas usadas no paisagismo",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const memory = elo.getWorkingMemoryForTest();
+  assert.equal(memory.activeTopic, "categorias de vegetação no paisagismo");
+  assert.deepEqual(Array.from(memory.lastEnumeratedItems), ["árvores", "arbustos", "trepadeiras", "herbáceas", "rasteiras"]);
+  assert.deepEqual(Array.from(memory.activeEntities), Array.from(memory.lastEnumeratedItems));
+  assert.equal(memory.detailLevel, 1);
+  assert.equal(elo.buildMemorySummaryForTest(), persistentBefore);
+});
+
+test("frontend Elo resolve anaforas contra a ultima lista local", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas usadas no paisagismo",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("detalhe todas as categorias que falou acima");
+  assert.match(summary, /activeTopic: categorias de vegetação no paisagismo/);
+  assert.match(summary, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+  assert.doesNotMatch(summary, /Arquitetura|Paisagismo brasileiro|Design de interiores/i);
+});
+
+test("frontend Elo resolve ordinais contra lastEnumeratedItems", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "liste problemas encontrados",
+    { sessionTheme: "elo_online" },
+    "Problemas: fissura, infiltração e desplacamento."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("explique o segundo");
+  assert.match(summary, /resolvedReference: infiltração/);
+});
+
+test("frontend Elo incrementa detail level em pedido de aprofundamento", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "explique tipos de fundação",
+    { sessionTheme: "elo_online" },
+    "Tipos: fundação rasa e profunda."
+  );
+
+  elo.rememberSessionTurnForTest("aprofunde", { sessionTheme: "elo_online" }, "Aprofundando o mesmo tópico.");
+
+  const memory = elo.getWorkingMemoryForTest();
+  assert.deepEqual(Array.from(memory.lastReferenceSet), ["fundação rasa", "profunda"]);
+  assert.equal(memory.detailLevel, 2);
+});
+
+test("frontend Elo resolve compare os tres contra materiais enumerados", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.rememberSessionTurnForTest(
+    "liste materiais estruturais",
+    { sessionTheme: "elo_online" },
+    "Materiais: concreto, aço e madeira."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("compare os três");
+  assert.match(summary, /activeTopic: materiais de construção/);
+  assert.match(summary, /activeEntities: concreto, aço, madeira/);
+  assert.match(summary, /aumente uma camada de profundidade/);
+});
+
+test("frontend Elo preserva categorias vegetais ao aprofundar arvores e arbustos", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas, aplicação, regiões e exemplos",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const detailCategories = elo.buildWorkingMemorySummaryForTest("detalhe todas as categorias que falou acima");
+  assert.match(detailCategories, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+
+  const detailTrees = elo.buildWorkingMemorySummaryForTest("agora detalhe as árvores");
+  assert.match(detailTrees, /resolvedReference: árvores/);
+
+  elo.rememberSessionTurnForTest(
+    "agora detalhe as árvores",
+    { sessionTheme: "elo_online" },
+    "Árvores: ipê-amarelo, sibipiruna e oiti."
+  );
+
+  const detailShrubs = elo.buildWorkingMemorySummaryForTest("e os arbustos?");
+  assert.match(detailShrubs, /activeTopic: categorias de vegetação no paisagismo/);
+  assert.match(detailShrubs, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+  assert.match(detailShrubs, /resolvedReference: arbustos/);
+});
+test("prompt do Elo instrui continuidade, profundidade e prioridade da pergunta atual", () => {
+  const prompt = buildEloSystemPrompt_({
+    workingMemorySummary: "activeTopic: categorias de vegetação no paisagismo\nactiveEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras\ndetailLevel: 2"
+  });
+
+  assert.match(prompt, /Continuidade conversacional/i);
+  assert.match(prompt, /pergunta atual > memoria de trabalho/i);
+  assert.match(prompt, /Profundidade/i);
+  assert.match(prompt, /Paisagismo tecnico/i);
+  assert.match(prompt, /Normas: cite norma aplicavel somente quando houver confianca/i);
+  assert.match(prompt, /Memoria de trabalho da conversa atual/i);
+});
 test("frontend Elo higieniza nomes e flags internos antes de renderizar", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const answer = sandbox.window.EloAssistente.sanitizeHumanFacingAnswerForTest([

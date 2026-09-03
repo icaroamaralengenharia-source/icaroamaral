@@ -6829,6 +6829,11 @@
     lastTechnicalPackage: null,
     activeDocumentContext: null,
     activeConversationTopic: "",
+    activeTopic: "",
+    activeEntities: [],
+    lastEnumeratedItems: [],
+    lastReferenceSet: [],
+    detailLevel: 0,
     activeTask: null
   };
 
@@ -7096,16 +7101,114 @@
     return switchState;
   }
 
+  function normalizeEloWorkingMemoryItem_(item) {
+    return sanitizeUserText(item || "")
+      .replace(/^[\s\-*•\d.)]+/g, "")
+      .replace(/[.;:]+$/g, "")
+      .trim()
+      .slice(0, 80);
+  }
+
+  function dedupeEloWorkingMemoryItems_(items) {
+    const seen = {};
+    return (Array.isArray(items) ? items : []).map(normalizeEloWorkingMemoryItem_).filter(function (item) {
+      const key = normalizeText(item);
+      if (!key || key.length < 2 || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).slice(0, 8);
+  }
+
+  function extractEloWorkingMemoryItems_(answer) {
+    const text = sanitizeUserText(answer || "").replace(/\r/g, "");
+    if (!text) return [];
+    const labelMatch = text.match(/\b(?:categorias|materiais|problemas|tipos|itens|plantas)\s*:\s*([^\n.]+)/i);
+    const source = labelMatch ? labelMatch[1] : "";
+    if (source) {
+      const splitItems = source.split(/\s*,\s*|\s+e\s+/i);
+      const items = dedupeEloWorkingMemoryItems_(splitItems);
+      if (items.length >= 2) return items;
+    }
+    const lineItems = text.split("\n").map(function (line) {
+      return /^\s*(?:[-*•]|\d+[.)])\s+/.test(line) ? normalizeEloWorkingMemoryItem_(line) : "";
+    }).filter(Boolean);
+    return lineItems.length >= 2 ? dedupeEloWorkingMemoryItems_(lineItems) : [];
+  }
+
+  function inferEloWorkingMemoryTopic_(question, answer, items) {
+    const text = normalizeText([question, answer, (items || []).join(" ")].join(" "));
+    if (/paisagismo|plantas?|vegetacao|vegetação|arvores|árvores|arbustos|trepadeiras|herbaceas|herbáceas|rasteiras|forracoes|forrações/.test(text)) {
+      return "categorias de vegetação no paisagismo";
+    }
+    if (/concreto|aco|aço|madeira|materiais/.test(text)) return "materiais de construção";
+    if (/fissura|infiltracao|infiltração|desplacamento|patologia|problemas/.test(text)) return "manifestações patológicas";
+    if (/fundacao|fundação rasa|fundação profunda/.test(text)) return "tipos de fundação";
+    return sanitizeUserText(ELO_SESSION_MEMORY.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.lastTheme || "").slice(0, 120);
+  }
+
+  function isEloWorkingMemoryDeepeningRequest_(question) {
+    return /\b(?:detalhe|detalhar|aprofunde|aprofundar|explique melhor|va mais fundo|vá mais fundo|continue|fale sobre cada uma|compare os tres|compare os três)\b/i.test(sanitizeUserText(question || ""));
+  }
+
+  function resolveEloWorkingMemoryOrdinal_(question, items) {
+    const text = normalizeText(question || "");
+    const indexMap = [
+      ["primeiro", 0],
+      ["primeira", 0],
+      ["segundo", 1],
+      ["segunda", 1],
+      ["terceiro", 2],
+      ["terceira", 2]
+    ];
+    const match = indexMap.find(function (entry) { return text.indexOf(entry[0]) >= 0; });
+    if (match && items && items[match[1]]) return items[match[1]];
+    if (/\bultimo|ultima\b/.test(text) && items && items.length) return items[items.length - 1];
+    return "";
+  }
+  function resolveEloWorkingMemoryNamedReference_(question, items) {
+    const text = normalizeText(question || "");
+    if (!text || !Array.isArray(items)) return "";
+    return items.find(function (item) {
+      const normalizedItem = normalizeText(item);
+      return normalizedItem && text.indexOf(normalizedItem) >= 0;
+    }) || "";
+  }
+
+  function buildEloWorkingMemorySummary_(question) {
+    const items = ELO_SESSION_MEMORY.lastReferenceSet && ELO_SESSION_MEMORY.lastReferenceSet.length
+      ? ELO_SESSION_MEMORY.lastReferenceSet
+      : (ELO_SESSION_MEMORY.lastEnumeratedItems && ELO_SESSION_MEMORY.lastEnumeratedItems.length ? ELO_SESSION_MEMORY.lastEnumeratedItems : ELO_SESSION_MEMORY.activeEntities);
+    const resolvedOrdinal = resolveEloWorkingMemoryOrdinal_(question, items) || resolveEloWorkingMemoryNamedReference_(question, items);
+    const lines = [];
+    if (ELO_SESSION_MEMORY.activeTopic) lines.push("activeTopic: " + ELO_SESSION_MEMORY.activeTopic);
+    if (items && items.length) lines.push("activeEntities: " + items.join(", "));
+    if (resolvedOrdinal) lines.push("resolvedReference: " + resolvedOrdinal);
+    lines.push("detailLevel: " + String(ELO_SESSION_MEMORY.detailLevel || 0));
+    if (isEloWorkingMemoryDeepeningRequest_(question)) lines.push("instruction: trate a pergunta atual como continuidade do tópico/lista ativa e aumente uma camada de profundidade sem repetir a resposta anterior.");
+    return lines.filter(Boolean).join("\n");
+  }
+
   function rememberSessionTurn(question, response, answer) {
     const safeResponse = response && typeof response === "object" ? response : {};
     const normalizedQuestion = normalizeText(question);
     const detectedTheme = safeResponse.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
     const detectedIntent = safeResponse.sessionIntent || detectConversationIntent(normalizedQuestion);
+    const enumeratedItems = extractEloWorkingMemoryItems_(answer);
+    const isDeepening = isEloWorkingMemoryDeepeningRequest_(question);
     ELO_SESSION_MEMORY.lastQuestion = sanitizeUserText(question).slice(0, 220);
     ELO_SESSION_MEMORY.lastAnswer = sanitizeUserText(answer || "").slice(0, 900);
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
     ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
     ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(safeResponse.nextAction || "").slice(0, 260);
+    if (enumeratedItems.length) {
+      ELO_SESSION_MEMORY.lastEnumeratedItems = enumeratedItems;
+      ELO_SESSION_MEMORY.activeEntities = enumeratedItems;
+      if (!(isDeepening && ELO_SESSION_MEMORY.lastReferenceSet && ELO_SESSION_MEMORY.lastReferenceSet.length)) ELO_SESSION_MEMORY.lastReferenceSet = enumeratedItems;
+      ELO_SESSION_MEMORY.activeTopic = inferEloWorkingMemoryTopic_(question, answer, enumeratedItems);
+      ELO_SESSION_MEMORY.detailLevel = Math.max(1, ELO_SESSION_MEMORY.detailLevel || 0);
+    } else if (isDeepening) {
+      ELO_SESSION_MEMORY.detailLevel = Math.min(4, (ELO_SESSION_MEMORY.detailLevel || 0) + 1);
+    }
     if (isEloTechnicalProposalSourceResponse_(safeResponse)) {
       rememberEloTechnicalProposalSource_(question, safeResponse, answer || safeResponse.fullAnswer || safeResponse.shortAnswer || "");
     }
@@ -7115,7 +7218,6 @@
       })).slice(0, 3);
     }
   }
-
   function getSessionContinuationResponse(normalizedQuestion) {
     if (!isSessionContinuationQuestion(normalizedQuestion)) {
       return null;
@@ -7576,6 +7678,7 @@
       history: getEloOnlineHistory(question),
       context: {
         memoriesSummary: buildEloMemorySummary(),
+        workingMemorySummary: buildEloWorkingMemorySummary_(question),
         deviceId: getEloDeviceId(),
         source: "elo",
         mode: isStandaloneMode() ? "standalone" : "obrareport",
@@ -33205,8 +33308,18 @@ function isEloResidentialNewPipelineEnabled_() {
     getBudgetOrchestratorV2StateForTest: function () { return Object.assign({}, ELO_SESSION_MEMORY.budgetOrchestratorV2 || {}); },
     clearBudgetRecordsForTest: function () { setEloBudgetRecords_([]); writeEloBudgetJsonToStorage_(ELO_CONFIG.budgetCounterStorageKey, {}); ELO_SESSION_MEMORY.lastBudgetSource = null; ELO_SESSION_MEMORY.activeResidentialBudgetState = null; ELO_SESSION_MEMORY.budgetOrchestratorV2 = null; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = null; },
     buildMemorySummaryForTest: buildEloMemorySummary,
-    requestOnlineAnswerForTest: requestEloOnlineAnswer,
-    resetStockObrasBriefingForTest: resetEloStockObrasCompositionBriefing_,
+    buildWorkingMemorySummaryForTest: buildEloWorkingMemorySummary_,
+    extractWorkingMemoryItemsForTest: extractEloWorkingMemoryItems_,
+    getWorkingMemoryForTest: function () {
+      return {
+        activeTopic: ELO_SESSION_MEMORY.activeTopic,
+        activeEntities: ELO_SESSION_MEMORY.activeEntities.slice(),
+        lastEnumeratedItems: ELO_SESSION_MEMORY.lastEnumeratedItems.slice(),
+        lastReferenceSet: ELO_SESSION_MEMORY.lastReferenceSet.slice(),
+        detailLevel: ELO_SESSION_MEMORY.detailLevel
+      };
+    },
+    requestOnlineAnswerForTest: requestEloOnlineAnswer,    resetStockObrasBriefingForTest: resetEloStockObrasCompositionBriefing_,
     getStockObrasBriefingForTest: function () {
       return cloneEloStockObrasCompositionBriefing_(ELO_SESSION_MEMORY.stockObrasCompositionBriefing);
     },
@@ -33288,7 +33401,3 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 })();
-
-
-
-
