@@ -15,7 +15,8 @@
 
     <application
         android:allowBackup="false"
-        android:label="ELO Wake Test"
+        android:label="ELO"
+        android:usesCleartextTraffic="false"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
@@ -28,13 +29,8 @@
 
         <activity
             android:name=".OfflineLabActivity"
-            android:exported="true"
-            android:label="ELO Offline Lab">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="ELO Offline Lab" />
 
         <service
             android:name=".EloWakeService"

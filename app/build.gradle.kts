@@ -18,6 +18,10 @@ android {
         versionName = "0.1"
     }
 
+    androidResources {
+        noCompress += listOf("mp3", "ogg", "oga")
+    }
+
     testOptions {
         unitTests.all {
             val localTestClasses = files(

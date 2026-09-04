@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "EloAndroidWakeV0"
+rootProject.name = "EloAndroidAppShellV1"
 include(":app")
