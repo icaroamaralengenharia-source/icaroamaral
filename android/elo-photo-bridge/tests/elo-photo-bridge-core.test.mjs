@@ -768,10 +768,11 @@ function renderTimelineUiHarness({ selectedVisit }) {
   const root = ["status", "summary", "command", "actionPanel", "timelinePanel", "webView"];
   const photos = selectedVisit;
   const screenHeight = 1000;
-  const expandedHeight = Math.max(Math.floor(screenHeight * 0.82), 760);
-  const collapsedHeight = Math.max(Math.floor(screenHeight * 0.48), 420);
-  const expandedGridHeight = Math.max(Math.floor(expandedHeight * 0.55), 420);
-  const collapsedGridHeight = Math.max(Math.floor(collapsedHeight * 0.42), 220);
+  const usefulHeight = Math.max(screenHeight - 60 - 80, Math.floor(screenHeight * 0.7));
+  const expandedHeight = Math.max(Math.floor(usefulHeight * 0.88), 700);
+  const collapsedHeight = Math.max(Math.floor(usefulHeight * 0.42), 320);
+  const expandedGridHeight = expandedHeight - 260;
+  const collapsedGridHeight = collapsedHeight - 180;
   const timelinePanel = {
     created: true,
     parent: "rootLayout",
@@ -800,12 +801,19 @@ function renderTimelineUiHarness({ selectedVisit }) {
     grid,
     collapsed,
     expanded,
+    usefulHeight,
     reviewButton: { visible: true, enabled: false, text: "REVISAR BLOCOS" },
     logs: [
       "FAST_TIMELINE_VIEW_CREATE",
       "FAST_TIMELINE_PARENT_FOUND: true",
       "FAST_TIMELINE_ADD_VIEW",
+      "FAST_EXPAND_CLICK",
+      `FAST_EXPAND_BEFORE_HEIGHT: ${collapsedHeight}`,
       "FAST_TIMELINE_EXPANDED",
+      `FAST_EXPAND_AFTER_HEIGHT: ${expandedHeight}`,
+      "FAST_EXPAND_STATE: EXPANDED",
+      "FAST_GRID_VISIBLE: true",
+      `FAST_GRID_ITEM_COUNT: ${photos.length}`,
       "FAST_TIMELINE_VISIBLE",
       "FAST_TIMELINE_ADAPTER_SET",
       `FAST_TIMELINE_ITEM_COUNT: ${grid.adapter.itemCount}`,
@@ -820,7 +828,7 @@ test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () =>
   assert.equal(ui.timelinePanel.parent, "rootLayout");
   assert.equal(ui.timelinePanel.visible, true);
   assert.equal(ui.timelinePanel.expanded, true);
-  assert.ok(ui.timelinePanel.height >= 760);
+  assert.ok(ui.timelinePanel.height >= ui.usefulHeight * 0.7);
   assert.equal(ui.timelinePanel.attachedToWindow, true);
   assert.ok(ui.grid.height >= 420);
   assert.equal(ui.grid.adapter.itemCount, 51);
@@ -829,6 +837,9 @@ test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () =>
   assert.equal(ui.root[ui.timelinePanel.index], "timelinePanel");
   assert.ok(ui.root.indexOf("timelinePanel") < ui.root.indexOf("command"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_EXPANDED"));
+  assert.ok(ui.logs.includes("FAST_EXPAND_STATE: EXPANDED"));
+  assert.ok(ui.logs.includes("FAST_GRID_VISIBLE: true"));
+  assert.ok(ui.logs.includes("FAST_GRID_ITEM_COUNT: 51"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ADAPTER_SET"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ITEM_COUNT: 51"));
 });

@@ -210,7 +210,10 @@ class MainActivity : ComponentActivity() {
       gravity = android.view.Gravity.CENTER
       setTextColor(Color.DKGRAY)
       setPadding(0, 0, 0, 6)
-      setOnClickListener { setTimelineSheetExpanded(!timelineExpanded) }
+      setOnClickListener {
+        Log.d("EloPhotoBridge", "FAST_EXPAND_CLICK")
+        setTimelineSheetExpanded(!timelineExpanded)
+      }
     }
     timelineHeader = TextView(this).apply {
       textSize = 18f
@@ -262,7 +265,7 @@ class MainActivity : ComponentActivity() {
         addView(button)
       }
     })
-    timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620))
+    timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     jsBridge = SelectedPhotoJavascriptBridge(
       context = this,
       onBridgeReady = {
@@ -873,13 +876,40 @@ class MainActivity : ComponentActivity() {
     }
   }
   private fun setTimelineSheetExpanded(expanded: Boolean) {
+    val beforeHeight = timelinePanel.height
+    Log.d("EloPhotoBridge", "FAST_EXPAND_BEFORE_HEIGHT: $beforeHeight")
     timelineExpanded = expanded
-    val screenHeight = resources.displayMetrics.heightPixels
-    val panelHeight = ((screenHeight * if (expanded) 0.82f else 0.48f).toInt()).coerceAtLeast(if (expanded) 760 else 420)
-    val gridHeight = ((panelHeight * if (expanded) 0.55f else 0.42f).toInt()).coerceAtLeast(if (expanded) 420 else 220)
-    timelinePanel.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, panelHeight)
-    timelineGrid.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, gridHeight)
+    val rootHeight = rootLayout.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+    val usefulHeight = (rootHeight - status.height - summary.height).coerceAtLeast((resources.displayMetrics.heightPixels * 0.7f).toInt())
+    val panelHeight = (usefulHeight * if (expanded) 0.88f else 0.42f).toInt().coerceAtLeast(if (expanded) 700 else 320)
+    val nextPanelParams = (timelinePanel.layoutParams as? LinearLayout.LayoutParams)
+      ?: LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, panelHeight)
+    nextPanelParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+    nextPanelParams.height = panelHeight
+    nextPanelParams.weight = 0f
+    timelinePanel.layoutParams = nextPanelParams
+    val nextGridParams = (timelineGrid.layoutParams as? LinearLayout.LayoutParams)
+      ?: LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+    nextGridParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+    nextGridParams.height = 0
+    nextGridParams.weight = 1f
+    timelineGrid.layoutParams = nextGridParams
+    command.visibility = android.view.View.GONE
+    if (::actionPanel.isInitialized) actionPanel.visibility = android.view.View.GONE
+    webView.visibility = android.view.View.GONE
+    timelinePanel.visibility = android.view.View.VISIBLE
+    timelineGrid.visibility = android.view.View.VISIBLE
     timelineDragHandle.text = if (expanded) "━━━━━━━━  RECOLHER" else "━━━━━━━━  EXPANDIR"
+    timelineGrid.requestLayout()
+    timelinePanel.requestLayout()
+    rootLayout.requestLayout()
+    timelinePanel.post {
+      val itemCount = (timelineGrid.adapter as? BaseAdapter)?.count ?: 0
+      Log.d("EloPhotoBridge", "FAST_EXPAND_AFTER_HEIGHT: ${timelinePanel.height}")
+      Log.d("EloPhotoBridge", "FAST_EXPAND_STATE: ${if (timelineExpanded) "EXPANDED" else "COLLAPSED"}")
+      Log.d("EloPhotoBridge", "FAST_GRID_VISIBLE: ${timelineGrid.visibility == android.view.View.VISIBLE && timelinePanel.visibility == android.view.View.VISIBLE}")
+      Log.d("EloPhotoBridge", "FAST_GRID_ITEM_COUNT: $itemCount")
+    }
     Log.d("EloPhotoBridge", if (expanded) "FAST_TIMELINE_EXPANDED" else "FAST_TIMELINE_COLLAPSED")
   }
   private fun showTimelinePanel() {
