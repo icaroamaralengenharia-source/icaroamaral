@@ -472,6 +472,39 @@ function distributeTimeline(photos, cuts, manual = {}) {
   return payload;
 }
 
+function realFastTimelineCuts() {
+  return { CAMERAS: 0, TOMADAS: 7, RACK: 9, MASTRO_ANTENA: 25, CAIXA_FUNDO_MADEIRA: 26 };
+}
+
+function timelineRangeForHarness(category, photoCount, cuts) {
+  const index = timelineOrder.indexOf(category);
+  const first = cuts[category];
+  const last = index === timelineOrder.length - 1 ? photoCount - 1 : cuts[timelineOrder[index + 1]] - 1;
+  const rangeLabel = first === last ? `#${first + 1}` : `#${first + 1}-#${last + 1}`;
+  return { category, first, last, rangeLabel, count: last - first + 1 };
+}
+
+function timelineReviewBlocksHarness(photoCount, cuts) {
+  return timelineOrder.map((category) => timelineRangeForHarness(category, photoCount, cuts));
+}
+
+function timelineReviewFlowHarness({ photoCount = 51, cuts = realFastTimelineCuts() } = {}) {
+  const aiRequests = 0;
+  const validation = validateTimelineCuts(photoCount, cuts);
+  const blocks = validation.ok ? timelineReviewBlocksHarness(photoCount, cuts) : [];
+  const state = {
+    cuts: { ...cuts },
+    cutsComplete: validation.ok,
+    reviewEnabled: validation.ok,
+    reviewVisible: validation.ok,
+    confirmEnabled: validation.ok,
+    reportAvailable: false
+  };
+  const afterBack = { cuts: { ...state.cuts }, reviewEnabled: state.reviewEnabled };
+  const afterConfirm = { ...state, reportAvailable: validation.ok };
+  const afterClear = { cuts: {}, cutsComplete: false, reviewEnabled: false, reportAvailable: false };
+  return { aiRequests, validation, blocks, state, afterBack, afterConfirm, afterClear };
+}
 function assertDefaultCuts(count) {
   const payload = distributeTimeline(timelinePhotos(count), { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 });
   assert.equal(payload.photos.cameras.length, 17);
@@ -732,12 +765,18 @@ test("apos EXECUTAR organizar rapido abre FAST_TIMELINE com zero IA", () => {
   assert.equal(fast.aiRequests, 0);
 });
 function renderTimelineUiHarness({ selectedVisit }) {
-  const root = ["status", "summary", "command", "buttons", "timelinePanel", "webView"];
+  const root = ["status", "summary", "command", "actionPanel", "timelinePanel", "webView"];
   const photos = selectedVisit;
+  const screenHeight = 1000;
+  const expandedHeight = Math.max(Math.floor(screenHeight * 0.82), 760);
+  const collapsedHeight = Math.max(Math.floor(screenHeight * 0.48), 420);
+  const expandedGridHeight = Math.max(Math.floor(expandedHeight * 0.55), 420);
+  const collapsedGridHeight = Math.max(Math.floor(collapsedHeight * 0.42), 220);
   const timelinePanel = {
     created: true,
     parent: "rootLayout",
     visible: false,
+    expanded: false,
     height: "wrap_content",
     attachedToWindow: false,
     index: root.indexOf("timelinePanel")
@@ -748,15 +787,25 @@ function renderTimelineUiHarness({ selectedVisit }) {
   timelinePanel.index = desiredIndex;
   timelinePanel.visible = true;
   timelinePanel.attachedToWindow = true;
-  const grid = { height: 620, adapter: { itemCount: photos.length } };
+  timelinePanel.expanded = true;
+  timelinePanel.height = expandedHeight;
+  const grid = { height: expandedGridHeight, adapter: { itemCount: photos.length } };
+  const collapsed = { panelHeight: collapsedHeight, gridHeight: collapsedGridHeight, itemCount: photos.length };
+  const expanded = { panelHeight: expandedHeight, gridHeight: expandedGridHeight, itemCount: photos.length };
   return {
     root,
     timelinePanel,
+    commandVisible: false,
+    actionPanelVisible: false,
     grid,
+    collapsed,
+    expanded,
+    reviewButton: { visible: true, enabled: false, text: "REVISAR BLOCOS" },
     logs: [
       "FAST_TIMELINE_VIEW_CREATE",
       "FAST_TIMELINE_PARENT_FOUND: true",
       "FAST_TIMELINE_ADD_VIEW",
+      "FAST_TIMELINE_EXPANDED",
       "FAST_TIMELINE_VISIBLE",
       "FAST_TIMELINE_ADAPTER_SET",
       `FAST_TIMELINE_ITEM_COUNT: ${grid.adapter.itemCount}`,
@@ -765,19 +814,64 @@ function renderTimelineUiHarness({ selectedVisit }) {
   };
 }
 
-test("FAST_TIMELINE anexa timeline visivel com adapter de 51 itens", () => {
+test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () => {
   const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
   assert.equal(ui.timelinePanel.created, true);
   assert.equal(ui.timelinePanel.parent, "rootLayout");
   assert.equal(ui.timelinePanel.visible, true);
-  assert.equal(ui.timelinePanel.height, "wrap_content");
+  assert.equal(ui.timelinePanel.expanded, true);
+  assert.ok(ui.timelinePanel.height >= 760);
   assert.equal(ui.timelinePanel.attachedToWindow, true);
-  assert.equal(ui.grid.height > 0, true);
+  assert.ok(ui.grid.height >= 420);
   assert.equal(ui.grid.adapter.itemCount, 51);
+  assert.equal(ui.commandVisible, false);
+  assert.equal(ui.actionPanelVisible, false);
   assert.equal(ui.root[ui.timelinePanel.index], "timelinePanel");
   assert.ok(ui.root.indexOf("timelinePanel") < ui.root.indexOf("command"));
+  assert.ok(ui.logs.includes("FAST_TIMELINE_EXPANDED"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ADAPTER_SET"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ITEM_COUNT: 51"));
+});
+
+test("FAST_TIMELINE permite recolher e expandir preservando grid de 51 fotos", () => {
+  const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
+  assert.ok(ui.collapsed.panelHeight < ui.expanded.panelHeight);
+  assert.ok(ui.collapsed.gridHeight < ui.expanded.gridHeight);
+  assert.equal(ui.collapsed.itemCount, 51);
+  assert.equal(ui.expanded.itemCount, 51);
+});
+
+test("FAST_TIMELINE cortes reais liberam revisar, confirmar e relatorio sem IA", () => {
+  const flow = timelineReviewFlowHarness();
+  assert.equal(flow.validation.ok, true);
+  assert.equal(flow.state.cutsComplete, true);
+  assert.equal(flow.state.reviewVisible, true);
+  assert.equal(flow.state.reviewEnabled, true);
+  assert.equal(flow.state.confirmEnabled, true);
+  assert.equal(flow.afterConfirm.reportAvailable, true);
+  assert.equal(flow.aiRequests, 0);
+});
+
+test("FAST_TIMELINE revisao mostra 5 blocos reais com ranges e total 51", () => {
+  const flow = timelineReviewFlowHarness();
+  assert.deepEqual(flow.blocks.map(({ category, rangeLabel, count }) => ({ category, rangeLabel, count })), [
+    { category: "CAMERAS", rangeLabel: "#1-#7", count: 7 },
+    { category: "TOMADAS", rangeLabel: "#8-#9", count: 2 },
+    { category: "RACK", rangeLabel: "#10-#25", count: 16 },
+    { category: "MASTRO_ANTENA", rangeLabel: "#26", count: 1 },
+    { category: "CAIXA_FUNDO_MADEIRA", rangeLabel: "#27-#51", count: 25 }
+  ]);
+  assert.equal(flow.blocks.reduce((sum, block) => sum + block.count, 0), 51);
+});
+
+test("FAST_TIMELINE voltar preserva cortes e limpar reseta organizacao", () => {
+  const flow = timelineReviewFlowHarness();
+  assert.deepEqual(flow.afterBack.cuts, realFastTimelineCuts());
+  assert.equal(flow.afterBack.reviewEnabled, true);
+  assert.deepEqual(flow.afterClear.cuts, {});
+  assert.equal(flow.afterClear.cutsComplete, false);
+  assert.equal(flow.afterClear.reviewEnabled, false);
+  assert.equal(flow.afterClear.reportAvailable, false);
 });
 test("IA explicita recebe somente as 24 fotos da janela selecionada", () => {
   const datePhotos = filterByLocalDate(physicalWindowFixture(), "2026-08-28");

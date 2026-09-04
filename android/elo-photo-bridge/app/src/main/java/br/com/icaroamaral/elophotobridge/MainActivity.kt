@@ -17,6 +17,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.webkit.WebView
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
   private lateinit var webView: WebView
   private lateinit var jsBridge: SelectedPhotoJavascriptBridge
   private lateinit var rootLayout: LinearLayout
+  private lateinit var actionPanel: LinearLayout
   private lateinit var executeButton: Button
   private lateinit var fastTimelineButton: Button
   private lateinit var runButton: Button
@@ -65,6 +67,8 @@ class MainActivity : ComponentActivity() {
   private lateinit var clearButton: Button
   private lateinit var diagnosticButton: Button
   private lateinit var timelinePanel: LinearLayout
+  private lateinit var timelineDragHandle: TextView
+  private lateinit var timelineActionRow: LinearLayout
   private lateinit var timelineHeader: TextView
   private lateinit var timelineInstruction: TextView
   private lateinit var timelineGrid: GridView
@@ -79,6 +83,8 @@ class MainActivity : ComponentActivity() {
   private var currentTimelineGroup: VisitGroup? = null
   private var selectedTimelinePhotoIndex: Int = -1
   private var timelineCuts: MutableMap<PhotoCategory, Int> = mutableMapOf()
+  private var timelineExpanded = true
+  private var timelineTouchStartY = 0f
   private var restoringText = false
 
   private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -176,7 +182,35 @@ class MainActivity : ComponentActivity() {
     timelinePanel = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       visibility = android.view.View.GONE
-      setPadding(0, 16, 0, 16)
+      setPadding(20, 14, 20, 16)
+      setBackgroundColor(Color.rgb(250, 250, 250))
+      isFocusable = true
+      isFocusableInTouchMode = true
+      setOnTouchListener { _, event ->
+        when (event.actionMasked) {
+          MotionEvent.ACTION_DOWN -> {
+            timelineTouchStartY = event.rawY
+            true
+          }
+          MotionEvent.ACTION_UP -> {
+            val delta = event.rawY - timelineTouchStartY
+            when {
+              delta < -40f -> setTimelineSheetExpanded(true)
+              delta > 40f -> setTimelineSheetExpanded(false)
+            }
+            true
+          }
+          else -> false
+        }
+      }
+    }
+    timelineDragHandle = TextView(this).apply {
+      text = "━━━━━━━━"
+      textSize = 18f
+      gravity = android.view.Gravity.CENTER
+      setTextColor(Color.DKGRAY)
+      setPadding(0, 0, 0, 6)
+      setOnClickListener { setTimelineSheetExpanded(!timelineExpanded) }
     }
     timelineHeader = TextView(this).apply {
       textSize = 18f
@@ -196,6 +230,7 @@ class MainActivity : ComponentActivity() {
     }
     timelineReviewButton = Button(this).apply {
       text = "REVISAR BLOCOS"
+      setTypeface(typeface, Typeface.BOLD)
       setOnClickListener { showFastTimelineBlocksReview() }
     }
     timelineClearButton = Button(this).apply {
@@ -206,8 +241,16 @@ class MainActivity : ComponentActivity() {
       text = "FECHAR"
       setOnClickListener { hideTimelinePanel() }
     }
+    timelineActionRow = LinearLayout(this).apply {
+      orientation = LinearLayout.HORIZONTAL
+      addView(timelineReviewButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
+      addView(timelineClearButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+      addView(timelineCloseButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    }
+    timelinePanel.addView(timelineDragHandle)
     timelinePanel.addView(timelineHeader)
     timelinePanel.addView(timelineInstruction)
+    timelinePanel.addView(timelineActionRow)
     timelinePanel.addView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       TimelineOrganizer.orderedCategories.drop(1).forEach { category ->
@@ -220,12 +263,6 @@ class MainActivity : ComponentActivity() {
       }
     })
     timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620))
-    timelinePanel.addView(LinearLayout(this).apply {
-      orientation = LinearLayout.HORIZONTAL
-      addView(timelineReviewButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-      addView(timelineClearButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-      addView(timelineCloseButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-    })
     jsBridge = SelectedPhotoJavascriptBridge(
       context = this,
       onBridgeReady = {
@@ -285,7 +322,7 @@ class MainActivity : ComponentActivity() {
       addView(status)
       addView(summary)
       addView(command)
-      addView(LinearLayout(this@MainActivity).apply {
+      actionPanel = LinearLayout(this@MainActivity).apply {
         orientation = LinearLayout.VERTICAL
         addView(executeButton)
         addView(fastTimelineButton)
@@ -297,7 +334,8 @@ class MainActivity : ComponentActivity() {
         addView(cancelButton)
         addView(clearButton)
         if (isPhysicalTestBuild()) addView(diagnosticButton)
-      })
+      }
+      addView(actionPanel)
       addView(timelinePanel)
       addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     })
@@ -834,6 +872,16 @@ class MainActivity : ComponentActivity() {
       return row
     }
   }
+  private fun setTimelineSheetExpanded(expanded: Boolean) {
+    timelineExpanded = expanded
+    val screenHeight = resources.displayMetrics.heightPixels
+    val panelHeight = ((screenHeight * if (expanded) 0.82f else 0.48f).toInt()).coerceAtLeast(if (expanded) 760 else 420)
+    val gridHeight = ((panelHeight * if (expanded) 0.55f else 0.42f).toInt()).coerceAtLeast(if (expanded) 420 else 220)
+    timelinePanel.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, panelHeight)
+    timelineGrid.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, gridHeight)
+    timelineDragHandle.text = if (expanded) "━━━━━━━━  RECOLHER" else "━━━━━━━━  EXPANDIR"
+    Log.d("EloPhotoBridge", if (expanded) "FAST_TIMELINE_EXPANDED" else "FAST_TIMELINE_COLLAPSED")
+  }
   private fun showTimelinePanel() {
     if (Looper.myLooper() != Looper.getMainLooper()) {
       runOnUiThread { showTimelinePanel() }
@@ -848,23 +896,21 @@ class MainActivity : ComponentActivity() {
         return
       }
       val currentParent = timelinePanel.parent as? ViewGroup
+      val desiredIndex = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
       if (currentParent != rootLayout) {
         currentParent?.removeView(timelinePanel)
-        val insertAt = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
-        rootLayout.addView(timelinePanel, insertAt, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        rootLayout.addView(timelinePanel, desiredIndex, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         Log.d("EloPhotoBridge", "FAST_TIMELINE_ADD_VIEW")
-      } else {
-        val desiredIndex = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
-        if (rootLayout.indexOfChild(timelinePanel) != desiredIndex) {
-          rootLayout.removeView(timelinePanel)
-          rootLayout.addView(timelinePanel, desiredIndex, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-          Log.d("EloPhotoBridge", "FAST_TIMELINE_ADD_VIEW")
-        }
+      } else if (rootLayout.indexOfChild(timelinePanel) != desiredIndex) {
+        rootLayout.removeView(timelinePanel)
+        rootLayout.addView(timelinePanel, desiredIndex, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        Log.d("EloPhotoBridge", "FAST_TIMELINE_ADD_VIEW")
       }
-      timelinePanel.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-      timelineGrid.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620)
+      command.visibility = android.view.View.GONE
+      if (::actionPanel.isInitialized) actionPanel.visibility = android.view.View.GONE
       timelinePanel.visibility = android.view.View.VISIBLE
       webView.visibility = android.view.View.GONE
+      setTimelineSheetExpanded(true)
       Log.d("EloPhotoBridge", "FAST_TIMELINE_VISIBLE")
       val adapter = TimelinePhotoAdapter(photos)
       timelineGrid.adapter = adapter
@@ -884,6 +930,8 @@ class MainActivity : ComponentActivity() {
   }
   private fun hideTimelinePanel() {
     timelinePanel.visibility = android.view.View.GONE
+    command.visibility = android.view.View.VISIBLE
+    if (::actionPanel.isInitialized) actionPanel.visibility = android.view.View.VISIBLE
     webView.visibility = android.view.View.VISIBLE
   }
 
@@ -943,29 +991,29 @@ class MainActivity : ComponentActivity() {
       return
     }
     val group = currentTimelineGroup ?: return
+    val cutsComplete = TimelineOrganizer.validateCuts(photos.size, timelineCuts).ok
     timelineHeader.text = visitTimelineHeader(group, photos)
     timelineInstruction.text = timelineInstructionText()
+    timelineReviewButton.text = if (cutsComplete) "REVISAR BLOCOS" else "REVISAR BLOCOS"
+    timelineReviewButton.isEnabled = !screenModel.isProcessing && cutsComplete
     val hasSelection = selectedTimelinePhotoIndex in photos.indices
     timelineActionButtons.forEach { (category, button) ->
       val cut = timelineCuts[category]
       button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "INÍCIO ${categoryLabel(category).uppercase()}"
-      button.isEnabled = hasSelection && !screenModel.isProcessing
+      button.isEnabled = hasSelection && !screenModel.isProcessing && !cutsComplete
     }
-    timelineReviewButton.isEnabled = !screenModel.isProcessing && TimelineOrganizer.validateCuts(photos.size, timelineCuts).ok
     (timelineGrid.adapter as? BaseAdapter)?.notifyDataSetChanged()
   }
-
   private fun timelineInstructionText(): String {
     val next = nextMissingTimelineCategory()
     val selected = if (selectedTimelinePhotoIndex >= 0) "Foto #${selectedTimelinePhotoIndex + 1} selecionada." else "Nenhuma foto selecionada."
     return if (next != null) {
       val step = TimelineOrganizer.orderedCategories.drop(1).indexOf(next) + 1
-      "ETAPA $step DE 4\nToque na primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
+      "ETAPA $step DE 4\nEscolha a primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
     } else {
-      "Cortes completos.\n$selected\nRevise os blocos antes de abrir o relatório."
+      "ORGANIZAÇÃO CONCLUÍDA\nCortes completos. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
     }
   }
-
   private fun showFastTimelineBlocksReview() {
     val group = currentTimelineGroup ?: return
     val validation = TimelineOrganizer.validateCuts(group.photos.size, timelineCuts)
@@ -976,16 +1024,18 @@ class MainActivity : ComponentActivity() {
     }
     val labels = TimelineOrganizer.orderedCategories.map { category ->
       val range = timelineRangeFor(category, group.photos.size)
-      "${categoryLabel(category)} — ${range.last - range.first + 1} fotos"
+      val first = range.first + 1
+      val last = range.last + 1
+      val rangeLabel = if (first == last) "#$first" else "#$first-#$last"
+      "${categoryLabel(category)}\n$rangeLabel\n${range.last - range.first + 1} fotos"
     }.toTypedArray()
     AlertDialog.Builder(this)
       .setTitle("Revisar blocos")
       .setItems(labels) { _, index -> showTimelineBlockPhotos(TimelineOrganizer.orderedCategories[index]) }
-      .setPositiveButton("GERAR RELATÓRIO") { _, _ -> confirmFastTimelinePayload() }
+      .setPositiveButton("CONFIRMAR ORGANIZAÇÃO") { _, _ -> confirmFastTimelinePayload() }
       .setNegativeButton("VOLTAR", null)
       .show()
   }
-
   private fun showTimelineBlockPhotos(category: PhotoCategory) {
     val group = currentTimelineGroup ?: return
     val range = timelineRangeFor(category, group.photos.size)
