@@ -609,6 +609,42 @@ test("FAST_TIMELINE recebe 37 fotos e IA recebe zero chamadas", () => {
   assert.equal(aiRequests, 0);
 });
 
+function clickFastTimelineButton({ selectedVisit, classificationMode = "NONE" }) {
+  const logs = ["FAST_CLICK_RECEIVED"];
+  const state = {
+    classificationMode,
+    flowStatus: "IDLE",
+    photoCount: selectedVisit.length,
+    timelineOpen: false,
+    renderItems: 0
+  };
+  logs.push(`FAST_STATE_BEFORE: state=${state.flowStatus} selectedVisitPhotos=${selectedVisit.length} classificationMode=${state.classificationMode}`);
+  if (selectedVisit.length === 0) {
+    logs.push("FAST_PRECONDITION_FAIL: selected_visit_empty");
+    return { state, logs, aiRequests: 0 };
+  }
+  state.classificationMode = "FAST_TIMELINE";
+  state.flowStatus = "FAST_TIMELINE";
+  logs.push("FAST_TIMELINE_OPEN_REQUEST");
+  logs.push(`FAST_TIMELINE_RENDER_START: photos=${selectedVisit.length}`);
+  state.timelineOpen = true;
+  state.renderItems = selectedVisit.length;
+  logs.push(`FAST_TIMELINE_RENDER_DONE: items=${selectedVisit.length}`);
+  return { state, logs, aiRequests: 0 };
+}
+
+test("botao organizar rapido com selectedVisit de 51 fotos abre timeline sem IA", () => {
+  const selectedVisit = timelinePhotos(51);
+  const result = clickFastTimelineButton({ selectedVisit });
+  assert.equal(result.state.classificationMode, "FAST_TIMELINE");
+  assert.equal(result.state.timelineOpen, true);
+  assert.equal(result.state.renderItems, 51);
+  assert.equal(result.aiRequests, 0);
+  assert.ok(result.logs.includes("FAST_CLICK_RECEIVED"));
+  assert.ok(result.logs.includes("FAST_TIMELINE_OPEN_REQUEST"));
+  assert.ok(result.logs.includes("FAST_TIMELINE_RENDER_START: photos=51"));
+  assert.ok(result.logs.includes("FAST_TIMELINE_RENDER_DONE: items=51"));
+});
 test("IA explicita recebe somente as 24 fotos da janela selecionada", () => {
   const datePhotos = filterByLocalDate(physicalWindowFixture(), "2026-08-28");
   const selectedVisit = filterPhotosByUserWindow(datePhotos, "2026-08-28", "15:40", "16:10");

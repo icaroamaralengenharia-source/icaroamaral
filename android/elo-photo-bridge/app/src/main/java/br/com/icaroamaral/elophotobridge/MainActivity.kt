@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
     }
     fastTimelineButton = Button(this).apply {
       text = "ORGANIZAR RÁPIDO"
-      setOnClickListener { prepareFastTimelineSearch() }
+      setOnClickListener { handleFastTimelineClick() }
     }
     runButton = Button(this).apply {
       text = "CLASSIFICAR COM IA"
@@ -414,6 +414,47 @@ class MainActivity : ComponentActivity() {
     }
     setStatus("Use CLASSIFICAR COM IA para iniciar análise visual.", screenModel.state.flowStatus)
   }
+  private fun handleFastTimelineClick() {
+    Log.d("EloPhotoBridge", "FAST_CLICK_RECEIVED")
+    Log.d(
+      "EloPhotoBridge",
+      "FAST_STATE_BEFORE: state=${screenModel.state.flowStatus} selectedVisitPhotos=${currentTimelineGroup?.photos?.size ?: screenModel.state.photoCount} classificationMode=${screenModel.state.classificationMode}"
+    )
+    val selected = selectedFastTimelineGroup()
+    if (selected != null) {
+      val (parsedCommand, group) = selected
+      if (group.photos.isEmpty()) {
+        Log.w("EloPhotoBridge", "FAST_PRECONDITION_FAIL: selected_visit_empty")
+        setStatus("Visita selecionada sem fotos. Atualize a busca.", PhotoBridgeFlowStatus.ERROR)
+        return
+      }
+      persistState(screenModel.state.copy(
+        flowStatus = PhotoBridgeFlowStatus.FAST_TIMELINE,
+        classificationMode = ClassificationMode.FAST_TIMELINE.name,
+        photoCount = group.photos.size,
+        statusMessage = "Organização rápida em andamento. Marque os pontos de início na timeline."
+      ).withEvent("SGTO_FAST_TIMELINE aberto a partir da visita selecionada."))
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_OPEN_REQUEST")
+      showFastTimelineOrganizer(parsedCommand, group)
+      return
+    }
+    prepareFastTimelineSearch()
+  }
+
+  private fun selectedFastTimelineGroup(): Pair<ParsedCommand, VisitGroup>? {
+    val timelineCommand = currentTimelineCommand
+    val timelineGroup = currentTimelineGroup
+    if (timelineCommand != null && timelineGroup != null) return timelineCommand to timelineGroup
+
+    val selectedVisitId = screenModel.state.selectedVisitId
+    if (selectedVisitId.isNotBlank()) {
+      candidateGroupsById[selectedVisitId]?.let { return it }
+    }
+
+    if (candidateGroupsById.size == 1) return candidateGroupsById.values.first()
+    return null
+  }
+
   private fun startAiClassificationFlow(replaceActive: Boolean = false) {
     if (screenModel.isProcessing) {
       if (!replaceActive) return
@@ -525,12 +566,14 @@ class MainActivity : ComponentActivity() {
   }
   private fun prepareFastTimelineSearch() {
     if (screenModel.isProcessing) {
+      Log.w("EloPhotoBridge", "FAST_PRECONDITION_FAIL: processing_active_cancelled")
       cancelActiveJob(PhotoBridgeFlowStatus.FAST_TIMELINE, "Classificação anterior cancelada. Organizando rápido.")
     }
     val commandText = command.text.toString()
     val parsed = CommandParser().parse(commandText)
     logUiWindowInputs(commandText, parsed)
     if (parsed.dateHint == null && UserVisitWindowFilter.fromText(parsed, commandText) == null) {
+      Log.w("EloPhotoBridge", "FAST_PRECONDITION_FAIL: date_required")
       persistState(screenModel.state.withCommand(commandText).copy(
         flowStatus = PhotoBridgeFlowStatus.WAITING_FOR_DATE,
         classificationMode = ClassificationMode.FAST_TIMELINE.name,
@@ -567,8 +610,10 @@ class MainActivity : ComponentActivity() {
       result.onSuccess { (command, groups) ->
         val group = if (command.latestVisit) groups.maxBy { it.photos.maxOf { photo -> photo.bestInstant() ?: java.time.Instant.EPOCH } } else groups.first()
         persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.MODE_SELECTION, classificationMode = ClassificationMode.FAST_TIMELINE.name, photoCount = group.photos.size, statusMessage = "Visita selecionada: ${group.photos.size} fotos.").withEvent("PHOTOS_SENT_TO_TIMELINE: ${group.photos.size}"))
+        Log.d("EloPhotoBridge", "FAST_TIMELINE_OPEN_REQUEST")
         showFastTimelineOrganizer(command, group)
       }.onFailure { error ->
+        Log.w("EloPhotoBridge", "FAST_PRECONDITION_FAIL: ${error.message ?: "unknown"}", error)
         val message = when {
           error.message == "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
           error.message?.startsWith("photos_not_found_for_window") == true -> windowNotFoundMessage(error.message.orEmpty())
@@ -585,6 +630,7 @@ class MainActivity : ComponentActivity() {
 
   private fun showFastTimelineOrganizer(parsedCommand: ParsedCommand, group: VisitGroup) {
     val ordered = group.photos.sortedBy { it.bestInstant() ?: java.time.Instant.EPOCH }
+    Log.d("EloPhotoBridge", "FAST_TIMELINE_RENDER_START: photos=${ordered.size}")
     currentTimelineCommand = parsedCommand
     currentTimelineGroup = group.copy(photos = ordered)
     val ids = ordered.map { it.uri.toString() }
@@ -601,7 +647,12 @@ class MainActivity : ComponentActivity() {
       TimelineOrganizer.defaultCuts(ordered.size).toMutableMap()
     }
     persistTimelineState(ids, if (!samePhotos && screenModel.state.timelinePhotoIds.isNotEmpty()) "Conjunto de fotos mudou. Revise os cortes." else null)
-    showTimelinePanel()
+    try {
+      showTimelinePanel()
+    } catch (error: Exception) {
+      Log.e("EloPhotoBridge", "FAST_TIMELINE_RENDER_FAIL: exception=${error.message ?: error.javaClass.simpleName}", error)
+      setStatus("Não consegui renderizar a timeline rápida.", PhotoBridgeFlowStatus.ERROR)
+    }
   }
 
 
@@ -651,8 +702,10 @@ class MainActivity : ComponentActivity() {
   private fun showTimelinePanel() {
     timelinePanel.visibility = android.view.View.VISIBLE
     webView.visibility = android.view.View.GONE
-    timelineGrid.adapter = TimelinePhotoAdapter(currentTimelineGroup?.photos.orEmpty())
+    val photos = currentTimelineGroup?.photos.orEmpty()
+    timelineGrid.adapter = TimelinePhotoAdapter(photos)
     updateTimelineControls()
+    Log.d("EloPhotoBridge", "FAST_TIMELINE_RENDER_DONE: items=${photos.size}")
   }
 
   private fun hideTimelinePanel() {
