@@ -731,6 +731,54 @@ test("apos EXECUTAR organizar rapido abre FAST_TIMELINE com zero IA", () => {
   assert.equal(fast.state.renderItems, 51);
   assert.equal(fast.aiRequests, 0);
 });
+function renderTimelineUiHarness({ selectedVisit }) {
+  const root = ["status", "summary", "command", "buttons", "timelinePanel", "webView"];
+  const photos = selectedVisit;
+  const timelinePanel = {
+    created: true,
+    parent: "rootLayout",
+    visible: false,
+    height: "wrap_content",
+    attachedToWindow: false,
+    index: root.indexOf("timelinePanel")
+  };
+  const desiredIndex = root.indexOf("summary") + 1;
+  root.splice(timelinePanel.index, 1);
+  root.splice(desiredIndex, 0, "timelinePanel");
+  timelinePanel.index = desiredIndex;
+  timelinePanel.visible = true;
+  timelinePanel.attachedToWindow = true;
+  const grid = { height: 620, adapter: { itemCount: photos.length } };
+  return {
+    root,
+    timelinePanel,
+    grid,
+    logs: [
+      "FAST_TIMELINE_VIEW_CREATE",
+      "FAST_TIMELINE_PARENT_FOUND: true",
+      "FAST_TIMELINE_ADD_VIEW",
+      "FAST_TIMELINE_VISIBLE",
+      "FAST_TIMELINE_ADAPTER_SET",
+      `FAST_TIMELINE_ITEM_COUNT: ${grid.adapter.itemCount}`,
+      "FAST_TIMELINE_UI_ATTACHED"
+    ]
+  };
+}
+
+test("FAST_TIMELINE anexa timeline visivel com adapter de 51 itens", () => {
+  const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
+  assert.equal(ui.timelinePanel.created, true);
+  assert.equal(ui.timelinePanel.parent, "rootLayout");
+  assert.equal(ui.timelinePanel.visible, true);
+  assert.equal(ui.timelinePanel.height, "wrap_content");
+  assert.equal(ui.timelinePanel.attachedToWindow, true);
+  assert.equal(ui.grid.height > 0, true);
+  assert.equal(ui.grid.adapter.itemCount, 51);
+  assert.equal(ui.root[ui.timelinePanel.index], "timelinePanel");
+  assert.ok(ui.root.indexOf("timelinePanel") < ui.root.indexOf("command"));
+  assert.ok(ui.logs.includes("FAST_TIMELINE_ADAPTER_SET"));
+  assert.ok(ui.logs.includes("FAST_TIMELINE_ITEM_COUNT: 51"));
+});
 test("IA explicita recebe somente as 24 fotos da janela selecionada", () => {
   const datePhotos = filterByLocalDate(physicalWindowFixture(), "2026-08-28");
   const selectedVisit = filterPhotosByUserWindow(datePhotos, "2026-08-28", "15:40", "16:10");

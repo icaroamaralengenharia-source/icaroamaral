@@ -13,6 +13,7 @@ import android.provider.MediaStore
 import android.util.Size
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
   private lateinit var command: EditText
   private lateinit var webView: WebView
   private lateinit var jsBridge: SelectedPhotoJavascriptBridge
+  private lateinit var rootLayout: LinearLayout
   private lateinit var executeButton: Button
   private lateinit var fastTimelineButton: Button
   private lateinit var runButton: Button
@@ -170,6 +172,7 @@ class MainActivity : ComponentActivity() {
       text = "DIAGNÓSTICO DA SELEÇÃO"
       setOnClickListener { showSelectionDiagnosticPanel() }
     }
+    Log.d("EloPhotoBridge", "FAST_TIMELINE_VIEW_CREATE")
     timelinePanel = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       visibility = android.view.View.GONE
@@ -276,6 +279,7 @@ class MainActivity : ComponentActivity() {
       }
     }
     setContentView(LinearLayout(this).apply {
+      rootLayout = this
       orientation = LinearLayout.VERTICAL
       setPadding(24, 24, 24, 24)
       addView(status)
@@ -831,14 +835,53 @@ class MainActivity : ComponentActivity() {
     }
   }
   private fun showTimelinePanel() {
-    timelinePanel.visibility = android.view.View.VISIBLE
-    webView.visibility = android.view.View.GONE
-    val photos = currentTimelineGroup?.photos.orEmpty()
-    timelineGrid.adapter = TimelinePhotoAdapter(photos)
-    updateTimelineControls()
-    Log.d("EloPhotoBridge", "FAST_TIMELINE_RENDER_DONE: items=${photos.size}")
+    if (Looper.myLooper() != Looper.getMainLooper()) {
+      runOnUiThread { showTimelinePanel() }
+      return
+    }
+    try {
+      val photos = currentTimelineGroup?.photos.orEmpty()
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_PARENT_FOUND: ${::rootLayout.isInitialized}")
+      if (!::rootLayout.isInitialized) {
+        Log.e("EloPhotoBridge", "FAST_TIMELINE_UI_FAIL: root_layout_not_initialized")
+        setStatus("Não consegui anexar a timeline rápida.", PhotoBridgeFlowStatus.ERROR)
+        return
+      }
+      val currentParent = timelinePanel.parent as? ViewGroup
+      if (currentParent != rootLayout) {
+        currentParent?.removeView(timelinePanel)
+        val insertAt = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
+        rootLayout.addView(timelinePanel, insertAt, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        Log.d("EloPhotoBridge", "FAST_TIMELINE_ADD_VIEW")
+      } else {
+        val desiredIndex = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
+        if (rootLayout.indexOfChild(timelinePanel) != desiredIndex) {
+          rootLayout.removeView(timelinePanel)
+          rootLayout.addView(timelinePanel, desiredIndex, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+          Log.d("EloPhotoBridge", "FAST_TIMELINE_ADD_VIEW")
+        }
+      }
+      timelinePanel.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+      timelineGrid.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 620)
+      timelinePanel.visibility = android.view.View.VISIBLE
+      webView.visibility = android.view.View.GONE
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_VISIBLE")
+      val adapter = TimelinePhotoAdapter(photos)
+      timelineGrid.adapter = adapter
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_ADAPTER_SET")
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_ITEM_COUNT: ${adapter.count}")
+      updateTimelineControls()
+      (timelineGrid.adapter as? BaseAdapter)?.notifyDataSetChanged()
+      timelinePanel.requestFocus()
+      timelinePanel.post {
+        Log.d("EloPhotoBridge", "FAST_TIMELINE_UI_ATTACHED: attached=${timelinePanel.isAttachedToWindow} parent=${timelinePanel.parent != null}")
+      }
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_RENDER_DONE: items=${photos.size}")
+    } catch (error: Exception) {
+      Log.e("EloPhotoBridge", "FAST_TIMELINE_UI_FAIL: ${error.message ?: error.javaClass.simpleName}", error)
+      setStatus("Não consegui renderizar a timeline rápida.", PhotoBridgeFlowStatus.ERROR)
+    }
   }
-
   private fun hideTimelinePanel() {
     timelinePanel.visibility = android.view.View.GONE
     webView.visibility = android.view.View.VISIBLE
