@@ -17,6 +17,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
   private lateinit var command: EditText
   private lateinit var webView: WebView
   private lateinit var jsBridge: SelectedPhotoJavascriptBridge
+  private lateinit var executeButton: Button
   private lateinit var fastTimelineButton: Button
   private lateinit var runButton: Button
   private lateinit var continueButton: Button
@@ -107,6 +109,16 @@ class MainActivity : ComponentActivity() {
     command = EditText(this).apply {
       hint = "ELO, monte o SGTO de Malhada de Pedras"
       setSingleLine(false)
+      imeOptions = EditorInfo.IME_ACTION_SEND
+      setOnEditorActionListener { _, actionId, _ ->
+        if (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE) {
+          Log.d("EloPhotoBridge", "COMMAND_SUBMIT_IME")
+          executeCurrentCommand()
+          true
+        } else {
+          false
+        }
+      }
       addTextChangedListener(object : TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -114,6 +126,13 @@ class MainActivity : ComponentActivity() {
           if (!restoringText) saveCommandText(s?.toString().orEmpty())
         }
       })
+    }
+    executeButton = Button(this).apply {
+      text = "EXECUTAR"
+      setOnClickListener {
+        Log.d("EloPhotoBridge", "COMMAND_SUBMIT_CLICK")
+        executeCurrentCommand()
+      }
     }
     fastTimelineButton = Button(this).apply {
       text = "ORGANIZAR RÁPIDO"
@@ -264,6 +283,7 @@ class MainActivity : ComponentActivity() {
       addView(command)
       addView(LinearLayout(this@MainActivity).apply {
         orientation = LinearLayout.VERTICAL
+        addView(executeButton)
         addView(fastTimelineButton)
         addView(runButton)
         addView(continueButton)
@@ -359,6 +379,7 @@ class MainActivity : ComponentActivity() {
 
   private fun renderActions(state: PhotoBridgeUiState) {
     val processing = screenModel.isProcessing
+    executeButton.isEnabled = !processing
     fastTimelineButton.isEnabled = !processing
     runButton.isEnabled = !processing
     continueButton.text = if (state.flowStatus in setOf(PhotoBridgeFlowStatus.READY_TO_REVIEW, PhotoBridgeFlowStatus.CLASSIFICATION_REVIEW)) "ABRIR RELATÓRIO" else "CONTINUAR"
@@ -380,6 +401,110 @@ class MainActivity : ComponentActivity() {
     if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
   }
 
+  private fun executeCurrentCommand() {
+    if (screenModel.isProcessing) return
+    val commandText = command.text.toString().trim()
+    Log.d("EloPhotoBridge", "COMMAND_PARSE_START")
+    if (commandText.isBlank()) {
+      Log.w("EloPhotoBridge", "COMMAND_PARSE_FAIL: empty_command")
+      setStatus("Digite o comando da visita antes de executar.", PhotoBridgeFlowStatus.IDLE)
+      return
+    }
+    val parsed = try {
+      CommandParser().parse(commandText)
+    } catch (error: Exception) {
+      Log.e("EloPhotoBridge", "COMMAND_PARSE_FAIL: ${error.message ?: error.javaClass.simpleName}", error)
+      setStatus("Não consegui entender o comando. Confira data, cidade e horário.", PhotoBridgeFlowStatus.ERROR)
+      return
+    }
+    Log.d("EloPhotoBridge", "COMMAND_PARSE_OK")
+    logUiWindowInputs(commandText, parsed)
+    if (parsed.dateHint == null && UserVisitWindowFilter.fromText(parsed, commandText) == null) {
+      Log.w("EloPhotoBridge", "COMMAND_PARSE_FAIL: date_required")
+      persistState(screenModel.state.withCommand(commandText).copy(
+        flowStatus = PhotoBridgeFlowStatus.WAITING_FOR_DATE,
+        classificationMode = ClassificationMode.NONE.name,
+        statusMessage = "Qual a data da visita?",
+        dateResolved = false
+      ).withEvent("Aguardando data para executar o comando."))
+      return
+    }
+
+    screenModel.isProcessing = true
+    persistState(screenModel.state.withCommand(commandText).copy(
+      reportType = parsed.reportType.takeUnless { it == ReportType.UNKNOWN }?.name ?: screenModel.state.reportType,
+      city = parsed.cityHint ?: screenModel.state.city,
+      requestedDate = parsed.dateHint?.toString() ?: screenModel.state.requestedDate,
+      visitDate = parsed.dateHint?.toString() ?: screenModel.state.visitDate,
+      dateResolved = parsed.dateHint != null || screenModel.state.dateResolved,
+      flowStatus = PhotoBridgeFlowStatus.SEARCHING_PHOTOS,
+      classificationMode = ClassificationMode.NONE.name,
+      statusMessage = "Procurando visita para escolha do modo..."
+    ).withEvent("Comando enviado. Buscando visita sem IA."))
+
+    val cache = SimplePhotoMetadataCache(this)
+    val coordinateCityCache = mutableMapOf<String, String?>()
+    val cityResolver = AndroidGeocoderCityResolver(this)
+    val orchestrator = PhotoBridgeOrchestrator(
+      repository = MediaStorePhotoRepository(this),
+      cityResolver = { photo -> resolvePhotoCity(photo, cache, coordinateCityCache, cityResolver) },
+      config = config
+    )
+    activeJob = lifecycleScope.launch {
+      val result = orchestrator.findVisitGroups(commandText) { progress ->
+        withContext(Dispatchers.Main) { applyProgress(progress) }
+      }
+      screenModel.isProcessing = false
+      activeJob = null
+      result.onSuccess { (command, groups) ->
+        if (!command.latestVisit && groups.size > 1) {
+          handleVisitSelectionRequired(VisitSelectionRequiredException(command, groups), commandText)
+        } else {
+          val group = if (command.latestVisit) groups.maxBy { it.photos.maxOf { photo -> photo.bestInstant() ?: java.time.Instant.EPOCH } } else groups.first()
+          setSelectedVisitForModeChoice(command, group, commandText)
+        }
+      }.onFailure { error ->
+        Log.e("EloPhotoBridge", "COMMAND_PARSE_FAIL: ${error.message ?: error.javaClass.simpleName}", error)
+        val message = when {
+          error.message == "photos_not_found_for_date" -> "Nenhuma foto encontrada nessa data."
+          error.message?.startsWith("photos_not_found_for_window") == true -> windowNotFoundMessage(error.message.orEmpty())
+          error.message == "city_input_invariant_failed" -> "Erro técnico: cidade recebeu mais fotos que a janela horária."
+          error.message == "invalid_time" -> "Horário inválido"
+          error.message == "no_expansion_invariant_failed" -> "Erro técnico: seleção tentou expandir a janela horária."
+          error.message == "visit_not_found" -> "Nenhuma visita compativel encontrada."
+          else -> "Nao consegui encontrar a visita. Confira o comando e tente novamente."
+        }
+        persistState(screenModel.state.copy(flowStatus = PhotoBridgeFlowStatus.ERROR, classificationMode = ClassificationMode.NONE.name, statusMessage = message).withEvent(message))
+      }
+    }
+  }
+
+  private fun setSelectedVisitForModeChoice(parsedCommand: ParsedCommand, group: VisitGroup, commandText: String = screenModel.state.commandText) {
+    val ordered = group.photos.sortedBy { it.bestInstant() ?: java.time.Instant.EPOCH }
+    val selectedGroup = group.copy(photos = ordered)
+    val summary = candidateSummary(1, selectedGroup)
+    currentTimelineCommand = parsedCommand
+    currentTimelineGroup = selectedGroup
+    candidateGroupsById = mapOf(summary.id to (parsedCommand to selectedGroup))
+    pendingPayloadJson = null
+    Log.d("EloPhotoBridge", "COMMAND_SELECTED_VISIT_PHOTOS: ${selectedGroup.photos.size}")
+    persistState(screenModel.state.withCommand(commandText).copy(
+      reportType = parsedCommand.reportType.takeUnless { it == ReportType.UNKNOWN }?.name ?: screenModel.state.reportType,
+      city = selectedGroup.city ?: parsedCommand.cityHint ?: screenModel.state.city,
+      visitDate = selectedGroup.date?.toString() ?: parsedCommand.dateHint?.toString() ?: screenModel.state.visitDate,
+      requestedDate = parsedCommand.dateHint?.toString() ?: selectedGroup.date?.toString() ?: screenModel.state.requestedDate,
+      dateResolved = selectedGroup.date != null || parsedCommand.dateHint != null || screenModel.state.dateResolved,
+      selectedVisitId = summary.id,
+      candidateVisits = listOf(summary),
+      candidatePayloadsJson = "",
+      payloadJson = "",
+      categoryCounts = emptyMap(),
+      photoCount = selectedGroup.photos.size,
+      flowStatus = PhotoBridgeFlowStatus.MODE_SELECTION,
+      classificationMode = ClassificationMode.NONE.name,
+      statusMessage = "Visita selecionada: ${selectedGroup.photos.size} fotos. Escolha ORGANIZAR RÁPIDO ou CLASSIFICAR COM IA."
+    ).withEvent("Visita encontrada sem IA; aguardando escolha do modo."))
+  }
   private fun continueFlow() {
     if (screenModel.isProcessing) return
     if (screenModel.state.flowStatus == PhotoBridgeFlowStatus.WAITING_FOR_VISIT_REFINEMENT) {
@@ -408,13 +533,19 @@ class MainActivity : ComponentActivity() {
     Log.d("EloPhotoBridge", "UI_END_TIME_RAW: ${refinement.rawEndTime ?: ""}")
   }
   private fun updateCurrentSelection() {
-    if (screenModel.state.classificationMode == ClassificationMode.FAST_TIMELINE.name) {
-      prepareFastTimelineSearch()
+    Log.d("EloPhotoBridge", "REFRESH_CLICK")
+    if (screenModel.isProcessing) {
+      setStatus("Busca em andamento. Aguarde concluir ou cancele.", screenModel.state.flowStatus)
       return
     }
-    setStatus("Use CLASSIFICAR COM IA para iniciar análise visual.", screenModel.state.flowStatus)
-  }
-  private fun handleFastTimelineClick() {
+    val selected = selectedFastTimelineGroup()
+    if (selected != null) {
+      val (parsedCommand, group) = selected
+      setSelectedVisitForModeChoice(parsedCommand, group)
+      return
+    }
+    setStatus("Estado atualizado. Para buscar uma visita, use EXECUTAR.", screenModel.state.flowStatus)
+  }  private fun handleFastTimelineClick() {
     Log.d("EloPhotoBridge", "FAST_CLICK_RECEIVED")
     Log.d(
       "EloPhotoBridge",
@@ -1093,13 +1224,18 @@ class MainActivity : ComponentActivity() {
       when (screenModel.state.classificationMode) {
         ClassificationMode.FAST_TIMELINE.name -> showFastTimelineOrganizer(selectedGroup.first, selectedGroup.second)
         ClassificationMode.AI_CLASSIFICATION.name -> confirmAiClassification(selectedGroup.first, selectedGroup.second)
-        else -> confirmAiClassification(selectedGroup.first, selectedGroup.second)
+        else -> setSelectedVisitForModeChoice(selectedGroup.first, selectedGroup.second)
       }
       return
     }
     val payload = candidatePayloadFor(summary.id)
     if (payload.isNullOrBlank()) {
       setStatus("Nao consegui recuperar a visita selecionada. Atualize a busca.", PhotoBridgeFlowStatus.READY_TO_RESUME)
+      return
+    }
+    val fallbackGroup = candidateGroupsById[summary.id]
+    if (fallbackGroup != null) {
+      setSelectedVisitForModeChoice(fallbackGroup.first, fallbackGroup.second)
       return
     }
     pendingPayloadJson = payload

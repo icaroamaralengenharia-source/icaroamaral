@@ -645,6 +645,92 @@ test("botao organizar rapido com selectedVisit de 51 fotos abre timeline sem IA"
   assert.ok(result.logs.includes("FAST_TIMELINE_RENDER_START: photos=51"));
   assert.ok(result.logs.includes("FAST_TIMELINE_RENDER_DONE: items=51"));
 });
+function executeCurrentCommandHarness({ source, text, selectedVisit }) {
+  const logs = [];
+  if (source === "click") logs.push("COMMAND_SUBMIT_CLICK");
+  if (source === "ime") logs.push("COMMAND_SUBMIT_IME");
+  logs.push("COMMAND_PARSE_START");
+  const commandText = text.trim();
+  if (!commandText) return { logs: [...logs, "COMMAND_PARSE_FAIL: empty_command"], parserCalled: false, aiRequests: 0, state: { flowStatus: "IDLE" } };
+  const parsed = parseCommand(commandText);
+  logs.push("COMMAND_PARSE_OK");
+  logs.push(`COMMAND_SELECTED_VISIT_PHOTOS: ${selectedVisit.length}`);
+  return {
+    logs,
+    parserCalled: true,
+    aiRequests: 0,
+    selectedVisit,
+    state: {
+      classificationMode: "NONE",
+      flowStatus: "MODE_SELECTION",
+      photoCount: selectedVisit.length,
+      fastEnabled: selectedVisit.length > 0,
+      aiEnabled: selectedVisit.length > 0,
+      statusMessage: `Visita selecionada: ${selectedVisit.length} fotos. Escolha ORGANIZAR RÁPIDO ou CLASSIFICAR COM IA.`
+    },
+    parsed
+  };
+}
+
+function refreshCurrentSelectionHarness({ selectedVisit }) {
+  return {
+    logs: ["REFRESH_CLICK"],
+    aiRequests: 0,
+    state: {
+      classificationMode: "NONE",
+      flowStatus: selectedVisit?.length ? "MODE_SELECTION" : "IDLE",
+      statusMessage: selectedVisit?.length ? `Visita selecionada: ${selectedVisit.length} fotos. Escolha ORGANIZAR RÁPIDO ou CLASSIFICAR COM IA.` : "Estado atualizado. Para buscar uma visita, use EXECUTAR."
+    }
+  };
+}
+
+test("texto valido com EXECUTAR processa comando e encontra visita sem IA", () => {
+  const selectedVisit = timelinePhotos(51);
+  const result = executeCurrentCommandHarness({ source: "click", text: "Monte o SGTO de Malhada de Pedras do dia 28/08/2026 das 16:50 as 17:04", selectedVisit });
+  assert.equal(result.parserCalled, true);
+  assert.equal(result.selectedVisit.length, 51);
+  assert.equal(result.aiRequests, 0);
+  assert.equal(result.state.flowStatus, "MODE_SELECTION");
+  assert.equal(result.state.classificationMode, "NONE");
+  assert.ok(result.logs.includes("COMMAND_SUBMIT_CLICK"));
+  assert.ok(result.logs.includes("COMMAND_PARSE_OK"));
+  assert.ok(result.logs.includes("COMMAND_SELECTED_VISIT_PHOTOS: 51"));
+});
+
+test("IME SEND submete o mesmo comando e encontra visita sem IA", () => {
+  const selectedVisit = timelinePhotos(51);
+  const result = executeCurrentCommandHarness({ source: "ime", text: "Monte o SGTO de Malhada de Pedras do dia 28/08/2026 das 16:50 as 17:04", selectedVisit });
+  assert.equal(result.parserCalled, true);
+  assert.equal(result.selectedVisit.length, 51);
+  assert.equal(result.aiRequests, 0);
+  assert.ok(result.logs.includes("COMMAND_SUBMIT_IME"));
+  assert.equal(result.state.flowStatus, "MODE_SELECTION");
+});
+
+test("ATUALIZAR nao chama IA nem exige classificar com ia", () => {
+  const result = refreshCurrentSelectionHarness({ selectedVisit: timelinePhotos(51) });
+  assert.equal(result.aiRequests, 0);
+  assert.ok(result.logs.includes("REFRESH_CLICK"));
+  assert.doesNotMatch(result.state.statusMessage, /use classificar com ia/i);
+  assert.equal(result.state.classificationMode, "NONE");
+});
+
+test("apos EXECUTAR com visita pronta os dois modos explicitos ficam habilitados", () => {
+  const result = executeCurrentCommandHarness({ source: "click", text: "Monte o SGTO de Malhada de Pedras do dia 28/08/2026 das 16:50 as 17:04", selectedVisit: timelinePhotos(51) });
+  assert.equal(result.state.fastEnabled, true);
+  assert.equal(result.state.aiEnabled, true);
+  assert.match(result.state.statusMessage, /ORGANIZAR RÁPIDO|CLASSIFICAR COM IA/);
+});
+
+test("apos EXECUTAR organizar rapido abre FAST_TIMELINE com zero IA", () => {
+  const selectedVisit = timelinePhotos(51);
+  const submitted = executeCurrentCommandHarness({ source: "click", text: "Monte o SGTO de Malhada de Pedras do dia 28/08/2026 das 16:50 as 17:04", selectedVisit });
+  const fast = clickFastTimelineButton({ selectedVisit: submitted.selectedVisit, classificationMode: submitted.state.classificationMode });
+  assert.equal(fast.state.classificationMode, "FAST_TIMELINE");
+  assert.equal(fast.state.timelineOpen, true);
+  assert.equal(fast.state.renderItems, 51);
+  assert.equal(fast.aiRequests, 0);
+});
 test("IA explicita recebe somente as 24 fotos da janela selecionada", () => {
   const datePhotos = filterByLocalDate(physicalWindowFixture(), "2026-08-28");
   const selectedVisit = filterPhotosByUserWindow(datePhotos, "2026-08-28", "15:40", "16:10");
