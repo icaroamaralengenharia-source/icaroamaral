@@ -425,7 +425,7 @@ test('ELO offline classical: miss offline nao inventa musica online', async () =
   assert.equal(playCalls.length, 0);
 });
 
-test('ELO service worker: cache v3 inclui modulo local library.json e 7 audios', () => {
+test('ELO service worker: cache v4 inclui router, adapter, library.json e 7 audios', () => {
   const sw = fs.readFileSync(path.join(__dirname, '..', 'elo-sw.js'), 'utf8');
   const audioPaths = [
     'beethoven/fur-elise.ogg',
@@ -437,8 +437,10 @@ test('ELO service worker: cache v3 inclui modulo local library.json e 7 audios',
     'chopin/nocturne-op-9-no-2.ogg'
   ];
 
-  assert.match(sw, /elo-web-offline-v3-20260826-web-parity-v1/);
+  assert.match(sw, /elo-web-offline-v4-20260903-official-offline-v1/);
   assert.match(sw, /elo-offline-media-library\.js/);
+  assert.match(sw, /elo-offline-memory-adapter\.js/);
+  assert.match(sw, /elo-offline-router\.js/);
   assert.match(sw, /offline-media\/classical\/library\.json/);
   for (const audioPath of audioPaths) assert.match(sw, new RegExp(audioPath.replace(/[./-]/g, '\\$&')));
 });

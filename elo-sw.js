@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v3-20260826-web-parity-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v4-20260903-official-offline-v1";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
@@ -7,6 +7,8 @@ const ELO_SHELL_ASSETS = [
   "./relatorio-qualidade-obras/elo-music-resolver.js",
   "./relatorio-qualidade-obras/elo-media-player.js",
   "./relatorio-qualidade-obras/elo-offline-media-library.js",
+  "./relatorio-qualidade-obras/elo-offline-memory-adapter.js",
+  "./relatorio-qualidade-obras/elo-offline-router.js",
   "./relatorio-qualidade-obras/offline-media/classical/library.json",
   "./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg",
   "./relatorio-qualidade-obras/offline-media/classical/debussy/clair-de-lune.ogg",

@@ -3641,7 +3641,7 @@
       return response.json().catch(function () {
         return null;
       });
-    }).catch(function () {
+    }).catch(function (error) {
       return null;
     });
   }
@@ -7660,6 +7660,49 @@
 
   // ELO_TRANSPORT_API
   // The backend is the primary answer source. Local fallback only runs when this call is unavailable.
+  function setEloChatTransportState_(state, detail) {
+    ELO_UI.lastChatTransportState = Object.assign({
+      state: sanitizeUserText(state || "ONLINE_UNVERIFIED"),
+      status: 0,
+      reason: "",
+      at: Date.now()
+    }, detail || {});
+    return ELO_UI.lastChatTransportState;
+  }
+
+  function classifyEloChatTransportResponse_(response) {
+    const router = window.EloOfflineRouter;
+    if (router && typeof router.classifyBackendResult === "function") {
+      return router.classifyBackendResult({ status: response && response.status });
+    }
+    const status = Number(response && response.status);
+    if (status === 0 || status === 502 || status === 503 || status === 504) return "BACKEND_UNAVAILABLE";
+    if (status === 400 || status === 401 || status === 403 || status === 404) return "ONLINE_VALIDATED";
+    if (status >= 200 && status < 500) return "ONLINE_VALIDATED";
+    return "ONLINE_UNVERIFIED";
+  }
+
+  function classifyEloChatTransportError_(error) {
+    const router = window.EloOfflineRouter;
+    if (router && typeof router.classifyBackendFailure === "function") {
+      return router.classifyBackendFailure(error);
+    }
+    return "BACKEND_UNAVAILABLE";
+  }
+
+  function noteEloChatTransportResponse_(response) {
+    return setEloChatTransportState_(classifyEloChatTransportResponse_(response), {
+      status: Number(response && response.status) || 0,
+      reason: response && response.ok ? "http_ok" : "http_not_ok"
+    });
+  }
+
+  function noteEloChatTransportError_(error) {
+    return setEloChatTransportState_(classifyEloChatTransportError_(error), {
+      status: Number(error && error.status) || 0,
+      reason: sanitizeUserText(error && (error.name || error.message) || "network_error").slice(0, 80)
+    });
+  }
   function requestEloOnlineAnswer(question, attachments) {
     if (!isEloOnline_()) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
@@ -7712,7 +7755,8 @@
           headers: getEloCoreAuthHeaders_(),
           body: formData
         }).then(function (response) {
-          return response.json().catch(function () {
+          noteEloChatTransportResponse_(response);
+              return response.json().catch(function () {
             return null;
           });
         }).then(function (data) {
@@ -7731,8 +7775,9 @@
             return formatEloAttachmentErrors_(data.attachmentErrors);
           }
           return null;
-        }).catch(function () {
-          return null;
+        }).catch(function (error) {
+          noteEloChatTransportError_(error);
+              return null;
         });
       }).catch(function () {
         return null;
@@ -7746,6 +7791,7 @@
       }, getEloCoreAuthHeaders_()),
       body: JSON.stringify(payload)
     }).then(function (response) {
+      noteEloChatTransportResponse_(response);
       return response.json().catch(function () {
         return null;
       });
@@ -7765,7 +7811,8 @@
         return formatEloAttachmentErrors_(data.attachmentErrors);
       }
       return null;
-    }).catch(function () {
+    }).catch(function (error) {
+      noteEloChatTransportError_(error);
       return null;
     });
   }
@@ -26506,6 +26553,7 @@ function isEloResidentialNewPipelineEnabled_() {
     lastLocalExecutionStockReport: null,
     attachments: [],
     connectivity: null,
+    lastChatTransportState: null,
     connectivityBadge: null,
     typingIndicator: null,
     activeRequestStartedAt: 0,
@@ -27770,6 +27818,63 @@ function isEloResidentialNewPipelineEnabled_() {
     return response;
   }
 
+  function getEloOfflineRouter_() {
+    if (!window.EloOfflineRouter || typeof window.EloOfflineRouter.createRouter !== "function") return null;
+    if (!ELO_UI.offlineRouter) {
+      ELO_UI.offlineRouter = window.EloOfflineRouter.createRouter({
+        memoryAdapter: window.EloOfflineMemoryAdapter,
+        storage: window.localStorage,
+        navigator: window.navigator
+      });
+    }
+    return ELO_UI.offlineRouter;
+  }
+
+  function isEloRecoverableOfflineTransportState_(state) {
+    const current = state || ELO_UI.lastChatTransportState || {};
+    return current.state === "BACKEND_UNAVAILABLE" || current.state === "BROWSER_OFFLINE";
+  }
+
+  function requestEloOfflineRoute_(question, options) {
+    const router = getEloOfflineRouter_();
+    if (!router || typeof router.route !== "function") return Promise.resolve(null);
+    const state = options && options.backendState ? options.backendState : (!isEloOnline_() ? "BROWSER_OFFLINE" : (ELO_UI.lastChatTransportState && ELO_UI.lastChatTransportState.state));
+    return Promise.resolve(router.route(question, {
+      navigator: window.navigator,
+      backendState: state || "ONLINE_UNVERIFIED"
+    })).catch(function () { return null; });
+  }
+
+  function buildEloOfflineRouteResponse_(routeResult) {
+    if (!routeResult || (!routeResult.handled && !routeResult.message)) return null;
+    const answer = sanitizeEloAnswerForDisplay(routeResult.message || ELO_OFFLINE_CHAT_MESSAGE);
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: routeResult.handled ? "" : "Tente novamente quando o serviço online voltar.",
+      canSave: false,
+      sessionTheme: "offline",
+      sessionIntent: "offline_" + sanitizeUserText(routeResult.intent || "unsupported").toLowerCase(),
+      offlineRoute: routeResult
+    };
+  }
+
+  function appendEloOfflineRouteResponse_(question, routeResult) {
+    const response = buildEloOfflineRouteResponse_(routeResult);
+    if (!response) return false;
+    const answer = response.shortAnswer;
+    logEloMusicEvent_(routeResult && routeResult.handled ? "OFFLINE_ROUTER_HANDLED" : "OFFLINE_ROUTER_BLOCKED", {
+      intent: routeResult && routeResult.intent || "NONE",
+      connectivity: routeResult && routeResult.connectivity || "",
+      providerCalls: routeResult && routeResult.providerCalls || 0,
+      chatCalls: routeResult && routeResult.chatCalls || 0
+    });
+    appendAssistantMessage(question, answer, false, response);
+    saveConversation(question, answer);
+    rememberSessionTurn(question, response, answer);
+    clearProductAttachmentPreview();
+    return true;
+  }
   const ELO_MUSIC_INDEX_STORAGE_KEY = "elo_music_entity_index_v1";
   const ELO_MUSIC_PENDING_CONFIRMATION_MS = 90000;
   const ELO_MUSIC_RESOLVE_TIMEOUT_MS = 4500;
@@ -28758,7 +28863,14 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
     if (!isEloOnline_()) {
-      appendEloOfflineChatResponse_(cleanQuestion);
+      if (!getEloOfflineRouter_()) {
+        appendEloOfflineChatResponse_(cleanQuestion);
+        return;
+      }
+      requestEloOfflineRoute_(cleanQuestion, { backendState: "BROWSER_OFFLINE" }).then(function (routeResult) {
+        removeTypingIndicator();
+        if (!appendEloOfflineRouteResponse_(cleanQuestion, routeResult)) appendEloOfflineChatResponse_(cleanQuestion);
+      });
       return;
     }
 
@@ -29273,6 +29385,17 @@ function isEloResidentialNewPipelineEnabled_() {
 
       if (attachedFiles.length) {
         appendProductAttachmentNotice();
+        return;
+      }
+
+      if (isEloRecoverableOfflineTransportState_()) {
+        requestEloOfflineRoute_(cleanQuestion).then(function (routeResult) {
+          if (appendEloOfflineRouteResponse_(cleanQuestion, routeResult)) return;
+          const offlineResponse = buildEloOfflineRouteResponse_({ handled: false, intent: "NONE", message: ELO_OFFLINE_CHAT_MESSAGE, providerCalls: 0, chatCalls: 0, connectivity: ELO_UI.lastChatTransportState && ELO_UI.lastChatTransportState.state });
+          appendAssistantMessage(cleanQuestion, offlineResponse.shortAnswer, false, offlineResponse);
+          saveConversation(cleanQuestion, offlineResponse.shortAnswer);
+          rememberSessionTurn(cleanQuestion, offlineResponse, offlineResponse.shortAnswer);
+        });
         return;
       }
 
@@ -33347,6 +33470,8 @@ function isEloResidentialNewPipelineEnabled_() {
     getConnectivityBadgeForTest: function () { return ELO_UI.connectivityBadge; },
     hasTypingIndicatorForTest: function () { return !!ELO_UI.typingIndicator; },
     buildOfflineChatResponseForTest: appendEloOfflineChatResponse_,
+    requestOfflineRouteForTest: requestEloOfflineRoute_,
+    getChatTransportStateForTest: function () { return ELO_UI.lastChatTransportState ? Object.assign({}, ELO_UI.lastChatTransportState) : null; },
     getVoiceStateForTest: function () { return ELO_UI.voiceState; },
     getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
     getVoiceAutoSendMsForTest: function () { return ELO_VOICE_AUTO_SEND_MS; },
