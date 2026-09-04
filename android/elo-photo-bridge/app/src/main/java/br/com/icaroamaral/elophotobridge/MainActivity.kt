@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.GridView
@@ -832,6 +833,8 @@ class MainActivity : ComponentActivity() {
   }
 
 
+  private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
   private inner class TimelinePhotoAdapter(private val photos: List<PhotoMetadata>) : BaseAdapter() {
     override fun getCount(): Int = photos.size
     override fun getItem(position: Int): Any = photos[position]
@@ -840,12 +843,22 @@ class MainActivity : ComponentActivity() {
     override fun getView(position: Int, convertView: android.view.View?, parent: ViewGroup?): android.view.View {
       val row = (convertView as? LinearLayout) ?: LinearLayout(this@MainActivity).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(8, 8, 8, 8)
+        layoutParams = AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        minimumHeight = dp(140)
+        setPadding(dp(6), dp(6), dp(6), dp(6))
         addView(ImageView(this@MainActivity).apply {
-          layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180)
+          layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(112))
+          minimumHeight = dp(112)
           scaleType = ImageView.ScaleType.CENTER_CROP
+          setBackgroundColor(Color.rgb(226, 232, 240))
         })
-        addView(TextView(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) })
+        addView(TextView(this@MainActivity).apply {
+          layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+          setTextColor(Color.rgb(25, 35, 50))
+          textSize = 13f
+          setTypeface(typeface, Typeface.BOLD)
+          setPadding(0, dp(4), 0, 0)
+        })
       }
       val image = row.getChildAt(0) as ImageView
       val label = row.getChildAt(1) as TextView
@@ -855,22 +868,46 @@ class MainActivity : ComponentActivity() {
       val gap = photos.getOrNull(position - 1)?.bestInstant()?.let { previous ->
         photo.bestInstant()?.let { current -> java.time.Duration.between(previous, current).toMinutes().takeIf { it >= 2 }?.let { "\nGap: ${it}min" } }
       }.orEmpty()
-      label.text = "#${(position + 1).toString().padStart(2, '0')}\n$time$gap$marker"
+      val labelText = "#${(position + 1).toString().padStart(2, '0')}\n$time$gap$marker"
+      label.text = labelText
+      row.contentDescription = "Foto ${position + 1} $time"
+      image.contentDescription = "Miniatura Foto ${position + 1} $time"
+      row.visibility = android.view.View.VISIBLE
+      image.visibility = android.view.View.VISIBLE
+      label.visibility = android.view.View.VISIBLE
+      row.alpha = 1f
+      image.alpha = 1f
+      label.alpha = 1f
       row.setBackgroundColor(when {
         position == selectedTimelinePhotoIndex -> Color.rgb(205, 230, 255)
         marker.isNotBlank() -> Color.rgb(220, 245, 226)
         else -> Color.rgb(245, 245, 245)
       })
+      image.tag = photo.uri.toString()
+      image.setBackgroundColor(Color.rgb(226, 232, 240))
       image.setImageDrawable(null)
+      if (position < 3) {
+        Log.d("EloPhotoBridge", "FAST_ITEM_BIND: index=$position uri=${photo.uri}")
+        row.post { Log.d("EloPhotoBridge", "FAST_IMAGEVIEW_SIZE: index=$position width=${image.width} height=${image.height}") }
+      }
       lifecycleScope.launch(Dispatchers.IO) {
-        val bitmap = runCatching {
+        if (position < 3) Log.d("EloPhotoBridge", "FAST_THUMB_LOAD_START: index=$position")
+        val loaded = runCatching {
           if (Build.VERSION.SDK_INT >= 29) {
-            contentResolver.loadThumbnail(photo.uri, Size(160, 160), null)
+            contentResolver.loadThumbnail(photo.uri, Size(dp(128), dp(128)), null)
           } else {
             MediaStore.Images.Thumbnails.getThumbnail(contentResolver, android.content.ContentUris.parseId(photo.uri), MediaStore.Images.Thumbnails.MINI_KIND, null)
           }
-        }.getOrNull()
-        withContext(Dispatchers.Main) { if (bitmap != null) image.setImageBitmap(bitmap) }
+        }
+        loaded.exceptionOrNull()?.let { error ->
+          if (position < 3) Log.e("EloPhotoBridge", "FAST_THUMB_LOAD_FAIL: index=$position uri=${photo.uri} exception=${error.javaClass.simpleName}: ${error.message}", error)
+        }
+        val bitmap = loaded.getOrNull()
+        if (position < 3 && bitmap != null) Log.d("EloPhotoBridge", "FAST_THUMB_LOAD_OK: index=$position width=${bitmap.width} height=${bitmap.height}")
+        withContext(Dispatchers.Main) {
+          if (image.tag == photo.uri.toString() && bitmap != null) image.setImageBitmap(bitmap)
+          if (position < 3) Log.d("EloPhotoBridge", "FAST_IMAGE_SET: index=$position drawableNull=${image.drawable == null}")
+        }
       }
       return row
     }
@@ -925,6 +962,13 @@ class MainActivity : ComponentActivity() {
         setStatus("Não consegui anexar a timeline rápida.", PhotoBridgeFlowStatus.ERROR)
         return
       }
+      Log.d("EloPhotoBridge", "FAST_GRID_SOURCE_COUNT: ${photos.size}")
+      photos.firstOrNull()?.let {
+        Log.d("EloPhotoBridge", "FAST_PHOTO_1_URI: ${it.uri}")
+        Log.d("EloPhotoBridge", "FAST_PHOTO_1_URI_SCHEME: ${it.uri.scheme ?: "unknown"}")
+      }
+      val readPermission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
+      Log.d("EloPhotoBridge", "FAST_MEDIA_PERMISSION_GRANTED: ${ContextCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED}")
       val currentParent = timelinePanel.parent as? ViewGroup
       val desiredIndex = (rootLayout.indexOfChild(summary) + 1).coerceAtLeast(0)
       if (currentParent != rootLayout) {

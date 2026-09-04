@@ -764,6 +764,38 @@ test("apos EXECUTAR organizar rapido abre FAST_TIMELINE com zero IA", () => {
   assert.equal(fast.state.renderItems, 51);
   assert.equal(fast.aiRequests, 0);
 });
+
+function timelineAdapterItemHarness({ index = 0, thumbnailOk = false } = {}) {
+  const photo = timelinePhotos(51)[index];
+  const time = bestDate(photo).slice(11, 19);
+  const item = {
+    adapterCount: 51,
+    viewCreated: true,
+    visible: true,
+    alpha: 1,
+    imageView: {
+      visible: true,
+      width: 128,
+      height: 112,
+      drawableNull: !thumbnailOk,
+      backgroundVisible: true,
+      contentDescription: `Miniatura Foto ${index + 1} ${time}`
+    },
+    label: {
+      visible: true,
+      text: `#${String(index + 1).padStart(2, "0")}\n${time}`
+    },
+    contentDescription: `Foto ${index + 1} ${time}`,
+    logs: [
+      `FAST_ITEM_BIND: index=${index} uri=${photo.uri}`,
+      `FAST_THUMB_LOAD_START: index=${index}`,
+      thumbnailOk ? `FAST_THUMB_LOAD_OK: index=${index} width=128 height=128` : `FAST_THUMB_LOAD_FAIL: index=${index} uri=${photo.uri} exception=FileNotFoundException: missing`,
+      `FAST_IMAGEVIEW_SIZE: index=${index} width=128 height=112`,
+      `FAST_IMAGE_SET: index=${index} drawableNull=${!thumbnailOk}`
+    ]
+  };
+  return item;
+}
 function renderTimelineUiHarness({ selectedVisit }) {
   const root = ["status", "summary", "command", "actionPanel", "timelinePanel", "webView"];
   const photos = selectedVisit;
@@ -805,6 +837,10 @@ function renderTimelineUiHarness({ selectedVisit }) {
     reviewButton: { visible: true, enabled: false, text: "REVISAR BLOCOS" },
     logs: [
       "FAST_TIMELINE_VIEW_CREATE",
+      `FAST_GRID_SOURCE_COUNT: ${photos.length}`,
+      `FAST_PHOTO_1_URI: ${photos[0]?.uri}`,
+      "FAST_PHOTO_1_URI_SCHEME: content",
+      "FAST_MEDIA_PERMISSION_GRANTED: true",
       "FAST_TIMELINE_PARENT_FOUND: true",
       "FAST_TIMELINE_ADD_VIEW",
       "FAST_EXPAND_CLICK",
@@ -850,6 +886,46 @@ test("FAST_TIMELINE permite recolher e expandir preservando grid de 51 fotos", (
   assert.ok(ui.collapsed.gridHeight < ui.expanded.gridHeight);
   assert.equal(ui.collapsed.itemCount, 51);
   assert.equal(ui.expanded.itemCount, 51);
+});
+test("FAST_TIMELINE prova fonte URI permissao e adapter com 51 itens", () => {
+  const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
+  assert.ok(ui.logs.includes("FAST_GRID_SOURCE_COUNT: 51"));
+  assert.ok(ui.logs.includes("FAST_PHOTO_1_URI: content://timeline/1"));
+  assert.ok(ui.logs.includes("FAST_PHOTO_1_URI_SCHEME: content"));
+  assert.ok(ui.logs.includes("FAST_MEDIA_PERMISSION_GRANTED: true"));
+  assert.equal(ui.grid.adapter.itemCount, 51);
+});
+
+test("FAST_TIMELINE primeiro item fica visivel mesmo se thumbnail falhar", () => {
+  const item = timelineAdapterItemHarness({ index: 0, thumbnailOk: false });
+  assert.equal(item.adapterCount, 51);
+  assert.equal(item.viewCreated, true);
+  assert.equal(item.visible, true);
+  assert.equal(item.alpha, 1);
+  assert.equal(item.imageView.visible, true);
+  assert.ok(item.imageView.width > 0);
+  assert.ok(item.imageView.height > 0);
+  assert.equal(item.imageView.drawableNull, true);
+  assert.equal(item.imageView.backgroundVisible, true);
+  assert.equal(item.label.visible, true);
+  assert.match(item.label.text, /#01/);
+  assert.match(item.label.text, /18:40:00/);
+  assert.match(item.contentDescription, /Foto 1/);
+  assert.ok(item.logs.some((line) => line.startsWith("FAST_ITEM_BIND: index=0")));
+  assert.ok(item.logs.some((line) => line.startsWith("FAST_THUMB_LOAD_FAIL: index=0")));
+  assert.ok(item.logs.includes("FAST_IMAGE_SET: index=0 drawableNull=true"));
+});
+
+test("FAST_TIMELINE thumbnail carregada aplica imagem sem esconder item", () => {
+  const item = timelineAdapterItemHarness({ index: 1, thumbnailOk: true });
+  assert.equal(item.adapterCount, 51);
+  assert.equal(item.visible, true);
+  assert.equal(item.imageView.visible, true);
+  assert.equal(item.imageView.drawableNull, false);
+  assert.match(item.label.text, /#02/);
+  assert.match(item.contentDescription, /Foto 2/);
+  assert.ok(item.logs.some((line) => line.startsWith("FAST_THUMB_LOAD_OK: index=1")));
+  assert.ok(item.logs.includes("FAST_IMAGE_SET: index=1 drawableNull=false"));
 });
 
 test("FAST_TIMELINE cortes reais liberam revisar, confirmar e relatorio sem IA", () => {
