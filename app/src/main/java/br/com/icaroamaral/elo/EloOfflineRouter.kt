@@ -45,7 +45,7 @@ class EloOfflineRouter(
     constructor(context: Context) : this(
         memory = EloOfflineMemory(context),
         tracks = runCatching {
-            context.assets.open(LIBRARY_ASSET_PATH).bufferedReader().use { parseLibrary(it.readText()) }
+            context.assets.open(EloOfflineRouter.LIBRARY_ASSET_PATH).bufferedReader().use { EloOfflineRouter.parseLibrary(it.readText()) }
         }.getOrElse { emptyList() }
     )
 

@@ -36,7 +36,7 @@ class OfflineLabActivity : Activity() {
         }
         val input = EditText(this).apply {
             hint = "toque Beethoven, pare, lembre que meu cachorro se chama Thor"
-            singleLine = false
+            isSingleLine = false
             minLines = 2
         }
         val send = Button(this).apply { text = "EXECUTAR OFFLINE" }

@@ -36,7 +36,7 @@ object EloConnectivity {
         }
     }
 
-    fun classifyBackendThrowable(_: Throwable): EloConnectivityState {
+    fun classifyBackendThrowable(ignoredNetworkError: Throwable): EloConnectivityState {
         return EloConnectivityState.BACKEND_UNAVAILABLE
     }
 }
