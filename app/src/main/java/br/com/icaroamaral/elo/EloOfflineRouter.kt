@@ -38,15 +38,20 @@ data class EloOfflineRouteResult(
     val chatCalls: Int = 0
 )
 
+private fun loadOfflineTracksFromAssets(context: Context): List<EloOfflineTrack> {
+    return runCatching {
+        context.assets.open(EloOfflineRouter.LIBRARY_ASSET_PATH).bufferedReader().use {
+            EloOfflineRouter.parseLibrary(it.readText())
+        }
+    }.getOrElse { emptyList() }
+}
 class EloOfflineRouter(
     private val memory: EloOfflineMemoryContract,
     private val tracks: List<EloOfflineTrack>
 ) {
     constructor(context: Context) : this(
         memory = EloOfflineMemory(context),
-        tracks = runCatching {
-            context.assets.open(EloOfflineRouter.LIBRARY_ASSET_PATH).bufferedReader().use { EloOfflineRouter.parseLibrary(it.readText()) }
-        }.getOrElse { emptyList() }
+        tracks = loadOfflineTracksFromAssets(context)
     )
 
     fun route(command: String): EloOfflineRouteResult {
