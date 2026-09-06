@@ -788,8 +788,14 @@
     if (/\b(?:vistoria|vistorias|apartamento|apto|unidade|nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text)) {
       const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
       return { module: "inspection", action: action, payload: payload };
-    }    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|ocorrencia|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
-      return { module: "obrareport_rdo", action: /crie|novo/.test(text) ? "preview_new_rdo" : /feche|gere\s+o\s+pdf/.test(text) ? "close_rdo" : "list_rdos", payload: payload };
+    }
+    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|problema|problemas|ocorrencia|ocorrencias|pendencia|pendencias|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
+      let action = "rdo.list";
+      if (/\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text)) action = "rdo.problemsByPeriod";
+      else if (/\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text)) action = "rdo.get";
+      else if (/crie|novo/.test(text)) action = "preview_new_rdo";
+      else if (/feche|gere\s+o\s+pdf/.test(text)) action = "close_rdo";
+      return { module: "obrareport_rdo", action: action, payload: payload };
     }
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
