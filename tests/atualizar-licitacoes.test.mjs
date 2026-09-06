@@ -188,12 +188,12 @@ test("ausencia de APIs HTML perigosas", async () => {
 });
 
 test("cron correto", async () => {
-  const workflow = await readFile(".github/workflows/atualizar-licitacoes.yml", "utf8");
-  assert.match(workflow, /cron: "0 11 \* \* 1"/);
+  const workflow = await readFile(".github/workflows/hunter-licitacoes.yml", "utf8");
+  assert.match(workflow, /cron: '0 11 \* \* 1'/);
 });
 
 test("workflow limitado ao JSON de licitacoes", async () => {
-  const workflow = await readFile(".github/workflows/atualizar-licitacoes.yml", "utf8");
+  const workflow = await readFile(".github/workflows/hunter-licitacoes.yml", "utf8");
   assert.match(workflow, /git add noticias\/dados\/licitacoes\.json/);
   assert.doesNotMatch(workflow, /git add \./);
   assert.doesNotMatch(workflow, /noticias\/dados\/dicas\.json/);

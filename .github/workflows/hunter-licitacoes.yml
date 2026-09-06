@@ -43,13 +43,9 @@ jobs:
             echo "Sem mudancas para commitar."
             exit 0
           fi
-          allowed="noticias/dados/licitacoes.json"
-          unexpected="$(comm -23 <(printf '%s
-' "$changed" | sort) <(printf '%s
-' "$allowed" | sort))"
-          if [ -n "$unexpected" ]; then
+          if [ "$changed" != "noticias/dados/licitacoes.json" ]; then
             echo "Arquivo inesperado alterado; abortando."
-            echo "$unexpected"
+            echo "$changed"
             exit 1
           fi
 
