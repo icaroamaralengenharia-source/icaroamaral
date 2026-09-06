@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Conteúdo para Engenharia, Arquitetura e Construção</title>
-    <meta name="description" content="Dicas práticas, notícias atualizadas e oportunidades para profissionais, estudantes e empresas do setor.">
+    <meta name="description" content="Dicas práticas, orientações técnicas e oportunidades em licitações para profissionais, estudantes e empresas da construção.">
     <link rel="canonical" href="https://www.icaroamaral.com.br/noticias/">
     <meta name="robots" content="index,follow">
     <meta property="og:title" content="Conteúdo para Engenharia, Arquitetura e Construção">
-    <meta property="og:description" content="Dicas práticas, notícias atualizadas e oportunidades para profissionais, estudantes e empresas do setor.">
+    <meta property="og:description" content="Dicas práticas, orientações técnicas e oportunidades em licitações para profissionais, estudantes e empresas da construção.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.icaroamaral.com.br/noticias/">
     <link rel="stylesheet" href="./noticias.css?v=20260802-hunter-64a">
@@ -28,7 +28,7 @@
       <section class="content-hero" aria-labelledby="page-title">
         <p class="content-kicker">Central de conteúdo</p>
         <h1 id="page-title">Conteúdo para Engenharia, Arquitetura e Construção</h1>
-        <p class="content-subtitle">Dicas práticas, notícias atualizadas e oportunidades para profissionais, estudantes e empresas do setor.</p>
+        <p class="content-subtitle">Dicas práticas, orientações técnicas e oportunidades em licitações para profissionais, estudantes e empresas da construção.</p>
         <p class="content-meta-line" aria-label="Resumo da atualização">
           Atualizado em <strong id="ultima-atualizacao">Carregando...</strong>
           <span aria-hidden="true">•</span>
@@ -38,17 +38,13 @@
 
       <nav class="content-tabs" role="tablist" aria-label="Seções de conteúdo">
         <button id="tab-dicas" class="content-tab" type="button" role="tab" aria-selected="true" aria-controls="panel-dicas" tabindex="0" data-tab="dicas">Dicas de Projeto</button>
-        <button id="tab-noticias" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-noticias" tabindex="-1" data-tab="noticias">Notícias</button>
         <button id="tab-licitacoes" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-licitacoes" tabindex="-1" data-tab="licitacoes">Hunter Licita&ccedil;&otilde;es</button>
-        <button id="tab-oportunidades" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-oportunidades" tabindex="-1" data-tab="oportunidades">Trabalho e Oportunidades</button>
       </nav>
 
       <div class="subject-switcher">
         <label class="category-field subject-field" for="seletor-assunto"><span>Assunto</span><select id="seletor-assunto" aria-label="Assunto">
           <option value="dicas">Dicas de Projeto</option>
-          <option value="noticias">Not?cias</option>
           <option value="licitacoes">Hunter Licita&ccedil;&otilde;es</option>
-          <option value="oportunidades">Trabalho e Oportunidades</option>
         </select></label>
       </div>
 
@@ -69,24 +65,6 @@
         <p id="resumo-dicas" class="results-summary" role="status" aria-live="polite">Exibindo 0 de 0 dicas</p>
         <p id="estado-dicas" class="status-message" role="status" aria-live="polite">Carregando dicas...</p>
         <section id="lista-dicas" class="content-grid" aria-label="Lista de dicas" aria-busy="true"></section>
-      </section>
-
-      <section id="panel-noticias" class="tab-panel" role="tabpanel" aria-labelledby="tab-noticias" data-panel="noticias" hidden>
-        <div class="section-head">
-          <div>
-            <h2>Notícias</h2>
-            <p>Atualizações recentes de fontes públicas e institucionais do setor.</p>
-          </div>
-        </div>
-        <div class="compact-tools" data-tools="noticias">
-          <button id="alternar-busca-noticias" class="search-toggle" type="button" aria-expanded="false" aria-controls="busca-noticias"><span aria-hidden="true">⌕</span><span>Buscar</span></button>
-          <label class="search-field" for="busca-noticias"><span>Buscar</span><input id="busca-noticias" type="search" placeholder="Buscar notícias" autocomplete="off"></label>
-          <label class="category-field" for="filtro-categoria-noticias"><span>Categoria</span><select id="filtro-categoria-noticias"><option value="">Todas</option></select></label>
-          <button id="limpar-filtros-noticias" class="clear-button" type="button" disabled>Limpar</button>
-        </div>
-        <p id="resumo-noticias" class="results-summary" role="status" aria-live="polite">Exibindo 0 de 0 notícias</p>
-        <p id="estado-noticias" class="status-message" role="status" aria-live="polite">Carregando notícias...</p>
-        <section id="lista-noticias" class="content-grid news-grid" aria-label="Lista de notícias" aria-busy="true"></section>
       </section>
 
       <section id="panel-licitacoes" class="tab-panel" role="tabpanel" aria-labelledby="tab-licitacoes" data-panel="licitacoes" hidden>
@@ -126,27 +104,6 @@
           <section id="lista-licitacoes" class="content-grid hunter-grid" aria-label="Lista de licita&ccedil;&otilde;es" aria-busy="true"></section>
         </section>
       </section>
-      <section id="panel-oportunidades" class="tab-panel" role="tabpanel" aria-labelledby="tab-oportunidades" data-panel="oportunidades" hidden>
-        <div class="section-head">
-          <div>
-            <h2>Trabalho e Oportunidades</h2>
-            <p>Vagas, concursos, estágios, licitações, cursos, eventos e oportunidades profissionais do setor.</p>
-          </div>
-        </div>
-        <div class="compact-tools" data-tools="oportunidades">
-          <button id="alternar-busca-oportunidades" class="search-toggle" type="button" aria-expanded="false" aria-controls="busca-oportunidades"><span aria-hidden="true">⌕</span><span>Buscar</span></button>
-          <label class="search-field" for="busca-oportunidades"><span>Buscar</span><input id="busca-oportunidades" type="search" placeholder="Buscar oportunidades" autocomplete="off"></label>
-          <label class="category-field" for="filtro-tipo-oportunidades"><span>Tipo</span><select id="filtro-tipo-oportunidades"><option value="">Todos</option></select></label>
-          <label class="category-field optional-filter" for="filtro-estado-oportunidades"><span>Estado</span><select id="filtro-estado-oportunidades"><option value="">UF</option></select></label>
-          <label class="category-field optional-filter" for="filtro-modalidade-oportunidades"><span>Modalidade</span><select id="filtro-modalidade-oportunidades"><option value="">Modalidade</option></select></label>
-          <label class="category-field optional-filter" for="filtro-prazo-oportunidades"><span>Prazo</span><select id="filtro-prazo-oportunidades"><option value="">Todos</option><option value="abertas">Abertas</option><option value="sem-prazo">Sem prazo</option></select></label>
-          <button id="limpar-filtros-oportunidades" class="clear-button" type="button" disabled>Limpar</button>
-        </div>
-        <p id="resumo-oportunidades" class="results-summary" role="status" aria-live="polite">Exibindo 0 de 0 oportunidades</p>
-        <p id="estado-oportunidades" class="status-message" role="status" aria-live="polite">Carregando oportunidades...</p>
-        <section id="lista-oportunidades" class="content-grid" aria-label="Lista de oportunidades" aria-busy="true"></section>
-      </section>
-
       <footer class="source-note" aria-label="Aviso editorial">
         <p>Os conteúdos são informativos e pertencem às fontes indicadas quando aplicável.</p>
         <p><span id="ano-atual"></span> Amaral Engenharia, Arquitetura, Urbanismo e Tecnologia. <a href="/">Voltar ao site</a></p>

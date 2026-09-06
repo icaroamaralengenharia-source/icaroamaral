@@ -17,10 +17,36 @@ test("aba padrao e Dicas", async () => {
   assert.match(html, /id="panel-dicas"[\s\S]*data-panel="dicas"/);
 });
 
+test("central publica exibe somente Dicas e Hunter Licitacoes", async () => {
+  const html = await readText("noticias/index.html");
+  assert.match(html, /id="tab-dicas"/);
+  assert.match(html, /id="tab-licitacoes"/);
+  assert.doesNotMatch(html, /id="tab-noticias"|id="panel-noticias"|data-tab="noticias"|data-panel="noticias"/);
+  assert.doesNotMatch(html, /id="tab-oportunidades"|id="panel-oportunidades"|data-tab="oportunidades"|data-panel="oportunidades"/);
+  assert.doesNotMatch(html, /Notícias|Trabalho e Oportunidades|notícias atualizadas|vagas|emprego/i);
+});
+
+test("dropdown publico tem somente Dicas e Hunter Licitacoes", async () => {
+  const html = await readText("noticias/index.html");
+  const select = html.match(/<select id="seletor-assunto"[\s\S]*?<\/select>/)?.[0] || "";
+  assert.match(select, /value="dicas"/);
+  assert.match(select, /value="licitacoes"/);
+  assert.doesNotMatch(select, /value="noticias"|value="oportunidades"/);
+});
+
 test("hash correto e Dicas sem hash", async () => {
   const js = await readText("noticias/noticias.js");
   assert.match(js, /window\.location\.hash\.replace\("#", ""\) \|\| "dicas"/);
+  assert.match(js, /const allowed = \["dicas", "licitacoes"\]/);
   assert.match(js, /#\$\{safeTab\}/);
+});
+
+test("contador principal soma somente conteudo publico", async () => {
+  const js = await readText("noticias/noticias.js");
+  assert.match(js, /const total = reviewed \+ openBids/);
+  assert.doesNotMatch(js, /const total = reviewed \+ state\.noticias\.length/);
+  assert.match(js, /loadDicas\(\);\s*loadLicitacoes\(\);/);
+  assert.doesNotMatch(js, /loadDicas\(\);\s*loadNoticias\(\);/);
 });
 
 test("teclado nas abas", async () => {
