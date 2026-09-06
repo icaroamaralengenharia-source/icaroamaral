@@ -3,7 +3,7 @@ name: Atualizar Hunter Licitacoes
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 11,19 * * *"
+    - cron: "0 11 * * 1"
 
 concurrency:
   group: atualizar-licitacoes

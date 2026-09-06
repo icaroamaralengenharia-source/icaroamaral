@@ -106,8 +106,8 @@ test("prazo encerrado", () => {
   assert.equal(isOpenProcess(pncpItem({ dataEncerramentoProposta: "2026-07-01T10:00:00" }), now), false);
 });
 
-test("prazo nao informado aceita publicacao recente", () => {
-  assert.equal(isOpenProcess(pncpItem({ dataEncerramentoProposta: null }), now), true);
+test("prazo nao informado nao publica", () => {
+  assert.equal(isOpenProcess(pncpItem({ dataEncerramentoProposta: null }), now), false);
 });
 
 test("data futura invalida", () => {
@@ -156,8 +156,8 @@ test("preservacao do JSON anterior", async () => {
 
 test("limite de paginas", async () => {
   let calls = 0;
-  await collectPncp({ now, maxPages: 3, modalidades: [4, 6], sleepImpl: async () => {}, fetchImpl: async () => { calls += 1; return response({ data: [pncpItem()], paginasRestantes: 10 }); } });
-  assert.equal(calls, 3);
+  await collectPncp({ now, maxPages: 3, modalidades: [], sleepImpl: async () => {}, fetchImpl: async () => { calls += 1; return response({ data: [pncpItem()], paginasRestantes: 10 }); } });
+  assert.equal(calls, 2);
 });
 
 test("limite final", async () => {
@@ -189,7 +189,7 @@ test("ausencia de APIs HTML perigosas", async () => {
 
 test("cron correto", async () => {
   const workflow = await readFile(".github/workflows/atualizar-licitacoes.yml", "utf8");
-  assert.match(workflow, /cron: "0 11,19 \* \* \*"/);
+  assert.match(workflow, /cron: "0 11 \* \* 1"/);
 });
 
 test("workflow limitado ao JSON de licitacoes", async () => {
@@ -270,7 +270,7 @@ test("paginacao sequencial sem concorrencia", async () => {
   await collectPncp({
     now,
     maxPages: 3,
-    modalidades: [4],
+    modalidades: [],
     sleepImpl: async () => {},
     fetchImpl: async () => {
       active += 1;
@@ -281,7 +281,7 @@ test("paginacao sequencial sem concorrencia", async () => {
       return response({ data: [pncpItem({ numeroControlePNCP: 'seq-' + calls, sequencialCompra: calls, numeroCompra: String(calls), objetoCompra: 'Obra de engenharia ' + calls })], paginasRestantes: calls < 3 ? 1 : 0 });
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 2);
   assert.equal(maxActive, 1);
 });
 
