@@ -1269,6 +1269,51 @@ test('ELO Action Bus Stock Full: sim sem pendencia nao sequestra conversa', () =
 
   assert.equal(elo.detectCommandBridgeRequestForTest('sim'), null);
 });
+test('ELO Action Bus Municipal: comandos da demo roteiam antes dos fallbacks genericos', () => {
+  const { elo } = loadEloContext({
+    preloadScripts: [
+      'elo-command-bridge.js',
+      'elo-municipal-action-adapter.js',
+      'elo-municipal-sentinel-adapter.js'
+    ]
+  });
+
+  const attention = elo.detectCommandBridgeRequestForTest('ELO, quais obras da prefeitura precisam da minha atenção?');
+  assert.equal(attention.module, 'municipal');
+  assert.equal(attention.action, 'municipal.attention');
+
+  const assets = elo.detectCommandBridgeRequestForTest('Quais patrimônios estão vinculados?');
+  assert.equal(assets.module, 'municipal');
+  assert.equal(assets.action, 'assets.list');
+
+  const archive = elo.detectCommandBridgeRequestForTest('Quais documentos temos?');
+  assert.equal(archive.module, 'municipal');
+  assert.equal(archive.action, 'archive.documents.list');
+
+  const report = elo.detectCommandBridgeRequestForTest('Gere um relatório municipal para revisão');
+  assert.equal(report.module, 'municipal');
+  assert.equal(report.action, 'reports.preview');
+
+  const pending = elo.detectCommandBridgeRequestForTest('Mostre as pendências abertas do Sentinela');
+  assert.equal(pending.module, 'municipal_sentinel');
+  assert.equal(pending.action, 'sentinel.pending.list');
+  assert.equal(pending.payload.status, 'open');
+
+  const awaiting = elo.detectCommandBridgeRequestForTest('Correções aguardando validação');
+  assert.equal(awaiting.module, 'municipal_sentinel');
+  assert.equal(awaiting.action, 'sentinel.pending.list');
+  assert.equal(awaiting.payload.status, 'awaiting_validation');
+
+  const rejected = elo.detectCommandBridgeRequestForTest('Rejeite esta correção e registre o motivo Faltou foto final');
+  assert.equal(rejected.module, 'municipal_sentinel');
+  assert.equal(rejected.action, 'sentinel.pending.validate');
+  assert.equal(rejected.payload.decision, 'rejected');
+  assert.match(rejected.payload.notes, /Faltou foto final/);
+
+  const today = elo.detectCommandBridgeRequestForTest('O que precisa da minha atenção hoje?');
+  assert.equal(today.module, 'municipal');
+  assert.equal(today.action, 'municipal.attention');
+});
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Qual Ã© o link do CADISTA?');

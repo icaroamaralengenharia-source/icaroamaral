@@ -768,6 +768,20 @@
     if (!text) return null;
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
+    const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
+    if (/\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|documentos?|notifica[cç][oõ]es)\b/.test(text) || /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text)) {
+      if (/aprove\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "approved" }) };
+      if (/rejeite\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "rejected", notes: rejectedMatch && rejectedMatch[1] || "" }) };
+      if (/aguardando\s+valida[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.list", payload: Object.assign({}, payload, { status: "awaiting_validation" }) };
+      if (/pend[eê]ncias?/.test(text) && /abertas?|open/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.list", payload: Object.assign({}, payload, { status: "open" }) };
+      if (/evid[eê]ncias?/.test(text)) return { module: "municipal_sentinel", action: "sentinel.evidences.list", payload: payload };
+      if (/timeline/.test(text)) return { module: "municipal_sentinel", action: "sentinel.timeline", payload: payload };
+      if (/patrimonios|patrimônios|patrimonio|patrimônio|tombamento/.test(text)) return { module: "municipal", action: "assets.list", payload: payload };
+      if (/documentos?|acervo/.test(text)) return { module: "municipal", action: "archive.documents.list", payload: payload };
+      if (/notifica[cç][oõ]es|alertas? internos?/.test(text)) return { module: "municipal", action: "notifications.list", payload: payload };
+      if (/relatorio|relatório/.test(text) && /municipal|prefeitura/.test(text)) return { module: "municipal", action: "reports.preview", payload: payload };
+      if (/(?:prefeitura|municipal).*aten[cç][aã]o|aten[cç][aã]o.*(?:prefeitura|municipal)|precisa.*hoje|obras?.*prefeitura/.test(text)) return { module: "municipal", action: "municipal.attention", payload: payload };
+    }
     if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|codigo\s+sinapi|stock\s+obras)\b/.test(text)) {
       return { module: "stock_obras", action: /exporte|csv|xlsx/.test(text) ? "preview_export" : "search_composition", payload: payload };
     }
@@ -799,7 +813,7 @@
 
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
-    if (["obrareport_rdo", "obrareport_report", "stock_full", "memory"].indexOf(request.module) < 0) return false;
+    if (["obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
     return /^(?:preview_|close_|create_|stock_|clear_|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
@@ -820,6 +834,11 @@
     };
   }
 
+  function getEloMunicipalContext_() {
+    const source = window.ELO_MUNICIPAL_CONTEXT && typeof window.ELO_MUNICIPAL_CONTEXT === "object" ? window.ELO_MUNICIPAL_CONTEXT : {};
+    return Object.assign({}, source);
+  }
+
   function buildEloCommandBridgeResponse_(message, options) {
     const bridge = window.EloCommandBridge;
     if (!bridge || typeof bridge.execute !== "function") return null;
@@ -828,7 +847,8 @@
     const result = bridge.execute(Object.assign({}, request, {
       context: Object.assign({
         authToken: getEloCoreAuthToken_(),
-        identity: getEloCoreIdentity_()
+        identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
+        municipal: getEloMunicipalContext_()
       }, options && options.context || {}),
       dryRun: true
     }));
