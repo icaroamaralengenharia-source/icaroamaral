@@ -257,8 +257,12 @@
   }
 
   function executeMovementPreview(input, intent) {
-    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para movimentar estoque real no Stock Full."));
     if (!(intent.quantity > 0) || !intent.productQuery) return Promise.resolve(stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não consegui identificar produto e quantidade com segurança. Nenhum estoque foi movimentado." }));
+    if (input.dryRun === true) {
+      const verb = intent.action === "stock.entry.preview" ? "entrada" : intent.action === "stock.exit.preview" ? "saída" : "transferência";
+      return stockResult(input, { action: intent.action, mode: "preview", requiresConfirmation: true, preview: "Preview de " + verb + ": " + formatQuantity(intent.quantity, intent.unit) + " de " + intent.productQuery + ". Responda sim para executar." });
+    }
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para movimentar estoque real no Stock Full."));
     return loadItems(input).then(function (items) {
       let resolution = resolveItem(items, intent.productQuery);
       let destinationItem = null;
