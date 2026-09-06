@@ -1658,6 +1658,55 @@ test("stock full sync rejeita saida maior que saldo e audita", async () => {
   }
 });
 
+test("stock full transfer aceita operationId textual e preserva idempotencia", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [
+      { id: "sf_source_1", institution_id: "inst_auth", name: "Cimento origem", unit: "saco", current_quantity: 12, is_active: true },
+      { id: "sf_dest_1", institution_id: "inst_auth", name: "Almox destino", unit: "saco", current_quantity: 1, is_active: true }
+    ]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const body = JSON.stringify({
+      sourceItemId: "sf_source_1",
+      destinationItemId: "sf_dest_1",
+      quantity: 5,
+      operationId: "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123",
+      offlineUuid: "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123",
+      deviceId: "elo-web-test",
+      source: "elo_action_bus"
+    });
+    const firstResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const first = await firstResponse.json();
+    const secondResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const second = await secondResponse.json();
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(first.status, "synced");
+    assert.equal(secondResponse.status, 200);
+    assert.equal(second.duplicate, true);
+    assert.equal(supabase.stockFullItems.find((item) => item.id === "sf_source_1").current_quantity, 7);
+    assert.equal(supabase.stockFullItems.find((item) => item.id === "sf_dest_1").current_quantity, 6);
+    assert.equal(supabase.stockFullExits.length, 1);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullExits[0].operation_id, "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123:exit");
+    const transferAudit = supabase.stockFullAuditLogs.find((log) => log.action === "stock_full_transfer_created");
+    assert.ok(transferAudit);
+    assert.equal(transferAudit.entity_id, "sf_source_1");
+    assert.equal(transferAudit.operation_id, "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
 test("stock full sync ignora institution_id do frontend e isola empresa", async () => {
   const supabase = createMockStockSaudeSupabase_({
     stockFullItems: [

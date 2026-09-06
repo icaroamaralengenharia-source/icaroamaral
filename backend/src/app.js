@@ -2478,7 +2478,14 @@ export function createApp(options = {}) {
           institutionId: session.profile.institution_id,
           action: "stock_full_transfer_rejected",
           entityType: "stock_full_transfer",
-          entityId: operationId,
+          entityId: sourceItem.id,
+          productId: sourceItem.id,
+          operationId,
+          offlineUuid,
+          deviceId,
+          source: "elo_action_bus",
+          beforeData: { source_current_quantity: previousSourceBalance },
+          afterData: { quantity, reason: "stock_full_insufficient_quantity" },
           description: "Transferencia rejeitada por saldo insuficiente no Stock Full.",
           createdBy: session.profile.id
         });
@@ -2534,7 +2541,22 @@ export function createApp(options = {}) {
         institutionId: session.profile.institution_id,
         action: "stock_full_transfer_created",
         entityType: "stock_full_transfer",
-        entityId: operationId,
+        entityId: sourceItem.id,
+        productId: sourceItem.id,
+        operationId,
+        offlineUuid,
+        deviceId,
+        source: "elo_action_bus",
+        beforeData: {
+          source_current_quantity: previousSourceBalance,
+          destination_current_quantity: previousDestinationBalance
+        },
+        afterData: {
+          source_current_quantity: parsePositiveNumber_(sourceItem.current_quantity, 0) - quantity,
+          destination_current_quantity: parsePositiveNumber_(destinationItem.current_quantity, 0) + quantity,
+          quantity,
+          destination_item_id: destinationItem.id
+        },
         description: "Transferencia registrada pelo ELO Action Bus no Stock Full.",
         createdBy: session.profile.id
       });
@@ -4788,6 +4810,13 @@ async function createStockFullAuditLog_(database, data) {
     action: clean_(data.action),
     entity_type: clean_(data.entityType),
     entity_id: clean_(data.entityId) || null,
+    product_id: clean_(data.productId) || null,
+    before_data: data.beforeData || null,
+    after_data: data.afterData || null,
+    device_id: clean_(data.deviceId) || null,
+    offline_uuid: clean_(data.offlineUuid) || null,
+    operation_id: clean_(data.operationId) || null,
+    source: clean_(data.source) || "online",
     description: clean_(data.description),
     created_by: clean_(data.createdBy)
   };
