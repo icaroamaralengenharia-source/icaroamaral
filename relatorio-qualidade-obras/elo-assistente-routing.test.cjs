@@ -2422,6 +2422,132 @@ test('ELO media command: sem botao real nao bloqueia chat normal', () => {
   assert.equal(regularChat.action, null);
 });
 
+test('ELO media command: player localizado com play bloqueado nao vira nao localizado', async () => {
+  const events = [];
+  const candidate = { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits', videoId: 'abc123xyz', playable: true, embeddable: true };
+  const resolver = {
+    resolve(query) {
+      if (/sultans/i.test(query)) return candidate;
+      return null;
+    },
+    play() { return false; },
+    getState() { return 'PLAY_BLOCKED'; },
+    getCurrentMedia() { return candidate; },
+    getLastPlayResult() { return { found: true, playerOpened: true, playRequested: true, blocked: true, reason: 'play_confirm_timeout' }; }
+  };
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo, context } = loadEloContext({ window: { EloMusicResolver: resolver, console: fakeConsole } });
+
+  const result = await elo.handleMusicQueryForTest('ELO, toque Sultans of Swing');
+
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'EXACT');
+  assert.equal(result.candidate.title, 'Sultans of Swing');
+  assert.equal(context.document.body.textContent.includes('Não consegui localizar essa música agora.'), false);
+  assert.equal(events.some((event) => event.name === 'MUSIC_PLAYER_LOCATED'), true);
+});
+
+function loadEloMediaPlayerContext(options = {}) {
+  const elements = new Map();
+  const timers = [];
+  let latestPlayerConfig = null;
+  function register(element) {
+    if (element && element.id) elements.set(element.id, element);
+    return element;
+  }
+  function mediaElement(tag) {
+    const element = createElement(tag);
+    let elementId = '';
+    Object.defineProperty(element, 'id', {
+      get() { return elementId; },
+      set(value) { elementId = String(value || ''); if (elementId) elements.set(elementId, element); }
+    });
+    element.appendChild = function (child) { this.children.push(child); child.parentNode = this; register(child); return child; };
+    element.querySelector = function (selector) {
+      const stack = this.children.slice();
+      while (stack.length) {
+        const child = stack.shift();
+        if (selector === '[data-elo-media-title]' && child['data-elo-media-title'] === 'true') return child;
+        const actionMatch = selector.match(/^\[data-elo-media-action="([^"]+)"\]$/);
+        if (actionMatch && child['data-elo-media-action'] === actionMatch[1]) return child;
+        stack.push(...(child.children || []));
+      }
+      return null;
+    };
+    return element;
+  }
+  const body = mediaElement('body');
+  const head = mediaElement('head');
+  const activeElement = options.activeElement || mediaElement('textarea');
+  const context = {
+    console,
+    setTimeout(fn, ms) { const timer = { fn, ms }; timers.push(timer); return timer; },
+    clearTimeout(timer) { if (timer) timer.cleared = true; },
+    window: {
+      innerHeight: options.innerHeight || 800,
+      location: { origin: 'https://www.icaroamaral.com.br' },
+      addEventListener() {},
+      setTimeout(fn, ms) { const timer = { fn, ms }; timers.push(timer); return timer; },
+      clearTimeout(timer) { if (timer) timer.cleared = true; },
+      visualViewport: options.visualViewport || { height: 520, addEventListener() {} },
+      YT: {
+        PlayerState: { PLAYING: 1, PAUSED: 2, ENDED: 0 },
+        Player: function Player(id, config) {
+          latestPlayerConfig = config;
+          if (config.events && typeof config.events.onReady === 'function') {
+            config.events.onReady({ target: { playVideo() { context.playVideoCalls += 1; } } });
+          }
+          return { destroy() {}, pauseVideo() {}, playVideo() { context.playVideoCalls += 1; }, stopVideo() {} };
+        }
+      }
+    },
+    document: {
+      body,
+      head,
+      activeElement,
+      createElement: mediaElement,
+      getElementById(id) { return elements.get(id) || null; },
+      querySelector() { return null; }
+    },
+    navigator: {},
+    playVideoCalls: 0
+  };
+  context.window.window = context.window;
+  context.window.document = context.document;
+  context.window.navigator = context.navigator;
+  context.globalThis = context.window;
+  vm.createContext(context);
+  const source = fs.readFileSync(path.join(__dirname, 'elo-media-player.js'), 'utf8');
+  vm.runInContext(source, context, { filename: 'elo-media-player.js' });
+  return { context, elements, timers, getLatestPlayerConfig: () => latestPlayerConfig };
+}
+
+test('ELO media command: player online pede autoplay e compacta com teclado aberto', async () => {
+  const { context, elements, timers, getLatestPlayerConfig } = loadEloMediaPlayerContext();
+  const playPromise = context.window.EloMediaPlayer.play({ title: 'Sultans of Swing', artist: 'Dire Straits', videoId: 'abc123xyz', playable: true, embeddable: true });
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  const root = elements.get('elo-real-media-player');
+  const host = elements.get('elo-real-media-host');
+  const config = getLatestPlayerConfig();
+
+  assert.ok(root);
+  assert.equal(root.dataset.eloMediaCompact, 'true');
+  assert.equal(host.style.display, 'none');
+  assert.equal(config.playerVars.autoplay, 1);
+  assert.equal(config.playerVars.playsinline, 1);
+  assert.equal(context.playVideoCalls, 1);
+
+  timers.find((timer) => timer.ms === 9000).fn();
+  const result = await playPromise;
+  assert.equal(result.found, true);
+  assert.equal(result.playerOpened, true);
+  assert.equal(result.blocked, true);
+  assert.equal(context.window.EloMediaPlayer.getState(), 'PLAY_BLOCKED');
+});
 function createMusicResolverFixture(playCalls) {
   const candidates = [
     { id: 'sultans', title: 'Sultans of Swing', artist: 'Dire Straits', relevance: 1 },

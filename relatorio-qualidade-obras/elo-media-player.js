@@ -6,6 +6,10 @@
   const STATE_PLAYING = "PLAYING";
   const STATE_PAUSED = "PAUSED";
   const STATE_ERROR = "MEDIA_ERROR";
+  const STATE_FOUND = "FOUND";
+  const STATE_PLAYER_READY = "PLAYER_READY";
+  const STATE_PLAY_REQUESTED = "PLAY_REQUESTED";
+  const STATE_PLAY_BLOCKED = "PLAY_BLOCKED";
   const PLAYER_ID = "elo-real-media-player";
   const PLAYER_HOST_ID = "elo-real-media-host";
   const CONTROLS_ID = "elo-real-media-controls";
@@ -19,6 +23,8 @@
   let localQueueIndex = 0;
   let apiPromise = null;
   let playRunId = 0;
+  let lastPlayResult = null;
+  let viewportSafetyBound = false;
 
   function log(name, payload) {
     try {
@@ -50,7 +56,10 @@
 
   function ensureRoot() {
     let root = document.getElementById(PLAYER_ID);
-    if (root) return root;
+    if (root) {
+      applyViewportSafety();
+      return root;
+    }
 
     root = document.createElement("section");
     root.id = PLAYER_ID;
@@ -67,6 +76,7 @@
     root.style.display = "none";
     root.style.overflow = "hidden";
     root.style.borderRadius = "8px";
+    root.dataset.eloMediaCompact = "false";
 
     const host = document.createElement("div");
     host.id = PLAYER_HOST_ID;
@@ -113,10 +123,74 @@
     controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
     controls.querySelector('[data-elo-media-action="stop"]').onclick = function () { return stop(); };
 
+    bindViewportSafety();
+    applyViewportSafety();
     log("MEDIA_PLAYER_LOADED", { provider: "youtube_iframe_api" });
     return root;
   }
 
+
+  function isTextInputFocused() {
+    const active = document && document.activeElement;
+    if (!active) return false;
+    const tag = String(active.tagName || "").toLowerCase();
+    return tag === "textarea" || tag === "input" || active.isContentEditable === true;
+  }
+
+  function isKeyboardLikelyOpen() {
+    const vv = window.visualViewport;
+    if (vv && window.innerHeight && window.innerHeight - vv.height > 120) return true;
+    return isTextInputFocused();
+  }
+
+  function applyViewportSafety() {
+    const root = document.getElementById(PLAYER_ID);
+    if (!root) return false;
+    const host = document.getElementById(PLAYER_HOST_ID);
+    const controls = document.getElementById(CONTROLS_ID);
+    const title = root.querySelector("[data-elo-media-title]");
+    const compact = isKeyboardLikelyOpen();
+    root.dataset.eloMediaCompact = compact ? "true" : "false";
+    root.style.right = compact ? "12px" : "16px";
+    root.style.bottom = compact ? "calc(var(--elo-composer-height, 72px) + 12px)" : "16px";
+    root.style.width = compact ? "min(340px, calc(100vw - 24px))" : "min(420px, calc(100vw - 32px))";
+    if (host) host.style.display = compact ? "none" : "";
+    if (title) title.style.padding = compact ? "8px 10px 0" : "10px 12px 0";
+    if (controls) controls.style.padding = compact ? "8px 10px 10px" : "10px 12px 12px";
+    return compact;
+  }
+
+  function bindViewportSafety() {
+    if (viewportSafetyBound) return;
+    viewportSafetyBound = true;
+    window.addEventListener && window.addEventListener("resize", applyViewportSafety);
+    window.addEventListener && window.addEventListener("focusin", applyViewportSafety);
+    window.addEventListener && window.addEventListener("focusout", function () {
+      window.setTimeout(applyViewportSafety, 80);
+    });
+    if (window.visualViewport && window.visualViewport.addEventListener) {
+      window.visualViewport.addEventListener("resize", applyViewportSafety);
+      window.visualViewport.addEventListener("scroll", applyViewportSafety);
+    }
+  }
+
+  function buildPlayResult(ok, candidate, reason) {
+    return {
+      ok: ok === true,
+      found: !!candidate,
+      playerOpened: !!candidate,
+      playRequested: state === STATE_PLAY_REQUESTED || state === STATE_PLAYING,
+      blocked: reason === "play_confirm_timeout",
+      state: state,
+      reason: reason || "",
+      candidate: candidate ? {
+        title: candidate.title,
+        artist: candidate.artist,
+        videoId: candidate.videoId,
+        source: candidate.source
+      } : null
+    };
+  }
   function ensureYoutubeApi_() {
     if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
     if (apiPromise) return apiPromise;
@@ -276,13 +350,15 @@
       const host = document.getElementById(PLAYER_HOST_ID);
       if (!host) return false;
       root.style.display = "block";
+      applyViewportSafety();
       if (title) title.textContent = candidate.title + (candidate.artist ? " - " + candidate.artist : "");
       currentMedia = candidate;
-      setState(STATE_BUFFERING);
+      setState(STATE_FOUND);
       destroyPlayer();
       const holder = document.createElement("div");
       holder.id = PLAYER_HOST_ID + "-iframe";
       host.appendChild(holder);
+      setState(STATE_BUFFERING);
 
       return new Promise(function (resolve) {
         let settled = false;
@@ -290,8 +366,9 @@
           if (settled || runId !== playRunId) return;
           settled = true;
           log("MEDIA_PLAYER_ERROR", { videoId: candidate.videoId, reason: "play_confirm_timeout" });
-          setState(STATE_ERROR);
-          resolve(false);
+          setState(STATE_PLAY_BLOCKED);
+          lastPlayResult = buildPlayResult(false, candidate, "play_confirm_timeout");
+          resolve(lastPlayResult);
         }, CONFIRM_TIMEOUT_MS);
 
         function finish(ok, reason) {
@@ -301,10 +378,12 @@
           if (ok) {
             setState(STATE_PLAYING);
             log("MEDIA_PLAY_CONFIRMED", { videoId: candidate.videoId, title: candidate.title });
+            lastPlayResult = buildPlayResult(true, candidate, "");
             resolve(true);
           } else {
             log("MEDIA_PLAYER_ERROR", { videoId: candidate.videoId, reason: reason || "youtube_error" });
             setState(STATE_ERROR);
+            lastPlayResult = buildPlayResult(false, candidate, reason || "youtube_error");
             resolve(false);
           }
         }
@@ -321,7 +400,13 @@
           },
           events: {
             onReady: function (event) {
-              try { event.target.playVideo(); } catch (error) {}
+              setState(STATE_PLAYER_READY);
+              try {
+                event.target.playVideo();
+                setState(STATE_PLAY_REQUESTED);
+              } catch (error) {
+                log("MEDIA_PLAYER_ERROR", { videoId: candidate.videoId, reason: sanitize(error && error.message) || "play_request_failed" });
+              }
             },
             onStateChange: function (event) {
               if (event && event.data === YT.PlayerState.PLAYING) finish(true);
@@ -349,18 +434,22 @@
     if (!candidates.length) {
       log("MEDIA_PLAYER_START", { ok: false, reason: "no_embeddable_candidate" });
       setState(STATE_ERROR);
+      lastPlayResult = buildPlayResult(false, null, "no_embeddable_candidate");
       return Promise.resolve(false);
     }
     log("MEDIA_PLAYER_START", { ok: true, provider: "youtube_iframe_api", candidates: candidates.length });
 
     return candidates.reduce(function (chain, candidate, index) {
       return chain.then(function (played) {
-        if (played) return true;
+        if (played) return played;
         if (index > 0) log("MEDIA_FALLBACK_NEXT", { index: index + 1, videoId: candidate.videoId });
         return attemptCandidate(candidate, runId, index);
       });
     }, Promise.resolve(false)).then(function (played) {
-      if (!played) setState(STATE_ERROR);
+      if (!played) {
+        setState(STATE_ERROR);
+        lastPlayResult = buildPlayResult(false, null, "no_candidate_played");
+      }
       return played;
     });
   }
@@ -418,7 +507,9 @@
     resume: resume,
     stop: stop,
     getState: function () { return state; },
-    getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; }
+    getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
+    getLastPlayResult: function () { return lastPlayResult ? Object.assign({}, lastPlayResult) : null; },
+    applyViewportSafetyForTest: applyViewportSafety
   };
 
   log("MEDIA_BRIDGE_LOADED", { player: "EloMediaPlayer", provider: "youtube_iframe_api" });

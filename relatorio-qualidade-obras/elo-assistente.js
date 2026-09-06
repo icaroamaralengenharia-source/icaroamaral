@@ -28324,6 +28324,33 @@ function isEloResidentialNewPipelineEnabled_() {
     return /^(?:nao|não|nao e essa|não é essa|outra|outro|errou)$/i.test(normalizeText(message || "").trim());
   }
 
+  function normalizeEloMusicPlaybackResult_(resolver, result, candidate) {
+    if (result !== false) return true;
+    let current = null;
+    let last = null;
+    let playerState = "";
+    try {
+      if (resolver && typeof resolver.getCurrentMedia === "function") current = resolver.getCurrentMedia();
+    } catch (error) {}
+    try {
+      if (resolver && typeof resolver.getLastPlayResult === "function") last = resolver.getLastPlayResult();
+    } catch (error) {}
+    try {
+      if (resolver && typeof resolver.getState === "function") playerState = String(resolver.getState() || "").toUpperCase();
+    } catch (error) {}
+    const locatedState = /^(FOUND|PLAYER_READY|PLAY_REQUESTED|PLAY_BLOCKED|BUFFERING|PLAYING)$/.test(playerState);
+    const locatedResult = !!(last && (last.found || last.playerOpened || last.playRequested || last.blocked));
+    const locatedCurrent = !!(current && (current.videoId || current.id || current.title));
+    if (locatedState || locatedResult || locatedCurrent) {
+      logEloMusicEvent_("MUSIC_PLAYER_LOCATED", {
+        candidate: getEloMusicCandidateLabel_(candidate),
+        state: playerState,
+        reason: last && last.reason || ""
+      });
+      return true;
+    }
+    return false;
+  }
   function callEloMusicPlayHandler_(resolver, candidate, query) {
     const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
     if (!normalized) return Promise.resolve(false);
@@ -28334,7 +28361,7 @@ function isEloResidentialNewPipelineEnabled_() {
         logEloMusicEvent_("MUSIC_PLAYER_START", { handler: method, candidate: getEloMusicCandidateLabel_(normalized) });
         return Promise.resolve(resolver[method](normalized, { query: query, intent: "PLAY" })).then(function (result) {
           rememberEloMusicCandidate_(normalized, query);
-          return result === false ? false : true;
+          return normalizeEloMusicPlaybackResult_(resolver, result, normalized);
         });
       }
     }
@@ -28342,7 +28369,7 @@ function isEloResidentialNewPipelineEnabled_() {
       logEloMusicEvent_("MUSIC_PLAYER_START", { handler: "candidate.play", candidate: getEloMusicCandidateLabel_(normalized) });
       return Promise.resolve(normalized.play()).then(function (result) {
         rememberEloMusicCandidate_(normalized, query);
-        return result === false ? false : true;
+        return normalizeEloMusicPlaybackResult_(resolver, result, normalized);
       });
     }
     return Promise.resolve(false);
