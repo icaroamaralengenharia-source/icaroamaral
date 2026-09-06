@@ -1,0 +1,50 @@
+name: ELO Autopilot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: elo-autopilot
+  cancel-in-progress: false
+
+jobs:
+  editorial-dry-run:
+    name: Validar novidade editorial
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar sintaxe
+        run: |
+          node --check scripts/elo-autopilot.mjs
+          node --check novidades/novidades.js
+
+      - name: Executar testes
+        run: |
+          node --test tests/elo-autopilot.test.mjs
+          node --test tests/atualizar-noticias.test.mjs
+          node --test tests/atualizar-conteudo-noticias.test.mjs
+          node --test tests/atualizar-licitacoes.test.mjs
+
+      - name: Rodar ELO Autopilot em safe mode
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_ELO_AUTOPILOT_MODEL: ${{ vars.OPENAI_ELO_AUTOPILOT_MODEL || 'gpt-4.1-mini' }}
+          AUTOPILOT_PUBLISH: "false"
+        run: node scripts/elo-autopilot.mjs --dry-run --no-publish
