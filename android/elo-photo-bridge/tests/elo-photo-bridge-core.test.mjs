@@ -864,41 +864,86 @@ function renderTimelineUiHarness({ selectedVisit, screenHeight = 1000 }) {
   };
 }
 
-function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17) } = {}) {
+function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sessionId = "session-1" } = {}) {
+  let sequence = Number(sessionId.split("-").pop()) || 1;
+  const firstEditableStage = timelineOrder[1];
   const state = {
+    sessionId,
     photos: selectedVisit,
     cuts: { CAMERAS: 0 },
-    currentStage: "TOMADAS",
+    currentStage: firstEditableStage,
     selectedIndex: -1,
+    status: "ORGANIZING",
     autoAssignCalls: 0,
-    logs: []
+    transitionInProgress: false,
+    logs: ["FAST_TIMELINE_SESSION_START: id=" + sessionId + " photos=" + selectedVisit.length + " stage=" + firstEditableStage]
   };
-  const nextStage = () => timelineOrder.slice(1).find((category) => state.cuts[category] == null) || null;
-  const allCutsComplete = () => nextStage() == null;
+  const nextStageFromCuts = () => timelineOrder.slice(1).find((category) => state.cuts[category] == null) || null;
+  const isReview = () => ["REVIEW", "READY_TO_GENERATE", "COMPLETED"].includes(state.status);
   const stageButtons = () => Object.fromEntries(timelineOrder.slice(1).map((category) => [category, {
-    enabled: category === nextStage() && state.selectedIndex >= 0,
-    visible: category === nextStage() && !allCutsComplete(),
-    text: state.cuts[category] == null ? `CONFIRMAR INÍCIO ${category}` : `INÍCIO ${category}: #${state.cuts[category] + 1}`
+    enabled: category === state.currentStage && state.selectedIndex >= 0 && state.status === "ORGANIZING" && !state.transitionInProgress,
+    visible: category === state.currentStage && state.status === "ORGANIZING",
+    text: state.cuts[category] == null ? "CONFIRMAR INÍCIO " + category : "INÍCIO " + category + ": #" + (state.cuts[category] + 1)
   }]));
+  const reviewButton = () => ({
+    enabled: isReview(),
+    text: isReview() ? "REVISAR / GERAR RELATÓRIO" : "REVISAR BLOCOS"
+  });
+  const snapshot = () => ({ ...state, cuts: { ...state.cuts } });
   const clickThumbnail = (index) => {
+    if (state.status !== "ORGANIZING") return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
     state.selectedIndex = index;
-    state.currentStage = nextStage();
-    state.logs.push(`THUMBNAIL_CLICKED: index=${index}`);
-    state.logs.push(`SELECTED_PHOTO_INDEX: ${index}`);
-    state.logs.push(`CURRENT_REVIEW_STAGE: ${state.currentStage}`);
-    state.logs.push(`STAGE_BUTTON_ENABLED: ${stageButtons()[state.currentStage]?.enabled === true}`);
-    return { state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
+    state.logs.push("THUMBNAIL_CLICKED: index=" + index);
+    state.logs.push("SELECTED_PHOTO_INDEX: " + index);
+    state.logs.push("CURRENT_REVIEW_STAGE: " + state.currentStage);
+    state.logs.push("STAGE_BUTTON_ENABLED: " + (stageButtons()[state.currentStage]?.enabled === true));
+    return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
   };
   const confirmStage = (category) => {
-    if (state.selectedIndex < 0 || category !== nextStage()) return { confirmed: false, state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
-    state.cuts[category] = state.selectedIndex;
-    state.selectedIndex = -1;
-    state.currentStage = nextStage();
-    return { confirmed: true, state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
+    if (state.transitionInProgress) {
+      state.logs.push("FAST_TIMELINE_DUPLICATE_CONFIRM_IGNORED");
+      return { confirmed: false, duplicate: true, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
+    }
+    state.transitionInProgress = true;
+    try {
+      if (state.selectedIndex < 0 || category !== state.currentStage || state.status !== "ORGANIZING") {
+        return { confirmed: false, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
+      }
+      state.cuts[category] = state.selectedIndex;
+      state.selectedIndex = -1;
+      state.currentStage = nextStageFromCuts();
+      state.status = state.currentStage == null ? "REVIEW" : "ORGANIZING";
+      state.logs.push("FAST_TIMELINE_STAGE_CONFIRMED: session=" + state.sessionId + " stage=" + category + " index=" + state.cuts[category] + " next=" + (state.currentStage || "REVIEW"));
+      return { confirmed: true, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
+    } finally {
+      state.transitionInProgress = false;
+    }
   };
-  return { state, clickThumbnail, confirmStage, stageButtons };
+  const duplicateConfirmWhileBusy = (category) => {
+    state.transitionInProgress = true;
+    const result = confirmStage(category);
+    state.transitionInProgress = false;
+    return result;
+  };
+  const startNewCommand = (photos = selectedVisit) => {
+    sequence += 1;
+    state.sessionId = "session-" + sequence;
+    state.photos = photos;
+    state.cuts = { CAMERAS: 0 };
+    state.currentStage = firstEditableStage;
+    state.selectedIndex = -1;
+    state.status = "ORGANIZING";
+    state.logs.push("FAST_TIMELINE_SESSION_START: id=" + state.sessionId + " photos=" + photos.length + " stage=" + firstEditableStage);
+    return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
+  };
+  const editCuts = () => {
+    state.status = "ORGANIZING";
+    state.currentStage = firstEditableStage;
+    state.selectedIndex = -1;
+    return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
+  };
+  return { state, clickThumbnail, confirmStage, duplicateConfirmWhileBusy, startNewCommand, editCuts, stageButtons, reviewButton };
 }
-
 test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () => {
   const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
   assert.equal(ui.timelinePanel.created, true);
@@ -1016,6 +1061,70 @@ function fastTimelineRotationRestoreHarness({ photoCount = 17, selectedIndex = 7
   };
   return { before, retained, after };
 }
+
+
+test("FAST_TIMELINE novo comando inicia nova sessao e descarta cortes antigos", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17), sessionId: "session-10" });
+  flow.clickThumbnail(3);
+  flow.confirmStage("TOMADAS");
+  flow.clickThumbnail(7);
+  flow.confirmStage("RACK");
+  assert.equal(flow.state.cuts.TOMADAS, 3);
+  assert.equal(flow.state.cuts.RACK, 7);
+
+  const restarted = flow.startNewCommand(timelinePhotos(17));
+  assert.notEqual(restarted.state.sessionId, "session-10");
+  assert.deepEqual(restarted.state.cuts, { CAMERAS: 0 });
+  assert.equal(restarted.state.currentStage, "TOMADAS");
+  assert.equal(restarted.state.selectedIndex, -1);
+  assert.equal(restarted.state.photos.length, 17);
+});
+
+test("FAST_TIMELINE clique duplicado de confirmacao nao avanca duas etapas", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  flow.clickThumbnail(4);
+  const duplicate = flow.duplicateConfirmWhileBusy("TOMADAS");
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicate.confirmed, false);
+  assert.deepEqual(flow.state.cuts, { CAMERAS: 0 });
+  assert.equal(flow.state.currentStage, "TOMADAS");
+  assert.ok(flow.state.logs.includes("FAST_TIMELINE_DUPLICATE_CONFIRM_IGNORED"));
+
+  const confirmed = flow.confirmStage("TOMADAS");
+  assert.equal(confirmed.confirmed, true);
+  assert.equal(flow.state.currentStage, "RACK");
+  assert.equal(flow.state.cuts.RACK, undefined);
+});
+
+test("FAST_TIMELINE somente botao da etapa ativa confirma", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  flow.clickThumbnail(4);
+  const wrongStage = flow.confirmStage("RACK");
+  assert.equal(wrongStage.confirmed, false);
+  assert.equal(flow.state.currentStage, "TOMADAS");
+  assert.equal(flow.state.cuts.TOMADAS, undefined);
+  assert.equal(flow.stageButtons().TOMADAS.visible, true);
+  assert.equal(flow.stageButtons().RACK.visible, false);
+});
+
+test("FAST_TIMELINE revisao final libera gerar relatorio e editar cortes", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  for (const [stage, index] of [["TOMADAS", 3], ["RACK", 7], ["MASTRO_ANTENA", 11], ["CAIXA_FUNDO_MADEIRA", 14]]) {
+    flow.clickThumbnail(index);
+    flow.confirmStage(stage);
+  }
+  assert.equal(flow.state.status, "REVIEW");
+  assert.equal(flow.reviewButton().enabled, true);
+  assert.equal(flow.reviewButton().text, "REVISAR / GERAR RELATÓRIO");
+  assert.equal(Object.values(flow.stageButtons()).every((button) => button.visible === false), true);
+
+  const edit = flow.editCuts();
+  assert.equal(edit.state.status, "ORGANIZING");
+  assert.equal(edit.state.currentStage, "TOMADAS");
+  assert.equal(edit.stageButtons.TOMADAS.visible, true);
+  assert.equal(edit.reviewButton.enabled, false);
+  assert.equal(edit.state.photos.length, 17);
+});
 
 test("FAST_TIMELINE galeria usa apenas fotos selecionadas e nao reintroduz conjunto 214", () => {
   const physical = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37", cityHint: "Ibicoara" });
