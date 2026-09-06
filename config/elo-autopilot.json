@@ -1,0 +1,55 @@
+{
+  "enabled": true,
+  "brand": "Amaral Engenharia, Arquitetura, Urbanismo e Tecnologia",
+  "language": "pt-BR",
+  "country": "BR",
+  "postsPerRun": 1,
+  "publishDefault": false,
+  "topics": [
+    "engenharia civil",
+    "arquitetura",
+    "construcao",
+    "tecnologia aplicada a construcao",
+    "BIM"
+  ],
+  "sources": [
+    { "name": "CAU/BR", "url": "https://caubr.gov.br/feed/", "type": "rss", "quality": 0.92 },
+    { "name": "CBIC", "url": "https://cbic.org.br/feed/", "type": "rss", "quality": 0.9 },
+    { "name": "Agencia Brasil", "url": "https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml", "type": "rss", "quality": 0.76 }
+  ],
+  "weights": {
+    "recency": 2.2,
+    "sourceCount": 3.4,
+    "topicRelevance": 3.0,
+    "keywordRepetition": 1.4,
+    "sourceQuality": 1.2,
+    "novelty": 2.0
+  },
+  "limits": {
+    "maxFeedBytes": 1500000,
+    "maxHtmlBytes": 900000,
+    "maxRedirects": 4,
+    "timeoutMs": 15000,
+    "maxSourcesPerPost": 5,
+    "minSourcesForStrongPauta": 2,
+    "maxExistingPosts": 80
+  },
+  "llm": {
+    "provider": "openai",
+    "modelEnv": "OPENAI_ELO_AUTOPILOT_MODEL",
+    "fallbackModelEnv": "OPENAI_MODEL"
+  },
+  "image": {
+    "provider": "pollinations",
+    "width": 1200,
+    "height": 675,
+    "format": "jpg",
+    "model": "sana"
+  },
+  "pricing": {
+    "currency": "USD",
+    "inputPerMillion": null,
+    "outputPerMillion": null,
+    "imagePerRequest": null
+  }
+}

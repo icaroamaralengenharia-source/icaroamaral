@@ -1,0 +1,772 @@
+import { createHash } from "node:crypto";
+import dns from "node:dns/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Readability } from "@mozilla/readability";
+import { JSDOM, VirtualConsole } from "jsdom";
+import { parseFeed, stripHtml } from "./atualizar-noticias.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const ROOT_DIR = path.resolve(__dirname, "..");
+export const CONFIG_PATH = path.join(ROOT_DIR, "config", "elo-autopilot.json");
+export const POSTS_PATH = path.join(ROOT_DIR, "novidades", "dados", "posts.json");
+export const POSTS_DIR = path.join(ROOT_DIR, "novidades", "posts");
+export const IMAGE_DIR = path.join(ROOT_DIR, "novidades", "assets", "posts");
+export const SITEMAP_PATH = path.join(ROOT_DIR, "sitemap.xml");
+export const SITE_ORIGIN = "https://www.icaroamaral.com.br";
+export const USER_AGENT = "ELO-Autopilot/1.0 (+https://www.icaroamaral.com.br/novidades/)";
+
+const DEFAULT_STOPWORDS = new Set([
+  "a", "o", "os", "as", "um", "uma", "de", "da", "do", "das", "dos", "e", "em", "para",
+  "por", "com", "sem", "sobre", "que", "no", "na", "nos", "nas", "ao", "aos", "mais",
+  "como", "sua", "seu", "suas", "seus", "brasil", "brasileiro", "brasileira", "novo", "nova",
+  "noticia", "noticias", "setor", "mercado", "ano", "anos", "dia", "apos", "entre", "contra", "cbic", "cau", "agencia", "brasil", "brasileira", "promove", "participa"
+]);
+
+function clean(value) {
+  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+
+export function normalizeText(value) {
+  return clean(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function slugify(value) {
+  const slug = normalizeText(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+    .replace(/-+$/g, "");
+  return slug || "novidade-editorial";
+}
+
+export function safePostSlug(value) {
+  const slug = clean(value);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("Slug invalido.");
+  if (slug.includes("..") || slug.includes("/") || slug.includes("\\")) throw new Error("Slug inseguro.");
+  return slug;
+}
+
+function tokens(value) {
+  return normalizeText(value).split(/\s+/).filter((token) => token.length >= 4 && !DEFAULT_STOPWORDS.has(token));
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function hash(value) {
+  return createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
+}
+
+export async function readConfig(configPath = CONFIG_PATH) {
+  return JSON.parse(await readFile(configPath, "utf8"));
+}
+
+export async function readPosts(postsPath = POSTS_PATH) {
+  try {
+    const payload = JSON.parse(await readFile(postsPath, "utf8"));
+    return { atualizadoEm: payload.atualizadoEm || null, posts: Array.isArray(payload.posts) ? payload.posts : [] };
+  } catch {
+    return { atualizadoEm: null, posts: [] };
+  }
+}
+
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") return true;
+  if (ip.startsWith("fe80:") || ip.startsWith("fc") || ip.startsWith("fd")) return true;
+  if (ip.startsWith("::ffff:")) return isPrivateIp(ip.slice(7));
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) return false;
+  const [a, b] = parts;
+  return a === 0 || a === 10 || a === 127 || a === 169 && b === 254 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168;
+}
+
+function assertProtocolAndHost(url) {
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Protocolo bloqueado.");
+  if (url.username || url.password) throw new Error("Credenciais em URL bloqueadas.");
+  const host = url.hostname.toLocaleLowerCase("pt-BR");
+  if (["localhost", "0.0.0.0"].includes(host) || host.endsWith(".localhost")) throw new Error("Host local bloqueado.");
+  if (net.isIP(host) && isPrivateIp(host)) throw new Error("IP privado bloqueado.");
+}
+
+export async function assertPublicHttpUrl(value, { lookup = dns.lookup } = {}) {
+  const url = new URL(value);
+  assertProtocolAndHost(url);
+  if (!net.isIP(url.hostname)) {
+    const records = await lookup(url.hostname, { all: true, verbatim: true });
+    if (!records.length || records.some((record) => isPrivateIp(record.address))) throw new Error("DNS privado bloqueado.");
+  }
+  return url.href;
+}
+
+async function readLimitedBody(response, maxBytes, message) {
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.byteLength > maxBytes) throw new Error(message);
+    return buffer;
+  }
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) throw new Error(message);
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function fetchSafe(urlValue, {
+  fetchImpl = fetch,
+  lookup = dns.lookup,
+  timeoutMs = 15000,
+  maxBytes = 900000,
+  maxRedirects = 4,
+  accept = "text/html,application/xhtml+xml;q=0.9,application/xml;q=0.8,text/xml;q=0.8",
+  allowedContentType = /text\/html|application\/xhtml\+xml|application\/xml|text\/xml|rss|atom/i,
+} = {}) {
+  let current = await assertPublicHttpUrl(urlValue, { lookup });
+  for (let redirect = 0; redirect <= maxRedirects; redirect += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchImpl(current, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: { "user-agent": USER_AGENT, accept },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers?.get?.("location");
+        if (!location || redirect === maxRedirects) throw new Error("Redirect bloqueado.");
+        current = await assertPublicHttpUrl(new URL(location, current).href, { lookup });
+        continue;
+      }
+      const contentType = response.headers?.get?.("content-type") || "";
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!allowedContentType.test(contentType)) throw new Error(`Content-Type recusado: ${contentType || "ausente"}`);
+      const body = await readLimitedBody(response, maxBytes, "Resposta excede limite.");
+      return { url: current, contentType, body };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("Redirect bloqueado.");
+}
+
+export async function collectCandidates(config, { fetchImpl = fetch, lookup = dns.lookup, now = new Date() } = {}) {
+  const found = [];
+  const stats = { sources: [], errors: [] };
+  for (const source of config.sources || []) {
+    try {
+      const result = await fetchSafe(source.url, {
+        fetchImpl,
+        lookup,
+        maxBytes: config.limits?.maxFeedBytes || 1500000,
+        timeoutMs: config.limits?.timeoutMs || 15000,
+        allowedContentType: /xml|rss|atom|text\/plain|text\/xml|application\/json/i,
+      });
+      const items = parseFeed(result.body.toString("utf8"), { nome: source.name, url: source.url, tipo: source.type || "rss" });
+      stats.sources.push({ name: source.name, items: items.length });
+      for (const item of items) {
+        if (!item.titulo || !item.url) continue;
+        found.push({
+          id: hash(`${source.name}|${item.url}|${item.titulo}`),
+          titulo: clean(item.titulo),
+          url: item.url,
+          fonte: source.name,
+          data: item.publicadoEm,
+          resumo_feed: clean(item.resumo),
+          categoria: item.categoria || "",
+          sourceQuality: Number(source.quality || 0.75),
+          collectedAt: now.toISOString(),
+        });
+      }
+    } catch (error) {
+      stats.errors.push({ source: source.name, error: error.message });
+    }
+  }
+  return { candidates: found, stats };
+}
+
+function sourceRecencyScore(dateValue, now = new Date()) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return 0.2;
+  const ageDays = Math.max(0, (now.getTime() - date.getTime()) / 86400000);
+  return Math.max(0, 1 - ageDays / 21);
+}
+
+function topicRelevanceScore(candidate, topics = []) {
+  const text = normalizeText(`${candidate.titulo} ${candidate.resumo_feed} ${candidate.categoria}`);
+  const topicTokens = unique(topics.flatMap(tokens));
+  if (!topicTokens.length) return 0;
+  const hits = topicTokens.filter((token) => text.includes(token));
+  return Math.min(1, hits.length / Math.min(6, topicTokens.length));
+}
+
+function keywordRepetitionScore(cluster) {
+  const bag = new Map();
+  cluster.items.flatMap((item) => tokens(`${item.titulo} ${item.resumo_feed}`)).forEach((token) => bag.set(token, (bag.get(token) || 0) + 1));
+  const repeated = [...bag.values()].filter((count) => count > 1).length;
+  return Math.min(1, repeated / 6);
+}
+
+export function subjectKey(candidate, topics = []) {
+  const topicWords = unique(topics.flatMap(tokens));
+  const words = tokens(`${candidate.titulo} ${candidate.resumo_feed}`);
+  const preferred = words.filter((word) => topicWords.includes(word));
+  const selected = unique([...preferred, ...words]).slice(0, 5);
+  return selected.slice(0, 3).join("-") || slugify(candidate.titulo).split("-").slice(0, 3).join("-");
+}
+
+export function groupPautas(candidates, config) {
+  const byKey = new Map();
+  for (const candidate of candidates) {
+    const key = subjectKey(candidate, config.topics || []);
+    const group = byKey.get(key) || { key, items: [] };
+    group.items.push(candidate);
+    byKey.set(key, group);
+  }
+  return [...byKey.values()].map((group) => {
+    const sourceCount = unique(group.items.map((item) => item.fonte)).length;
+    return {
+      ...group,
+      titulo: group.items[0]?.titulo || "Pauta editorial",
+      sourceCount,
+      keywords: unique(group.items.flatMap((item) => tokens(`${item.titulo} ${item.resumo_feed}`))).slice(0, 10),
+    };
+  });
+}
+
+function titleSimilarity(a, b) {
+  const aa = new Set(tokens(a));
+  const bb = new Set(tokens(b));
+  if (!aa.size || !bb.size) return 0;
+  const intersection = [...aa].filter((token) => bb.has(token)).length;
+  return intersection / Math.max(aa.size, bb.size);
+}
+
+export function isDuplicatePauta(pauta, posts = []) {
+  return posts.some((post) => titleSimilarity(pauta.titulo, post.titulo) >= 0.5 || titleSimilarity(pauta.keywords?.join(" "), [...(post.tags || []), post.titulo].join(" ")) >= 0.55);
+}
+
+export function rankPautas(pautas, config, posts = [], now = new Date()) {
+  const weights = config.weights || {};
+  return pautas.map((pauta) => {
+    const recency = Math.max(...pauta.items.map((item) => sourceRecencyScore(item.data, now)), 0);
+    const sourceCount = Math.min(1, pauta.sourceCount / Math.max(1, config.limits?.minSourcesForStrongPauta || 2));
+    const topicRelevance = Math.max(...pauta.items.map((item) => topicRelevanceScore(item, config.topics || [])), 0);
+    const keywordRepetition = keywordRepetitionScore(pauta);
+    const sourceQuality = pauta.items.reduce((sum, item) => sum + item.sourceQuality, 0) / Math.max(1, pauta.items.length);
+    const novelty = isDuplicatePauta(pauta, posts) ? 0 : 1;
+    const score = recency * (weights.recency || 1)
+      + sourceCount * (weights.sourceCount || 1)
+      + topicRelevance * (weights.topicRelevance || 1)
+      + keywordRepetition * (weights.keywordRepetition || 1)
+      + sourceQuality * (weights.sourceQuality || 1)
+      + novelty * (weights.novelty || 1);
+    return { ...pauta, score: Number(score.toFixed(3)), scoreParts: { recency, sourceCount, topicRelevance, keywordRepetition, sourceQuality, novelty } };
+  }).sort((a, b) => b.score - a.score);
+}
+
+export function selectSourcesForPauta(pauta, maxSources = 5) {
+  const seenUrls = new Set();
+  const seenSources = new Set();
+  return [...pauta.items]
+    .sort((a, b) => b.sourceQuality - a.sourceQuality || sourceRecencyScore(b.data) - sourceRecencyScore(a.data))
+    .filter((item) => {
+      const urlKey = String(item.url).replace(/\/$/, "");
+      const sourceKey = normalizeText(item.fonte);
+      if (seenUrls.has(urlKey) || seenSources.has(sourceKey)) return false;
+      seenUrls.add(urlKey);
+      seenSources.add(sourceKey);
+      return true;
+    })
+    .slice(0, maxSources);
+}
+
+export async function extractArticle(source, { fetchImpl = fetch, lookup = dns.lookup, config = {} } = {}) {
+  const result = await fetchSafe(source.url, {
+    fetchImpl,
+    lookup,
+    timeoutMs: config.limits?.timeoutMs || 15000,
+    maxBytes: config.limits?.maxHtmlBytes || 900000,
+    maxRedirects: config.limits?.maxRedirects || 4,
+  });
+  const html = result.body.toString("utf8");
+  const dom = new JSDOM(html, { url: result.url, virtualConsole: new VirtualConsole() });
+  const document = dom.window.document;
+  const canonical = document.querySelector("link[rel='canonical']")?.href || result.url;
+  const author = document.querySelector("meta[name='author']")?.getAttribute("content") || "";
+  const published = document.querySelector("meta[property='article:published_time']")?.getAttribute("content") || source.data || "";
+  const parsed = new Readability(document).parse();
+  const title = clean(parsed?.title || document.title || source.titulo);
+  const text = clean(stripHtml(parsed?.content || document.body?.textContent || ""));
+  if (!title || text.length < 300) throw new Error("Artigo sem conteudo principal suficiente.");
+  const url = new URL(canonical);
+  return {
+    fonte: source.fonte,
+    tituloOriginal: title,
+    url: canonical,
+    dominio: url.hostname.replace(/^www\./, ""),
+    autor: clean(author) || null,
+    data: clean(published) || null,
+    conteudo: text.slice(0, 9000),
+  };
+}
+
+export function buildEditorialPrompt({ config, pauta, articles, posts }) {
+  return [
+    "Voce e o ELO AUTOPILOT, um editor tecnico para um site brasileiro de engenharia, arquitetura e tecnologia aplicada a construcao.",
+    "Escreva uma sintese editorial original em portugues do Brasil, baseada nas fontes fornecidas.",
+    "Nao copie paragrafos, frases longas ou estruturas da fonte; nao invente entrevistas, numeros, falas, fontes ou experiencia propria. Se houver apenas uma fonte, escreva como analise contextual curta e deixe claro que a fonte original sustenta os fatos.",
+    "Retorne somente JSON valido com: titulo, subtitulo, resumo, conteudo, seoTitle, seoDescription, slug, categoria, tags, imagePrompt.",
+    "conteudo deve ser um array de blocos: { subtitulo, paragrafos }.",
+    `Marca: ${config.brand}`,
+    `Temas: ${(config.topics || []).join(", ")}`,
+    `Pauta escolhida: ${pauta.titulo}`,
+    `Historico recente: ${(posts || []).slice(0, 8).map((post) => post.titulo).join(" | ") || "sem posts"}`,
+    "Fontes extraidas:",
+    ...articles.map((article, index) => `${index + 1}. ${article.fonte} - ${article.tituloOriginal} - ${article.url}\n${article.conteudo.slice(0, 3000)}`),
+  ].join("\n\n");
+}
+
+function extractJson(text) {
+  const raw = clean(text);
+  if (raw.startsWith("{")) return JSON.parse(raw);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Resposta LLM sem JSON.");
+  return JSON.parse(match[0]);
+}
+
+export async function generateEditorialArticle({ config, pauta, articles, posts = [], fetchImpl = fetch } = {}) {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY ausente.");
+  const model = process.env[config.llm?.modelEnv || "OPENAI_ELO_AUTOPILOT_MODEL"] || process.env[config.llm?.fallbackModelEnv || "OPENAI_MODEL"] || "gpt-4.1-mini";
+  const prompt = buildEditorialPrompt({ config, pauta, articles, posts });
+  const response = await fetchImpl("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: [
+        { role: "system", content: "Voce gera JSON editorial estrito para publicacao web." },
+        { role: "user", content: prompt },
+      ],
+      text: { format: { type: "json_object" } },
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload?.error?.message || `OpenAI HTTP ${response.status}`);
+  const output = payload.output_text || payload.output?.flatMap((item) => item.content || []).map((item) => item.text || "").join("\n") || "";
+  return { article: validateLlmArticle(extractJson(output)), usage: payload.usage || null, model };
+}
+
+export function validateLlmArticle(article) {
+  const required = ["titulo", "resumo", "conteudo", "seoTitle", "seoDescription", "slug", "categoria", "tags", "imagePrompt"];
+  for (const key of required) {
+    if (article[key] == null || article[key] === "") throw new Error(`Campo LLM ausente: ${key}`);
+  }
+  const slug = slugify(article.slug || article.titulo);
+  const blocks = Array.isArray(article.conteudo) ? article.conteudo : [];
+  if (!blocks.length) throw new Error("Artigo sem blocos.");
+  const normalizedBlocks = blocks.map((block) => ({
+    subtitulo: clean(block.subtitulo),
+    paragrafos: Array.isArray(block.paragrafos) ? block.paragrafos.map(clean).filter(Boolean) : [],
+  })).filter((block) => block.subtitulo && block.paragrafos.length);
+  if (!normalizedBlocks.length) throw new Error("Artigo sem paragrafos.");
+  return {
+    titulo: clean(article.titulo),
+    subtitulo: clean(article.subtitulo),
+    resumo: clean(article.resumo),
+    conteudo: normalizedBlocks,
+    seoTitle: clean(article.seoTitle).slice(0, 70),
+    seoDescription: clean(article.seoDescription).slice(0, 160),
+    slug,
+    categoria: clean(article.categoria),
+    tags: Array.isArray(article.tags) ? article.tags.map(clean).filter(Boolean).slice(0, 8) : [],
+    imagePrompt: clean(article.imagePrompt),
+  };
+}
+
+function articlePlainText(article) {
+  return [article.titulo, article.resumo, ...article.conteudo.flatMap((block) => [block.subtitulo, ...block.paragrafos])].join(" ");
+}
+
+function ngrams(text, size = 12) {
+  const words = normalizeText(text).split(/\s+/).filter(Boolean);
+  const result = new Set();
+  for (let i = 0; i <= words.length - size; i += 1) result.add(words.slice(i, i + size).join(" "));
+  return result;
+}
+
+export function antiCopyCheck(article, sources, { maxLongMatches = 2, maxParagraphSimilarity = 0.72 } = {}) {
+  const generatedText = articlePlainText(article);
+  const generatedNgrams = ngrams(generatedText, 12);
+  let longMatches = 0;
+  for (const source of sources) {
+    const sourceNgrams = ngrams(source.conteudo, 16);
+    for (const gram of generatedNgrams) if (sourceNgrams.has(gram)) longMatches += 1;
+  }
+  const paragraphs = article.conteudo.flatMap((block) => block.paragrafos);
+  let maxSimilarity = 0;
+  for (const paragraph of paragraphs) {
+    for (const source of sources) maxSimilarity = Math.max(maxSimilarity, titleSimilarity(paragraph, source.conteudo));
+  }
+  return {
+    ok: longMatches <= maxLongMatches && maxSimilarity <= maxParagraphSimilarity,
+    longMatches,
+    maxParagraphSimilarity: Number(maxSimilarity.toFixed(3)),
+  };
+}
+
+export function antiHallucinationCheck(article, sources, pauta) {
+  const text = normalizeText(articlePlainText(article));
+  const sourceText = normalizeText(sources.map((source) => source.conteudo).join(" "));
+  const topicWords = tokens(`${pauta.titulo} ${pauta.keywords?.join(" ")}`).slice(0, 8);
+  const supportedTerms = topicWords.filter((word) => text.includes(word) && sourceText.includes(word));
+  return {
+    ok: sources.length > 0 && article.titulo.length >= 12 && articlePlainText(article).length >= 900 && supportedTerms.length >= Math.min(2, topicWords.length || 2),
+    supportedTerms,
+  };
+}
+
+export async function generateEditorialImage({ article, config, fetchImpl = fetch, outputDir = IMAGE_DIR } = {}) {
+  const slug = safePostSlug(article.slug);
+  const imageConfig = config.image || {};
+  if (imageConfig.provider !== "pollinations") throw new Error("Provedor de imagem nao configurado.");
+  const width = Number(imageConfig.width || 1200);
+  const height = Number(imageConfig.height || 675);
+  const prompt = `${article.imagePrompt}. Editorial illustration, Brazilian construction, architecture and engineering context, no logos, no text in image.`;
+  const url = new URL(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`);
+  url.searchParams.set("width", String(width));
+  url.searchParams.set("height", String(height));
+  url.searchParams.set("nologo", "true");
+  if (imageConfig.model) url.searchParams.set("model", imageConfig.model);
+  const response = await fetchImpl(url.href, { headers: { "user-agent": USER_AGENT, accept: "image/jpeg,image/webp,image/png" } });
+  const contentType = response.headers?.get?.("content-type") || "";
+  if (!response.ok) throw new Error(`Imagem HTTP ${response.status}`);
+  if (!/^image\/(jpeg|png|webp)\b/i.test(contentType)) throw new Error(`Imagem Content-Type recusado: ${contentType || "ausente"}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.byteLength < 1000 || buffer.byteLength > 5_000_000) throw new Error("Imagem fora do tamanho esperado.");
+  await mkdir(outputDir, { recursive: true });
+  const ext = contentType.includes("webp") ? "webp" : contentType.includes("png") ? "png" : "jpg";
+  const relative = `./assets/posts/${slug}.${ext}`;
+  await writeFile(path.join(outputDir, `${slug}.${ext}`), buffer);
+  return {
+    path: relative,
+    absolutePath: path.join(outputDir, `${slug}.${ext}`),
+    provider: "pollinations",
+    prompt,
+    contentType,
+    bytes: buffer.byteLength,
+    usage: {
+      imageTokens: response.headers?.get?.("x-usage-total-tokens") || null,
+      model: response.headers?.get?.("x-model-used") || imageConfig.model || null,
+    },
+  };
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toArticleHtml(post) {
+  return post.conteudo.map((block) => `<h2>${escapeHtml(block.subtitulo)}</h2>\n${block.paragrafos.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n")}`).join("\n");
+}
+
+export function buildPostPage(post) {
+  const url = `${SITE_ORIGIN}/novidades/posts/${post.slug}/`;
+  const imageUrl = `${SITE_ORIGIN}/novidades/${post.imagem.replace(/^\.\//, "")}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.titulo,
+    description: post.seoDescription || post.resumo,
+    image: imageUrl,
+    datePublished: post.publicadoEm,
+    dateModified: post.publicadoEm,
+    author: { "@type": "Organization", name: "Amaral Engenharia" },
+    publisher: { "@type": "Organization", name: "Amaral Engenharia" },
+    mainEntityOfPage: url,
+  };
+  const jsonLdText = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
+  return `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(post.seoTitle || post.titulo)}</title>
+    <meta name="description" content="${escapeHtml(post.seoDescription || post.resumo)}">
+    <link rel="canonical" href="${escapeHtml(url)}">
+    <meta name="robots" content="index,follow">
+    <meta property="og:title" content="${escapeHtml(post.titulo)}">
+    <meta property="og:description" content="${escapeHtml(post.resumo)}">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="${escapeHtml(url)}">
+    <meta property="og:image" content="${escapeHtml(imageUrl)}">
+    <link rel="stylesheet" href="../../novidades.css">
+    <script type="application/ld+json">${jsonLdText}</script>
+  </head>
+  <body>
+    <header class="site-header"><div class="header-inner"><a class="brand-link" href="/">Engenharia, Arquitetura, Urbanismo e Tecnologia</a><nav aria-label="Navegação principal"><a href="/novidades/">Novidades</a><a href="/">Voltar ao site</a></nav></div></header>
+    <main class="article-shell">
+      <p class="article-kicker">${escapeHtml(post.categoria)}</p>
+      <h1>${escapeHtml(post.titulo)}</h1>
+      <p class="article-meta">${escapeHtml(new Date(post.publicadoEm).toLocaleDateString("pt-BR", { dateStyle: "long" }))} · Síntese editorial</p>
+      <figure class="article-cover"><img src="../../${escapeHtml(post.imagem.replace(/^\.\//, ""))}" alt="${escapeHtml(post.imagemAlt)}"></figure>
+      <article class="article-content">${toArticleHtml(post)}</article>
+      <section class="sources" aria-labelledby="fontes-titulo">
+        <h2 id="fontes-titulo">Fontes</h2>
+        <ul>
+          ${post.fontes.map((source) => `<li><a href="${escapeHtml(source.url)}" rel="noopener noreferrer external">${escapeHtml(source.fonte)} — ${escapeHtml(source.tituloOriginal)}</a></li>`).join("\n          ")}
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
+`;
+}
+
+export function buildIndexPayload(posts, now = new Date()) {
+  return {
+    atualizadoEm: now.toISOString(),
+    posts: posts.slice().sort((a, b) => new Date(b.publicadoEm) - new Date(a.publicadoEm)),
+  };
+}
+
+export function buildSitemap(posts) {
+  const urls = [
+    `${SITE_ORIGIN}/`,
+    `${SITE_ORIGIN}/noticias/`,
+    `${SITE_ORIGIN}/novidades/`,
+    ...posts.map((post) => `${SITE_ORIGIN}/novidades/posts/${post.slug}/`),
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${unique(urls).map((url) => `  <url>\n    <loc>${escapeHtml(url)}</loc>\n  </url>`).join("\n")}
+</urlset>
+`;
+}
+
+export async function persistPost(post, previousPayload, now = new Date()) {
+  const slug = safePostSlug(post.slug);
+  const nextPosts = [post, ...(previousPayload.posts || []).filter((item) => item.slug !== slug)];
+  const payload = buildIndexPayload(nextPosts, now);
+  await mkdir(path.join(POSTS_DIR, slug), { recursive: true });
+  await writeFile(POSTS_PATH, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  await writeFile(path.join(POSTS_DIR, slug, "index.html"), buildPostPage(post), "utf8");
+  await writeFile(SITEMAP_PATH, buildSitemap(payload.posts), "utf8");
+  return payload;
+}
+
+function estimateCost(usage, config) {
+  const pricing = config.pricing || {};
+  if (!usage || pricing.inputPerMillion == null || pricing.outputPerMillion == null) return null;
+  const input = usage.input_tokens || usage.prompt_tokens || 0;
+  const output = usage.output_tokens || usage.completion_tokens || 0;
+  return {
+    currency: pricing.currency || "USD",
+    inputTokens: input,
+    outputTokens: output,
+    text: (input / 1_000_000) * pricing.inputPerMillion + (output / 1_000_000) * pricing.outputPerMillion,
+  };
+}
+
+export async function runAutopilot({
+  dryRun = false,
+  publish = null,
+  configPath = CONFIG_PATH,
+  fetchImpl = fetch,
+  lookup = dns.lookup,
+  now = new Date(),
+  log = console.log,
+} = {}) {
+  const config = await readConfig(configPath);
+  const envPublish = String(process.env.AUTOPILOT_PUBLISH || "").toLowerCase() === "true";
+  const shouldPublish = publish ?? (envPublish || config.publishDefault === true);
+  const report = {
+    candidates: 0,
+    pautas: 0,
+    selected: null,
+    sourcesSelected: [],
+    sourcesRead: 0,
+    llm: "FAIL",
+    antiCopy: "FAIL",
+    antiHallucination: "FAIL",
+    image: "FAIL",
+    post: "FAIL",
+    seo: "FAIL",
+    sitemap: "FAIL",
+    publication: false,
+    blockers: [],
+    usage: null,
+    imageUsage: null,
+    cost: null,
+  };
+  if (!config.enabled) {
+    report.blockers.push("Autopilot desativado na configuracao.");
+    return report;
+  }
+  const previous = await readPosts();
+  const collected = await collectCandidates(config, { fetchImpl, lookup, now });
+  report.candidates = collected.candidates.length;
+  const ranked = rankPautas(groupPautas(collected.candidates, config), config, previous.posts, now);
+  report.pautas = ranked.length;
+  const pauta = ranked.find((item) => !isDuplicatePauta(item, previous.posts));
+  if (!pauta) {
+    report.blockers.push("Nenhuma pauta nova encontrada.");
+    return report;
+  }
+  report.selected = pauta;
+  const selectedSources = selectSourcesForPauta(pauta, config.limits?.maxSourcesPerPost || 5);
+  report.sourcesSelected = selectedSources;
+  const articles = [];
+  for (const source of selectedSources) {
+    try {
+      articles.push(await extractArticle(source, { fetchImpl, lookup, config }));
+    } catch (error) {
+      report.blockers.push(`Fonte nao lida: ${source.fonte} (${error.message})`);
+    }
+  }
+  report.sourcesRead = articles.length;
+  if (!articles.length) {
+    report.blockers.push("Nenhuma fonte real foi lida.");
+    return report;
+  }
+  let generated;
+  try {
+    generated = await generateEditorialArticle({ config, pauta, articles, posts: previous.posts, fetchImpl });
+    report.llm = "PASS";
+    report.usage = generated.usage;
+    report.cost = estimateCost(generated.usage, config);
+  } catch (error) {
+    report.blockers.push(`LLM falhou: ${error.message}`);
+    return report;
+  }
+  const copy = antiCopyCheck(generated.article, articles);
+  report.antiCopy = copy.ok ? "PASS" : "FAIL";
+  report.copy = copy;
+  const hallucination = antiHallucinationCheck(generated.article, articles, pauta);
+  report.antiHallucination = hallucination.ok ? "PASS" : "FAIL";
+  report.hallucination = hallucination;
+  if (!copy.ok || !hallucination.ok || isDuplicatePauta({ titulo: generated.article.titulo, keywords: generated.article.tags }, previous.posts)) {
+    report.blockers.push("Validacao editorial rejeitou o artigo.");
+    return report;
+  }
+  let image = null;
+  try {
+    if (dryRun) {
+      image = await generateEditorialImage({ article: generated.article, config, fetchImpl, outputDir: path.join(os.tmpdir(), "elo-autopilot-images") });
+    } else {
+      image = await generateEditorialImage({ article: generated.article, config, fetchImpl });
+    }
+    report.image = "PASS";
+    report.imageUsage = image.usage;
+  } catch (error) {
+    report.blockers.push(`Imagem falhou: ${error.message}`);
+    return report;
+  }
+  const post = {
+    id: hash(`${generated.article.slug}|${now.toISOString()}`),
+    slug: generated.article.slug,
+    titulo: generated.article.titulo,
+    subtitulo: generated.article.subtitulo,
+    resumo: generated.article.resumo,
+    conteudo: generated.article.conteudo,
+    categoria: generated.article.categoria,
+    tags: generated.article.tags,
+    imagem: image.path,
+    imagemAlt: `Ilustração editorial sobre ${generated.article.titulo}`,
+    publicadoEm: now.toISOString(),
+    criadoEm: now.toISOString(),
+    fontes: articles.map((article) => ({
+      fonte: article.fonte,
+      tituloOriginal: article.tituloOriginal,
+      url: article.url,
+      dominio: article.dominio,
+      autor: article.autor,
+      data: article.data,
+    })),
+    seoTitle: generated.article.seoTitle,
+    seoDescription: generated.article.seoDescription,
+    autopilot: {
+      pauta: pauta.titulo,
+      score: pauta.score,
+      imageProvider: image.provider,
+      imagePrompt: image.prompt,
+      llmProvider: "openai",
+      llmModel: generated.model,
+    },
+  };
+  report.post = "PASS";
+  report.seo = post.seoTitle && post.seoDescription && post.slug && post.fontes.length ? "PASS" : "FAIL";
+  report.postPreview = post;
+  if (!dryRun && shouldPublish) {
+    await persistPost(post, previous, now);
+    report.publication = true;
+    report.sitemap = "PASS";
+  } else {
+    report.sitemap = buildSitemap([post, ...previous.posts]).includes(`/novidades/posts/${post.slug}/`) ? "PASS" : "FAIL";
+  }
+  logReport(report, { log, dryRun, shouldPublish });
+  return report;
+}
+
+export function logReport(report, { log = console.log, dryRun = false, shouldPublish = false } = {}) {
+  log("ELO AUTOPILOT");
+  log(`CANDIDATOS: ${report.candidates}`);
+  log(`PAUTAS: ${report.pautas}`);
+  log(`PAUTA ESCOLHIDA: ${report.selected?.titulo || "nenhuma"}`);
+  log(`SCORE: ${report.selected?.score ?? "n/a"}`);
+  log("FONTES:");
+  report.sourcesSelected.forEach((source, index) => log(`${index + 1}. ${source.fonte} - ${source.titulo}`));
+  log(`FONTES LIDAS: ${report.sourcesRead}/${report.sourcesSelected.length}`);
+  log(`LLM: ${report.llm}`);
+  log(`ANTI-COPIA: ${report.antiCopy}`);
+  log(`IMAGEM: ${report.image}`);
+  log(`POST: ${report.post}`);
+  log(`SEO: ${report.seo}`);
+  log(`SITEMAP: ${report.sitemap}`);
+  log(`PUBLICACAO: ${!dryRun && shouldPublish && report.publication ? "SIM" : "NAO"}`);
+  log(`CUSTO ESTIMADO: ${report.cost ? `${report.cost.currency} ${report.cost.text.toFixed(6)}` : "NAO CONFIRMADO"}`);
+  if (report.blockers.length) {
+    log("BLOCKERS:");
+    report.blockers.forEach((blocker) => log(`- ${blocker}`));
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const dryRun = process.argv.includes("--dry-run");
+  const publish = process.argv.includes("--publish") ? true : process.argv.includes("--no-publish") ? false : null;
+  const report = await runAutopilot({ dryRun, publish });
+  if (report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS") process.exitCode = 1;
+}
+
+
+
+
+
+
+
+
+
