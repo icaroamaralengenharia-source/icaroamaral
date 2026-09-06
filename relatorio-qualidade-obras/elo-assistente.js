@@ -28938,7 +28938,15 @@ function isEloResidentialNewPipelineEnabled_() {
     logEloMusicEvent_("WAKE_PREFIX_STRIPPED", { text: normalizeEloRoutingLogText_(routeQuestion) });
     logEloMusicEvent_("ROUTER_ENTER", { source: submitSource, hasAttachments: attachedFiles.length > 0 });
     logEloMusicEvent_("MUSIC_INTENT_MATCH", { matched: !!musicIntent, query: musicIntent && musicIntent.query });
-    if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
+    if (!attachedFiles.length && musicIntent && !isEloOnline_()) {
+      appendMessage("user", cleanQuestion);
+      appendTypingIndicator();
+      requestEloOfflineRoute_(routeQuestion, { backendState: "BROWSER_OFFLINE" }).then(function (routeResult) {
+        removeTypingIndicator();
+        if (!appendEloOfflineRouteResponse_(cleanQuestion, routeResult)) appendEloOfflineChatResponse_(cleanQuestion);
+      });
+      return;
+    }    if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
       appendMessage("user", cleanQuestion);
       handleEloMusicQuery_(routeQuestion, { append: true }).finally(function () {
         clearProductAttachmentPreview();

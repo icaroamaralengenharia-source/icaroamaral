@@ -80,7 +80,7 @@ test("elo.html oficial carrega módulos offline antes do assistente", () => {
 
 test("service worker oficial cacheia shell offline sem cachear API", () => {
   const sw = fs.readFileSync(path.join(repoRoot, "elo-sw.js"), "utf8");
-  assert.match(sw, /elo-web-offline-v4-20260903-official-offline-v1/);
+  assert.match(sw, /elo-web-offline-v5-20260906-p0-offline-v1/);
   assert.match(sw, /elo-offline-memory-adapter\.js/);
   assert.match(sw, /elo-offline-router\.js/);
   const assetsBlock = sw.match(/const ELO_SHELL_ASSETS = \[[\s\S]*?\];/)[0];

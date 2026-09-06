@@ -160,3 +160,39 @@ test("ELO oficial misses offline não chamam provider nem chat", async ({ page, 
   expect(result.sweetChild.message).toMatch(/não está disponível/i);
   expect(result.fetchCalls.filter((url) => !url.includes("library.json")).length).toBe(0);
 });
+
+test("ELO P0 reload com browser realmente offline mantém comandos determinísticos e Für Elise", async ({ page, context }) => {
+  const requests = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await installServiceWorker(page, context);
+
+  const result = await page.evaluate(async () => {
+    const date = await window.EloAssistente.requestOfflineRouteForTest("que dia e hoje?", { backendState: "BROWSER_OFFLINE" });
+    const math = await window.EloAssistente.requestOfflineRouteForTest("quanto e 158 x 23", { backendState: "BROWSER_OFFLINE" });
+    const capabilities = await window.EloAssistente.requestOfflineRouteForTest("o que sabe fazer offline?", { backendState: "BROWSER_OFFLINE" });
+    const asset = await fetch("./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg");
+    return {
+      hasController: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      online: navigator.onLine,
+      date,
+      math,
+      capabilities,
+      assetStatus: asset.status,
+      assetOk: asset.ok,
+      assetContentType: asset.headers.get("content-type") || ""
+    };
+  });
+
+  expect(result.hasController).toBe(true);
+  expect(result.online).toBe(false);
+  expect(result.date.handled).toBe(true);
+  expect(result.date.intent).toBe("DATE_LOCAL");
+  expect(result.math.handled).toBe(true);
+  expect(result.math.intent).toBe("MATH_LOCAL");
+  expect(result.math.result).toBe(3634);
+  expect(result.capabilities.handled).toBe(true);
+  expect(result.capabilities.intent).toBe("OFFLINE_CAPABILITIES");
+  expect(result.assetOk).toBe(true);
+  expect(result.assetStatus).toBe(200);
+  expect(requests.filter((url) => url.includes("/api/elo/") || /openai/i.test(url)).length).toBe(0);
+});
