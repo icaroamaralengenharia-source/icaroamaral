@@ -2439,7 +2439,7 @@ export function createApp(options = {}) {
       response.status(status).json({ ok: false, error: message });
     }
   });
-  app.post("/api/stock-full/transfer", async (request, response) => {
+  app.post("/api/stock-full/transfers", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
       return;
