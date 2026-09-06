@@ -1119,5 +1119,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const dryRun = process.argv.includes("--dry-run");
   const publish = process.argv.includes("--publish") ? true : process.argv.includes("--no-publish") ? false : null;
   const report = await runAutopilot({ dryRun, publish });
-  if (report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS" || report.factualVerifier !== "PASS") process.exitCode = 1;
+  const failed = report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS" || report.factualVerifier !== "PASS";
+  if (failed && !report.openAiDiagnostic) logReport(report, { dryRun, shouldPublish: publish ?? process.env.AUTOPILOT_PUBLISH === "true" });
+  if (failed) process.exitCode = 1;
 }
