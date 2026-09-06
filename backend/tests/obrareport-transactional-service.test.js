@@ -169,3 +169,55 @@ test("ObraReport service valida dados minimos", () => {
     cleanup();
   }
 });
+test("ObraReport service cria, lista, atualiza, versiona, documenta e isola vistoria de entrega", () => {
+  const { service, cleanup } = createService();
+  try {
+    const inspection = service.createApartmentHandoverInspection(contextA, {
+      projectId: "obra_001",
+      clientId: "cliente_001",
+      title: "Vistoria apto 202",
+      status: "completed",
+      inspectionData: {
+        metadata: { projectName: "Residencial Alfa", unitName: "202" },
+        items: [
+          { ambiente: "Sala", item: "Rodape", status: "NC", severidade: "Alta" },
+          { ambiente: "Quarto", item: "Porta", status: "C" }
+        ]
+      }
+    });
+
+    assert.equal(inspection.institution_id, "inst_a");
+    assert.equal(inspection.project_id, "obra_001");
+    assert.equal(inspection.inspection_data_json.metadata.unitName, "202");
+
+    assert.equal(service.listApartmentHandoverInspections(contextA, { projectId: "obra_001" }).length, 1);
+    assert.equal(service.listApartmentHandoverInspections(contextB).length, 0);
+    assert.throws(() => service.getApartmentHandoverInspection(contextB, inspection.id), /inspection_forbidden/);
+
+    const updated = service.updateApartmentHandoverInspection(contextA, inspection.id, {
+      status: "draft",
+      inspectionData: Object.assign({}, inspection.inspection_data_json, { reopenedAt: "2026-09-06T12:00:00.000Z" })
+    });
+    assert.equal(updated.status, "draft");
+    assert.equal(updated.reopened_at, "2026-09-06T12:00:00.000Z");
+
+    const version = service.createApartmentHandoverInspectionVersion(contextA, inspection.id);
+    assert.equal(version.version_number, 1);
+    assert.equal(version.inspection_id, inspection.id);
+
+    const document = service.generateApartmentHandoverInspectionDocument(contextA, inspection.id);
+    assert.equal(document.source_type, "apartment_handover_inspection");
+    assert.equal(document.document_type, "apartment_handover_controlled_html");
+    assert.match(document.html_content, /ObraReport Vistoria/);
+
+    const events = service.listApartmentHandoverInspectionEvents(contextA, inspection.id).map((event) => event.event_type);
+    assert.deepEqual(events, [
+      "inspection_created",
+      "inspection_updated",
+      "inspection_version_created",
+      "inspection_document_generated"
+    ]);
+  } finally {
+    cleanup();
+  }
+});

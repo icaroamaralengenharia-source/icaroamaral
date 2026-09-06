@@ -785,7 +785,10 @@
     if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|codigo\s+sinapi|stock\s+obras)\b/.test(text)) {
       return { module: "stock_obras", action: /exporte|csv|xlsx/.test(text) ? "preview_export" : "search_composition", payload: payload };
     }
-    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|ocorrencia|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
+    if (/\b(?:vistoria|vistorias|apartamento|apto|unidade|nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text)) {
+      const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
+      return { module: "inspection", action: action, payload: payload };
+    }    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|ocorrencia|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
       return { module: "obrareport_rdo", action: /crie|novo/.test(text) ? "preview_new_rdo" : /feche|gere\s+o\s+pdf/.test(text) ? "close_rdo" : "list_rdos", payload: payload };
     }
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
@@ -813,8 +816,8 @@
 
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
-    if (["obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:preview_|close_|create_|stock_|clear_|generate_final_document|update_)/.test(request.action);
+    if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
+    return /^(?:inspection\.|preview_|close_|create_|stock_|clear_|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;
