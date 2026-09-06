@@ -5,11 +5,14 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-export const PNCP_ENDPOINT = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
+export const PNCP_PUBLICATION_ENDPOINT = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
+export const PNCP_OPEN_ENDPOINT = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta";
+export const PNCP_ENDPOINT = PNCP_PUBLICATION_ENDPOINT;
 export const PNCP_DOCS_URL = "https://pncp.gov.br/pncp-consulta/v3/api-docs";
 export const OUTPUT_PATH = "noticias/dados/licitacoes.json";
-export const MAX_PAGES = 3;
-export const MAX_RESULTS = 100;
+export const MAX_PAGES = 12;
+export const MAX_RESULTS = 10;
+export const INTERNAL_CANDIDATE_LIMIT = 240;
 export const PAGE_SIZE = 10;
 export const DEFAULT_MODALIDADES = [4, 6, 8, 12, 5, 7, 1, 2, 3, 9];
 export const USER_AGENT = "Amaral-Hunter-Licitacoes/1.0 (+https://www.icaroamaral.com.br/)";
@@ -77,12 +80,20 @@ export function dateOnly(date) {
 }
 
 export function buildPublicationUrl({ dataInicial, dataFinal, codigoModalidadeContratacao, pagina, tamanhoPagina = PAGE_SIZE }) {
-  const url = new URL(PNCP_ENDPOINT);
+  const url = new URL(PNCP_PUBLICATION_ENDPOINT);
   url.searchParams.set("dataInicial", dataInicial);
   url.searchParams.set("dataFinal", dataFinal);
   url.searchParams.set("codigoModalidadeContratacao", String(codigoModalidadeContratacao));
   url.searchParams.set("pagina", String(pagina));
   url.searchParams.set("tamanhoPagina", String(tamanhoPagina));
+  return url.toString();
+}
+
+export function buildOpenProposalUrl({ dataFinal, pagina, tamanhoPagina = PAGE_SIZE }) {
+  const url = new URL(PNCP_OPEN_ENDPOINT);
+  url.searchParams.set("dataFinal", dataFinal);
+  url.searchParams.set("pagina", String(pagina));
+  url.searchParams.set("tamanhoPagina", String(Math.max(10, tamanhoPagina)));
   return url.toString();
 }
 
@@ -144,9 +155,21 @@ export function isRecentPublication(item, now = new Date(), days = 7) {
 
 export function isOpenProcess(item, now = new Date()) {
   const deadline = parseDate(item?.dataEncerramentoProposta);
-  if (!deadline) return isRecentPublication(item, now);
+  if (!deadline) return false;
   if (isFutureAbsurd(deadline, now)) return false;
-  return deadline.getTime() >= now.getTime();
+  return deadline.getTime() > now.getTime();
+}
+
+export function classifyDeadline(item, now = new Date()) {
+  const deadline = parseDate(item?.dataEncerramentoProposta || item?.dataLimite);
+  if (!deadline) return "INDISPONIVEL";
+  if (deadline.getTime() <= now.getTime()) return "EXPIRADA";
+  const days = Math.ceil((deadline.getTime() - now.getTime()) / 86400000);
+  return days <= 7 ? "ENCERRA_EM_BREVE" : "ABERTA";
+}
+
+export function hasOfficialMinimumFields(item) {
+  return Boolean(item?.numeroControlePNCP && item?.orgaoEntidade?.cnpj && item?.anoCompra && item?.sequencialCompra && String(item?.objetoCompra || "").trim() && parseDate(item?.dataPublicacaoPncp || item?.dataInclusao) && parseDate(item?.dataEncerramentoProposta) && String(item?.orgaoEntidade?.razaoSocial || "").trim());
 }
 
 function moreCompleteScore(item) {
@@ -158,18 +181,21 @@ function moreCompleteScore(item) {
 }
 
 export function normalizePncpItem(item, { now = new Date() } = {}) {
+  if (!hasOfficialMinimumFields(item)) return null;
   const officialUrl = pncpOpportunityUrl(item);
-  const sourceUrl = isSafeHttpUrl(officialUrl) ? officialUrl : item?.linkSistemaOrigem;
-  if (!item?.numeroControlePNCP && !isSafeHttpUrl(sourceUrl)) return null;
-  if (!isSafeHttpUrl(sourceUrl)) return null;
+  const sourceUrl = isSafeHttpUrl(officialUrl) ? officialUrl : null;
+  if (!sourceUrl) return null;
   if (!isOpenProcess(item, now)) return null;
-  if (!isRecentPublication(item, now)) return null;
   const match = thematicMatch(item);
   if (!match.accepted) return null;
   const title = String(item?.objetoCompra || item?.informacaoComplementar || item?.numeroControlePNCP || "Licitacao PNCP").replace(/\s+/g, " ").trim();
-  const id = deterministicId(item?.numeroControlePNCP || "", sourceUrl, item?.orgaoEntidade?.razaoSocial || "", item?.numeroCompra || "", title);
+  const id = deterministicId(item.numeroControlePNCP);
   return {
     id,
+    numeroControlePNCP: item.numeroControlePNCP,
+    cnpjOrgao: item.orgaoEntidade.cnpj,
+    anoCompra: item.anoCompra,
+    sequencialCompra: item.sequencialCompra,
     titulo: title.slice(0, 140),
     objeto: title || null,
     orgao: item?.orgaoEntidade?.razaoSocial || null,
@@ -179,31 +205,34 @@ export function normalizePncpItem(item, { now = new Date() } = {}) {
     modalidade: item?.modalidadeNome || null,
     numeroCompra: item?.numeroCompra || null,
     numeroProcesso: item?.processo || null,
-    valorEstimado: typeof item?.valorTotalEstimado === "number" ? item.valorTotalEstimado : null,
-    moeda: typeof item?.valorTotalEstimado === "number" ? "BRL" : null,
+    valorEstimado: typeof item?.valorTotalEstimado === "number" && item.valorTotalEstimado > 0 ? item.valorTotalEstimado : null,
+    moeda: typeof item?.valorTotalEstimado === "number" && item.valorTotalEstimado > 0 ? "BRL" : null,
     dataPublicacao: isoOrNull(item?.dataPublicacaoPncp || item?.dataInclusao),
     dataAbertura: isoOrNull(item?.dataAberturaProposta),
     dataLimite: isoOrNull(item?.dataEncerramentoProposta),
     situacao: item?.situacaoCompraNome || null,
     categoria: classifyItem(item, match.terms),
     palavrasEncontradas: [...new Set(match.terms)].slice(0, 8),
+    statusPrazo: classifyDeadline(item, now),
     fonte: "PNCP",
     oportunidadeUrl: sourceUrl,
     dominioFonte: new URL(sourceUrl).hostname,
+    linkValidado: true,
+    validacaoFonte: "api-consulta-pncp",
+    validadoEm: now.toISOString(),
     dataColeta: now.toISOString()
   };
 }
 
 export function dedupeLicitacoes(items) {
-  const maps = [new Map(), new Map(), new Map(), new Map()];
+  const maps = [new Map(), new Map(), new Map()];
   const result = [];
   let duplicates = 0;
   for (const item of items) {
     const keys = [
+      normalizeText(item.numeroControlePNCP),
       item.id,
-      normalizeText(item.oportunidadeUrl),
-      normalizeText([item.orgao, item.numeroCompra].join("|")),
-      normalizeText([item.titulo, item.orgao].join("|"))
+      normalizeText([item.cnpjOrgao, item.anoCompra, item.sequencialCompra].join("|"))
     ];
     const existingIndex = keys.map((key, index) => maps[index].get(key)).find((value) => value !== undefined);
     if (existingIndex === undefined) {
@@ -218,12 +247,30 @@ export function dedupeLicitacoes(items) {
 }
 
 
-export function sortLicitacoes(items, mode = "prazo") {
+function geographicScore(item) {
+  const uf = String(item.estado || "").toUpperCase();
+  if (uf === "BA") return 60;
+  if (["AL","CE","MA","PB","PE","PI","RN","SE"].includes(uf)) return 35;
+  return 0;
+}
+
+function relevanceScore(item, now = new Date()) {
+  const deadline = parseDate(item.dataLimite);
+  const days = deadline ? Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 86400000)) : 999;
+  const usefulDeadline = days <= 3 ? 2 : days <= 30 ? 20 : 12;
+  const engineering = ["Engenharia","Arquitetura","Fiscalizacao","Infraestrutura","Laudos e Pericias"].includes(item.categoria) ? 30 : 16;
+  const value = typeof item.valorEstimado === "number" && item.valorEstimado > 0 ? Math.min(20, Math.log10(item.valorEstimado + 1) * 3) : 0;
+  const quality = [item.objeto, item.orgao, item.unidadeCompradora, item.cidade, item.estado, item.modalidade, item.numeroControlePNCP, item.dataPublicacao, item.dataLimite, item.oportunidadeUrl].filter(Boolean).length;
+  return engineering + geographicScore(item) + usefulDeadline + value + quality;
+}
+
+export function sortLicitacoes(items, mode = "prazo", now = new Date()) {
   const copy = [...items];
   copy.sort((a, b) => {
     if (mode === "valor") return (b.valorEstimado || -1) - (a.valorEstimado || -1);
     if (mode === "publicacao") return (parseDate(b.dataPublicacao)?.getTime() || 0) - (parseDate(a.dataPublicacao)?.getTime() || 0);
     if (mode === "categoria") return String(a.categoria || "").localeCompare(String(b.categoria || ""), "pt-BR");
+    if (mode === "relevancia") return relevanceScore(b, now) - relevanceScore(a, now);
     const da = parseDate(a.dataLimite)?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const db = parseDate(b.dataLimite)?.getTime() ?? Number.MAX_SAFE_INTEGER;
     return da - db;
@@ -296,7 +343,7 @@ async function parseJsonResponse({ status, ok, contentType, retryAfter, text }) 
   return JSON.parse(text);
 }
 
-export async function httpsJsonLimited(url, { timeoutMs = 20000, maxBytes = 5_000_000, headers = pncpHeaders() } = {}) {
+export async function httpsJsonLimited(url, { timeoutMs = 45000, maxBytes = 5_000_000, headers = pncpHeaders() } = {}) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, { method: "GET", headers, timeout: timeoutMs }, (res) => {
       let bytes = 0;
@@ -331,7 +378,7 @@ export async function httpsJsonLimited(url, { timeoutMs = 20000, maxBytes = 5_00
   });
 }
 
-export async function fetchJsonOnce(url, { fetchImpl = fetch, timeoutMs = 20000, maxBytes = 5_000_000, headers = pncpHeaders() } = {}) {
+export async function fetchJsonOnce(url, { fetchImpl = fetch, timeoutMs = 45000, maxBytes = 5_000_000, headers = pncpHeaders() } = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -350,12 +397,13 @@ export async function fetchJsonOnce(url, { fetchImpl = fetch, timeoutMs = 20000,
   }
 }
 
-export async function fetchJsonLimited(url, { fetchImpl = fetch, httpsImpl = httpsJsonLimited, timeoutMs = 20000, maxBytes = 5_000_000, attempts = 3, sleepImpl = delay } = {}) {
+export async function fetchJsonLimited(url, { fetchImpl = fetch, httpsImpl = httpsJsonLimited, timeoutMs = 45000, maxBytes = 5_000_000, attempts = 3, sleepImpl = delay } = {}) {
   let lastError = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       return await fetchJsonOnce(url, { fetchImpl, timeoutMs, maxBytes });
     } catch (error) {
+      if (error?.name === "AbortError" || /timeout|aborted/i.test(error?.message || "")) error.retryable = true;
       lastError = error;
       if (!error.retryable || attempt >= attempts - 1) break;
       await sleepImpl(retryDelayMs({ attempt, retryAfter: error.retryAfter }));
@@ -375,51 +423,54 @@ export async function fetchJsonLimited(url, { fetchImpl = fetch, httpsImpl = htt
   throw lastError || new Error("PNCP sem resposta");
 }
 
+async function fetchPage(url, opts) {
+  const payload = await fetchJsonLimited(url, opts);
+  const data = Array.isArray(payload?.data) ? payload.data : [];
+  return { data, paginasRestantes: Number(payload?.paginasRestantes || 0) };
+}
+
 export async function collectPncp({
-  fetchImpl = fetch,
-  now = new Date(),
-  maxPages = MAX_PAGES,
-  maxResults = MAX_RESULTS,
-  modalidades = DEFAULT_MODALIDADES,
-  pageSize = PAGE_SIZE,
-  sleepImpl = delay,
-  fetchOptions = {}
+  fetchImpl = fetch, now = new Date(), maxPages = MAX_PAGES,
+  maxResults = MAX_RESULTS, modalidades = DEFAULT_MODALIDADES,
+  pageSize = PAGE_SIZE, sleepImpl = delay, fetchOptions = {}
 } = {}) {
+  const deadlineDate = new Date(now);
+  deadlineDate.setDate(deadlineDate.getDate() + 45);
   const dataFinalDate = new Date(now);
   const dataInicialDate = new Date(now);
-  dataInicialDate.setDate(dataInicialDate.getDate() - 7);
+  dataInicialDate.setDate(dataInicialDate.getDate() - 14);
   const dataInicial = dateOnly(dataInicialDate);
   const dataFinal = dateOnly(dataFinalDate);
+  const prazoFinal = dateOnly(deadlineDate);
   const raw = [];
   const stats = {
-    endpoint: PNCP_ENDPOINT,
-    dataInicial,
-    dataFinal,
-    pagesRequested: 0,
-    received: 0,
-    compatible: 0,
-    closed: 0,
-    duplicates: 0,
-    engineering: 0,
-    technology: 0
+    endpoint: PNCP_OPEN_ENDPOINT, dataInicial, dataFinal, prazoFinal,
+    pagesRequested: 0, received: 0, compatible: 0, closed: 0,
+    unavailable: 0, duplicates: 0, engineering: 0, technology: 0, published: 0
   };
-  outer: for (const modalidade of modalidades) {
+  for (let pagina = 1; pagina <= Math.min(2, maxPages) && raw.length < INTERNAL_CANDIDATE_LIMIT; pagina += 1) {
+    const url = buildOpenProposalUrl({ dataFinal: prazoFinal, pagina, tamanhoPagina: pageSize });
+    const page = await fetchPage(url, { fetchImpl, sleepImpl, ...fetchOptions });
+    stats.pagesRequested += 1; stats.received += page.data.length;
+    raw.push(...page.data);
+    if (!page.data.length || page.paginasRestantes === 0) break;
+    await sleepImpl(900);
+  }
+  publicationLoop: for (const modalidade of modalidades) {
     for (let pagina = 1; pagina <= maxPages; pagina += 1) {
-      if (stats.pagesRequested >= maxPages) break outer;
+      if (stats.pagesRequested >= maxPages * 2 || raw.length >= INTERNAL_CANDIDATE_LIMIT) break publicationLoop;
       const url = buildPublicationUrl({ dataInicial, dataFinal, codigoModalidadeContratacao: modalidade, pagina, tamanhoPagina: pageSize });
-      const payload = await fetchJsonLimited(url, { fetchImpl, sleepImpl, ...fetchOptions });
-      stats.pagesRequested += 1;
-      const data = Array.isArray(payload?.data) ? payload.data : [];
-      stats.received += data.length;
-      raw.push(...data);
-      if (!data.length || payload?.paginasRestantes === 0) break;
-      await sleepImpl(1500);
+      const page = await fetchPage(url, { fetchImpl, sleepImpl, ...fetchOptions });
+      stats.pagesRequested += 1; stats.received += page.data.length; stats.published += page.data.length;
+      raw.push(...page.data);
+      if (!page.data.length || page.paginasRestantes === 0) break;
+      await sleepImpl(900);
     }
   }
   const normalized = [];
   for (const item of raw) {
-    const open = isOpenProcess(item, now);
-    if (!open) stats.closed += 1;
+    if (!hasOfficialMinimumFields(item)) { stats.unavailable += 1; continue; }
+    if (!isOpenProcess(item, now)) stats.closed += 1;
     const normalizedItem = normalizePncpItem(item, { now });
     if (!normalizedItem) continue;
     normalized.push(normalizedItem);
@@ -428,18 +479,9 @@ export async function collectPncp({
   }
   const deduped = dedupeLicitacoes(normalized);
   stats.duplicates = deduped.duplicates;
-  const licitacoes = sortLicitacoes(deduped.items).slice(0, maxResults);
+  const licitacoes = sortLicitacoes(deduped.items, "relevancia", now).slice(0, maxResults);
   stats.compatible = licitacoes.length;
-  return {
-    ok: true,
-    stats,
-    payload: {
-      atualizadoEm: now.toISOString(),
-      fonte: "PNCP",
-      total: licitacoes.length,
-      licitacoes
-    }
-  };
+  return { ok: true, stats, payload: { atualizadoEm: now.toISOString(), fonte: "PNCP", total: licitacoes.length, licitacoes } };
 }
 
 export async function updateLicitacoes({ dryRun = false, outputPath = OUTPUT_PATH, fetchImpl = fetch, now = new Date(), fetchOptions = {} } = {}) {
@@ -456,11 +498,12 @@ export async function updateLicitacoes({ dryRun = false, outputPath = OUTPUT_PAT
       previous,
       payload: previous,
       stats: {
-        endpoint: PNCP_ENDPOINT,
+        endpoint: PNCP_OPEN_ENDPOINT,
         pagesRequested: 0,
         received: 0,
         compatible: previous.licitacoes.length,
         closed: 0,
+        unavailable: 0,
         duplicates: 0,
         engineering: 0,
         technology: 0
@@ -473,28 +516,15 @@ export async function updateLicitacoes({ dryRun = false, outputPath = OUTPUT_PAT
 export function summarizeStats(result) {
   const stats = result.stats || {};
   const items = result.payload?.licitacoes || [];
-  const states = [...new Set(items.map((item) => item.estado).filter(Boolean))].sort();
-  const nextSeven = items.filter((item) => {
-    const deadline = parseDate(item.dataLimite);
-    if (!deadline) return false;
-    const limit = new Date();
-    limit.setDate(limit.getDate() + 7);
-    return deadline.getTime() <= limit.getTime();
-  }).length;
   return [
-    `ok=${result.ok}`,
-    `endpoint=${stats.endpoint || PNCP_ENDPOINT}`,
-    `paginas=${stats.pagesRequested || 0}`,
-    `recebidos=${stats.received || 0}`,
-    `compativeis=${stats.compatible || 0}`,
-    `encerrados=${stats.closed || 0}`,
-    `duplicados=${stats.duplicates || 0}`,
-    `engenharia=${stats.engineering || 0}`,
-    `tecnologia=${stats.technology || 0}`,
-    `total=${items.length}`,
-    `estados=${states.join(",") || "nenhum"}`,
-    `prazos_7_dias=${nextSeven}`,
-    `arquivo_alterado=${result.fileChanged ? "sim" : "nao"}`
+    "PNCP_FETCH: " + (result.ok ? "PASS" : "FAIL"),
+    "CANDIDATOS: " + (stats.received || 0),
+    "VALIDADOS: " + (stats.compatible || 0),
+    "EXPIRADOS: " + (stats.closed || 0),
+    "INDISPONIVEIS: " + (stats.unavailable || 0),
+    "DUPLICADOS: " + (stats.duplicates || 0),
+    "PUBLICADOS: " + items.length,
+    "JSON ALTERADO: " + (result.fileChanged ? "SIM" : "NAO")
   ].join("\n");
 }
 
