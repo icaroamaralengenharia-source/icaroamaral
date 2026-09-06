@@ -3353,6 +3353,28 @@ test('ELO Autopilot: ask digitado atravessa ELO ate preview pendente', async () 
   assert.match(elementText(messages), /Preview editorial preparado|Nenhuma publicacao foi gravada/);
 });
 
+test('ELO Autopilot: ask digitado confirma pending antes do Certo generico', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique sobre os selos de sustentabilidade e construcoes verdes', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  elo.ask('sim', [], 'manual');
+  await flushAutopilotAsync();
+  const afterConfirmText = elementText(messages);
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.match(afterConfirmText, /Publicacao criada no branch atual|URL prevista/);
+  assert.doesNotMatch(afterConfirmText, /Certo\.\s*$/);
+  elo.ask('sim', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+});
 test('ELO Autopilot: voz usa o mesmo ask/router e prepara preview', async () => {
   const calls = [];
   const { elo } = loadEloContext({

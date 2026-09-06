@@ -862,7 +862,7 @@
   }
 
   function isEloAutopilotConfirmation_(message) {
-    return /^(sim|s|confirmo|confirmar|pode publicar|publique|publica|pode seguir|manda ver)\.?$/i.test(normalizeText(message || ""));
+    return /^(sim|s|sim pode publicar|sim publicar|confirmo|confirmar|pode publicar|publique|publica|pode seguir|manda ver)\.?$/i.test(normalizeText(message || ""));
   }
 
   function isEloAutopilotCancel_(message) {
@@ -28920,6 +28920,18 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
       handleEloRdoPreview_(cleanQuestion, attachedFiles, { hasAttachments: attachedFiles.length > 0 });
+      return;
+    }
+    const autopilotPendingBeforeQuick = !attachedFiles.length && getEloPendingAutopilotPublication_() ? buildEloAutopilotAnswer_(routeQuestion) : null;
+    if (autopilotPendingBeforeQuick) {
+      appendMessage("user", cleanQuestion);
+      if (isEloAsyncResponse_(autopilotPendingBeforeQuick)) {
+        appendTypingIndicator();
+        resolveEloAsyncResponseForChat_(cleanQuestion, autopilotPendingBeforeQuick, { applyBrainMarker: true }).finally(function () { removeTypingIndicator(); });
+        return;
+      }
+      appendAssistantMessage(cleanQuestion, formatResponse(autopilotPendingBeforeQuick), false, autopilotPendingBeforeQuick);
+      clearProductAttachmentPreview();
       return;
     }
     if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
