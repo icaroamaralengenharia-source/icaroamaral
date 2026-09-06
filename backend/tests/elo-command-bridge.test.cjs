@@ -42,6 +42,7 @@ test("EloCommandBridge expõe contrato central sem CADISTA", () => {
     "obrareport_report",
     "stock_full",
     "stock_obras",
+    "elo_autopilot",
     "memory",
     "alerts"
   ]);

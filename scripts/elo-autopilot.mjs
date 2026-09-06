@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import dns from "node:dns/promises";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -595,13 +595,16 @@ function estimateCost(usage, config) {
 export async function runAutopilot({
   dryRun = false,
   publish = null,
+  topic = "",
   configPath = CONFIG_PATH,
   fetchImpl = fetch,
   lookup = dns.lookup,
   now = new Date(),
   log = console.log,
 } = {}) {
-  const config = await readConfig(configPath);
+  let config = await readConfig(configPath);
+  const commandTopic = clean(topic);
+  if (commandTopic) config = Object.assign({}, config, { topics: unique([commandTopic].concat(config.topics || [])) });
   const envPublish = String(process.env.AUTOPILOT_PUBLISH || "").toLowerCase() === "true";
   const shouldPublish = publish ?? (envPublish || config.publishDefault === true);
   const report = {
@@ -622,6 +625,9 @@ export async function runAutopilot({
     usage: null,
     imageUsage: null,
     cost: null,
+    commandTopic,
+    draftId: "",
+    imageAbsolutePath: "",
   };
   if (!config.enabled) {
     report.blockers.push("Autopilot desativado na configuracao.");
@@ -675,13 +681,14 @@ export async function runAutopilot({
   }
   let image = null;
   try {
-    if (dryRun) {
+    if (dryRun || !shouldPublish) {
       image = await generateEditorialImage({ article: generated.article, config, fetchImpl, outputDir: path.join(os.tmpdir(), "elo-autopilot-images") });
     } else {
       image = await generateEditorialImage({ article: generated.article, config, fetchImpl });
     }
     report.image = "PASS";
     report.imageUsage = image.usage;
+    report.imageAbsolutePath = image.absolutePath;
   } catch (error) {
     report.blockers.push(`Imagem falhou: ${error.message}`);
     return report;
@@ -720,6 +727,7 @@ export async function runAutopilot({
   };
   report.post = "PASS";
   report.seo = post.seoTitle && post.seoDescription && post.slug && post.fontes.length ? "PASS" : "FAIL";
+  report.draftId = hash(`${post.slug}|${commandTopic || pauta.titulo}|${now.toISOString()}`);
   report.postPreview = post;
   if (!dryRun && shouldPublish) {
     await persistPost(post, previous, now);
@@ -730,6 +738,38 @@ export async function runAutopilot({
   }
   logReport(report, { log, dryRun, shouldPublish });
   return report;
+}
+
+export async function prepareEditorialPost({ topic = "", configPath = CONFIG_PATH, fetchImpl = fetch, lookup = dns.lookup, now = new Date(), log = () => {} } = {}) {
+  const report = await runAutopilot({ dryRun: true, publish: false, topic, configPath, fetchImpl, lookup, now, log });
+  if (report.post !== "PASS" || !report.postPreview) {
+    const error = new Error(report.blockers && report.blockers.length ? report.blockers.join("; ") : "elo_autopilot_prepare_failed");
+    error.report = report;
+    throw error;
+  }
+  return {
+    draftId: report.draftId,
+    topic: clean(topic),
+    report,
+    post: report.postPreview,
+    imageAbsolutePath: report.imageAbsolutePath,
+    preparedAt: now.toISOString(),
+  };
+}
+
+export async function publishPreparedEditorialPost(draft, { now = new Date(), readPostsFn = readPosts, persistPostFn = persistPost, imageDir = IMAGE_DIR } = {}) {
+  const safe = draft && typeof draft === "object" ? draft : null;
+  if (!safe || !safe.post) throw new Error("draft_required");
+  const post = Object.assign({}, safe.post, { publicadoEm: safe.post.publicadoEm || now.toISOString(), criadoEm: safe.post.criadoEm || now.toISOString() });
+  safePostSlug(post.slug);
+  if (safe.imageAbsolutePath) {
+    const finalImagePath = path.join(imageDir, path.basename(safe.imageAbsolutePath));
+    await mkdir(imageDir, { recursive: true });
+    if (path.resolve(safe.imageAbsolutePath) !== path.resolve(finalImagePath)) await copyFile(safe.imageAbsolutePath, finalImagePath);
+  }
+  const previous = await readPostsFn();
+  await persistPostFn(post, previous, now);
+  return { ok: true, post, publication: true, sitemap: "PASS" };
 }
 
 export function logReport(report, { log = console.log, dryRun = false, shouldPublish = false } = {}) {
