@@ -7,9 +7,12 @@ import {
   antiCopyCheck,
   antiHallucinationCheck,
   assertPublicHttpUrl,
+  classifyPauta,
+  countIndependentSources,
   buildPostPage,
   buildSitemap,
   collectCandidates,
+  enforceFactualGrounding,
   extractArticle,
   generateEditorialImage,
   groupPautas,
@@ -19,9 +22,12 @@ import {
   publishPreparedEditorialPost,
   runAutopilot,
   safePostSlug,
+  runFactualVerifier,
   selectSourcesForPauta,
   slugify,
+  validateClaimsAgainstSources,
   validateLlmArticle,
+  validateSourcePolicy,
 } from "../scripts/elo-autopilot.mjs";
 
 const now = new Date("2026-09-06T12:00:00.000Z");
@@ -47,10 +53,12 @@ const feedA = `<?xml version="1.0"?><rss><channel>
 </channel></rss>`;
 
 const feedB = `<?xml version="1.0"?><rss><channel>
-<item><title>BIM apoia planejamento da construcao industrializada</title><link>https://fonte-b.example/b</link><description>Arquitetura e tecnologia aplicada a construcao ajudam equipes tecnicas.</description><pubDate>Sat, 05 Sep 2026 11:00:00 -0300</pubDate></item>
+<item><title>Construcao industrializada avanca com BIM no Brasil</title><link>https://fonte-b.example/b</link><description>Engenharia civil, BIM e construcao industrializada ajudam equipes tecnicas.</description><pubDate>Sat, 05 Sep 2026 11:00:00 -0300</pubDate></item>
 </channel></rss>`;
 
 const articleHtml = `<!doctype html><html><head><title>Materia original</title><link rel="canonical" href="https://fonte-a.example/a"><meta name="author" content="Redacao"><meta property="article:published_time" content="2026-09-05T13:00:00Z"></head><body><main><article><h1>Materia original</h1><p>A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.</p><p>Especialistas do setor indicam que BIM, planejamento e coordenacao tecnica ajudam construtoras a reduzir perdas no canteiro.</p><p>O tema interessa a engenheiros e arquitetos porque conecta produtividade, qualidade e controle de prazos em obras de diferentes portes.</p><p>Mesmo assim, fontes destacam que a implantacao exige projeto detalhado, fornecedores preparados e compatibilizacao antes da obra.</p></article></main></body></html>`;
+
+const articleHtmlB = `<!doctype html><html><head><title>Materia complementar</title><link rel="canonical" href="https://fonte-b.example/b"><meta name="author" content="Equipe tecnica"><meta property="article:published_time" content="2026-09-05T14:00:00Z"></head><body><main><article><h1>Materia complementar</h1><p>O BIM apoia o planejamento da construcao industrializada ao organizar informacoes de arquitetura, engenharia e compras.</p><p>Equipes tecnicas usam modelos coordenados para revisar interferencias, prever etapas de execucao e melhorar a comunicacao entre projetistas e obra.</p><p>A fonte tambem destaca que padronizacao, documentacao e fornecedores preparados ajudam a tornar o processo mais consistente.</p><p>O tema segue conectado a produtividade, qualidade e controle tecnico em obras brasileiras.</p></article></main></body></html>`;
 
 function response(body, { status = 200, contentType = "text/html", headers = {} } = {}) {
   const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
@@ -243,6 +251,10 @@ function fakeArticle(overrides = {}) {
     categoria: "Tecnologia e construcao",
     tags: ["BIM", "engenharia civil", "construcao"],
     imagePrompt: "Ilustracao editorial de canteiro industrializado com modelos digitais BIM",
+    claims: [
+      { claim: "A construcao industrializada recebe atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.", sourceIds: ["source_1"] },
+      { claim: "BIM, planejamento e coordenacao tecnica ajudam construtoras a reduzir perdas no canteiro.", sourceIds: ["source_1"] },
+    ],
     ...overrides,
   };
 }
@@ -277,7 +289,8 @@ async function fakePipelineFetch(url) {
   const target = String(url);
   if (target.includes("fonte-a.example/feed")) return response(feedA, { contentType: "application/rss+xml" });
   if (target.includes("fonte-b.example/feed")) return response(feedB, { contentType: "application/rss+xml" });
-  if (target.includes("fonte-a.example/a") || target.includes("fonte-b.example/b")) return response(articleHtml);
+  if (target.includes("fonte-a.example/a")) return response(articleHtml);
+  if (target.includes("fonte-b.example/b")) return response(articleHtmlB);
   if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(fakeArticle()), usage: { input_tokens: 1000, output_tokens: 500 } }), { contentType: "application/json" });
   if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
   throw new Error(`URL inesperada: ${target}`);
@@ -316,4 +329,155 @@ test("publishPreparedEditorialPost consome rascunho preparado e chama persistenc
   assert.equal(persisted.length, 1);
   assert.equal(persisted[0].post.slug, "construcao-industrializada-e-bim");
   await rm(dir, { recursive: true, force: true });
+});
+
+const fortalezaSource = {
+  sourceId: "source_1",
+  fonte: "CBIC",
+  tituloOriginal: "CBIC realiza evento sobre sustentabilidade, inovacao e construcao em Fortaleza",
+  url: "https://cbic.org.br/evento-fortaleza",
+  conteudo: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao. A programacao reune representantes do setor para debater experiencias, iniciativas e a agenda da construcao civil. O texto informa local, realizacao e tema central do encontro.",
+};
+
+const workshopSource = {
+  sourceId: "source_1",
+  fonte: "CBIC",
+  tituloOriginal: "Workshop de Negociacoes Coletivas",
+  url: "https://cbic.org.br/workshop-negociacoes-coletivas",
+  conteudo: "O Workshop de Negociacoes Coletivas sera realizado em Brasilia nos dias 10 e 11 de setembro. A atividade tera carga horaria de 12 horas, vagas limitadas e abordara temas como negociacao coletiva, estrategias sindicais e simulacao pratica.",
+};
+
+const leedSource = { sourceId: "source_1", fonte: "GBC", tituloOriginal: "Certificacao LEED", url: "https://gbc.example/leed", conteudo: "A certificacao LEED avalia criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna." };
+const aquaSource = { sourceId: "source_2", fonte: "Fundacao Vanzolini", tituloOriginal: "AQUA-HQE", url: "https://vanzolini.example/aqua", conteudo: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento e conforto dos usuarios." };
+const sustainableSource = { sourceId: "source_3", fonte: "Agencia Setorial", tituloOriginal: "Construcao sustentavel", url: "https://setor.example/sustentavel", conteudo: "Construcao sustentavel envolve escolhas de projeto, materiais, operacao e gestao para reduzir impactos ao longo do ciclo de vida da edificacao." };
+
+function groundedArticle(overrides = {}) {
+  return validateLlmArticle(fakeArticle(overrides));
+}
+
+test("claim sem sourceId rejeita", () => {
+  const article = groundedArticle({ claims: [{ claim: "O workshop tera carga horaria de 12 horas.", sourceIds: [] }] });
+  const result = validateClaimsAgainstSources(article, [workshopSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "missing_source_id");
+});
+
+test("sourceId inexistente rejeita", () => {
+  const article = groundedArticle({ claims: [{ claim: "O workshop tera carga horaria de 12 horas.", sourceIds: ["source_x"] }] });
+  const result = validateClaimsAgainstSources(article, [workshopSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "invalid_source_id");
+});
+
+test("claim nao suportado rejeita conhecimento geral plausivel", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento reduz carbono e economiza recursos nas obras participantes.", sourceIds: ["source_1"] }] });
+  const result = validateClaimsAgainstSources(article, [fortalezaSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "unsupported_by_text");
+});
+
+test("claim suportado passa", () => {
+  const article = groundedArticle({ claims: [{ claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] }] });
+  const result = validateClaimsAgainstSources(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+});
+
+test("segunda verificacao detecta extrapolacao", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento coloca Fortaleza na rota global de cidades inteligentes e resilientes.", sourceIds: ["source_1"] }] });
+  const result = runFactualVerifier(article, [fortalezaSource]);
+  assert.equal(result.supported, false);
+  assert.match(result.unsupportedClaims[0].claim, /cidades inteligentes/);
+});
+
+test("revisao automatica remove claim nao suportado", () => {
+  const article = groundedArticle({
+    conteudo: [{ subtitulo: "Fortaleza", paragrafos: ["A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao. O evento reduz carbono e gera economia de recursos para as cidades."] }],
+    claims: [
+      { claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] },
+      { claim: "O evento reduz carbono e gera economia de recursos para as cidades.", sourceIds: ["source_1"] },
+    ],
+  });
+  const result = enforceFactualGrounding(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+  assert.equal(result.autoRevision, true);
+  assert.doesNotMatch(JSON.stringify(result.article), /carbono|economia de recursos/);
+});
+
+test("segunda falha bloqueia publicacao", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento reduz carbono.", sourceIds: ["source_1"] }] });
+  const result = enforceFactualGrounding(article, [fortalezaSource], { allowAutoRevision: false });
+  assert.equal(result.ok, false);
+});
+
+test("pauta event aceita 1 fonte", () => {
+  const type = classifyPauta({ titulo: "Workshop de Negociacoes Coletivas", keywords: ["workshop", "vagas"] }, [workshopSource]);
+  const policy = validateSourcePolicy(type, [workshopSource]);
+  assert.equal(type, "event");
+  assert.equal(policy.ok, true);
+});
+
+test("pauta trend exige multiplas fontes", () => {
+  const type = classifyPauta({ titulo: "Tendencias de construcao verde", keywords: ["tendencias", "sustentabilidade"] }, [fortalezaSource]);
+  const policy = validateSourcePolicy(type, [fortalezaSource]);
+  assert.equal(type, "trend");
+  assert.equal(policy.ok, false);
+});
+
+test("fontes duplicadas nao contam como independentes", () => {
+  const duplicate = { ...fortalezaSource, sourceId: "source_2", url: "https://cbic.org.br/copia", tituloOriginal: fortalezaSource.tituloOriginal };
+  assert.equal(countIndependentSources([fortalezaSource, duplicate]), 1);
+  assert.equal(validateSourcePolicy("trend", [fortalezaSource, duplicate]).ok, false);
+});
+
+test("multifonte funciona com claims por fonte real", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "A certificacao LEED avalia criterios de sustentabilidade em edificacoes, incluindo energia, agua e materiais.", sourceIds: ["source_1"] },
+      { claim: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios.", sourceIds: ["source_2"] },
+      { claim: "Construcao sustentavel envolve escolhas de projeto, materiais, operacao e gestao.", sourceIds: ["source_3"] },
+    ],
+  });
+  const result = validateClaimsAgainstSources(article, [leedSource, aquaSource, sustainableSource]);
+  assert.equal(result.ok, true);
+  assert.equal(result.supportedClaims.length, 3);
+});
+
+test("anti-copia continua funcionando com factual grounding", () => {
+  const article = groundedArticle({ claims: [{ claim: "O Workshop de Negociacoes Coletivas tera carga horaria de 12 horas.", sourceIds: ["source_1"] }] });
+  assert.equal(validateClaimsAgainstSources(article, [workshopSource]).ok, true);
+  const copy = antiCopyCheck(article, [{ conteudo: article.conteudo[0].paragrafos[0] }]);
+  assert.equal(copy.ok, false);
+});
+
+test("artigo vazio rejeita no schema", () => {
+  assert.throws(() => validateLlmArticle(fakeArticle({ conteudo: [] })), /Artigo sem blocos/);
+});
+
+test("artigo sem fontes rejeita no factual grounding", () => {
+  const result = enforceFactualGrounding(groundedArticle(), []);
+  assert.equal(result.ok, false);
+});
+
+test("caso Fortaleza bloqueia extrapolacoes antigas", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] },
+      { claim: "O evento discutira reducao de carbono, economia de recursos, cidades inteligentes, cidades resilientes e tendencias globais.", sourceIds: ["source_1"] },
+    ],
+  });
+  const result = enforceFactualGrounding(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+  const output = JSON.stringify(result.article).toLowerCase();
+  assert.doesNotMatch(output, /carbono|economia de recursos|cidades inteligentes|cidades resilientes|tendencias globais/);
+});
+
+test("caso Workshop positivo preserva fatos suportados com uma fonte", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "O Workshop de Negociacoes Coletivas sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] },
+      { claim: "A atividade tera carga horaria de 12 horas, vagas limitadas e simulacao pratica.", sourceIds: ["source_1"] },
+    ],
+  });
+  assert.equal(validateSourcePolicy(classifyPauta({ titulo: "Workshop de Negociacoes Coletivas" }, [workshopSource]), [workshopSource]).ok, true);
+  assert.equal(enforceFactualGrounding(article, [workshopSource]).ok, true);
 });

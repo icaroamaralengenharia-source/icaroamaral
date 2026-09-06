@@ -68,6 +68,14 @@ function hash(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 }
 
+function hostname(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 export async function readConfig(configPath = CONFIG_PATH) {
   return JSON.parse(await readFile(configPath, "utf8"));
 }
@@ -297,6 +305,60 @@ export function selectSourcesForPauta(pauta, maxSources = 5) {
     .slice(0, maxSources);
 }
 
+export function classifyPauta(pauta = {}, articles = [], commandTopic = "") {
+  const text = normalizeText([
+    commandTopic,
+    pauta.titulo,
+    pauta.keywords?.join(" "),
+    ...(pauta.items || []).flatMap((item) => [item.titulo, item.resumo_feed, item.categoria]),
+    ...articles.flatMap((article) => [article.tituloOriginal, article.conteudo?.slice(0, 500)]),
+  ].join(" "));
+  const headline = normalizeText(`${commandTopic || ""} ${pauta.titulo || ""} ${pauta.keywords?.join(" ") || ""}`);
+  if (/\b(tendencia|tendencias|futuro|mercado|panorama|transformacao|cenarios?)\b/.test(headline)) return "trend";
+  if (/\b(selos?|certificac|leed|aqua|hqe|construcao verde|construcoes verdes|sustentabilidade|sustentavel)\b/.test(headline)) return "technical_topic";
+  if (/\b(workshop|seminario|evento|encontro|curso|congresso|webinar|agenda|inscric|vagas|carga horaria)\b/.test(text)) return "event";
+  if (/\b(anuncia|lanca|lancamento|comunicado|edital|aviso|publica|abre inscric)\b/.test(text)) return "announcement";
+  if (/\b(tendencia|futuro|mercado|panorama|transformacao|avanca|cresce|cenarios?)\b/.test(text)) return "trend";
+  if (/\b(analise|impacto|efeito|desafio|oportunidade|beneficio|comparativo)\b/.test(text)) return "analysis";
+  if (/\b(bim|leed|aqua|hqe|certificac|sustentavel|sustentabilidade|inteligencia artificial|metodo construtivo|tecnica|tecnico)\b/.test(text)) return "technical_topic";
+  return (pauta.sourceCount || articles.length || 0) <= 1 ? "single_source_news" : "trend";
+}
+
+export function countIndependentSources(sources = []) {
+  const seenDomains = new Set();
+  const seenTitles = new Set();
+  const seenTexts = new Set();
+  let count = 0;
+  for (const source of sources) {
+    const domain = hostname(source.url) || normalizeText(source.dominio || source.fonte);
+    const title = slugify(source.tituloOriginal || source.titulo || "");
+    const textHash = hash(normalizeText(source.conteudo || "").slice(0, 1600));
+    if (!domain || seenDomains.has(domain) || seenTitles.has(title) || seenTexts.has(textHash)) continue;
+    seenDomains.add(domain);
+    seenTitles.add(title);
+    seenTexts.add(textHash);
+    count += 1;
+  }
+  return count;
+}
+
+export function validateSourcePolicy(pautaType, sources = []) {
+  const independentSources = countIndependentSources(sources);
+  const needsMultiple = ["trend", "analysis", "technical_topic"].includes(pautaType);
+  return {
+    ok: sources.length > 0 && (!needsMultiple || independentSources >= 2),
+    pautaType,
+    sources: sources.length,
+    independentSources,
+    minIndependentSources: needsMultiple ? 2 : 1,
+    reason: sources.length === 0
+      ? "Nenhuma fonte real foi lida."
+      : needsMultiple && independentSources < 2
+        ? "Pauta ampla exige pelo menos 2 fontes independentes ou escopo reduzido."
+        : "",
+  };
+}
+
 export async function extractArticle(source, { fetchImpl = fetch, lookup = dns.lookup, config = {} } = {}) {
   const result = await fetchSafe(source.url, {
     fetchImpl,
@@ -331,15 +393,24 @@ export function buildEditorialPrompt({ config, pauta, articles, posts }) {
   return [
     "Voce e o ELO AUTOPILOT, um editor tecnico para um site brasileiro de engenharia, arquitetura e tecnologia aplicada a construcao.",
     "Escreva uma sintese editorial original em portugues do Brasil, baseada nas fontes fornecidas.",
-    "Nao copie paragrafos, frases longas ou estruturas da fonte; nao invente entrevistas, numeros, falas, fontes ou experiencia propria. Se houver apenas uma fonte, escreva como analise contextual curta e deixe claro que a fonte original sustenta os fatos.",
-    "Retorne somente JSON valido com: titulo, subtitulo, resumo, conteudo, seoTitle, seoDescription, slug, categoria, tags, imagePrompt.",
+    "Nao copie paragrafos, frases longas ou estruturas da fonte; nao invente entrevistas, numeros, falas, fontes ou experiencia propria.",
+    "Diferencie mentalmente FATO SUPORTADO, INFERENCIA e CONHECIMENTO GERAL. Para publicacao automatica, apenas FATO SUPORTADO pode aparecer como afirmacao factual.",
+    "Nao use conhecimento geral do modelo para complementar a materia, salvo quando a informacao estiver sustentada pelas fontes fornecidas.",
+    "Nao acrescente beneficios, impactos, estatisticas, tendencias, consequencias, datas, numeros, nomes, certificacoes, efeitos ambientais, economicos ou sociais que nao estejam explicitamente sustentados pelas fontes fornecidas.",
+    "Se uma ideia parecer provavel, mas nao estiver nas fontes, omita. Nao transforme contexto geral em fato atribuido ao evento/noticia.",
+    "Se houver apenas uma fonte, limite o escopo ao que essa fonte sustenta claramente.",
+    "Retorne somente JSON valido com: titulo, subtitulo, resumo, conteudo, seoTitle, seoDescription, slug, categoria, tags, imagePrompt, claims.",
     "conteudo deve ser um array de blocos: { subtitulo, paragrafos }.",
+    "claims deve ser um array de objetos { claim, sourceIds }. Cada afirmacao factual relevante do artigo precisa aparecer em claims e apontar para sourceIds validos.",
     `Marca: ${config.brand}`,
     `Temas: ${(config.topics || []).join(", ")}`,
     `Pauta escolhida: ${pauta.titulo}`,
     `Historico recente: ${(posts || []).slice(0, 8).map((post) => post.titulo).join(" | ") || "sem posts"}`,
     "Fontes extraidas:",
-    ...articles.map((article, index) => `${index + 1}. ${article.fonte} - ${article.tituloOriginal} - ${article.url}\n${article.conteudo.slice(0, 3000)}`),
+    ...articles.map((article, index) => {
+      const sourceId = article.sourceId || `source_${index + 1}`;
+      return `${index + 1}. sourceId: ${sourceId}\nFonte: ${article.fonte}\nTitulo: ${article.tituloOriginal}\nURL: ${article.url}\nConteudo:\n${article.conteudo.slice(0, 3000)}`;
+    }),
   ].join("\n\n");
 }
 
@@ -400,6 +471,10 @@ export function validateLlmArticle(article) {
     categoria: clean(article.categoria),
     tags: Array.isArray(article.tags) ? article.tags.map(clean).filter(Boolean).slice(0, 8) : [],
     imagePrompt: clean(article.imagePrompt),
+    claims: Array.isArray(article.claims) ? article.claims.map((claim) => ({
+      claim: clean(claim?.claim),
+      sourceIds: Array.isArray(claim?.sourceIds) ? claim.sourceIds.map(clean).filter(Boolean) : [],
+    })).filter((claim) => claim.claim) : [],
   };
 }
 
@@ -442,6 +517,122 @@ export function antiHallucinationCheck(article, sources, pauta) {
   return {
     ok: sources.length > 0 && article.titulo.length >= 12 && articlePlainText(article).length >= 900 && supportedTerms.length >= Math.min(2, topicWords.length || 2),
     supportedTerms,
+  };
+}
+
+function claimWords(value) {
+  return unique(tokens(value).filter((word) => !["fonte", "segundo", "afirma", "aponta", "destaca", "materia", "evento"].includes(word)));
+}
+
+function sourceIdsFor(sources = []) {
+  return sources.map((source, index) => source.sourceId || source.id || `source_${index + 1}`);
+}
+
+function claimSupportScore(claim, source) {
+  const words = claimWords(claim);
+  if (!words.length) return 0;
+  const sourceText = normalizeText(`${source.tituloOriginal || ""} ${source.conteudo || ""}`);
+  const hits = words.filter((word) => sourceText.includes(word)).length;
+  const ratio = hits / words.length;
+  const exactShort = normalizeText(claim).length >= 28 && sourceText.includes(normalizeText(claim).slice(0, 120));
+  return Math.max(ratio, exactShort ? 0.95 : 0);
+}
+
+export function validateClaimsAgainstSources(article, sources = {}, { minScore = 0.62 } = {}) {
+  const sourceList = Array.isArray(sources) ? sources : Object.values(sources || {});
+  const validIds = sourceIdsFor(sourceList);
+  const byId = new Map(sourceList.map((source, index) => [validIds[index], source]));
+  const claims = Array.isArray(article?.claims) ? article.claims : [];
+  const unsupportedClaims = [];
+  const supportedClaims = [];
+  const warnings = [];
+  if (!sourceList.length) warnings.push("article_without_sources");
+  if (!claims.length) unsupportedClaims.push({ claim: "[sem claims]", sourceIds: [], reason: "missing_claims" });
+  for (const entry of claims) {
+    const claim = clean(entry?.claim);
+    const sourceIds = Array.isArray(entry?.sourceIds) ? entry.sourceIds.map(clean).filter(Boolean) : [];
+    if (!claim) continue;
+    if (!sourceIds.length) {
+      unsupportedClaims.push({ claim, sourceIds, reason: "missing_source_id" });
+      continue;
+    }
+    const missing = sourceIds.filter((id) => !byId.has(id));
+    if (missing.length) {
+      unsupportedClaims.push({ claim, sourceIds, reason: "invalid_source_id", missingSourceIds: missing });
+      continue;
+    }
+    const scored = sourceIds.map((id) => ({ id, score: claimSupportScore(claim, byId.get(id)) }));
+    const best = scored.reduce((max, item) => Math.max(max, item.score), 0);
+    if (best < minScore) {
+      unsupportedClaims.push({ claim, sourceIds, reason: "unsupported_by_text", bestScore: Number(best.toFixed(3)) });
+      continue;
+    }
+    supportedClaims.push({ claim, sourceIds, bestScore: Number(best.toFixed(3)) });
+  }
+  return {
+    ok: sourceList.length > 0 && unsupportedClaims.length === 0,
+    claims: claims.length,
+    supportedClaims,
+    unsupportedClaims,
+    warnings,
+    validSourceIds: validIds,
+  };
+}
+
+function sentences(value) {
+  return clean(value).split(/(?<=[.!?])\s+/).map(clean).filter(Boolean);
+}
+
+function removeUnsupportedSentences(text, unsupportedClaims) {
+  const unsupportedWords = unsupportedClaims.map((item) => claimWords(item.claim));
+  return sentences(text).filter((sentence) => {
+    const sentenceText = normalizeText(sentence);
+    return !unsupportedWords.some((words) => {
+      if (!words.length) return false;
+      const hits = words.filter((word) => sentenceText.includes(word)).length;
+      return hits / Math.max(1, words.length) >= 0.5;
+    });
+  }).join(" ");
+}
+
+export function reviseUnsupportedClaims(article, verification) {
+  const unsupported = verification?.unsupportedClaims || [];
+  if (!unsupported.length) return article;
+  const content = (article.conteudo || []).map((block) => ({
+    subtitulo: block.subtitulo,
+    paragrafos: (block.paragrafos || []).map((paragraph) => removeUnsupportedSentences(paragraph, unsupported)).filter(Boolean),
+  })).filter((block) => block.subtitulo && block.paragrafos.length);
+  return {
+    ...article,
+    conteudo: content,
+    claims: (article.claims || []).filter((claim) => !unsupported.some((item) => normalizeText(item.claim) === normalizeText(claim.claim))),
+  };
+}
+
+export function runFactualVerifier(article, sources, { allowLlmVerifier = false } = {}) {
+  const deterministic = validateClaimsAgainstSources(article, sources);
+  return {
+    supported: deterministic.ok,
+    unsupportedClaims: deterministic.unsupportedClaims,
+    warnings: deterministic.warnings,
+    deterministic,
+    llmVerifierUsed: false,
+    usage: allowLlmVerifier ? { model: null, inputTokens: 0, outputTokens: 0, estimatedCost: null, skipped: "deterministic_gate" } : null,
+  };
+}
+
+export function enforceFactualGrounding(article, sources, { allowAutoRevision = true } = {}) {
+  const first = runFactualVerifier(article, sources);
+  if (first.supported) return { ok: true, article, verifier: first, autoRevision: false };
+  if (!allowAutoRevision) return { ok: false, article, verifier: first, autoRevision: false };
+  const revised = reviseUnsupportedClaims(article, first.deterministic);
+  const second = runFactualVerifier(revised, sources);
+  return {
+    ok: second.supported,
+    article: revised,
+    verifier: second,
+    autoRevision: true,
+    firstVerifier: first,
   };
 }
 
@@ -616,6 +807,16 @@ export async function runAutopilot({
     llm: "FAIL",
     antiCopy: "FAIL",
     antiHallucination: "FAIL",
+    evidenceMap: "FAIL",
+    claimValidation: "FAIL",
+    factualVerifier: "FAIL",
+    autoRevision: "NAO",
+    unsupportedClaimBlock: "FAIL",
+    pautaType: "",
+    sourcePolicy: null,
+    claimStats: { total: 0, supported: 0, unsupported: 0 },
+    unsupportedClaims: [],
+    verifierUsage: null,
     image: "FAIL",
     post: "FAIL",
     seo: "FAIL",
@@ -649,7 +850,8 @@ export async function runAutopilot({
   const articles = [];
   for (const source of selectedSources) {
     try {
-      articles.push(await extractArticle(source, { fetchImpl, lookup, config }));
+      const article = await extractArticle(source, { fetchImpl, lookup, config });
+      articles.push({ ...article, sourceId: `source_${articles.length + 1}` });
     } catch (error) {
       report.blockers.push(`Fonte nao lida: ${source.fonte} (${error.message})`);
     }
@@ -657,6 +859,14 @@ export async function runAutopilot({
   report.sourcesRead = articles.length;
   if (!articles.length) {
     report.blockers.push("Nenhuma fonte real foi lida.");
+    return report;
+  }
+  const pautaType = classifyPauta(pauta, articles, commandTopic);
+  report.pautaType = pautaType;
+  const sourcePolicy = validateSourcePolicy(pautaType, articles);
+  report.sourcePolicy = sourcePolicy;
+  if (!sourcePolicy.ok) {
+    report.blockers.push(sourcePolicy.reason || "Politica de fontes rejeitou a pauta.");
     return report;
   }
   let generated;
@@ -675,8 +885,22 @@ export async function runAutopilot({
   const hallucination = antiHallucinationCheck(generated.article, articles, pauta);
   report.antiHallucination = hallucination.ok ? "PASS" : "FAIL";
   report.hallucination = hallucination;
-  if (!copy.ok || !hallucination.ok || isDuplicatePauta({ titulo: generated.article.titulo, keywords: generated.article.tags }, previous.posts)) {
-    report.blockers.push("Validacao editorial rejeitou o artigo.");
+  const grounding = enforceFactualGrounding(generated.article, articles);
+  generated.article = grounding.article;
+  report.evidenceMap = generated.article.claims.length > 0 ? "PASS" : "FAIL";
+  report.claimValidation = grounding.verifier.deterministic.ok ? "PASS" : "FAIL";
+  report.factualVerifier = grounding.verifier.supported ? "PASS" : "FAIL";
+  report.autoRevision = grounding.autoRevision ? "SIM" : "NAO";
+  report.unsupportedClaimBlock = grounding.ok ? "PASS" : "FAIL";
+  report.unsupportedClaims = grounding.verifier.unsupportedClaims;
+  report.claimStats = {
+    total: grounding.verifier.deterministic.claims,
+    supported: grounding.verifier.deterministic.supportedClaims.length,
+    unsupported: grounding.verifier.unsupportedClaims.length,
+  };
+  report.verifierUsage = grounding.verifier.usage || { model: null, inputTokens: 0, outputTokens: 0, estimatedCost: null };
+  if (!copy.ok || !hallucination.ok || !grounding.ok || isDuplicatePauta({ titulo: generated.article.titulo, keywords: generated.article.tags }, previous.posts)) {
+    report.blockers.push(grounding.ok ? "Validacao editorial rejeitou o artigo." : "Claims sem suporte bloquearam a publicacao.");
     return report;
   }
   let image = null;
@@ -723,6 +947,9 @@ export async function runAutopilot({
       imagePrompt: image.prompt,
       llmProvider: "openai",
       llmModel: generated.model,
+      pautaType,
+      claims: generated.article.claims,
+      claimStats: report.claimStats,
     },
   };
   report.post = "PASS";
@@ -781,14 +1008,25 @@ export function logReport(report, { log = console.log, dryRun = false, shouldPub
   log("FONTES:");
   report.sourcesSelected.forEach((source, index) => log(`${index + 1}. ${source.fonte} - ${source.titulo}`));
   log(`FONTES LIDAS: ${report.sourcesRead}/${report.sourcesSelected.length}`);
+  log(`TIPO DE PAUTA: ${report.pautaType || "n/a"}`);
+  log(`FONTES INDEPENDENTES: ${report.sourcePolicy?.independentSources ?? "n/a"}`);
+  log(`CLAIMS: ${report.claimStats?.total ?? 0}`);
+  log(`CLAIMS SUPORTADOS: ${report.claimStats?.supported ?? 0}`);
+  log(`CLAIMS NAO SUPORTADOS: ${report.claimStats?.unsupported ?? 0}`);
+  log(`REVISAO AUTOMATICA: ${report.autoRevision || "NAO"}`);
   log(`LLM: ${report.llm}`);
+  log(`EVIDENCE MAP: ${report.evidenceMap}`);
+  log(`CLAIM VALIDATION: ${report.claimValidation}`);
+  log(`FACTUAL VERIFIER: ${report.factualVerifier}`);
   log(`ANTI-COPIA: ${report.antiCopy}`);
   log(`IMAGEM: ${report.image}`);
   log(`POST: ${report.post}`);
   log(`SEO: ${report.seo}`);
   log(`SITEMAP: ${report.sitemap}`);
   log(`PUBLICACAO: ${!dryRun && shouldPublish && report.publication ? "SIM" : "NAO"}`);
+  log(`MOTIVO DE BLOQUEIO: ${report.blockers.join("; ") || "n/a"}`);
   log(`CUSTO ESTIMADO: ${report.cost ? `${report.cost.currency} ${report.cost.text.toFixed(6)}` : "NAO CONFIRMADO"}`);
+  log(`CUSTO VERIFIER: ${report.verifierUsage?.estimatedCost ?? "0"}`);
   if (report.blockers.length) {
     log("BLOCKERS:");
     report.blockers.forEach((blocker) => log(`- ${blocker}`));
@@ -799,5 +1037,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const dryRun = process.argv.includes("--dry-run");
   const publish = process.argv.includes("--publish") ? true : process.argv.includes("--no-publish") ? false : null;
   const report = await runAutopilot({ dryRun, publish });
-  if (report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS") process.exitCode = 1;
+  if (report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS" || report.factualVerifier !== "PASS") process.exitCode = 1;
 }
