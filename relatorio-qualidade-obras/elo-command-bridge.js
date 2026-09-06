@@ -297,7 +297,7 @@
 
   function postConfirmedMovement(input, pending) {
     if (pending.action === "stock.transfer.execute") {
-      return fetchStockJson(input, "/api/stock-full/transfer", { method: "POST", body: JSON.stringify({ sourceItemId: getItemId(pending.item), destinationItemId: getItemId(pending.destinationItem), quantity: pending.quantity, destination: pending.destinationQuery || getItemName(pending.destinationItem), operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }) });
+      return fetchStockJson(input, "/api/stock-full/transfers", { method: "POST", body: JSON.stringify({ sourceItemId: getItemId(pending.item), destinationItemId: getItemId(pending.destinationItem), quantity: pending.quantity, destination: pending.destinationQuery || getItemName(pending.destinationItem), operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }) });
     }
     const type = pending.action === "stock.exit.execute" ? "saida" : "entrada";
     return fetchStockJson(input, "/api/stock-full/sync", { method: "POST", body: JSON.stringify({ movements: [{ type, itemId: getItemId(pending.item), quantity: pending.quantity, operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }] }) });

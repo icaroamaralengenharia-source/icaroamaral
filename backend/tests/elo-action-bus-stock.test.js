@@ -129,7 +129,7 @@ test("ELO Action Bus Stock Full transfere via endpoint dedicado apos confirmacao
   const win = loadBridge((url, options = {}) => {
     calls.push({ url, options });
     if (url.endsWith("/api/stock-full/items")) return Promise.resolve(createResponse({ ok: true, items }));
-    if (url.endsWith("/api/stock-full/transfer")) return Promise.resolve(createResponse({ ok: true, status: "synced", operationId: "op_1" }));
+    if (url.endsWith("/api/stock-full/transfers")) return Promise.resolve(createResponse({ ok: true, status: "synced", operationId: "op_1" }));
     return Promise.resolve(createResponse({ ok: false, error: "unexpected" }, 404));
   });
 
@@ -140,7 +140,7 @@ test("ELO Action Bus Stock Full transfere via endpoint dedicado apos confirmacao
   const confirmed = await win.EloCommandBridge.execute(request("confirmar"));
   assert.equal(confirmed.action, "stock.transfer.execute");
   assert.match(confirmed.humanAnswer, /Transferência registrada/);
-  const transferCall = calls.find((call) => call.url.endsWith("/api/stock-full/transfer"));
+  const transferCall = calls.find((call) => call.url.endsWith("/api/stock-full/transfers"));
   assert.ok(transferCall);
   const body = JSON.parse(transferCall.options.body);
   assert.equal(body.sourceItemId, "cimento_a");

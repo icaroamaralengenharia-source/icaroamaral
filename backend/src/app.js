@@ -1941,6 +1941,9 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    if (!requireStockFullPermission_(session.profile, "products:create", response)) {
+      return;
+    }
 
     const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
@@ -1971,6 +1974,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockFullPermission_(session.profile, "products:update", response)) {
       return;
     }
 
@@ -2015,6 +2021,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockFullPermission_(session.profile, "products:delete", response)) {
       return;
     }
 
@@ -2430,7 +2439,7 @@ export function createApp(options = {}) {
       response.status(status).json({ ok: false, error: message });
     }
   });
-  app.post("/api/stock-full/transfer", async (request, response) => {
+  app.post("/api/stock-full/transfers", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
       return;
@@ -4650,6 +4659,26 @@ function mapStockFullLiveMovement_(record, type, itemIndex) {
     offlineUuid: source.offline_uuid || "",
     createdAt: source.created_at || ""
   };
+}
+
+function canStockFullBackendRole_(profile, permission) {
+  const role = clean_(profile && profile.role).toLowerCase();
+  if (!permission) return false;
+  const permissions = {
+    admin: new Set(["products:create", "products:update", "products:delete"]),
+    administrador: new Set(["products:create", "products:update", "products:delete"]),
+    gestor: new Set(["products:create", "products:update", "products:delete"]),
+    patrao: new Set(["products:create", "products:update", "products:delete"])
+  };
+  return Boolean(permissions[role] && permissions[role].has(permission));
+}
+
+function requireStockFullPermission_(profile, permission, response) {
+  if (canStockFullBackendRole_(profile, permission)) {
+    return true;
+  }
+  response.status(403).json({ ok: false, error: "permission_denied" });
+  return false;
 }
 
 function validateStockFullItemPayload_(body, profile, options = {}) {
