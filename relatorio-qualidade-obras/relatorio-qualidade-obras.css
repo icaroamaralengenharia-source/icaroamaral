@@ -2767,6 +2767,42 @@ input[type="file"] {
   font-weight: 700;
 }
 
+/* Hotfix visual RDO: contraste estavel para rotulos e textos auxiliares. */
+.route-panel[data-route="diario"] .diary-form label,
+.route-panel[data-route="diario"] .composition-form label,
+.route-panel[data-route="diario"] .image-upload-field label,
+.route-panel[data-route="diario"] .compact-search label {
+  color: var(--navy);
+}
+
+.route-panel[data-route="diario"] .rdo-macro-section summary small,
+.route-panel[data-route="diario"] .compact-search,
+.route-panel[data-route="diario"] .upload-hint,
+.route-panel[data-route="diario"] .image-preview p,
+.route-panel[data-route="diario"] .diary-list-item span,
+.route-panel[data-route="diario"] .diary-list-item p,
+.route-panel[data-route="diario"] .material-summary.empty-list,
+.route-panel[data-route="diario"] .entity-list.empty-list,
+.route-panel[data-route="diario"] .diary-audit.empty-list {
+  color: #41556b;
+}
+
+.route-panel[data-route="diario"] input::placeholder,
+.route-panel[data-route="diario"] textarea::placeholder {
+  color: #68798d;
+  opacity: 1;
+}
+
+.route-panel[data-route="diario"] input:disabled,
+.route-panel[data-route="diario"] select:disabled,
+.route-panel[data-route="diario"] textarea:disabled,
+.route-panel[data-route="diario"] input[readonly],
+.route-panel[data-route="diario"] textarea[readonly] {
+  color: #41556b;
+  -webkit-text-fill-color: #41556b;
+  opacity: 1;
+}
+
 textarea {
   min-height: 80px;
   resize: vertical;
