@@ -761,12 +761,3 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const report = await runAutopilot({ dryRun, publish });
   if (report.blockers.length || report.llm !== "PASS" || report.image !== "PASS" || report.antiCopy !== "PASS" || report.antiHallucination !== "PASS") process.exitCode = 1;
 }
-
-
-
-
-
-
-
-
-

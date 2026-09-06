@@ -280,5 +280,3 @@ async function fakePipelineFetch(url) {
   if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
   throw new Error(`URL inesperada: ${target}`);
 }
-
-
