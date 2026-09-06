@@ -3303,7 +3303,13 @@ test('ELO Autopilot: fluxo humano prepara preview e grava pending sem publicar',
   });
   const response = await elo.buildAutopilotAnswerForTest('Elo, publique sobre os selos de sustentabilidade e construcoes verdes');
   assert.equal(response.sessionIntent, 'elo_autopilot_publish_preview');
-  assert.match(response.fullAnswer, /Nenhuma publicacao foi gravada ainda/);
+  const previewCopy = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join('\\n');
+  assert.match(previewCopy, /Preparei a materia para o site/);
+  assert.match(previewCopy, /Titulo: Selos de sustentabilidade/);
+  assert.match(previewCopy, /Fontes consultadas: 2/);
+  assert.match(previewCopy, /Ainda nao publiquei/);
+  assert.match(previewCopy, /Quer que eu publique/);
+  assert.doesNotMatch(previewCopy, /Preview editorial preparado|Slug:|Status:|pending|Proxima acao|Próxima ação/i);
   assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
   assert.deepEqual(calls.map((call) => call.type), ['prepare']);
 });
@@ -3319,10 +3325,28 @@ test('ELO Autopilot: sim publica uma unica vez e consome pending', async () => {
   const second = await elo.buildAutopilotAnswerForTest('sim');
   assert.equal(confirmed.sessionIntent, 'elo_autopilot_publish_confirmed');
   assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  const publishCopy = [confirmed.shortAnswer, confirmed.fullAnswer, confirmed.nextAction].filter(Boolean).join('\\n');
   assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.match(publishCopy, /Materia criada com sucesso/);
+  assert.match(publishCopy, /URL prevista:/);
+  assert.doesNotMatch(publishCopy, /branch atual|Revise o diff|idempotencia|ja esta no ar|Link:/i);
   assert.equal(second, null);
 });
 
+test('ELO Autopilot: producao so diz no ar quando backend sinaliza publicacao real', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls, { publishResponse: { productionPublished: true } }) }
+  });
+  await elo.buildAutopilotAnswerForTest('publique uma novidade sobre BIM');
+  const confirmed = await elo.buildAutopilotAnswerForTest('sim');
+  const publishCopy = [confirmed.shortAnswer, confirmed.fullAnswer, confirmed.nextAction].filter(Boolean).join('\n');
+  assert.match(publishCopy, /Publicado/);
+  assert.match(publishCopy, /ja esta no ar em Novidades/);
+  assert.match(publishCopy, /Link:/);
+  assert.doesNotMatch(publishCopy, /URL prevista|branch atual|Revise o diff|idempotencia/i);
+});
 test('ELO Autopilot: cancelar aborta pending sem publicar', async () => {
   const calls = [];
   const { elo } = loadEloContext({
@@ -3350,7 +3374,9 @@ test('ELO Autopilot: ask digitado atravessa ELO ate preview pendente', async () 
   assert.equal(calls[0].type, 'prepare');
   assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
   assert.equal(elo.hasTypingIndicatorForTest(), false);
-  assert.match(elementText(messages), /Preview editorial preparado|Nenhuma publicacao foi gravada/);
+  const previewText = elementText(messages);
+  assert.match(previewText, /Preparei a materia para o site|Ainda nao publiquei|Quer que eu publique/);
+  assert.doesNotMatch(previewText, /Slug:|Status:|pending|Preview editorial preparado/i);
 });
 
 test('ELO Autopilot: ask digitado confirma pending antes do Certo generico', async () => {
@@ -3369,8 +3395,8 @@ test('ELO Autopilot: ask digitado confirma pending antes do Certo generico', asy
   const afterConfirmText = elementText(messages);
   assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
   assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
-  assert.match(afterConfirmText, /Publicacao criada no branch atual|URL prevista/);
-  assert.doesNotMatch(afterConfirmText, /Certo\.\s*$/);
+  assert.match(afterConfirmText, /Materia criada com sucesso|URL prevista/);
+  assert.doesNotMatch(afterConfirmText, /Certo\.\s*$|branch atual|Revise o diff|idempotencia|ja esta no ar|Link:/i);
   elo.ask('sim', [], 'manual');
   await flushAutopilotAsync();
   assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
@@ -3390,7 +3416,7 @@ test('ELO Autopilot: voz usa o mesmo ask/router e prepara preview', async () => 
   assert.equal(elo.hasTypingIndicatorForTest(), false);
 });
 
-function fakeAutopilotApi(calls) {
+function fakeAutopilotApi(calls, options = {}) {
   return {
     prepare(input) {
       calls.push({ type: 'prepare', input });
@@ -3407,10 +3433,10 @@ function fakeAutopilotApi(calls) {
     },
     publish(input) {
       calls.push({ type: 'publish', input });
-      return Promise.resolve({
+      return Promise.resolve(Object.assign({
         ok: true,
         post: { titulo: 'Selos de sustentabilidade ganham espaco em construcoes verdes', slug: 'selos-sustentabilidade-construcoes-verdes' }
-      });
+      }, options.publishResponse || {}));
     },
     cancel(input) {
       calls.push({ type: 'cancel', input });

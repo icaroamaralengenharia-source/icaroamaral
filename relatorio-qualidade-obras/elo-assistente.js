@@ -924,20 +924,31 @@
     const draft = data && (data.draft || data.post || data.preview) || {};
     const report = data && data.report || {};
     const title = sanitizeUserText(draft.titulo || data && data.title || "Publicacao editorial preparada");
-    const slug = sanitizeUserText(draft.slug || data && data.slug || "");
     const sources = Array.isArray(draft.fontes) ? draft.fontes : Array.isArray(data && data.sources) ? data.sources : [];
-    const lines = ["Preparei um preview editorial para o site.", "", "Tema: " + topic, "Titulo: " + title, slug ? "Slug: " + slug : "Slug: pendente", "Fontes reais lidas: " + (report.sourcesRead != null ? report.sourcesRead : sources.length), "Status: pendente de confirmacao humana. Nenhuma publicacao foi gravada ainda.", "", "Responda sim para publicar ou cancelar para abortar."];
-    return { shortAnswer: "Preview editorial preparado.", fullAnswer: lines.join("\n"), nextAction: "Responda sim para publicar ou cancelar para abortar.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_preview", commandBridge: data && data.commandBridge || null, autopilot: { topic: topic, draftId: data && data.draftId || "", status: "pending_confirmation", report: report, preview: draft } };
+    const sourceCount = report.sourcesRead != null ? report.sourcesRead : sources.length;
+    const lines = ["Titulo: " + title, "Fontes consultadas: " + sourceCount, "", "Ainda nao publiquei.", "", "Quer que eu publique?"];
+    return { shortAnswer: "Preparei a materia para o site.", fullAnswer: lines.join("\n"), nextAction: "", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_preview", commandBridge: data && data.commandBridge || null, autopilot: { topic: topic, draftId: data && data.draftId || "", status: "pending_confirmation", report: report, preview: draft } };
+  }
+
+  function isEloAutopilotProductionPublication_(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const environment = normalizeText(safe.environment || safe.publicationEnvironment || safe.deployEnvironment || "");
+    return safe.production === true || safe.deployed === true || safe.productionPublished === true || environment === "production" || environment === "producao";
   }
 
   function buildEloAutopilotPublishedResponse_(pending, data) {
     const post = data && (data.post || data.publication && data.publication.post) || pending && pending.preview || {};
+    const title = sanitizeUserText(post.titulo || pending && pending.title || "Publicacao editorial");
     const slug = sanitizeUserText(post.slug || pending && pending.slug || "");
     const url = slug ? "https://www.icaroamaral.com.br/novidades/posts/" + slug + "/" : "https://www.icaroamaral.com.br/novidades/";
-    const answer = ["Publicacao criada no branch atual.", "", "Tema: " + sanitizeUserText(pending && pending.topic || ""), "Titulo: " + sanitizeUserText(post.titulo || "Publicacao editorial"), "URL prevista: " + url, "", "Idempotencia: esta confirmacao foi consumida e nao cria duplicata."].join("\n");
-    return { shortAnswer: "Publicacao criada no branch atual.", fullAnswer: answer, nextAction: "Revise o diff antes de publicar em main.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_confirmed", autopilot: { topic: pending && pending.topic || "", draftId: pending && pending.draftId || "", status: "published", post: post } };
+    const isProduction = isEloAutopilotProductionPublication_(data);
+    const lines = [
+      "A materia \"" + title + "\" " + (isProduction ? "ja esta no ar em Novidades." : "foi criada em Novidades."),
+      "",
+      (isProduction ? "Link: " : "URL prevista: ") + url
+    ];
+    return { shortAnswer: isProduction ? "Publicado." : "Materia criada com sucesso.", fullAnswer: lines.join("\n"), nextAction: "", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_confirmed", autopilot: { topic: pending && pending.topic || "", draftId: pending && pending.draftId || "", status: "published", post: post } };
   }
-
   function buildEloAutopilotAnswer_(message) {
     const pending = getEloPendingAutopilotPublication_();
     if (pending && isEloAutopilotCancel_(message)) {
