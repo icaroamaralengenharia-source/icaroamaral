@@ -1702,6 +1702,68 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/obrareport/apartment-handover-inspections", async (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.createApartmentHandoverInspection(buildObraReportContext_(request), request.body || {});
+      response.status(201).json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections", (request, response) => {
+    try {
+      const inspections = obraReportTransactionalService.listApartmentHandoverInspections(buildObraReportContext_(request), request.query || {});
+      response.json({ ok: true, inspections });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections/:id", (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.getApartmentHandoverInspection(buildObraReportContext_(request), request.params.id);
+      response.json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.put("/api/obrareport/apartment-handover-inspections/:id", async (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.updateApartmentHandoverInspection(buildObraReportContext_(request), request.params.id, request.body || {});
+      response.json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.post("/api/obrareport/apartment-handover-inspections/:id/versions", (request, response) => {
+    try {
+      const version = obraReportTransactionalService.createApartmentHandoverInspectionVersion(buildObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, version });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.post("/api/obrareport/apartment-handover-inspections/:id/generate-document", async (request, response) => {
+    try {
+      const document = obraReportTransactionalService.generateApartmentHandoverInspectionDocument(buildObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, document });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections/:id/events", (request, response) => {
+    try {
+      const events = obraReportTransactionalService.listApartmentHandoverInspectionEvents(buildObraReportContext_(request), request.params.id);
+      response.json({ ok: true, events });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
   app.post("/api/obrareport/rdos", async (request, response) => {
     try {
       const rdo = obraReportTransactionalService.createRdo(buildObraReportContext_(request), request.body || {});

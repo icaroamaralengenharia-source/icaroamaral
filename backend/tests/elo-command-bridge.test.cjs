@@ -38,11 +38,14 @@ test("EloCommandBridge expõe contrato central sem CADISTA", () => {
   assert.equal(typeof window.EloCommandBridge.execute, "function");
   assert.deepEqual(Array.from(window.EloCommandBridge.modules), [
     "budget",
+    "inspection",
     "obrareport_rdo",
     "obrareport_report",
     "stock_full",
     "stock_obras",
     "elo_autopilot",
+    "municipal",
+    "municipal_sentinel",
     "memory",
     "alerts"
   ]);

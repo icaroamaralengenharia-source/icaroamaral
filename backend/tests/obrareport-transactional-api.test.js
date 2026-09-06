@@ -181,3 +181,63 @@ test("ObraReport API prepara email sem envio real", async () => {
     assert.match(email.data.email.message, /provedor SMTP\/Resend/);
   });
 });
+test("ObraReport API cria, lista, busca, atualiza, versiona, documenta e isola vistoria", async () => {
+  await withServer(async (base) => {
+    const created = await json(base + "/api/obrareport/apartment-handover-inspections", {
+      method: "POST",
+      headers: headersA,
+      body: JSON.stringify({
+        projectId: "obra_001",
+        clientId: "cliente_001",
+        title: "Vistoria apto 202",
+        status: "completed",
+        inspectionData: { metadata: { projectName: "Residencial Alfa", unitName: "202" }, items: [{ ambiente: "Sala", item: "Rodape", status: "NC", severidade: "Alta" }] }
+      })
+    });
+    assert.equal(created.response.status, 201);
+    assert.equal(created.data.inspection.institution_id, "inst_a");
+    const id = created.data.inspection.id;
+
+    const list = await json(base + "/api/obrareport/apartment-handover-inspections?projectId=obra_001", { headers: headersA });
+    assert.equal(list.response.status, 200);
+    assert.equal(list.data.inspections.length, 1);
+    assert.equal(list.data.inspections[0].id, id);
+
+    const crossList = await json(base + "/api/obrareport/apartment-handover-inspections?projectId=obra_001", { headers: headersB });
+    assert.equal(crossList.response.status, 200);
+    assert.equal(crossList.data.inspections.length, 0);
+
+    const blocked = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, { headers: headersB });
+    assert.equal(blocked.response.status, 403);
+    assert.equal(blocked.data.error, "inspection_forbidden");
+
+    const got = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, { headers: headersA });
+    assert.equal(got.response.status, 200);
+    assert.equal(got.data.inspection.inspection_data_json.metadata.unitName, "202");
+
+    const updated = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, {
+      method: "PUT",
+      headers: headersA,
+      body: JSON.stringify({ status: "draft", inspectionData: { metadata: { unitName: "202" }, items: [] } })
+    });
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.data.inspection.status, "draft");
+
+    const version = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/versions", { method: "POST", headers: headersA, body: "{}" });
+    assert.equal(version.response.status, 201);
+    assert.equal(version.data.version.version_number, 1);
+
+    const document = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/generate-document", { method: "POST", headers: headersA, body: "{}" });
+    assert.equal(document.response.status, 201);
+    assert.equal(document.data.document.source_type, "apartment_handover_inspection");
+
+    const events = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/events", { headers: headersA });
+    assert.equal(events.response.status, 200);
+    assert.deepEqual(events.data.events.map((event) => event.event_type), [
+      "inspection_created",
+      "inspection_updated",
+      "inspection_version_created",
+      "inspection_document_generated"
+    ]);
+  });
+});
