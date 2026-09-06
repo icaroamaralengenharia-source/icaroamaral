@@ -1,8 +1,8 @@
-const ELO_CACHE_NAME = "elo-web-offline-v4-20260903-official-offline-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v5-20260906-p0-offline-v1";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
-  "./relatorio-qualidade-obras/elo-assistente.js?v=20260826-web-parity-v1",
+  "./relatorio-qualidade-obras/elo-assistente.js?v=20260906-p0-offline-v1",
   "./relatorio-qualidade-obras/elo-music-catalog.js",
   "./relatorio-qualidade-obras/elo-music-resolver.js",
   "./relatorio-qualidade-obras/elo-media-player.js",
