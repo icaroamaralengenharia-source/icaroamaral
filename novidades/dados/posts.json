@@ -1,0 +1,67 @@
+{
+  "atualizadoEm": "2026-09-06T04:09:11.656Z",
+  "posts": [
+    {
+      "id": "05308934958005d2",
+      "slug": "workshop-negociacoes-coletivas-construcao-civil-cbic-novembro-2026",
+      "titulo": "CBIC realiza Workshop de Negociações Coletivas para o setor da Construção Civil",
+      "subtitulo": "Evento em novembro visa qualificar profissionais nas relações trabalhistas do setor",
+      "resumo": "A Câmara Brasileira da Indústria da Construção (CBIC) promove nos dias 3 e 4 de novembro de 2026 um workshop focado em negociações coletivas no segmento da construção civil. A iniciativa busca capacitar profissionais que atuam nas relações trabalhistas, combinando teoria e prática para aprimorar estratégias e uso de tecnologias no processo negocial.",
+      "conteudo": [
+        {
+          "subtitulo": "Objetivo do Workshop",
+          "paragrafos": [
+            "O workshop da CBIC tem como meta preparar profissionais e equipes para conduzir negociações coletivas mais eficazes e qualificadas no setor da construção civil. O evento enfatiza o desenvolvimento de conhecimentos conceituais em conjunto com a prática, para atender à complexidade das relações trabalhistas atuais."
+          ]
+        },
+        {
+          "subtitulo": "Estrutura e Programação",
+          "paragrafos": [
+            "Com carga horária total de 16 horas, a capacitação será realizada em São Paulo e contará com no máximo 25 participantes para garantir uma experiência focada. No primeiro dia, serão abordados fundamentos legais, ferramentas tecnológicas e técnicas de barganha, seguidos no segundo dia por uma simulação prática de negociação coletiva, que permitirá aplicar os conteúdos previamente explorados."
+          ]
+        },
+        {
+          "subtitulo": "Contexto e Relevância",
+          "paragrafos": [
+            "Organizado pela Comissão de Políticas de Relações Trabalhistas da CBIC, o workshop conecta-se com projetos que visam o monitoramento da saúde e segurança no trabalho, bem como a valorização do trabalhador. A iniciativa reforça o compromisso do setor de construção com a melhoria das condições laborais por meio da capacitação e atualização constante dos profissionais envolvidos."
+          ]
+        }
+      ],
+      "categoria": "Engenharia Civil",
+      "tags": [
+        "CBIC",
+        "Negociações Coletivas",
+        "Construção Civil",
+        "Relações Trabalhistas",
+        "Workshop",
+        "Capacitação",
+        "Engenharia",
+        "Tecnologia na Construção"
+      ],
+      "imagem": "./assets/posts/workshop-negociacoes-coletivas-construcao-civil-cbic-novembro-2026.jpg",
+      "imagemAlt": "Ilustração editorial sobre CBIC realiza Workshop de Negociações Coletivas para o setor da Construção Civil",
+      "publicadoEm": "2026-09-06T04:09:11.656Z",
+      "criadoEm": "2026-09-06T04:09:11.656Z",
+      "fontes": [
+        {
+          "fonte": "CBIC",
+          "tituloOriginal": "CBIC promove Workshop de Negociações Coletivas na Construção Civil em novembro",
+          "url": "https://cbic.org.br/cbic-promove-workshop-de-negociacoes-coletivas-na-construcao-civil-em-novembro/",
+          "dominio": "cbic.org.br",
+          "autor": "felipesilva",
+          "data": "2026-09-02T17:42:30+00:00"
+        }
+      ],
+      "seoTitle": "Workshop CBIC sobre Negociações Coletivas na Construção Civil em novem",
+      "seoDescription": "Participe do Workshop da CBIC que qualifica profissionais da construção civil em negociações coletivas, com abordagem teórica e prática, em São Paulo, nos dias ",
+      "autopilot": {
+        "pauta": "CBIC promove Workshop de Negociações Coletivas na Construção Civil em novembro",
+        "score": 9.02,
+        "imageProvider": "pollinations",
+        "imagePrompt": "Evento de workshop profissional sobre negociações coletivas na construção civil, com ambiente moderno, pessoas em reunião, materiais de treinamento, cenário tecnológico e construção civil ao fundo, estilo editorial corporativo. Editorial illustration, Brazilian construction, architecture and engineering context, no logos, no text in image.",
+        "llmProvider": "openai",
+        "llmModel": "gpt-4.1-mini"
+      }
+    }
+  ]
+}
