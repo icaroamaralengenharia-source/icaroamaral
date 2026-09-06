@@ -621,7 +621,284 @@
       return inspectionResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de vistoria. O backend retornou: " + code + ".", error: code });
     });
   }
+  function rdoResult(input, values) { return result(input, Object.assign({ module: "obrareport_rdo" }, values || {})); }
+
+  function getRdoIdentity(input) {
+    const context = input && input.context || {};
+    const identity = context.identity || {};
+    return {
+      institutionId: clean(context.institutionId || context.companyId || identity.institutionId || identity.institution_id || identity.companyId || identity.company_id),
+      userId: clean(context.userId || identity.userId || identity.id || identity.user_id),
+      projectId: clean(context.projectId || context.workId || identity.projectId || identity.project_id || identity.workId || identity.work_id),
+      clientId: clean(context.clientId || identity.clientId || identity.client_id)
+    };
+  }
+
+  function requireRdoAccess(input) {
+    if (!getAuthToken(input.context || {})) return { ok: false, reason: "auth" };
+    const identity = getRdoIdentity(input);
+    if (!identity.institutionId) return { ok: false, reason: "tenant" };
+    return { ok: true, identity };
+  }
+
+  function rdoHeaders(input) {
+    const auth = requireRdoAccess(input);
+    const headers = { "Content-Type": "application/json" };
+    const token = getAuthToken(input.context || {});
+    if (token) headers.Authorization = /^Bearer\s+/i.test(token) ? token : "Bearer " + token;
+    if (auth.identity && auth.identity.institutionId) headers["x-institution-id"] = auth.identity.institutionId;
+    if (auth.identity && auth.identity.userId) headers["x-user-id"] = auth.identity.userId;
+    return headers;
+  }
+
+  function rdoAuthBlocked(input, auth) {
+    if (auth.reason === "auth") return needsAuth(input, "Preciso de autenticação para consultar RDOs reais.");
+    return rdoResult(input, { ok: false, action: input.action || "rdo.blocked", mode: "blocked", humanAnswer: "Preciso do tenant/empresa ativo para acessar RDOs reais. Nenhum RDO foi consultado.", error: "institution_required" });
+  }
+
+  function parseIsoDateOnly(value) {
+    const raw = clean(value);
+    if (!raw) return "";
+    const iso = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    if (iso) return iso[1] + "-" + iso[2] + "-" + iso[3];
+    const brazil = raw.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    if (brazil) {
+      const year = brazil[3] ? (brazil[3].length === 2 ? "20" + brazil[3] : brazil[3]) : String(new Date().getFullYear());
+      return year + "-" + brazil[2].padStart(2, "0") + "-" + brazil[1].padStart(2, "0");
+    }
+    return "";
+  }
+
+  function addDays(date, days) {
+    const copy = new Date(date.getTime());
+    copy.setUTCDate(copy.getUTCDate() + days);
+    return copy;
+  }
+
+  function isoDate(date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function parseRdoIntent(input) {
+    const action = clean(input && input.action);
+    const payload = input && input.payload || {};
+    const raw = clean(payload.message);
+    const text = normalize(raw);
+    const nowDate = payload.now ? new Date(payload.now) : new Date();
+    const parsed = {
+      action: /^rdo\./.test(action) ? action : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : "",
+      raw,
+      rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
+      projectId: clean(payload.projectId || payload.project_id),
+      clientId: clean(payload.clientId || payload.client_id),
+      startDate: parseIsoDateOnly(payload.startDate || payload.start_date),
+      endDate: parseIsoDateOnly(payload.endDate || payload.end_date),
+      targetDate: parseIsoDateOnly(payload.date || payload.rdoDate || payload.rdo_date),
+      limit: Number(payload.limit || 0) || 0
+    };
+    const idMatch = raw.match(/\b(?:rdo|id)\s+([a-z0-9_-]{6,})\b/i);
+    if (!parsed.rdoId && idMatch) parsed.rdoId = clean(idMatch[1]);
+    if (!parsed.targetDate && /\bontem\b/.test(text)) parsed.targetDate = isoDate(addDays(nowDate, -1));
+    if (!parsed.targetDate) parsed.targetDate = parseIsoDateOnly(raw);
+    const lastDays = text.match(/\b(?:ultimos|ultimas)\s+(\d{1,3})\s+dias\b/);
+    if (lastDays && !parsed.startDate) {
+      parsed.endDate = parsed.endDate || isoDate(nowDate);
+      parsed.startDate = isoDate(addDays(nowDate, -Number(lastDays[1]) + 1));
+    }
+    if (!parsed.action) {
+      if (/\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*)\b/.test(text)) parsed.action = "rdo.problemsByPeriod";
+      else if (/\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|\d{1,2}\/\d{1,2})\b/.test(text)) parsed.action = "rdo.get";
+      else parsed.action = "rdo.list";
+    }
+    if (parsed.action === "rdo.problemsByPeriod" && !parsed.startDate && !parsed.endDate) {
+      parsed.endDate = isoDate(nowDate);
+      parsed.startDate = isoDate(addDays(nowDate, -29));
+    }
+    if (parsed.startDate && parsed.endDate && parsed.startDate > parsed.endDate) parsed.invalidPeriod = true;
+    return parsed;
+  }
+
+  function rdoApiPath(input, query) {
+    const identity = getRdoIdentity(input);
+    const safeQuery = query || {};
+    const params = [];
+    const projectId = clean(safeQuery.projectId || safeQuery.project_id || identity.projectId);
+    const clientId = clean(safeQuery.clientId || safeQuery.client_id || identity.clientId);
+    if (projectId) params.push("projectId=" + encodeURIComponent(projectId));
+    if (clientId) params.push("clientId=" + encodeURIComponent(clientId));
+    return getStockEndpoint("/api/obrareport/rdos") + (params.length ? "?" + params.join("&") : "");
+  }
+
+  function fetchRdos(input, intent) {
+    if (typeof window.fetch !== "function") return Promise.reject(new Error("rdo_fetch_unavailable"));
+    return window.fetch(rdoApiPath(input, intent), { method: "GET", headers: rdoHeaders(input) }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          const error = new Error(clean(data.error) || "rdo_api_error");
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+        return Array.isArray(data.rdos) ? data.rdos : [];
+      });
+    });
+  }
+
+  function rdoData(record) {
+    return record && (record.rdo_data_json || record.rdoData || record.rdo_data) || {};
+  }
+
+  function rdoDate(record) {
+    const data = rdoData(record);
+    return parseIsoDateOnly(record && (record.rdo_date || record.rdoDate) || data.date || data.data || record && record.created_at);
+  }
+
+  function summarizeRdo(record) {
+    return { id: clean(record && record.id), title: clean(record && record.title) || "RDO", date: rdoDate(record), status: clean(record && record.status), projectId: clean(record && (record.project_id || record.projectId)), updatedAt: clean(record && (record.updated_at || record.updatedAt)) };
+  }
+
+  function filterRdosByPeriod(rdos, intent) {
+    return (rdos || []).filter(function (rdo) {
+      const date = rdoDate(rdo);
+      if (!date) return false;
+      if (intent.startDate && date < intent.startDate) return false;
+      if (intent.endDate && date > intent.endDate) return false;
+      return true;
+    });
+  }
+
+  function sortRdosByDateDesc(rdos) {
+    return (rdos || []).slice().sort(function (a, b) {
+      return String(rdoDate(b) || b.updated_at || "").localeCompare(String(rdoDate(a) || a.updated_at || ""));
+    });
+  }
+
+  function formatRdoList(rdos) {
+    if (!rdos.length) return "Não encontrei RDOs nesse contexto autenticado.";
+    return "RDOs encontrados: " + rdos.map(function (item) {
+      const summary = summarizeRdo(item);
+      return [summary.date, summary.title, summary.status].filter(Boolean).join(" - ");
+    }).join("; ") + ".";
+  }
+
+  function resolveRdo(rdos, intent) {
+    const candidates = sortRdosByDateDesc(filterRdosByPeriod(rdos, intent));
+    if (intent.rdoId) {
+      const byId = candidates.filter(function (item) { return clean(item && item.id) === intent.rdoId; });
+      if (!byId.length) throw Object.assign(new Error("rdo_not_found"), { status: 404 });
+      return byId[0];
+    }
+    if (intent.targetDate) {
+      const byDate = candidates.filter(function (item) { return rdoDate(item) === intent.targetDate; });
+      if (!byDate.length) throw Object.assign(new Error("rdo_not_found"), { status: 404 });
+      if (byDate.length > 1) throw Object.assign(new Error("rdo_ambiguous"), { status: 409, rdos: byDate });
+      return byDate[0];
+    }
+    if (candidates.length > 1 && !/\bultimo\b/.test(normalize(intent.raw))) throw Object.assign(new Error("rdo_ambiguous"), { status: 409, rdos: candidates.slice(0, 5) });
+    if (!candidates.length) throw Object.assign(new Error("rdo_not_found"), { status: 404 });
+    return candidates[0];
+  }
+
+  function pushProblemText(entries, value, source) {
+    if (Array.isArray(value)) {
+      value.forEach(function (item) {
+        if (typeof item === "string") pushProblemText(entries, item, source);
+        else if (item && typeof item === "object") pushProblemText(entries, item.title || item.description || item.descricao || item.text || item.note || item.observacao, source);
+      });
+      return;
+    }
+    if (value && typeof value === "object") {
+      pushProblemText(entries, value.title || value.description || value.descricao || value.text || value.note || value.observacao, source);
+      return;
+    }
+    const text = clean(value);
+    if (text) entries.push({ text, source });
+  }
+
+  function extractRdoProblemEntries(record) {
+    const data = rdoData(record);
+    const entries = [];
+    pushProblemText(entries, data.occurrences || data.ocorrencias || data.occurrence || data.ocorrencia, "occurrence");
+    pushProblemText(entries, data.pendingItems || data.pendencias || data.pending_items || data.pending, "pending");
+    if (data.safety && (data.safety.occurrence || data.safety.description)) pushProblemText(entries, data.safety.occurrence || data.safety.description, "occurrence");
+    return entries;
+  }
+
+  function normalizeProblemKey(value) {
+    return normalize(value)
+      .replace(/\b(?:ocorrencia|ocorrencias|pendencia|pendencias|item)\b\s*[:.-]?\s*/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function aggregateRecurringProblems(rdos) {
+    const groups = {};
+    (rdos || []).forEach(function (rdo) {
+      const date = rdoDate(rdo);
+      const rdoId = clean(rdo && rdo.id);
+      const seenInRdo = {};
+      extractRdoProblemEntries(rdo).forEach(function (entry) {
+        const key = normalizeProblemKey(entry.text);
+        if (!key) return;
+        const groupKey = entry.source + "|" + key;
+        if (seenInRdo[groupKey]) return;
+        seenInRdo[groupKey] = true;
+        if (!groups[groupKey]) groups[groupKey] = { problem: entry.text, key, source: entry.source, count: 0, dates: [], rdoIds: [], evidence: [] };
+        groups[groupKey].count += 1;
+        if (date && groups[groupKey].dates.indexOf(date) < 0) groups[groupKey].dates.push(date);
+        if (rdoId && groups[groupKey].rdoIds.indexOf(rdoId) < 0) groups[groupKey].rdoIds.push(rdoId);
+        groups[groupKey].evidence.push({ rdoId, date, text: entry.text });
+      });
+    });
+    return Object.values(groups).filter(function (item) { return item.count >= 2; }).sort(function (a, b) {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.problem.localeCompare(b.problem);
+    });
+  }
+
+  function executeRdoList(input, intent) {
+    return fetchRdos(input, intent).then(function (rdos) {
+      const filtered = sortRdosByDateDesc(filterRdosByPeriod(rdos, intent));
+      const limited = intent.limit > 0 ? filtered.slice(0, intent.limit) : filtered;
+      return rdoResult(input, { action: "rdo.list", mode: "read", humanAnswer: formatRdoList(limited), data: { rdos: limited.map(summarizeRdo), total: filtered.length } });
+    });
+  }
+
+  function executeRdoGet(input, intent) {
+    return fetchRdos(input, intent).then(function (rdos) {
+      const rdo = resolveRdo(rdos, intent);
+      const summary = summarizeRdo(rdo);
+      return rdoResult(input, { action: "rdo.get", mode: "read", humanAnswer: "Encontrei o RDO " + (summary.date ? "de " + summary.date + " " : "") + "(" + summary.title + ").", data: { rdo: summary, rawRdo: rdo } });
+    });
+  }
+
+  function executeRdoProblemsByPeriod(input, intent) {
+    return fetchRdos(input, intent).then(function (rdos) {
+      const filtered = filterRdosByPeriod(rdos, intent);
+      const recurring = aggregateRecurringProblems(filtered);
+      if (!recurring.length) return rdoResult(input, { action: "rdo.problemsByPeriod", mode: "read", humanAnswer: "Não encontrei problemas repetidos em mais de um RDO no período.", data: { problems: [], rdos: filtered.map(summarizeRdo), period: { startDate: intent.startDate, endDate: intent.endDate } } });
+      const answer = "Encontrei " + recurring.length + " problema(s) recorrente(s) nos RDOs do período: " + recurring.map(function (item) { return item.problem + " - " + item.count + " RDOs - dias " + item.dates.join(", "); }).join("; ") + ".";
+      return rdoResult(input, { action: "rdo.problemsByPeriod", mode: "read", humanAnswer: answer, data: { problems: recurring, rdos: filtered.map(summarizeRdo), period: { startDate: intent.startDate, endDate: intent.endDate } } });
+    });
+  }
+
+  function executeRdo(input) {
+    const auth = requireRdoAccess(input);
+    if (!auth.ok) return Promise.resolve(rdoAuthBlocked(input, auth));
+    const intent = parseRdoIntent(input);
+    if (intent.invalidPeriod) return Promise.resolve(rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" }));
+    const run = intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : executeRdoList;
+    return run(input, intent).catch(function (error) {
+      const code = clean(error && error.message) || "rdo_error";
+      if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
+      if (code === "rdo_not_found") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse RDO no contexto autenticado. Nenhum RDO foi inventado.", error: code });
+      return rdoResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de RDO. O backend retornou: " + code + ".", error: code });
+    });
+  }
+
   function executeObraReport(input, type) {
+    if (type === "rdo") return executeRdo(input);
     const action = input.action || (type === "rdo" ? "list_rdos" : "list_reports");
     const hasToken = !!getAuthToken(input.context || {});
     if (!hasToken) return needsAuth(input, type === "rdo" ? "Preciso de autenticação para consultar RDOs reais da obra." : "Preciso de autenticação para consultar relatórios reais da obra.");
@@ -772,5 +1049,12 @@
     readPending,
     clearPending,
     version: "elo-action-bus-stock-v1"
+  });
+  window.EloActionBusRdo = Object.assign({}, window.EloActionBusRdo || {}, {
+    execute: executeRdo,
+    parseIntent: parseRdoIntent,
+    aggregateRecurringProblems,
+    normalizeProblemKey,
+    version: "elo-action-bus-rdo-v1"
   });
 })();
