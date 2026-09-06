@@ -799,11 +799,13 @@ function timelineAdapterItemHarness({ index = 0, thumbnailOk = false } = {}) {
 function renderTimelineUiHarness({ selectedVisit, screenHeight = 1000 }) {
   const root = ["status", "summary", "command", "actionPanel", "timelinePanel", "webView"];
   const photos = selectedVisit;
-  const usefulHeight = Math.max(screenHeight - 60 - 80, Math.floor(screenHeight * 0.7));
-  const expandedHeight = Math.max(Math.floor(usefulHeight * 0.88), 700);
-  const collapsedHeight = Math.max(Math.floor(usefulHeight * 0.42), 320);
-  const expandedGridHeight = Math.max(expandedHeight - 260, 260);
-  const collapsedGridHeight = Math.max(collapsedHeight - 180, 160);
+  const occupiedHeight = 60 + 80;
+  const usefulHeight = Math.max(screenHeight - occupiedHeight, Math.floor(screenHeight * 0.55));
+  const maxPanelHeight = Math.max(screenHeight - occupiedHeight - 8, 360);
+  const expandedHeight = Math.min(Math.max(Math.floor(usefulHeight * 0.96), 420), maxPanelHeight);
+  const collapsedHeight = Math.min(Math.max(Math.floor(usefulHeight * 0.46), 260), maxPanelHeight);
+  const expandedGridHeight = Math.max(expandedHeight - 150, 260);
+  const collapsedGridHeight = Math.max(collapsedHeight - 120, 160);
   const panelChildren = ["timelineDragHandle", "timelineHeader", "timelineInstruction", "timelineGrid", "timelineStageButtons", "timelineActionRow"];
   const timelinePanel = {
     created: true,
@@ -872,9 +874,11 @@ function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17) } = {
     logs: []
   };
   const nextStage = () => timelineOrder.slice(1).find((category) => state.cuts[category] == null) || null;
+  const allCutsComplete = () => nextStage() == null;
   const stageButtons = () => Object.fromEntries(timelineOrder.slice(1).map((category) => [category, {
     enabled: category === nextStage() && state.selectedIndex >= 0,
-    text: state.cuts[category] == null ? `INÍCIO ${category}` : `INÍCIO ${category}: #${state.cuts[category] + 1}`
+    visible: category === nextStage() && !allCutsComplete(),
+    text: state.cuts[category] == null ? `CONFIRMAR INÍCIO ${category}` : `INÍCIO ${category}: #${state.cuts[category] + 1}`
   }]));
   const clickThumbnail = (index) => {
     state.selectedIndex = index;
@@ -922,6 +926,7 @@ test("FAST_TIMELINE galeria fica visivel com 17 fotos em viewport de celular", (
   const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(17), screenHeight: 640 });
   assert.equal(ui.grid.adapter.itemCount, 17);
   assert.ok(ui.grid.height >= 260);
+  assert.ok(ui.grid.height >= ui.timelinePanel.height * 0.5);
   assert.ok(ui.panelChildren.indexOf("timelineGrid") < ui.panelChildren.indexOf("timelineStageButtons"));
   assert.ok(ui.panelChildren.indexOf("timelineGrid") < ui.panelChildren.indexOf("timelineActionRow"));
   assert.ok(ui.logs.includes("GALLERY_INPUT_COUNT: 17"));
@@ -951,10 +956,66 @@ test("FAST_TIMELINE botao da etapa confirma corte e avanca preservando 17 fotos"
   assert.equal(afterTomadas.state.cuts.TOMADAS, 4);
   assert.equal(afterTomadas.state.selectedIndex, -1);
   assert.equal(afterTomadas.state.currentStage, "RACK");
+  assert.equal(afterTomadas.stageButtons.RACK.visible, true);
   assert.equal(afterTomadas.stageButtons.RACK.enabled, false);
   flow.clickThumbnail(8);
   assert.equal(flow.stageButtons().RACK.enabled, true);
 });
+
+test("FAST_TIMELINE confirma as quatro etapas e libera revisao final", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  for (const [stage, index] of [["TOMADAS", 3], ["RACK", 7], ["MASTRO_ANTENA", 11], ["CAIXA_FUNDO_MADEIRA", 14]]) {
+    flow.clickThumbnail(index);
+    const confirmed = flow.confirmStage(stage);
+    assert.equal(confirmed.confirmed, true);
+    assert.equal(confirmed.state.cuts[stage], index);
+    assert.equal(confirmed.state.photos.length, 17);
+  }
+  assert.deepEqual(flow.state.cuts, { CAMERAS: 0, TOMADAS: 3, RACK: 7, MASTRO_ANTENA: 11, CAIXA_FUNDO_MADEIRA: 14 });
+  assert.equal(flow.state.currentStage, null);
+  assert.equal(Object.values(flow.stageButtons()).every((button) => button.visible === false), true);
+  assert.equal(validateTimelineCuts(flow.state.photos.length, flow.state.cuts).ok, true);
+});
+
+
+function fastTimelineRotationRestoreHarness({ photoCount = 17, selectedIndex = 7, cuts = { CAMERAS: 0, TOMADAS: 3 } } = {}) {
+  const before = {
+    classificationMode: "FAST_TIMELINE",
+    flowStatus: "FAST_TIMELINE",
+    photos: timelinePhotos(photoCount),
+    timelinePhotoIds: timelinePhotos(photoCount).map((photo) => photo.uri),
+    selectedIndex,
+    cuts,
+    city: "Ibicoara",
+    date: "2026-08-25",
+    start: "09:36",
+    end: "09:37",
+    mediaStoreReads: 0,
+    visitGrouperCalls: 0,
+    aiRequests: 0
+  };
+  const retained = {
+    command: { reportType: "SGTO", cityHint: before.city, dateHint: before.date, startTimeHint: before.start, endTimeHint: before.end },
+    group: { city: before.city, date: before.date, photos: before.photos },
+    selectedIndex: before.selectedIndex,
+    cuts: { ...before.cuts },
+    expanded: true
+  };
+  const after = {
+    classificationMode: before.classificationMode,
+    flowStatus: before.flowStatus,
+    photos: retained.group.photos,
+    timelinePhotoIds: before.timelinePhotoIds,
+    selectedIndex: retained.selectedIndex,
+    cuts: retained.cuts,
+    currentStage: timelineOrder.slice(1).find((category) => retained.cuts[category] == null) || null,
+    galleryVisible: true,
+    mediaStoreReads: before.mediaStoreReads,
+    visitGrouperCalls: before.visitGrouperCalls,
+    aiRequests: before.aiRequests
+  };
+  return { before, retained, after };
+}
 
 test("FAST_TIMELINE galeria usa apenas fotos selecionadas e nao reintroduz conjunto 214", () => {
   const physical = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37", cityHint: "Ibicoara" });
@@ -964,6 +1025,19 @@ test("FAST_TIMELINE galeria usa apenas fotos selecionadas e nao reintroduz conju
   assert.ok(physical.timeline.length < 214);
   assert.equal(ui.grid.adapter.itemCount, 17);
   assert.notEqual(ui.grid.adapter.itemCount, physical.afterDate);
+});
+
+test("FAST_TIMELINE recreation preserva fotos etapa corte e selecao sem reprocessar", () => {
+  const result = fastTimelineRotationRestoreHarness({ photoCount: 17, selectedIndex: 7, cuts: { CAMERAS: 0, TOMADAS: 3 } });
+  assert.equal(result.after.photos.length, 17);
+  assert.equal(result.after.timelinePhotoIds.length, 17);
+  assert.equal(result.after.currentStage, "RACK");
+  assert.equal(result.after.cuts.TOMADAS, 3);
+  assert.equal(result.after.selectedIndex, 7);
+  assert.equal(result.after.galleryVisible, true);
+  assert.equal(result.after.mediaStoreReads, 0);
+  assert.equal(result.after.visitGrouperCalls, 0);
+  assert.equal(result.after.aiRequests, 0);
 });
 
 test("FAST_TIMELINE permite recolher e expandir preservando grid de 51 fotos", () => {

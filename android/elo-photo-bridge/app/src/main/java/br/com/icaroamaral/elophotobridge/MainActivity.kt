@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
   private var timelineCuts: MutableMap<PhotoCategory, Int> = mutableMapOf()
   private var timelineExpanded = true
   private var timelineTouchStartY = 0f
+  private var retainedTimelineState: RetainedTimelineState? = null
   private var restoringText = false
 
   private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -98,10 +99,23 @@ class MainActivity : ComponentActivity() {
     stateStore = PhotoBridgeStateStore(this)
     screenModel.state = stateStore.load()
     screenModel.isProcessing = false
+    retainedTimelineState = lastCustomNonConfigurationInstance as? RetainedTimelineState
+    restoreRetainedTimelineState()
     pendingPayloadJson = screenModel.state.payloadJson.takeIf(String::isNotBlank)
     buildUi()
     restoreUi(screenModel.state)
     requestNeededPermissions()
+  }
+
+  @Deprecated("Preserve FAST_TIMELINE during Activity recreation")
+  override fun onRetainCustomNonConfigurationInstance(): Any? {
+    return RetainedTimelineState(
+      command = currentTimelineCommand,
+      group = currentTimelineGroup,
+      selectedPhotoIndex = selectedTimelinePhotoIndex,
+      cuts = timelineCuts.toMap(),
+      expanded = timelineExpanded
+    )
   }
 
   override fun onStop() {
@@ -217,12 +231,13 @@ class MainActivity : ComponentActivity() {
       }
     }
     timelineHeader = TextView(this).apply {
-      textSize = 18f
+      textSize = 14f
       setTypeface(typeface, Typeface.BOLD)
+      setPadding(0, 0, 0, dp(4))
     }
     timelineInstruction = TextView(this).apply {
-      textSize = 16f
-      setPadding(0, 10, 0, 10)
+      textSize = 13f
+      setPadding(0, dp(4), 0, dp(6))
     }
     timelineGrid = GridView(this).apply {
       numColumns = 3
@@ -262,7 +277,8 @@ class MainActivity : ComponentActivity() {
       orientation = LinearLayout.VERTICAL
       TimelineOrganizer.orderedCategories.drop(1).forEach { category ->
         val button = Button(this@MainActivity).apply {
-          text = "INÍCIO ${categoryLabel(category).uppercase()}"
+          text = "CONFIRMAR INÍCIO ${categoryLabel(category).uppercase()}"
+          textSize = 14f
           setOnClickListener { assignTimelineCutFromSelection(category) }
         }
         timelineActionButtons[category] = button
@@ -377,6 +393,9 @@ class MainActivity : ComponentActivity() {
     status.text = state.statusMessage
     renderSummary(state)
     renderActions(state)
+    if (state.classificationMode == ClassificationMode.FAST_TIMELINE.name && state.flowStatus == PhotoBridgeFlowStatus.FAST_TIMELINE && currentTimelineGroup != null) {
+      showTimelinePanel()
+    }
   }
 
   private fun saveCommandText(value: String) {
@@ -920,8 +939,11 @@ class MainActivity : ComponentActivity() {
     Log.d("EloPhotoBridge", "FAST_EXPAND_BEFORE_HEIGHT: $beforeHeight")
     timelineExpanded = expanded
     val rootHeight = rootLayout.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-    val usefulHeight = (rootHeight - status.height - summary.height).coerceAtLeast((resources.displayMetrics.heightPixels * 0.7f).toInt())
-    val panelHeight = (usefulHeight * if (expanded) 0.88f else 0.42f).toInt().coerceAtLeast(if (expanded) 700 else 320)
+    val occupiedHeight = status.height + summary.height
+    val usefulHeight = (rootHeight - occupiedHeight).coerceAtLeast((resources.displayMetrics.heightPixels * 0.55f).toInt())
+    val maxPanelHeight = (rootHeight - occupiedHeight - dp(8)).coerceAtLeast(dp(360))
+    val desiredPanelHeight = (usefulHeight * if (expanded) 0.96f else 0.46f).toInt()
+    val panelHeight = desiredPanelHeight.coerceIn(if (expanded) dp(420) else dp(260), maxPanelHeight)
     val nextPanelParams = (timelinePanel.layoutParams as? LinearLayout.LayoutParams)
       ?: LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, panelHeight)
     nextPanelParams.width = ViewGroup.LayoutParams.MATCH_PARENT
@@ -1085,7 +1107,8 @@ class MainActivity : ComponentActivity() {
     val hasSelection = selectedTimelinePhotoIndex in photos.indices
     timelineActionButtons.forEach { (category, button) ->
       val cut = timelineCuts[category]
-      button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "INÍCIO ${categoryLabel(category).uppercase()}"
+      button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "CONFIRMAR INÍCIO ${categoryLabel(category).uppercase()}"
+      button.visibility = if (category == next && !cutsComplete) android.view.View.VISIBLE else android.view.View.GONE
       button.isEnabled = category == next && hasSelection && !screenModel.isProcessing && !cutsComplete
     }
     next?.let {
@@ -1104,6 +1127,19 @@ class MainActivity : ComponentActivity() {
       "ORGANIZAÇÃO CONCLUÍDA\nCortes completos. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
     }
   }
+  private fun restoreRetainedTimelineState() {
+    val retained = retainedTimelineState ?: return
+    currentTimelineCommand = retained.command
+    currentTimelineGroup = retained.group
+    selectedTimelinePhotoIndex = retained.selectedPhotoIndex
+    timelineCuts = retained.cuts.toMutableMap()
+    timelineExpanded = retained.expanded
+    val group = retained.group ?: return
+    if (screenModel.state.classificationMode == ClassificationMode.FAST_TIMELINE.name && screenModel.state.timelinePhotoIds.isNotEmpty()) {
+      Log.d("EloPhotoBridge", "FAST_TIMELINE_RESTORE_RECREATION: photos=${group.photos.size} selected=${retained.selectedPhotoIndex}")
+    }
+  }
+
   private fun selectedTimelinePhotoTime(photoIndex: Int, photos: List<PhotoMetadata>): String {
     return photos.getOrNull(photoIndex)?.bestInstant()
       ?.atZone(ZoneId.systemDefault())
@@ -1717,6 +1753,14 @@ class MainActivity : ComponentActivity() {
       PhotoCategory.UNKNOWN -> "NÃO CLASSIFICADAS"
     }
   }
+
+  private data class RetainedTimelineState(
+    val command: ParsedCommand?,
+    val group: VisitGroup?,
+    val selectedPhotoIndex: Int,
+    val cuts: Map<PhotoCategory, Int>,
+    val expanded: Boolean
+  )
 
   private data class PayloadPhotoItem(
     val category: PhotoCategory,
