@@ -31,6 +31,7 @@ import {
 } from "../scripts/elo-autopilot.mjs";
 
 const now = new Date("2026-09-06T12:00:00.000Z");
+process.env.OPENAI_API_KEY ||= "test-openai-key";
 const config = {
   enabled: true,
   brand: "Amaral Engenharia",
