@@ -60,6 +60,10 @@ function tokens(value) {
   return normalizeText(value).split(/\s+/).filter((token) => token.length >= 4 && !DEFAULT_STOPWORDS.has(token));
 }
 
+function tokenSet(value) {
+  return new Set(tokens(value));
+}
+
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -239,31 +243,52 @@ export function subjectKey(candidate, topics = []) {
   return selected.slice(0, 3).join("-") || slugify(candidate.titulo).split("-").slice(0, 3).join("-");
 }
 
+function setSimilarity(a, b) {
+  const aa = a instanceof Set ? a : tokenSet(a);
+  const bb = b instanceof Set ? b : tokenSet(b);
+  if (!aa.size || !bb.size) return 0;
+  const intersection = [...aa].filter((token) => bb.has(token)).length;
+  return intersection / Math.max(aa.size, bb.size);
+}
+
+function titleSimilarity(a, b) {
+  return setSimilarity(a, b);
+}
+
+function candidateText(candidate = {}) {
+  return [candidate.titulo, candidate.resumo_feed, candidate.categoria, candidate.fonte].filter(Boolean).join(" ");
+}
+
+function candidateSimilarity(a = {}, b = {}) {
+  const title = titleSimilarity(a.titulo || "", b.titulo || "");
+  const body = setSimilarity(candidateText(a), candidateText(b));
+  const keywords = setSimilarity(tokens(candidateText(a)).slice(0, 12).join(" "), tokens(candidateText(b)).slice(0, 12).join(" "));
+  return Math.max(title, body, keywords);
+}
+
+function shouldGroupCandidate(candidate, group, config = {}) {
+  const threshold = Number(config.limits?.clusterSimilarityThreshold || 0.34);
+  return group.items.some((item) => candidateSimilarity(candidate, item) >= threshold);
+}
+
 export function groupPautas(candidates, config) {
-  const byKey = new Map();
-  for (const candidate of candidates) {
-    const key = subjectKey(candidate, config.topics || []);
-    const group = byKey.get(key) || { key, items: [] };
-    group.items.push(candidate);
-    byKey.set(key, group);
+  const clusters = [];
+  const ordered = [...candidates].sort((a, b) => sourceRecencyScore(b.data) - sourceRecencyScore(a.data) || (b.sourceQuality || 0) - (a.sourceQuality || 0));
+  for (const candidate of ordered) {
+    const cluster = clusters.find((item) => shouldGroupCandidate(candidate, item, config));
+    if (cluster) cluster.items.push(candidate);
+    else clusters.push({ key: subjectKey(candidate, config.topics || []), items: [candidate] });
   }
-  return [...byKey.values()].map((group) => {
+  return clusters.map((group) => {
     const sourceCount = unique(group.items.map((item) => item.fonte)).length;
+    const best = [...group.items].sort((a, b) => (b.sourceQuality || 0) - (a.sourceQuality || 0) || sourceRecencyScore(b.data) - sourceRecencyScore(a.data))[0];
     return {
       ...group,
-      titulo: group.items[0]?.titulo || "Pauta editorial",
+      titulo: best?.titulo || group.items[0]?.titulo || "Pauta editorial",
       sourceCount,
       keywords: unique(group.items.flatMap((item) => tokens(`${item.titulo} ${item.resumo_feed}`))).slice(0, 10),
     };
   });
-}
-
-function titleSimilarity(a, b) {
-  const aa = new Set(tokens(a));
-  const bb = new Set(tokens(b));
-  if (!aa.size || !bb.size) return 0;
-  const intersection = [...aa].filter((token) => bb.has(token)).length;
-  return intersection / Math.max(aa.size, bb.size);
 }
 
 export function isDuplicatePauta(pauta, posts = []) {
@@ -289,13 +314,57 @@ export function rankPautas(pautas, config, posts = [], now = new Date()) {
   }).sort((a, b) => b.score - a.score);
 }
 
+function normalizeUrlKey(value) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return String(value || "").replace(/\/$/, "");
+  }
+}
+
+export function buildSecondaryQueries(pauta = {}, config = {}) {
+  const limits = config.limits || {};
+  const aliases = config.sourceDiscovery?.queryAliases || {};
+  const maxQueries = Number(limits.maxSecondaryQueries || 5);
+  const base = unique([
+    pauta.titulo,
+    (pauta.keywords || []).slice(0, 5).join(" "),
+    ...(pauta.items || []).slice(0, 2).map((item) => item.titulo),
+  ].map(clean)).filter(Boolean);
+  const aliasQueries = unique(tokens([pauta.titulo, pauta.keywords?.join(" ")].join(" ")).flatMap((word) => aliases[word] || []));
+  return unique([...base, ...aliasQueries].map((query) => clean(query).slice(0, 140))).slice(0, maxQueries);
+}
+
+function sourceCandidateRelevance(candidate, pauta, queries) {
+  const queryText = queries.join(" ");
+  return Math.max(candidateSimilarity(candidate, { titulo: pauta.titulo, resumo_feed: pauta.keywords?.join(" ") }), setSimilarity(candidateText(candidate), queryText));
+}
+
+function sourceCandidateScore(candidate, relevance, now = new Date()) {
+  const recency = sourceRecencyScore(candidate.data, now);
+  const authority = Number(candidate.sourceQuality || 0.75);
+  const depth = Math.min(1, clean(candidate.resumo_feed).length / 220);
+  return Number((relevance * 4 + recency * 1.4 + authority * 1.2 + depth * 0.7).toFixed(3));
+}
+
+function commandTopicRelevance(pauta = {}, commandTopic = "") {
+  if (!commandTopic) return 1;
+  const pautaText = [pauta.titulo, pauta.keywords?.join(" "), ...(pauta.items || []).flatMap((item) => [item.titulo, item.resumo_feed])].join(" ");
+  const normalizedPauta = normalizeText(pautaText);
+  const normalizedTopic = normalizeText(commandTopic);
+  if (normalizedTopic && normalizedPauta.includes(normalizedTopic)) return 1;
+  return Math.max(setSimilarity(pautaText, commandTopic), titleSimilarity(pauta.titulo || "", commandTopic));
+}
+
 export function selectSourcesForPauta(pauta, maxSources = 5) {
   const seenUrls = new Set();
   const seenSources = new Set();
   return [...pauta.items]
-    .sort((a, b) => b.sourceQuality - a.sourceQuality || sourceRecencyScore(b.data) - sourceRecencyScore(a.data))
+    .sort((a, b) => (b.discoveryScore ?? b.sourceQuality ?? 0) - (a.discoveryScore ?? a.sourceQuality ?? 0) || sourceRecencyScore(b.data) - sourceRecencyScore(a.data))
     .filter((item) => {
-      const urlKey = String(item.url).replace(/\/$/, "");
+      const urlKey = normalizeUrlKey(item.url);
       const sourceKey = normalizeText(item.fonte);
       if (seenUrls.has(urlKey) || seenSources.has(sourceKey)) return false;
       seenUrls.add(urlKey);
@@ -303,6 +372,36 @@ export function selectSourcesForPauta(pauta, maxSources = 5) {
       return true;
     })
     .slice(0, maxSources);
+}
+
+export async function discoverSecondarySources({ pauta, config, initialCandidates = [], selectedSources = [], fetchImpl = fetch, lookup = dns.lookup, now = new Date() } = {}) {
+  const limits = config.limits || {};
+  const queries = buildSecondaryQueries(pauta, config);
+  const maxCandidates = Number(limits.maxSecondaryCandidates || 80);
+  const maxSources = Number(limits.maxSourcesSelected || limits.maxSourcesPerPost || 5);
+  const pool = [...initialCandidates];
+  for (const source of config.secondarySources || []) {
+    const collected = await collectCandidates({ ...config, sources: [source] }, { fetchImpl, lookup, now });
+    pool.push(...collected.candidates);
+  }
+  const selectedKeys = new Set(selectedSources.map((item) => normalizeUrlKey(item.url)));
+  const candidates = pool
+    .filter((item) => item?.url && !selectedKeys.has(normalizeUrlKey(item.url)))
+    .map((item) => {
+      const discoveryRelevance = sourceCandidateRelevance(item, pauta, queries);
+      return { ...item, discoveryRelevance, discoveryScore: sourceCandidateScore(item, discoveryRelevance, now) };
+    })
+    .filter((item) => item.discoveryRelevance >= Number(limits.secondarySourceMinRelevance || 0.24) && item.discoveryScore >= Number(limits.secondarySourceMinScore || 1.15))
+    .sort((a, b) => b.discoveryScore - a.discoveryScore)
+    .slice(0, maxCandidates);
+  const seededSources = selectedSources.map((item) => ({ ...item, discoveryRelevance: 1, discoveryScore: Number.MAX_SAFE_INTEGER }));
+  const sources = selectSourcesForPauta({ items: [...seededSources, ...candidates] }, maxSources);
+  return {
+    queries,
+    candidates,
+    sources,
+    uniqueSources: new Set(sources.map((item) => normalizeText(item.fonte))).size,
+  };
 }
 
 export function classifyPauta(pauta = {}, articles = [], commandTopic = "") {
@@ -315,8 +414,11 @@ export function classifyPauta(pauta = {}, articles = [], commandTopic = "") {
   ].join(" "));
   const headline = normalizeText(`${commandTopic || ""} ${pauta.titulo || ""} ${pauta.keywords?.join(" ") || ""}`);
   if (/\b(tendencia|tendencias|futuro|mercado|panorama|transformacao|cenarios?)\b/.test(headline)) return "trend";
-  if (/\b(selos?|certificac|leed|aqua|hqe|construcao verde|construcoes verdes|sustentabilidade|sustentavel)\b/.test(headline)) return "technical_topic";
-  if (/\b(workshop|seminario|evento|encontro|curso|congresso|webinar|agenda|inscric|vagas|carga horaria)\b/.test(text)) return "event";
+  const eventMatch = /\b(workshop|seminario|evento|encontro|curso|congresso|webinar|agenda|inscric|vagas|carga horaria)\b/.test(text);
+  const technicalHeadline = /\b(selos?|certificac|leed|aqua|hqe|construcao verde|construcoes verdes|sustentabilidade|sustentavel)\b/.test(headline);
+  if (eventMatch && !commandTopic) return "event";
+  if (technicalHeadline) return "technical_topic";
+  if (eventMatch) return "event";
   if (/\b(anuncia|lanca|lancamento|comunicado|edital|aviso|publica|abre inscric)\b/.test(text)) return "announcement";
   if (/\b(tendencia|futuro|mercado|panorama|transformacao|avanca|cresce|cenarios?)\b/.test(text)) return "trend";
   if (/\b(analise|impacto|efeito|desafio|oportunidade|beneficio|comparativo)\b/.test(text)) return "analysis";
@@ -324,22 +426,47 @@ export function classifyPauta(pauta = {}, articles = [], commandTopic = "") {
   return (pauta.sourceCount || articles.length || 0) <= 1 ? "single_source_news" : "trend";
 }
 
-export function countIndependentSources(sources = []) {
-  const seenDomains = new Set();
-  const seenTitles = new Set();
-  const seenTexts = new Set();
-  let count = 0;
+function textSimilarity(a, b) {
+  return setSimilarity(tokens(a).slice(0, 220).join(" "), tokens(b).slice(0, 220).join(" "));
+}
+
+function syndicationHint(source = {}, other = {}) {
+  const text = normalizeText(`${source.autor || ""} ${source.conteudo || ""}`);
+  const otherName = normalizeText(`${other.fonte || ""} ${hostname(other.url)}`);
+  return otherName && text.includes(otherName) && titleSimilarity(source.tituloOriginal || source.titulo, other.tituloOriginal || other.titulo) >= 0.45;
+}
+
+export function isIndependentSource(source = {}, other = {}) {
+  const sourceUrl = normalizeUrlKey(source.url || source.canonical || "");
+  const otherUrl = normalizeUrlKey(other.url || other.canonical || "");
+  if (sourceUrl && otherUrl && sourceUrl === otherUrl) return false;
+  const titleScore = titleSimilarity(source.tituloOriginal || source.titulo || "", other.tituloOriginal || other.titulo || "");
+  const bodyScore = textSimilarity(source.conteudo || source.resumo_feed || "", other.conteudo || other.resumo_feed || "");
+  if (titleScore >= 0.72 || bodyScore >= 0.95) return false;
+  if (syndicationHint(source, other) || syndicationHint(other, source)) return false;
+  const sourceDomain = hostname(source.url) || normalizeText(source.dominio || source.fonte);
+  const otherDomain = hostname(other.url) || normalizeText(other.dominio || other.fonte);
+  if (sourceDomain && otherDomain && sourceDomain === otherDomain && (titleScore >= 0.42 || bodyScore >= 0.68)) return false;
+  return true;
+}
+
+export function selectIndependentSources(sources = [], maxSources = 5) {
+  const selected = [];
+  const discarded = [];
   for (const source of sources) {
-    const domain = hostname(source.url) || normalizeText(source.dominio || source.fonte);
-    const title = slugify(source.tituloOriginal || source.titulo || "");
-    const textHash = hash(normalizeText(source.conteudo || "").slice(0, 1600));
-    if (!domain || seenDomains.has(domain) || seenTitles.has(title) || seenTexts.has(textHash)) continue;
-    seenDomains.add(domain);
-    seenTitles.add(title);
-    seenTexts.add(textHash);
-    count += 1;
+    const duplicate = selected.find((item) => !isIndependentSource(source, item));
+    if (duplicate) {
+      discarded.push({ fonte: source.fonte, url: source.url, reason: "not_independent" });
+      continue;
+    }
+    selected.push(source);
+    if (selected.length >= maxSources) break;
   }
-  return count;
+  return { sources: selected, discarded };
+}
+
+export function countIndependentSources(sources = []) {
+  return selectIndependentSources(sources, sources.length).sources.length;
 }
 
 export function validateSourcePolicy(pautaType, sources = []) {
@@ -868,6 +995,7 @@ export async function runAutopilot({
   lookup = dns.lookup,
   now = new Date(),
   log = console.log,
+  postsPath = POSTS_PATH,
 } = {}) {
   let config = await readConfig(configPath);
   const commandTopic = clean(topic);
@@ -880,7 +1008,7 @@ export async function runAutopilot({
     selected: null,
     sourcesSelected: [],
     sourcesRead: 0,
-    llm: "FAIL",
+    llm: "NOT_CALLED",
     antiCopy: "FAIL",
     antiHallucination: "FAIL",
     evidenceMap: "FAIL",
@@ -906,26 +1034,54 @@ export async function runAutopilot({
     commandTopic,
     draftId: "",
     imageAbsolutePath: "",
+    sourceDiscovery: {
+      secondarySearch: "SKIPPED",
+      queries: [],
+      secondaryCandidates: 0,
+      uniqueSources: 0,
+      independentSources: 0,
+      discarded: [],
+      multiSource: "FAIL",
+      scoping: "NAO",
+    },
   };
   if (!config.enabled) {
     report.blockers.push("Autopilot desativado na configuracao.");
     return report;
   }
-  const previous = await readPosts();
+  const previous = await readPosts(postsPath);
   const collected = await collectCandidates(config, { fetchImpl, lookup, now });
   report.candidates = collected.candidates.length;
   const ranked = rankPautas(groupPautas(collected.candidates, config), config, previous.posts, now);
   report.pautas = ranked.length;
-  const pauta = ranked.find((item) => !isDuplicatePauta(item, previous.posts));
+  const topicRanked = commandTopic ? ranked.filter((item) => commandTopicRelevance(item, commandTopic) >= Number(config.limits?.commandTopicMinRelevance || 0.18)) : ranked;
+  let pauta = topicRanked.find((item) => !isDuplicatePauta(item, previous.posts));
+  if (!pauta && commandTopic) {
+    pauta = {
+      key: slugify(commandTopic),
+      items: [],
+      titulo: commandTopic,
+      sourceCount: 0,
+      keywords: tokens(commandTopic).slice(0, 10),
+      score: 0,
+      scoreParts: { syntheticTopic: 1 },
+    };
+  }
   if (!pauta) {
     report.blockers.push("Nenhuma pauta nova encontrada.");
     return report;
   }
   report.selected = pauta;
-  const selectedSources = selectSourcesForPauta(pauta, config.limits?.maxSourcesPerPost || 5);
+  let selectedSources = selectSourcesForPauta(pauta, config.limits?.maxSourcesPerPost || 5);
+  const secondary = await discoverSecondarySources({ pauta, config, initialCandidates: collected.candidates, selectedSources, fetchImpl, lookup, now });
+  selectedSources = secondary.sources;
+  report.sourceDiscovery.secondarySearch = secondary.queries.length ? "PASS" : "SKIPPED";
+  report.sourceDiscovery.queries = secondary.queries;
+  report.sourceDiscovery.secondaryCandidates = secondary.candidates.length;
+  report.sourceDiscovery.uniqueSources = secondary.uniqueSources;
   report.sourcesSelected = selectedSources;
   const articles = [];
-  for (const source of selectedSources) {
+  for (const source of selectedSources.slice(0, Number(config.limits?.maxSourcesToRead || config.limits?.maxSourcesPerPost || 5))) {
     try {
       const article = await extractArticle(source, { fetchImpl, lookup, config });
       articles.push({ ...article, sourceId: `source_${articles.length + 1}` });
@@ -933,14 +1089,40 @@ export async function runAutopilot({
       report.blockers.push(`Fonte nao lida: ${source.fonte} (${error.message})`);
     }
   }
+  const independent = selectIndependentSources(articles, Number(config.limits?.maxSourcesSelected || config.limits?.maxSourcesPerPost || 5));
+  const independentArticles = independent.sources.map((article, index) => ({ ...article, sourceId: `source_${index + 1}` }));
+  articles.splice(0, articles.length, ...independentArticles);
+  report.sourceDiscovery.discarded = independent.discarded;
+  report.sourceDiscovery.independentSources = articles.length;
+  report.sourceDiscovery.multiSource = articles.length >= 2 ? "PASS" : "FAIL";
   report.sourcesRead = articles.length;
   if (!articles.length) {
     report.blockers.push("Nenhuma fonte real foi lida.");
     return report;
   }
-  const pautaType = classifyPauta(pauta, articles, commandTopic);
+  let editorialPauta = pauta;
+  let pautaType = classifyPauta(editorialPauta, articles, commandTopic);
   report.pautaType = pautaType;
-  const sourcePolicy = validateSourcePolicy(pautaType, articles);
+  let sourcePolicy = validateSourcePolicy(pautaType, articles);
+  if (!sourcePolicy.ok && articles.length === 1 && ["trend", "analysis", "technical_topic"].includes(pautaType)) {
+    const scopedPauta = {
+      ...pauta,
+      titulo: articles[0].tituloOriginal,
+      sourceCount: 1,
+      items: [{ titulo: articles[0].tituloOriginal, resumo_feed: articles[0].conteudo.slice(0, 500), fonte: articles[0].fonte, url: articles[0].url, sourceQuality: 1 }],
+      keywords: tokens(`${articles[0].tituloOriginal} ${articles[0].conteudo.slice(0, 500)}`).slice(0, 10),
+    };
+    const scopedType = classifyPauta(scopedPauta, articles, "");
+    const scopedPolicy = validateSourcePolicy(scopedType, articles);
+    if (scopedPolicy.ok && ["event", "announcement", "single_source_news"].includes(scopedType)) {
+      editorialPauta = scopedPauta;
+      pautaType = scopedType;
+      sourcePolicy = scopedPolicy;
+      report.selected = scopedPauta;
+      report.pautaType = scopedType;
+      report.sourceDiscovery.scoping = "REDUZIDO";
+    }
+  }
   report.sourcePolicy = sourcePolicy;
   if (!sourcePolicy.ok) {
     report.blockers.push(sourcePolicy.reason || "Politica de fontes rejeitou a pauta.");
@@ -948,11 +1130,12 @@ export async function runAutopilot({
   }
   let generated;
   try {
-    generated = await generateEditorialArticle({ config, pauta, articles, posts: previous.posts, fetchImpl });
+    generated = await generateEditorialArticle({ config, pauta: editorialPauta, articles, posts: previous.posts, fetchImpl });
     report.llm = "PASS";
     report.usage = generated.usage;
     report.cost = estimateCost(generated.usage, config);
   } catch (error) {
+    report.llm = "FAIL";
     if (error.openAiDiagnostic) {
       report.openAiDiagnostic = error.openAiDiagnostic;
       formatOpenAiDiagnostic(error.openAiDiagnostic).forEach((line) => log(line));
@@ -963,7 +1146,7 @@ export async function runAutopilot({
   const copy = antiCopyCheck(generated.article, articles);
   report.antiCopy = copy.ok ? "PASS" : "FAIL";
   report.copy = copy;
-  const hallucination = antiHallucinationCheck(generated.article, articles, pauta);
+  const hallucination = antiHallucinationCheck(generated.article, articles, editorialPauta);
   report.antiHallucination = hallucination.ok ? "PASS" : "FAIL";
   report.hallucination = hallucination;
   const grounding = enforceFactualGrounding(generated.article, articles);
@@ -1086,6 +1269,17 @@ export function logReport(report, { log = console.log, dryRun = false, shouldPub
   log(`PAUTAS: ${report.pautas}`);
   log(`PAUTA ESCOLHIDA: ${report.selected?.titulo || "nenhuma"}`);
   log(`SCORE: ${report.selected?.score ?? "n/a"}`);
+  if (report.sourceDiscovery) {
+    log("QUERY SECUNDARIA:");
+    (report.sourceDiscovery.queries || []).forEach((query, index) => log(`${index + 1}. ${query}`));
+    log(`CANDIDATOS SECUNDARIOS: ${report.sourceDiscovery.secondaryCandidates ?? 0}`);
+    log(`FONTES UNICAS: ${report.sourceDiscovery.uniqueSources ?? 0}`);
+    log(`FONTES INDEPENDENTES DISCOVERY: ${report.sourceDiscovery.independentSources ?? 0}`);
+    log(`FONTES DESCARTADAS: ${(report.sourceDiscovery.discarded || []).length}`);
+    (report.sourceDiscovery.discarded || []).forEach((item) => log(`- ${item.fonte || "n/a"}: ${item.reason}`));
+    log(`MULTI-SOURCE: ${report.sourceDiscovery.multiSource || "FAIL"}`);
+    log(`ESCOPING: ${report.sourceDiscovery.scoping || "NAO"}`);
+  }
   log("FONTES:");
   report.sourcesSelected.forEach((source, index) => log(`${index + 1}. ${source.fonte} - ${source.titulo}`));
   log(`FONTES LIDAS: ${report.sourcesRead}/${report.sourcesSelected.length}`);

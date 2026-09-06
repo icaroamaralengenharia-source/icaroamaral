@@ -13,9 +13,36 @@
     "BIM"
   ],
   "sources": [
-    { "name": "CAU/BR", "url": "https://caubr.gov.br/feed/", "type": "rss", "quality": 0.92 },
-    { "name": "CBIC", "url": "https://cbic.org.br/feed/", "type": "rss", "quality": 0.9 },
-    { "name": "Agencia Brasil", "url": "https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml", "type": "rss", "quality": 0.76 }
+    {
+      "name": "CAU/BR",
+      "url": "https://caubr.gov.br/feed/",
+      "type": "rss",
+      "quality": 0.92
+    },
+    {
+      "name": "CBIC",
+      "url": "https://cbic.org.br/feed/",
+      "type": "rss",
+      "quality": 0.9
+    },
+    {
+      "name": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml",
+      "type": "rss",
+      "quality": 0.76
+    },
+    {
+      "name": "GBC Brasil",
+      "url": "https://www.gbcbrasil.org.br/feed/",
+      "type": "rss",
+      "quality": 0.88
+    },
+    {
+      "name": "CBCS",
+      "url": "https://cbcs.org.br/category/noticias/feed/",
+      "type": "rss",
+      "quality": 0.86
+    }
   ],
   "weights": {
     "recency": 2.2,
@@ -32,7 +59,15 @@
     "timeoutMs": 15000,
     "maxSourcesPerPost": 5,
     "minSourcesForStrongPauta": 2,
-    "maxExistingPosts": 80
+    "maxExistingPosts": 80,
+    "clusterSimilarityThreshold": 0.34,
+    "maxSecondaryQueries": 5,
+    "maxSecondaryCandidates": 80,
+    "maxSourcesToRead": 5,
+    "maxSourcesSelected": 5,
+    "secondarySourceMinScore": 1.15,
+    "secondarySourceMinRelevance": 0.24,
+    "commandTopicMinRelevance": 0.18
   },
   "llm": {
     "provider": "openai",
@@ -51,5 +86,32 @@
     "inputPerMillion": null,
     "outputPerMillion": null,
     "imagePerRequest": null
+  },
+  "sourceDiscovery": {
+    "queryAliases": {
+      "sustentabilidade": [
+        "selos sustentabilidade construcao verde Brasil",
+        "certificacoes ambientais construcao civil Brasil",
+        "LEED AQUA-HQE construcao sustentavel",
+        "sustentabilidade edificacoes certificacao Brasil",
+        "construcao verde certificacoes ambientais"
+      ],
+      "sustentavel": [
+        "construcao sustentavel Brasil",
+        "edificacoes sustentaveis certificacao ambiental"
+      ],
+      "certificac": [
+        "certificacoes ambientais construcao civil Brasil",
+        "LEED AQUA-HQE construcao sustentavel"
+      ],
+      "leed": [
+        "LEED construcao sustentavel Brasil",
+        "certificacao LEED edificacoes Brasil"
+      ],
+      "aqua": [
+        "AQUA-HQE construcao sustentavel Brasil",
+        "certificacao AQUA-HQE edificios"
+      ]
+    }
   }
 }

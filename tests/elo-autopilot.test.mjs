@@ -12,6 +12,10 @@ import {
   buildPostPage,
   buildSitemap,
   collectCandidates,
+  selectIndependentSources,
+  isIndependentSource,
+  discoverSecondarySources,
+  buildSecondaryQueries,
   enforceFactualGrounding,
   extractArticle,
   buildOpenAiErrorDiagnostic,
@@ -295,7 +299,7 @@ async function fakePipelineFetch(url) {
   if (target.includes("fonte-b.example/feed")) return response(feedB, { contentType: "application/rss+xml" });
   if (target.includes("fonte-a.example/a")) return response(articleHtml);
   if (target.includes("fonte-b.example/b")) return response(articleHtmlB);
-  if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(fakeArticle()), usage: { input_tokens: 1000, output_tokens: 500 } }), { contentType: "application/json" });
+  if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(fakeArticle({ claims: [{ claim: "A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.", sourceIds: ["source_1", "source_2"] }] })), usage: { input_tokens: 1000, output_tokens: 500 } }), { contentType: "application/json" });
   if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
   throw new Error(`URL inesperada: ${target}`);
 }
@@ -487,17 +491,195 @@ test("caso Workshop positivo preserva fatos suportados com uma fonte", () => {
 });
 
 
+
+const sustainabilityFeedA = `<?xml version="1.0"?><rss><channel>
+<item><title>Selos de sustentabilidade em construcoes verdes ganham espaco</title><link>https://gbc.example/selos</link><description>Certificacoes ambientais, LEED e construcao verde no Brasil.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const sustainabilityFeedB = `<?xml version="1.0"?><rss><channel>
+<item><title>LEED e AQUA-HQE orientam certificacoes ambientais na construcao civil</title><link>https://cbcs.example/certificacoes</link><description>Sustentabilidade, edificacoes e certificacao ambiental para projetos brasileiros.</description><pubDate>Sat, 05 Sep 2026 11:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const sustainabilityHtmlA = `<!doctype html><html><head><title>Selos de sustentabilidade em construcoes verdes</title><link rel="canonical" href="https://gbc.example/selos"><meta name="author" content="GBC"></head><body><main><article><h1>Selos de sustentabilidade em construcoes verdes</h1><p>Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna.</p><p>O texto aborda como construcao verde depende de requisitos documentados, verificacao tecnica e acompanhamento do desempenho ambiental de edificios.</p><p>No Brasil, a discussao sobre certificacao ambiental aparece ligada a projeto, operacao, eficiencia e melhores praticas para reduzir impactos no ciclo de vida.</p><p>A fonte apresenta o tema como referencia tecnica para equipes de arquitetura, engenharia e operacao predial.</p></article></main></body></html>`;
+
+const sustainabilityHtmlB = `<!doctype html><html><head><title>LEED e AQUA-HQE na construcao civil</title><link rel="canonical" href="https://cbcs.example/certificacoes"><meta name="author" content="CBCS"></head><body><main><article><h1>LEED e AQUA-HQE na construcao civil</h1><p>A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos.</p><p>A abordagem relaciona sustentabilidade a escolhas de projeto, materiais, operacao, eficiencia e gestao tecnica ao longo do ciclo de vida da edificacao.</p><p>O conteudo diferencia certificacoes ambientais de acoes isoladas e destaca a necessidade de evidencias, criterios verificaveis e documentacao de projeto.</p><p>O tema e tratado como pauta tecnica para construcao civil e edificacoes sustentaveis.</p></article></main></body></html>`;
+
+function sustainabilityArticle() {
+  return validateLlmArticle(fakeArticle({
+    titulo: "Selos de sustentabilidade e construcoes verdes",
+    resumo: "Certificacoes ambientais ajudam equipes tecnicas a organizar criterios verificaveis de sustentabilidade em edificacoes.",
+    conteudo: [
+      { subtitulo: "Criterios verificaveis", paragrafos: ["Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna. A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos. Essas referencias ajudam equipes tecnicas a tratar construcao verde com documentacao, verificacao e acompanhamento de desempenho ambiental."] },
+      { subtitulo: "Aplicacao tecnica", paragrafos: ["As fontes relacionam sustentabilidade a escolhas de projeto, materiais, operacao, eficiencia e gestao tecnica ao longo do ciclo de vida da edificacao. O ponto comum e que certificacao ambiental depende de evidencias e criterios verificaveis, nao apenas de acoes isoladas ou declaracoes genericas sobre impacto ambiental."] },
+    ],
+    seoTitle: "Selos de sustentabilidade e construcoes verdes",
+    seoDescription: "Veja como LEED e AQUA-HQE estruturam criterios ambientais verificaveis para edificacoes sustentaveis.",
+    slug: "selos-sustentabilidade-construcoes-verdes",
+    categoria: "Sustentabilidade",
+    tags: ["sustentabilidade", "LEED", "AQUA-HQE"],
+    claims: [
+      { claim: "Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna.", sourceIds: ["source_1"] },
+      { claim: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos.", sourceIds: ["source_2"] },
+    ],
+  }));
+}
+
+const discoveryConfig = {
+  ...config,
+  topics: ["engenharia civil", "construcao", "sustentabilidade"],
+  sources: [
+    { name: "GBC", url: "https://gbc.example/feed.xml", type: "rss", quality: 0.9 },
+    { name: "CBCS", url: "https://cbcs.example/feed.xml", type: "rss", quality: 0.86 },
+  ],
+  limits: { ...config.limits, maxSecondaryQueries: 5, maxSecondaryCandidates: 8, maxSourcesToRead: 5, maxSourcesSelected: 5, secondarySourceMinScore: 1.15, clusterSimilarityThreshold: 0.5 },
+  sourceDiscovery: { queryAliases: { sustentabilidade: ["selos sustentabilidade construcao verde Brasil", "LEED AQUA-HQE construcao sustentavel"], certificac: ["certificacoes ambientais construcao civil Brasil"] } },
+};
+
+async function discoveryFetch(url) {
+  const target = String(url);
+  if (target.includes("gbc.example/feed")) return response(sustainabilityFeedA, { contentType: "application/rss+xml" });
+  if (target.includes("cbcs.example/feed")) return response(sustainabilityFeedB, { contentType: "application/rss+xml" });
+  if (target.includes("gbc.example/selos")) return response(sustainabilityHtmlA);
+  if (target.includes("cbcs.example/certificacoes")) return response(sustainabilityHtmlB);
+  if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(sustainabilityArticle()), usage: { input_tokens: 1200, output_tokens: 700 } }), { contentType: "application/json" });
+  if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
+  throw new Error(`URL inesperada: ${target}`);
+}
+
+test("query expansion gera variacoes deterministicas", () => {
+  const queries = buildSecondaryQueries({ titulo: "Selos de sustentabilidade e construcoes verdes", keywords: ["sustentabilidade", "certificacao"] }, discoveryConfig);
+  assert.ok(queries.length <= discoveryConfig.limits.maxSecondaryQueries);
+  assert.ok(queries.some((query) => /LEED|AQUA-HQE|selos sustentabilidade/i.test(query)));
+});
+
+test("secondary search encontra nova fonte relacionada", async () => {
+  const collected = await collectCandidates(discoveryConfig, { fetchImpl: discoveryFetch, lookup, now });
+  const pauta = { titulo: "Selos de sustentabilidade em construcoes verdes", keywords: ["sustentabilidade", "certificacoes"], items: [collected.candidates[0]] };
+  const result = await discoverSecondarySources({ pauta, config: discoveryConfig, initialCandidates: collected.candidates, selectedSources: [collected.candidates[0]], fetchImpl: discoveryFetch, lookup, now });
+  assert.equal(result.sources.length, 2);
+  assert.ok(result.candidates.some((item) => item.fonte === "CBCS"));
+});
+
+test("canonical igual nao conta duas fontes", () => {
+  const a = { ...leedSource, url: "https://gbc.example/leed" };
+  const b = { ...a, fonte: "Republicador", sourceId: "source_2" };
+  assert.equal(isIndependentSource(a, b), false);
+  assert.equal(countIndependentSources([a, b]), 1);
+});
+
+test("mesmo dominio pode contar quando conteudo e origem diferem", () => {
+  const a = { fonte: "Portal", tituloOriginal: "LEED em edificios comerciais", url: "https://portal.example/a", conteudo: sustainabilityHtmlA };
+  const b = { fonte: "Portal", tituloOriginal: "AQUA-HQE em edificios publicos", url: "https://portal.example/b", conteudo: sustainabilityHtmlB };
+  assert.equal(isIndependentSource(a, b), true);
+  assert.equal(countIndependentSources([a, b]), 2);
+});
+
+test("syndication e conteudo semelhante nao contam", () => {
+  const copy = { fonte: "Portal Y", tituloOriginal: fortalezaSource.tituloOriginal, url: "https://portal-y.example/release", autor: "Com informacoes da CBIC", conteudo: fortalezaSource.conteudo };
+  assert.equal(isIndependentSource(copy, fortalezaSource), false);
+});
+
+test("tres fontes independentes funcionam", () => {
+  assert.equal(countIndependentSources([leedSource, aquaSource, sustainableSource]), 3);
+  assert.equal(selectIndependentSources([leedSource, aquaSource, sustainableSource]).sources.length, 3);
+});
+
+test("clusterizacao junta titulos proximos e separa assuntos distintos", () => {
+  const candidates = [
+    { titulo: "Selos de sustentabilidade em construcoes verdes", resumo_feed: "certificacoes ambientais", fonte: "A", url: "https://a.example/1", data: now.toISOString(), sourceQuality: 0.9 },
+    { titulo: "Certificacoes ambientais para construcao verde", resumo_feed: "LEED e AQUA-HQE", fonte: "B", url: "https://b.example/1", data: now.toISOString(), sourceQuality: 0.8 },
+    { titulo: "Workshop sindical discute negociacoes coletivas", resumo_feed: "agenda de evento", fonte: "C", url: "https://c.example/1", data: now.toISOString(), sourceQuality: 0.8 },
+  ];
+  const grouped = groupPautas(candidates, { ...discoveryConfig, limits: { ...discoveryConfig.limits, clusterSimilarityThreshold: 0.3 } });
+  assert.equal(grouped.length, 2);
+  assert.ok(grouped.some((group) => group.items.length === 2));
+});
+
+test("trend com uma fonte bloqueia e LLM fica NOT_CALLED", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-one-source-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify({ ...discoveryConfig, sources: [discoveryConfig.sources[0]] }), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "tendencias de construcao verde", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl: discoveryFetch });
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.sourcePolicy.ok, false);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("technical_topic tenta secondary discovery antes de bloquear e chama LLM com duas fontes", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-secondary-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(discoveryConfig), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "selos de sustentabilidade e construcoes verdes", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl: discoveryFetch });
+  assert.equal(report.sourceDiscovery.secondarySearch, "PASS");
+  assert.equal(report.sourceDiscovery.multiSource, "PASS");
+  assert.equal(report.llm, "PASS");
+  assert.equal(report.sourcePolicy.ok, true);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("evento com uma fonte continua suficiente", async () => {
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop de Negociacoes Coletivas da CBIC</title><link>https://cbic.example/workshop</link><description>Evento com inscricoes, carga horaria e vagas limitadas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop de Negociacoes Coletivas da CBIC</title><link rel="canonical" href="https://cbic.example/workshop"></head><body><article><h1>Workshop de Negociacoes Coletivas da CBIC</h1><p>O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro, com agenda voltada a representantes sindicais e equipes juridicas do setor.</p><p>A atividade tera carga horaria de 12 horas, vagas limitadas, conteudo sobre negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.</p><p>A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao e leitura de cenarios trabalhistas.</p><p>O texto apresenta informacoes de agenda, tema, local, formato da atividade, publico esperado e objetivos declarados da capacitacao, sem transformar a pauta em analise ampla do mercado.</p></article></body></html>`;
+  const eventConfig = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  const eventArticle = validateLlmArticle(fakeArticle({ claims: [{ claim: "O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] }] }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(eventArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-event-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(eventConfig), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "Workshop de Negociacoes Coletivas da CBIC", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.pautaType, "event");
+  assert.equal(report.sourcePolicy.ok, true);
+  assert.equal(report.llm, "PASS");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("scoping reduz pauta ampla somente quando fonte unica vira evento seguro", async () => {
+  const scoped = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-scoping-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(scoped), "utf8");
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</title><link>https://cbic.example/evento</link><description>Evento tecnico sobre sustentabilidade, inovacao e construcao.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</title><link rel="canonical" href="https://cbic.example/evento"></head><body><article><h1>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</h1><p>A CBIC realiza em Fortaleza um evento sobre sustentabilidade, inovacao e construcao civil, com programacao voltada ao debate tecnico entre representantes do setor.</p><p>A programacao reune representantes da construcao para debater experiencias, iniciativas, projetos e agenda tecnica relacionada a sustentabilidade, inovacao e melhoria de processos.</p><p>O texto informa local, realizacao, tema central do encontro, perfil institucional da iniciativa e contexto da agenda, sem apresentar dados gerais sobre certificacoes ambientais.</p><p>A pauta e delimitada como evento, com informacoes factuais sobre organizacao, local, tema, participantes esperados e objetivos declarados para a conversa tecnica.</p></article></body></html>`;
+  const scopedArticle = validateLlmArticle(fakeArticle({ claims: [{ claim: "A CBIC realiza em Fortaleza um evento sobre sustentabilidade, inovacao e construcao civil.", sourceIds: ["source_1"] }] }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("evento")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(scopedArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "selos de sustentabilidade e construcoes verdes", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.sourceDiscovery.scoping, "REDUZIDO");
+  assert.equal(report.pautaType, "event");
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("diagnostico OpenAI 401 nao expoe chave e mantem falha", async () => {
   const originalKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "sk-secret-auth-test-1234567890";
   const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-openai-401-"));
   const configPath = path.join(dir, "config.json");
-  await writeFixtureConfig(configPath);
+  const eventConfig = { ...config, sources: [{ name: "Fonte Evento", url: "https://evento-openai.example/feed.xml", type: "rss", quality: 0.9 }] };
+  await writeFile(configPath, JSON.stringify(eventConfig), "utf8");
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop tecnico de engenharia digital</title><link>https://evento-openai.example/workshop</link><description>Evento com agenda tecnica, inscricoes e vagas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop tecnico de engenharia digital</title><link rel="canonical" href="https://evento-openai.example/workshop"></head><body><article><h1>Workshop tecnico de engenharia digital</h1><p>O workshop tecnico de engenharia digital sera realizado com agenda sobre planejamento, coordenacao e documentacao de projetos para equipes de engenharia.</p><p>A atividade informa inscricoes, vagas, publico de engenharia, formato de participacao e conteudo aplicado a equipes tecnicas envolvidas com projetos e obras.</p><p>O texto apresenta dados factuais de evento, incluindo tema, publico, formato, objetivos declarados, relacao com processos de obra e organizacao da programacao.</p><p>A pauta permanece delimitada ao evento e nao exige analise ampla de mercado, tendencia setorial, comparacao de tecnologias ou conclusoes externas as informacoes publicadas.</p></article></body></html>`;
   const logs = [];
-  const fetchImpl = async (url) => String(url).includes("api.openai.com")
-    ? response(JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_api_key", message: "Incorrect API key provided: sk-secret-auth-test-1234567890" } }), { status: 401, contentType: "application/json", headers: { "x-request-id": "req_auth_123" } })
-    : fakePipelineFetch(url);
-  const report = await runAutopilot({ dryRun: true, publish: false, configPath, now, lookup, log: (line) => logs.push(String(line)), fetchImpl });
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_api_key", message: "Incorrect API key provided: sk-secret-auth-test-1234567890" } }), { status: 401, contentType: "application/json", headers: { "x-request-id": "req_auth_123" } });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const report = await runAutopilot({ dryRun: true, publish: false, configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: (line) => logs.push(String(line)), fetchImpl });
   const output = logs.join("\n") + "\n" + JSON.stringify(report);
   assert.equal(report.llm, "FAIL");
   assert.equal(report.openAiDiagnostic.classification, "AUTH_ERROR");
