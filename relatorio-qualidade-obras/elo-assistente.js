@@ -59,6 +59,7 @@
   const ELO_PENDING_STOCK_ENTRY_KEY = "obraReport.elo.pendingStockEntry";
   const ELO_PENDING_STOCK_EXIT_KEY = "obraReport.elo.pendingStockExit";
   const ELO_PENDING_STOCK_TRANSFER_KEY = "obraReport.elo.pendingStockTransfer";
+  const ELO_PENDING_AUTOPILOT_PUBLICATION_KEY = "obraReport.elo.pendingAutopilotPublication";
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
@@ -776,6 +777,9 @@
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
     }
+    if (/^(?:elo[, ]*)?(?:publique|publicar|crie\s+e\s+publique|criar\s+e\s+publicar|faca\s+uma\s+publicacao|fazer\s+uma\s+publicacao|prepare\s+uma\s+materia|preparar\s+uma\s+materia|crie\s+um\s+artigo|criar\s+um\s+artigo|publique\s+uma\s+novidade)\b/.test(text)) {
+      return { module: "elo_autopilot", action: "publish_editorial_content", payload: Object.assign({}, payload, { topic: detectEloAutopilotPublicationIntent_(raw) && detectEloAutopilotPublicationIntent_(raw).topic || raw }) };
+    }
     if (/\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo)\b/.test(text)) {
       return { module: "stock_full", action: /entrada/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : "list_products", payload: payload };
     }
@@ -827,6 +831,140 @@
       dryRun: true
     }));
     return buildEloCommandBridgeAnswer_(result);
+  }
+
+  function normalizeEloAutopilotTopic_(value) {
+    return sanitizeUserText(value || "")
+      .replace(/^uma?\s+(?:novidade|materia|mat[eé]ria|artigo|publicacao|publica[cç][aã]o)\s+(?:sobre\s+)?/i, "")
+      .replace(/^(?:no site|na pagina|na página)\s+(?:sobre\s+)?/i, "")
+      .replace(/^(?:sobre|do|da|de|dos|das)\s+/i, "")
+      .replace(/[.;:!?]+$/g, "")
+      .trim()
+      .slice(0, 180);
+  }
+
+  function detectEloAutopilotPublicationIntent_(message) {
+    const raw = sanitizeUserText(message || "");
+    const text = canonicalizeEloSemanticText_(raw);
+    if (!text) return null;
+    const publishPattern = /^(?:elo[, ]*)?(?:publique|publicar|crie\s+e\s+publique|criar\s+e\s+publicar|faca\s+uma\s+publicacao|fazer\s+uma\s+publicacao|prepare\s+uma\s+materia|preparar\s+uma\s+materia|crie\s+um\s+artigo|criar\s+um\s+artigo|publique\s+uma\s+novidade)\b/;
+    if (!publishPattern.test(text)) return null;
+    let topic = raw
+      .replace(/^\s*elo[, ]*/i, "")
+      .replace(/^\s*(?:publique|publicar|crie\s+e\s+publique|criar\s+e\s+publicar|fa[cç]a\s+uma\s+publica[cç][aã]o|fazer\s+uma\s+publica[cç][aã]o|prepare\s+uma\s+mat[eé]ria|preparar\s+uma\s+mat[eé]ria|crie\s+um\s+artigo|criar\s+um\s+artigo|publique\s+uma\s+novidade)\b/i, "");
+    topic = normalizeEloAutopilotTopic_(topic);
+    if (!topic && /\bsobre\b/i.test(raw)) topic = normalizeEloAutopilotTopic_(raw.split(/\bsobre\b/i).slice(1).join(" sobre "));
+    if (!topic || topic.length < 3) return { ok: false, topic: "" };
+    return { ok: true, topic: topic };
+  }
+
+  function isEloAutopilotConfirmation_(message) {
+    return /^(sim|s|confirmo|confirmar|pode publicar|publique|publica|pode seguir|manda ver)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloAutopilotCancel_(message) {
+    return /^(nao|não|n|cancelar|cancele|deixa pra la|deixa pra lá|abortar|aborte)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingAutopilotPublication_() {
+    if (ELO_SESSION_MEMORY.pendingAutopilotPublication) return ELO_SESSION_MEMORY.pendingAutopilotPublication;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_AUTOPILOT_PUBLICATION_KEY) || "null");
+      if (saved && typeof saved === "object") {
+        ELO_SESSION_MEMORY.pendingAutopilotPublication = saved;
+        return saved;
+      }
+    } catch (error) {}
+    return null;
+  }
+
+  function setEloPendingAutopilotPublication_(pending) {
+    ELO_SESSION_MEMORY.pendingAutopilotPublication = pending || null;
+    try {
+      if (pending) window.sessionStorage.setItem(ELO_PENDING_AUTOPILOT_PUBLICATION_KEY, JSON.stringify(pending));
+      else window.sessionStorage.removeItem(ELO_PENDING_AUTOPILOT_PUBLICATION_KEY);
+    } catch (error) {}
+    return pending;
+  }
+
+  function requestEloAutopilotPrepare_(topic) {
+    if (window.EloAutopilotApi && typeof window.EloAutopilotApi.prepare === "function") return Promise.resolve(window.EloAutopilotApi.prepare({ topic: topic }));
+    if (!window.fetch) return Promise.reject(new Error("elo_autopilot_fetch_unavailable"));
+    return window.fetch(getEloBackendEndpoint_("/api/elo/autopilot/prepare"), { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ topic: topic }) }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        applyEloCoreAuthContextFromResponse_(data);
+        if (!response.ok || data.ok === false) throw new Error(data.error || "elo_autopilot_prepare_failed");
+        return data;
+      });
+    });
+  }
+
+  function requestEloAutopilotPublish_(pending) {
+    if (window.EloAutopilotApi && typeof window.EloAutopilotApi.publish === "function") return Promise.resolve(window.EloAutopilotApi.publish({ draftId: pending && pending.draftId, topic: pending && pending.topic }));
+    if (!window.fetch) return Promise.reject(new Error("elo_autopilot_fetch_unavailable"));
+    return window.fetch(getEloBackendEndpoint_("/api/elo/autopilot/publish"), { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ draftId: pending && pending.draftId }) }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        applyEloCoreAuthContextFromResponse_(data);
+        if (!response.ok || data.ok === false) throw new Error(data.error || "elo_autopilot_publish_failed");
+        return data;
+      });
+    });
+  }
+
+  function requestEloAutopilotCancel_(pending) {
+    if (window.EloAutopilotApi && typeof window.EloAutopilotApi.cancel === "function") return Promise.resolve(window.EloAutopilotApi.cancel({ draftId: pending && pending.draftId }));
+    if (!window.fetch || !(pending && pending.draftId)) return Promise.resolve({ ok: true });
+    return window.fetch(getEloBackendEndpoint_("/api/elo/autopilot/cancel"), { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ draftId: pending.draftId }) }).catch(function () { return null; });
+  }
+
+  function buildEloAutopilotPreviewResponse_(topic, data) {
+    const draft = data && (data.draft || data.post || data.preview) || {};
+    const report = data && data.report || {};
+    const title = sanitizeUserText(draft.titulo || data && data.title || "Publicacao editorial preparada");
+    const slug = sanitizeUserText(draft.slug || data && data.slug || "");
+    const sources = Array.isArray(draft.fontes) ? draft.fontes : Array.isArray(data && data.sources) ? data.sources : [];
+    const lines = ["Preparei um preview editorial para o site.", "", "Tema: " + topic, "Titulo: " + title, slug ? "Slug: " + slug : "Slug: pendente", "Fontes reais lidas: " + (report.sourcesRead != null ? report.sourcesRead : sources.length), "Status: pendente de confirmacao humana. Nenhuma publicacao foi gravada ainda.", "", "Responda sim para publicar ou cancelar para abortar."];
+    return { shortAnswer: "Preview editorial preparado.", fullAnswer: lines.join("\n"), nextAction: "Responda sim para publicar ou cancelar para abortar.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_preview", commandBridge: data && data.commandBridge || null, autopilot: { topic: topic, draftId: data && data.draftId || "", status: "pending_confirmation", report: report, preview: draft } };
+  }
+
+  function buildEloAutopilotPublishedResponse_(pending, data) {
+    const post = data && (data.post || data.publication && data.publication.post) || pending && pending.preview || {};
+    const slug = sanitizeUserText(post.slug || pending && pending.slug || "");
+    const url = slug ? "https://www.icaroamaral.com.br/novidades/posts/" + slug + "/" : "https://www.icaroamaral.com.br/novidades/";
+    const answer = ["Publicacao criada no branch atual.", "", "Tema: " + sanitizeUserText(pending && pending.topic || ""), "Titulo: " + sanitizeUserText(post.titulo || "Publicacao editorial"), "URL prevista: " + url, "", "Idempotencia: esta confirmacao foi consumida e nao cria duplicata."].join("\n");
+    return { shortAnswer: "Publicacao criada no branch atual.", fullAnswer: answer, nextAction: "Revise o diff antes de publicar em main.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_confirmed", autopilot: { topic: pending && pending.topic || "", draftId: pending && pending.draftId || "", status: "published", post: post } };
+  }
+
+  function buildEloAutopilotAnswer_(message) {
+    const pending = getEloPendingAutopilotPublication_();
+    if (pending && isEloAutopilotCancel_(message)) {
+      setEloPendingAutopilotPublication_(null);
+      return Promise.resolve(requestEloAutopilotCancel_(pending)).then(function () {
+        return { shortAnswer: "Publicacao cancelada.", fullAnswer: "Publicacao cancelada. Nenhuma pagina, imagem ou sitemap foi gravado.", nextAction: "Quando quiser, peca uma nova publicacao com o tema.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_cancelled", autopilot: { topic: pending.topic || "", draftId: pending.draftId || "", status: "cancelled" } };
+      });
+    }
+    if (pending && isEloAutopilotConfirmation_(message)) {
+      if (pending.status === "publishing") return { shortAnswer: "Ja estou publicando esse preview.", fullAnswer: "Ja estou publicando esse preview. Aguarde a conclusao antes de confirmar outra vez.", nextAction: "Aguarde a resposta final.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_in_progress", autopilot: pending };
+      pending.status = "publishing";
+      setEloPendingAutopilotPublication_(pending);
+      return requestEloAutopilotPublish_(pending).then(function (data) { setEloPendingAutopilotPublication_(null); return buildEloAutopilotPublishedResponse_(pending, data); }).catch(function (error) {
+        pending.status = "pending_confirmation";
+        setEloPendingAutopilotPublication_(pending);
+        return { shortAnswer: "Publicacao bloqueada.", fullAnswer: sanitizeUserText(error && error.message || "Nao consegui publicar esse preview. Nenhum novo pedido foi criado."), nextAction: "Revise o Autopilot e confirme novamente se ainda fizer sentido.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_publish_blocked", autopilot: pending };
+      });
+    }
+    const intent = detectEloAutopilotPublicationIntent_(message);
+    if (!intent) return null;
+    if (!intent.ok) return { shortAnswer: "Qual tema devo publicar?", fullAnswer: "Qual tema devo publicar? Exemplo: publique uma novidade sobre BIM.", nextAction: "Informe o tema da materia.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_topic_required" };
+    const bridgeResponse = buildEloCommandBridgeResponse_(message, { context: { topic: intent.topic } });
+    return requestEloAutopilotPrepare_(intent.topic).then(function (data) {
+      const draft = data && (data.draft || data.post || data.preview) || {};
+      const nextPending = { draftId: sanitizeUserText(data && data.draftId || draft.draftId || ""), topic: intent.topic, title: sanitizeUserText(draft.titulo || data && data.title || ""), slug: sanitizeUserText(draft.slug || data && data.slug || ""), status: "pending_confirmation", preparedAt: new Date().toISOString(), preview: draft };
+      setEloPendingAutopilotPublication_(nextPending);
+      return buildEloAutopilotPreviewResponse_(intent.topic, Object.assign({}, data || {}, { commandBridge: bridgeResponse && bridgeResponse.commandBridge || null }));
+    }).catch(function (error) {
+      return { shortAnswer: "Autopilot indisponivel.", fullAnswer: sanitizeUserText(error && error.message || "Nao consegui preparar a publicacao agora."), nextAction: "Tente novamente quando o backend do Autopilot estiver disponivel.", canSave: false, sessionTheme: "elo_autopilot", sessionIntent: "elo_autopilot_prepare_failed" };
+    });
   }
   function needsLiveSearch(userText) {
     return classifyEloSemanticRoute_(userText).intent === "busca_atual";
@@ -6825,6 +6963,7 @@
     pendingQuantitativePremises: null,
     pendingStockRelease: null,
     pendingStockProductCreate: null,
+    pendingAutopilotPublication: null,
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
     activeDocumentContext: null,
@@ -26971,6 +27110,8 @@ function isEloResidentialNewPipelineEnabled_() {
     const routeOptions = options || {};
     const startedAt = Date.now();
     try {
+    const autopilotBuildResponse = buildEloAutopilotAnswer_(stripEloWakePrefixForRouting_(question));
+    if (autopilotBuildResponse) return autopilotBuildResponse;
     const socialFastPathResponse = buildEloSocialFastPathAnswer_(question);
     if (socialFastPathResponse) return socialFastPathResponse;
     const visualMediaResponse = buildEloVisualMediaResponse_(question);
@@ -28782,6 +28923,18 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (handleEloStockProductCreate_(cleanQuestion, attachedFiles)) {
+      return;
+    }
+    const autopilotBeforeTyping = !attachedFiles.length ? buildEloAutopilotAnswer_(routeQuestion) : null;
+    if (autopilotBeforeTyping) {
+      appendMessage("user", cleanQuestion);
+      if (isEloAsyncResponse_(autopilotBeforeTyping)) {
+        appendTypingIndicator();
+        resolveEloAsyncResponseForChat_(cleanQuestion, autopilotBeforeTyping, { applyBrainMarker: true }).finally(function () { removeTypingIndicator(); });
+        return;
+      }
+      appendAssistantMessage(cleanQuestion, formatResponse(autopilotBeforeTyping), false, autopilotBeforeTyping);
+      clearProductAttachmentPreview();
       return;
     }
     const localStockReadonly = !attachedFiles.length ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
@@ -33417,6 +33570,10 @@ function isEloResidentialNewPipelineEnabled_() {
     buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
+    detectAutopilotPublicationIntentForTest: detectEloAutopilotPublicationIntent_,
+    buildAutopilotAnswerForTest: buildEloAutopilotAnswer_,
+    getPendingAutopilotPublicationForTest: getEloPendingAutopilotPublication_,
+    clearPendingAutopilotPublicationForTest: function () { setEloPendingAutopilotPublication_(null); },
     needsLiveSearchForTest: needsLiveSearch,
     sanitizeHumanFacingAnswerForTest: sanitizeEloHumanFacingAnswer_,
     routeIntentForTest: routeEloCoreIntent_,

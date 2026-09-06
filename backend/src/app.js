@@ -25,6 +25,7 @@ import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
 import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
@@ -1146,6 +1147,7 @@ export function createApp(options = {}) {
   const municipalAdminSupabaseClient = options.municipalAdminSupabaseClient || authContextSupabaseClient || null;
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
+  const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
   let operationalTimelineService = null;
@@ -3444,6 +3446,40 @@ export function createApp(options = {}) {
     } catch (error) {
       console.error("Falha na pesquisa web do Elo:", error);
       response.status(502).json({ ok: false, error: "web_search_failed" });
+    }
+  });
+
+  app.post("/api/elo/autopilot/prepare", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.prepare({
+        topic: request.body && request.body.topic,
+        message: request.body && request.body.message,
+        authContext: request.eloAuthContext || null
+      });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
+    }
+  });
+
+  app.post("/api/elo/autopilot/publish", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.publish({
+        draftId: request.body && request.body.draftId,
+        authContext: request.eloAuthContext || null
+      });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
+    }
+  });
+
+  app.post("/api/elo/autopilot/cancel", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.cancel({ draftId: request.body && request.body.draftId });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
     }
   });
 

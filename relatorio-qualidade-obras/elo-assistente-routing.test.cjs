@@ -3238,3 +3238,147 @@ test('ELO offline classical routing: 5 obras executam local-first sem provider o
   assert.equal(fetchCalls.filter((url) => /\/api\/elo\/media\/search/.test(url)).length, 0);
   assert.ok(events.some((event) => event.name === 'MEDIA_OFFLINE_LIBRARY_MATCH'));
 });
+
+test('ELO Autopilot: parser reconhece comandos editoriais e extrai tema limpo', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const cases = [
+    ['Elo, publique sobre os selos de sustentabilidade e construcoes verdes', 'os selos de sustentabilidade e construcoes verdes'],
+    ['publique uma novidade sobre BIM', 'BIM'],
+    ['crie e publique um artigo sobre construcao sustentavel', 'construcao sustentavel'],
+    ['faca uma publicacao sobre casas modulares', 'casas modulares'],
+    ['publique no site sobre LEED', 'LEED'],
+    ['prepare uma materia sobre inteligencia artificial na engenharia', 'inteligencia artificial na engenharia']
+  ];
+  for (const [message, topic] of cases) {
+    const intent = elo.detectAutopilotPublicationIntentForTest(message);
+    assert.equal(intent.ok, true, message);
+    assert.equal(intent.topic, topic, message);
+  }
+});
+
+test('ELO Autopilot: Command Bridge classifica publicacao como preview com confirmacao', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const request = elo.detectCommandBridgeRequestForTest('publique uma novidade sobre BIM');
+  assert.equal(request.module, 'elo_autopilot');
+  assert.equal(request.action, 'publish_editorial_content');
+  const response = elo.buildCommandBridgeResponseForTest('publique uma novidade sobre BIM', { context: { authToken: 'token' } });
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.equal(response.commandBridge.mode, 'preview');
+});
+
+test('ELO Autopilot: fluxo humano prepara preview e grava pending sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const response = await elo.buildAutopilotAnswerForTest('Elo, publique sobre os selos de sustentabilidade e construcoes verdes');
+  assert.equal(response.sessionIntent, 'elo_autopilot_publish_preview');
+  assert.match(response.fullAnswer, /Nenhuma publicacao foi gravada ainda/);
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
+  assert.deepEqual(calls.map((call) => call.type), ['prepare']);
+});
+
+test('ELO Autopilot: sim publica uma unica vez e consome pending', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  await elo.buildAutopilotAnswerForTest('publique uma novidade sobre BIM');
+  const confirmed = await elo.buildAutopilotAnswerForTest('sim');
+  const second = await elo.buildAutopilotAnswerForTest('sim');
+  assert.equal(confirmed.sessionIntent, 'elo_autopilot_publish_confirmed');
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.equal(second, null);
+});
+
+test('ELO Autopilot: cancelar aborta pending sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  await elo.buildAutopilotAnswerForTest('faca uma publicacao sobre casas modulares');
+  const cancelled = await elo.buildAutopilotAnswerForTest('cancelar');
+  assert.equal(cancelled.sessionIntent, 'elo_autopilot_publish_cancelled');
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  assert.equal(calls.filter((call) => call.type === 'cancel').length, 1);
+});
+
+test('ELO Autopilot: ask digitado atravessa ELO ate preview pendente', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique sobre os selos de sustentabilidade e construcoes verdes', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls[0].type, 'prepare');
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+  assert.match(elementText(messages), /Preview editorial preparado|Nenhuma publicacao foi gravada/);
+});
+
+test('ELO Autopilot: voz usa o mesmo ask/router e prepara preview', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique uma novidade sobre BIM', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  assert.equal(calls[0].type, 'prepare');
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'BIM');
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+});
+
+function fakeAutopilotApi(calls) {
+  return {
+    prepare(input) {
+      calls.push({ type: 'prepare', input });
+      return Promise.resolve({
+        ok: true,
+        draftId: 'draft-autopilot-1',
+        report: { sourcesRead: 2, post: 'PASS', seo: 'PASS' },
+        draft: {
+          titulo: 'Selos de sustentabilidade ganham espaco em construcoes verdes',
+          slug: 'selos-sustentabilidade-construcoes-verdes',
+          fontes: [{ fonte: 'Fonte A' }, { fonte: 'Fonte B' }]
+        }
+      });
+    },
+    publish(input) {
+      calls.push({ type: 'publish', input });
+      return Promise.resolve({
+        ok: true,
+        post: { titulo: 'Selos de sustentabilidade ganham espaco em construcoes verdes', slug: 'selos-sustentabilidade-construcoes-verdes' }
+      });
+    },
+    cancel(input) {
+      calls.push({ type: 'cancel', input });
+      return Promise.resolve({ ok: true });
+    }
+  };
+}
+
+function elementText(element) {
+  if (!element) return '';
+  const own = element.textContent || '';
+  const children = Array.isArray(element.children) ? element.children.map(elementText).join(' ') : '';
+  return [own, children].filter(Boolean).join(' ');
+}
+
+async function flushAutopilotAsync() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+}

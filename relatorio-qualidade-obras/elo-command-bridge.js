@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const MODULES = ["budget", "obrareport_rdo", "obrareport_report", "stock_full", "stock_obras", "memory", "alerts"];
+  const MODULES = ["budget", "obrareport_rdo", "obrareport_report", "stock_full", "stock_obras", "elo_autopilot", "memory", "alerts"];
   const DANGEROUS_ACTIONS = new Set([
     "create_rdo",
     "close_rdo",
@@ -12,6 +12,7 @@
     "update_budget",
     "clear_memory",
     "generate_final_document",
+    "publish_editorial_content",
     "create_user",
     "create_company"
   ]);
@@ -207,6 +208,18 @@
     });
   }
 
+  function executeEloAutopilot(input) {
+    const topic = clean(input.payload && (input.payload.topic || input.payload.message));
+    return result(input, {
+      action: "publish_editorial_content",
+      mode: "preview",
+      requiresAuth: !getAuthToken(input.context || {}),
+      requiresConfirmation: true,
+      preview: topic ? "Posso preparar um preview editorial sobre " + topic + ", mas nao vou publicar sem confirmacao." : "Posso preparar um preview editorial, mas preciso do tema antes de publicar.",
+      data: { topic }
+    });
+  }
+
   function executeMemory(input) {
     const action = input.action || "list_memories";
     const text = normalize((input.payload && input.payload.message) || "");
@@ -245,6 +258,7 @@
     if (safe.module === "obrareport_report") return executeObraReport(safe, "report");
     if (safe.module === "stock_full") return executeStockFull(safe);
     if (safe.module === "stock_obras") return executeStockObras(safe);
+    if (safe.module === "elo_autopilot") return executeEloAutopilot(safe);
     if (safe.module === "memory") return executeMemory(safe);
     if (safe.module === "alerts") return executeAlerts(safe);
     return unsupported(safe);

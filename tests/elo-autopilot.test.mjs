@@ -15,6 +15,8 @@ import {
   groupPautas,
   isDuplicatePauta,
   rankPautas,
+  prepareEditorialPost,
+  publishPreparedEditorialPost,
   runAutopilot,
   safePostSlug,
   selectSourcesForPauta,
@@ -280,3 +282,38 @@ async function fakePipelineFetch(url) {
   if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
   throw new Error(`URL inesperada: ${target}`);
 }
+
+
+test("prepare editorial usa dry-run e nao publica antes da confirmacao", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFixtureConfig(configPath);
+  const draft = await prepareEditorialPost({ topic: "BIM", configPath, now, lookup, log: () => {}, fetchImpl: fakePipelineFetch });
+  assert.equal(draft.report.post, "PASS");
+  assert.equal(draft.report.publication, false);
+  assert.equal(draft.topic, "BIM");
+  await assert.rejects(() => stat(path.join(dir, "novidades", "dados", "posts.json")));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("publishPreparedEditorialPost consome rascunho preparado e chama persistencia controlada", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-publish-"));
+  const imagePath = path.join(dir, "construcao-industrializada-e-bim.jpg");
+  await writeFile(imagePath, Buffer.alloc(2048));
+  const persisted = [];
+  const result = await publishPreparedEditorialPost({
+    draftId: "draft-1",
+    topic: "BIM",
+    imageAbsolutePath: imagePath,
+    post: postFixture()
+  }, {
+    now,
+    readPostsFn: async () => ({ atualizadoEm: null, posts: [] }),
+    persistPostFn: async (post, previous, date) => persisted.push({ post, previous, date }),
+    imageDir: path.join(dir, "final-images")
+  });
+  assert.equal(result.publication, true);
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].post.slug, "construcao-industrializada-e-bim");
+  await rm(dir, { recursive: true, force: true });
+});
