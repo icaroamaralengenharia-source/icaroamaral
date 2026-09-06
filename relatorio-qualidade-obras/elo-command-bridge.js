@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const MODULES = ["budget", "obrareport_rdo", "obrareport_report", "stock_full", "stock_obras", "elo_autopilot", "memory", "alerts"];
+  const MODULES = ["budget", "obrareport_rdo", "obrareport_report", "stock_full", "stock_obras", "elo_autopilot", "municipal", "municipal_sentinel", "memory", "alerts"];
   const DANGEROUS_ACTIONS = new Set([
     "create_rdo",
     "close_rdo",
@@ -485,6 +485,20 @@
     });
   }
 
+  function executeMunicipal(input) {
+    if (!window.EloMunicipalActionAdapter || typeof window.EloMunicipalActionAdapter.execute !== "function") {
+      return unsupported(input, "Adapter municipal indisponivel para executar esta acao.");
+    }
+    return window.EloMunicipalActionAdapter.execute(input);
+  }
+
+  function executeMunicipalSentinel(input) {
+    if (!window.EloMunicipalSentinelAdapter || typeof window.EloMunicipalSentinelAdapter.execute !== "function") {
+      return unsupported(input, "Adapter municipal do Sentinela indisponivel para executar esta acao.");
+    }
+    return window.EloMunicipalSentinelAdapter.execute(input);
+  }
+
   function execute(input) {
     const safe = input && typeof input === "object" ? input : {};
     if (MODULES.indexOf(safe.module) < 0) return unsupported(safe, "Módulo fora do escopo da Fase 1 do ELO.");
@@ -494,6 +508,8 @@
     if (safe.module === "stock_full") return executeStockFull(safe);
     if (safe.module === "stock_obras") return executeStockObras(safe);
     if (safe.module === "elo_autopilot") return executeEloAutopilot(safe);
+    if (safe.module === "municipal") return executeMunicipal(safe);
+    if (safe.module === "municipal_sentinel") return executeMunicipalSentinel(safe);
     if (safe.module === "memory") return executeMemory(safe);
     if (safe.module === "alerts") return executeAlerts(safe);
     return unsupported(safe);
