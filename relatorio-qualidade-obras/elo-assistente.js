@@ -776,8 +776,10 @@
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
     }
-    if (/\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo)\b/.test(text)) {
-      return { module: "stock_full", action: /entrada/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : "list_products", payload: payload };
+    const hasStockFullPending = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo|nao|cancelar|cancela|abortar)$/.test(text) && window.EloActionBusStockFull && typeof window.EloActionBusStockFull.readPending === "function" && window.EloActionBusStockFull.readPending();
+    const stockFullQuestion = /\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo|baixo\s+estoque|acabando|transfira|transferir|chegaram|chegou|recebemos|retirar|retire)\b/.test(text) || /\bquanto\b[\s\S]{0,60}\btemos\b/.test(text);
+    if (hasStockFullPending || stockFullQuestion) {
+      return { module: "stock_full", action: /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : "stock_query", payload: payload };
     }
     if (/\b(?:orcamento|orcamentos|bdi|padrao|escopo|eap|estimativa|custo|pdf\s+profissional\s+desse\s+orcamento|pendencias\s+do\s+orcamento|dados\s+ainda\s+estao\s+faltando)\b/.test(text)) {
       return { module: "budget", action: /bdi|padrao|escopo|retire|inclua|acrescente|atualize/.test(text) ? "preview_change" : /pdf/.test(text) ? "generate_pdf" : /listar|ultimos/.test(text) ? "list" : /pendencia|faltando/.test(text) ? "pending" : "current_budget", payload: payload };
@@ -826,6 +828,7 @@
       }, options && options.context || {}),
       dryRun: true
     }));
+    if (isEloAsyncResponse_(result)) return result.then(buildEloCommandBridgeAnswer_);
     return buildEloCommandBridgeAnswer_(result);
   }
   function needsLiveSearch(userText) {
@@ -28925,6 +28928,10 @@ function isEloResidentialNewPipelineEnabled_() {
       if (isEloCommandBridgePriorityRequest_(priorityCommandBridgeRequest)) {
         const priorityCommandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (priorityCommandBridgeResponse) {
+          if (isEloAsyncResponse_(priorityCommandBridgeResponse)) {
+            resolveEloAsyncResponseForChat_(cleanQuestion, priorityCommandBridgeResponse).finally(function () { removeTypingIndicator(); });
+            return;
+          }
           const priorityCommandBridgeAnswer = formatResponse(priorityCommandBridgeResponse);
           appendAssistantMessage(cleanQuestion, priorityCommandBridgeAnswer, priorityCommandBridgeResponse.canSave !== false, priorityCommandBridgeResponse);
           saveConversation(cleanQuestion, priorityCommandBridgeAnswer);
@@ -28942,6 +28949,10 @@ function isEloResidentialNewPipelineEnabled_() {
       if (effectiveSemanticRoute.intent === "conversa_geral") {
         const commandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (commandBridgeResponse) {
+          if (isEloAsyncResponse_(commandBridgeResponse)) {
+            resolveEloAsyncResponseForChat_(cleanQuestion, commandBridgeResponse).finally(function () { removeTypingIndicator(); });
+            return;
+          }
           const commandBridgeAnswer = formatResponse(commandBridgeResponse);
           appendAssistantMessage(cleanQuestion, commandBridgeAnswer, commandBridgeResponse.canSave !== false, commandBridgeResponse);
           saveConversation(cleanQuestion, commandBridgeAnswer);

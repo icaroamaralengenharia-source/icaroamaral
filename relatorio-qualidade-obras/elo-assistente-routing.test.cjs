@@ -1238,7 +1238,36 @@ test('ELO estoque: saldo conhecido roteia antes da ajuda de materiais', () => {
   assert.equal(response.brain, 'stock');
   assert.equal(response.sessionIntent, 'stock_full_saldo');
   assert.notEqual(response.sessionIntent, 'ajuda_materiais');
-  assert.match(answer, /85 sc de Cimento CP II|Saldo atual: 85 sc/i);
+  assert.match(answer, /85 sc de Cimento CP II|Saldo atual: 85 sc|85 sc em estoque/i);
+});
+test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge', () => {
+  const { elo } = loadEloContext({
+    window: {
+      EloActionBusStockFull: {
+        readPending() { return { action: 'stock.entry.execute' }; }
+      }
+    }
+  });
+
+  const stockQuery = elo.detectCommandBridgeRequestForTest('ELO, quanto cimento temos?');
+  assert.equal(stockQuery.module, 'stock_full');
+  assert.equal(stockQuery.action, 'stock_query');
+  assert.deepEqual({ message: stockQuery.payload.message }, { message: 'ELO, quanto cimento temos?' });
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, o que está acabando?').action, 'stock_low_stock');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, transfira 5 sacos de cimento para o almoxarifado B.').action, 'stock_transfer');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
+});
+
+test('ELO Action Bus Stock Full: sim sem pendencia nao sequestra conversa', () => {
+  const { elo } = loadEloContext({
+    window: {
+      EloActionBusStockFull: {
+        readPending() { return null; }
+      }
+    }
+  });
+
+  assert.equal(elo.detectCommandBridgeRequestForTest('sim'), null);
 });
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();

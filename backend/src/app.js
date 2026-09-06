@@ -2428,6 +2428,135 @@ export function createApp(options = {}) {
       response.status(status).json({ ok: false, error: message });
     }
   });
+  app.post("/api/stock-full/transfer", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const body = request.body || {};
+    const sourceItemId = clean_(body.sourceItemId ?? body.source_item_id ?? body.itemId ?? body.item_id);
+    const destinationItemId = clean_(body.destinationItemId ?? body.destination_item_id);
+    const quantity = parsePositiveNumber_(body.quantity);
+    const operationId = clean_(body.operationId ?? body.operation_id) || "stock_transfer_" + Date.now();
+    const offlineUuid = clean_(body.offlineUuid ?? body.offline_uuid) || operationId;
+    const deviceId = clean_(body.deviceId ?? body.device_id);
+    const destination = clean_(body.destination) || "transferencia_stock_full";
+
+    if (!sourceItemId || !destinationItemId) {
+      response.status(400).json({ ok: false, error: "stock_full_transfer_items_required" });
+      return;
+    }
+    if (sourceItemId === destinationItemId) {
+      response.status(400).json({ ok: false, error: "stock_full_transfer_same_item" });
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      response.status(400).json({ ok: false, error: "quantity_required" });
+      return;
+    }
+
+    try {
+      const [sourceItem, destinationItem] = await Promise.all([
+        getStockFullItemForProfile_(database, sourceItemId, session.profile),
+        getStockFullItemForProfile_(database, destinationItemId, session.profile)
+      ]);
+      if (!sourceItem || !destinationItem) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const previousSourceBalance = parsePositiveNumber_(sourceItem.current_quantity, 0);
+      const previousDestinationBalance = parsePositiveNumber_(destinationItem.current_quantity, 0);
+      if (quantity > previousSourceBalance) {
+        await createStockFullAuditLog_(database, {
+          institutionId: session.profile.institution_id,
+          action: "stock_full_transfer_rejected",
+          entityType: "stock_full_transfer",
+          entityId: operationId,
+          description: "Transferencia rejeitada por saldo insuficiente no Stock Full.",
+          createdBy: session.profile.id
+        });
+        response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity", previousBalance: previousSourceBalance });
+        return;
+      }
+
+      const exitPayload = { operation_id: operationId + ":exit", offline_uuid: offlineUuid + ":exit" };
+      const entryPayload = { operation_id: operationId + ":entry", offline_uuid: offlineUuid + ":entry" };
+      const [duplicateExit, duplicateEntry] = await Promise.all([
+        findStockFullMovementByIdempotency_(database, "stock_full_exits", exitPayload, session.profile),
+        findStockFullMovementByIdempotency_(database, "stock_full_entries", entryPayload, session.profile)
+      ]);
+      if (duplicateExit && duplicateEntry) {
+        response.json({ ok: true, mode: "remote", duplicate: true, status: "duplicate", operationId });
+        return;
+      }
+      if (duplicateExit || duplicateEntry) {
+        response.status(409).json({ ok: false, error: "stock_full_transfer_partial_duplicate" });
+        return;
+      }
+
+      const exitResult = await processStockFullSyncMovement_(database, {
+        type: "saida",
+        itemId: sourceItem.id,
+        quantity,
+        destination,
+        operationId: exitPayload.operation_id,
+        offlineUuid: exitPayload.offline_uuid,
+        deviceId,
+        source: "elo_action_bus"
+      }, session.profile);
+      if (exitResult.status === "rejected") {
+        response.status(409).json({ ok: false, error: clean_(exitResult.message) || "stock_full_transfer_exit_rejected", exit: exitResult });
+        return;
+      }
+
+      const entryResult = await processStockFullSyncMovement_(database, {
+        type: "entrada",
+        itemId: destinationItem.id,
+        quantity,
+        operationId: entryPayload.operation_id,
+        offlineUuid: entryPayload.offline_uuid,
+        deviceId,
+        source: "elo_action_bus"
+      }, session.profile);
+      if (entryResult.status === "rejected") {
+        response.status(409).json({ ok: false, error: clean_(entryResult.message) || "stock_full_transfer_entry_rejected", exit: exitResult, entry: entryResult });
+        return;
+      }
+
+      await createStockFullAuditLog_(database, {
+        institutionId: session.profile.institution_id,
+        action: "stock_full_transfer_created",
+        entityType: "stock_full_transfer",
+        entityId: operationId,
+        description: "Transferencia registrada pelo ELO Action Bus no Stock Full.",
+        createdBy: session.profile.id
+      });
+
+      response.json({
+        ok: true,
+        mode: "remote",
+        status: "synced",
+        operationId,
+        quantity,
+        sourceItem: mapStockFullItemFromDatabase_(sourceItem),
+        destinationItem: mapStockFullItemFromDatabase_(destinationItem),
+        previousSourceBalance,
+        previousDestinationBalance,
+        exit: exitResult,
+        entry: entryResult
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: clean_(error && error.message) || "stock_full_transfer_failed" });
+    }
+  });
+
   app.post("/api/stock-full/sync", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
