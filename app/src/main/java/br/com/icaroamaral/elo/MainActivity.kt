@@ -321,7 +321,7 @@ class MainActivity : Activity() {
             moveMusicPanel(panel, prefs.getFloat(KEY_PLAYER_X, panel.x), prefs.getFloat(KEY_PLAYER_Y, panel.y), persist = false)
         } else {
             val x = (rootFrame.width - panel.width) / 2f
-            val y = rootFrame.height - panel.height - dp(24)
+            val y = (rootFrame.height - panel.height - dp(24)).toFloat()
             moveMusicPanel(panel, x, y, persist = false)
         }
     }
