@@ -230,6 +230,9 @@ class MainActivity : ComponentActivity() {
       horizontalSpacing = 10
       stretchMode = GridView.STRETCH_COLUMN_WIDTH
       choiceMode = GridView.CHOICE_MODE_SINGLE
+      minimumHeight = dp(260)
+      isVerticalScrollBarEnabled = true
+      clipToPadding = false
       setOnItemClickListener { _, _, position, _ -> onTimelinePhotoTapped(position) }
     }
     timelineReviewButton = Button(this).apply {
@@ -254,7 +257,7 @@ class MainActivity : ComponentActivity() {
     timelinePanel.addView(timelineDragHandle)
     timelinePanel.addView(timelineHeader)
     timelinePanel.addView(timelineInstruction)
-    timelinePanel.addView(timelineActionRow)
+    timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     timelinePanel.addView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       TimelineOrganizer.orderedCategories.drop(1).forEach { category ->
@@ -266,7 +269,7 @@ class MainActivity : ComponentActivity() {
         addView(button)
       }
     })
-    timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+    timelinePanel.addView(timelineActionRow)
     jsBridge = SelectedPhotoJavascriptBridge(
       context = this,
       onBridgeReady = {
@@ -946,6 +949,8 @@ class MainActivity : ComponentActivity() {
       Log.d("EloPhotoBridge", "FAST_EXPAND_STATE: ${if (timelineExpanded) "EXPANDED" else "COLLAPSED"}")
       Log.d("EloPhotoBridge", "FAST_GRID_VISIBLE: ${timelineGrid.visibility == android.view.View.VISIBLE && timelinePanel.visibility == android.view.View.VISIBLE}")
       Log.d("EloPhotoBridge", "FAST_GRID_ITEM_COUNT: $itemCount")
+      Log.d("EloPhotoBridge", "GALLERY_VISIBLE_HEIGHT: ${timelineGrid.height}")
+      Log.d("EloPhotoBridge", "GALLERY_RENDERED_CHILDREN: ${timelineGrid.childCount}")
     }
     Log.d("EloPhotoBridge", if (expanded) "FAST_TIMELINE_EXPANDED" else "FAST_TIMELINE_COLLAPSED")
   }
@@ -963,6 +968,7 @@ class MainActivity : ComponentActivity() {
         return
       }
       Log.d("EloPhotoBridge", "FAST_GRID_SOURCE_COUNT: ${photos.size}")
+      Log.d("EloPhotoBridge", "GALLERY_INPUT_COUNT: ${photos.size}")
       photos.firstOrNull()?.let {
         Log.d("EloPhotoBridge", "FAST_PHOTO_1_URI: ${it.uri}")
         Log.d("EloPhotoBridge", "FAST_PHOTO_1_URI_SCHEME: ${it.uri.scheme ?: "unknown"}")
@@ -995,6 +1001,8 @@ class MainActivity : ComponentActivity() {
       timelinePanel.requestFocus()
       timelinePanel.post {
         Log.d("EloPhotoBridge", "FAST_TIMELINE_UI_ATTACHED: attached=${timelinePanel.isAttachedToWindow} parent=${timelinePanel.parent != null}")
+        Log.d("EloPhotoBridge", "GALLERY_VISIBLE_HEIGHT: ${timelineGrid.height}")
+        Log.d("EloPhotoBridge", "GALLERY_RENDERED_CHILDREN: ${timelineGrid.childCount}")
       }
       Log.d("EloPhotoBridge", "FAST_TIMELINE_RENDER_DONE: items=${photos.size}")
     } catch (error: Exception) {
@@ -1011,12 +1019,14 @@ class MainActivity : ComponentActivity() {
 
   private fun onTimelinePhotoTapped(photoIndex: Int) {
     selectedTimelinePhotoIndex = photoIndex
+    val photos = currentTimelineGroup?.photos.orEmpty()
     val next = nextMissingTimelineCategory()
-    if (next != null) {
-      assignTimelineCut(next, photoIndex)
-    } else {
-      setStatus("Foto #${photoIndex + 1} selecionada. Use um botão de início para ajustar um corte.", PhotoBridgeFlowStatus.FAST_TIMELINE)
-    }
+    val time = selectedTimelinePhotoTime(photoIndex, photos)
+    Log.d("EloPhotoBridge", "THUMBNAIL_CLICKED: index=$photoIndex")
+    Log.d("EloPhotoBridge", "SELECTED_PHOTO_INDEX: $photoIndex")
+    Log.d("EloPhotoBridge", "SELECTED_PHOTO_TIME: ${time.ifBlank { "unknown" }}")
+    Log.d("EloPhotoBridge", "CURRENT_REVIEW_STAGE: ${next?.name ?: "COMPLETE"}")
+    setStatus(selectedTimelinePhotoMessage(photoIndex, photos, next), PhotoBridgeFlowStatus.FAST_TIMELINE)
     updateTimelineControls()
   }
 
@@ -1036,6 +1046,7 @@ class MainActivity : ComponentActivity() {
       return
     }
     timelineCuts[category] = photoIndex
+    selectedTimelinePhotoIndex = -1
     persistTimelineState(photos.map { it.uri.toString() }, null)
     setStatus("${categoryLabel(category)} começa em #${photoIndex + 1}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
     updateTimelineControls()
@@ -1066,6 +1077,7 @@ class MainActivity : ComponentActivity() {
     }
     val group = currentTimelineGroup ?: return
     val cutsComplete = TimelineOrganizer.validateCuts(photos.size, timelineCuts).ok
+    val next = nextMissingTimelineCategory()
     timelineHeader.text = visitTimelineHeader(group, photos)
     timelineInstruction.text = timelineInstructionText()
     timelineReviewButton.text = if (cutsComplete) "REVISAR BLOCOS" else "REVISAR BLOCOS"
@@ -1074,13 +1086,17 @@ class MainActivity : ComponentActivity() {
     timelineActionButtons.forEach { (category, button) ->
       val cut = timelineCuts[category]
       button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "INÍCIO ${categoryLabel(category).uppercase()}"
-      button.isEnabled = hasSelection && !screenModel.isProcessing && !cutsComplete
+      button.isEnabled = category == next && hasSelection && !screenModel.isProcessing && !cutsComplete
+    }
+    next?.let {
+      Log.d("EloPhotoBridge", "CURRENT_REVIEW_STAGE: ${it.name}")
+      Log.d("EloPhotoBridge", "STAGE_BUTTON_ENABLED: ${timelineActionButtons[it]?.isEnabled == true}")
     }
     (timelineGrid.adapter as? BaseAdapter)?.notifyDataSetChanged()
   }
   private fun timelineInstructionText(): String {
     val next = nextMissingTimelineCategory()
-    val selected = if (selectedTimelinePhotoIndex >= 0) "Foto #${selectedTimelinePhotoIndex + 1} selecionada." else "Nenhuma foto selecionada."
+    val selected = if (selectedTimelinePhotoIndex >= 0) selectedTimelinePhotoSummary(selectedTimelinePhotoIndex, currentTimelineGroup?.photos.orEmpty()) else "Nenhuma foto selecionada."
     return if (next != null) {
       val step = TimelineOrganizer.orderedCategories.drop(1).indexOf(next) + 1
       "ETAPA $step DE 4\nEscolha a primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
@@ -1088,6 +1104,25 @@ class MainActivity : ComponentActivity() {
       "ORGANIZAÇÃO CONCLUÍDA\nCortes completos. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
     }
   }
+  private fun selectedTimelinePhotoTime(photoIndex: Int, photos: List<PhotoMetadata>): String {
+    return photos.getOrNull(photoIndex)?.bestInstant()
+      ?.atZone(ZoneId.systemDefault())
+      ?.toLocalTime()
+      ?.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+      .orEmpty()
+  }
+
+  private fun selectedTimelinePhotoSummary(photoIndex: Int, photos: List<PhotoMetadata>): String {
+    val time = selectedTimelinePhotoTime(photoIndex, photos)
+    val base = "Foto #${photoIndex + 1} selecionada."
+    return if (time.isBlank()) base else "$base Horário: $time."
+  }
+
+  private fun selectedTimelinePhotoMessage(photoIndex: Int, photos: List<PhotoMetadata>, next: PhotoCategory?): String {
+    val action = next?.let { "Toque em INÍCIO ${categoryLabel(it).uppercase()} para confirmar." } ?: "Cortes completos. Toque em REVISAR BLOCOS para conferir."
+    return "${selectedTimelinePhotoSummary(photoIndex, photos)} $action"
+  }
+
   private fun showFastTimelineBlocksReview() {
     val group = currentTimelineGroup ?: return
     val validation = TimelineOrganizer.validateCuts(group.photos.size, timelineCuts)

@@ -796,15 +796,15 @@ function timelineAdapterItemHarness({ index = 0, thumbnailOk = false } = {}) {
   };
   return item;
 }
-function renderTimelineUiHarness({ selectedVisit }) {
+function renderTimelineUiHarness({ selectedVisit, screenHeight = 1000 }) {
   const root = ["status", "summary", "command", "actionPanel", "timelinePanel", "webView"];
   const photos = selectedVisit;
-  const screenHeight = 1000;
   const usefulHeight = Math.max(screenHeight - 60 - 80, Math.floor(screenHeight * 0.7));
   const expandedHeight = Math.max(Math.floor(usefulHeight * 0.88), 700);
   const collapsedHeight = Math.max(Math.floor(usefulHeight * 0.42), 320);
-  const expandedGridHeight = expandedHeight - 260;
-  const collapsedGridHeight = collapsedHeight - 180;
+  const expandedGridHeight = Math.max(expandedHeight - 260, 260);
+  const collapsedGridHeight = Math.max(collapsedHeight - 180, 160);
+  const panelChildren = ["timelineDragHandle", "timelineHeader", "timelineInstruction", "timelineGrid", "timelineStageButtons", "timelineActionRow"];
   const timelinePanel = {
     created: true,
     parent: "rootLayout",
@@ -831,6 +831,7 @@ function renderTimelineUiHarness({ selectedVisit }) {
     commandVisible: false,
     actionPanelVisible: false,
     grid,
+    panelChildren,
     collapsed,
     expanded,
     usefulHeight,
@@ -838,6 +839,7 @@ function renderTimelineUiHarness({ selectedVisit }) {
     logs: [
       "FAST_TIMELINE_VIEW_CREATE",
       `FAST_GRID_SOURCE_COUNT: ${photos.length}`,
+      `GALLERY_INPUT_COUNT: ${photos.length}`,
       `FAST_PHOTO_1_URI: ${photos[0]?.uri}`,
       "FAST_PHOTO_1_URI_SCHEME: content",
       "FAST_MEDIA_PERMISSION_GRANTED: true",
@@ -850,12 +852,47 @@ function renderTimelineUiHarness({ selectedVisit }) {
       "FAST_EXPAND_STATE: EXPANDED",
       "FAST_GRID_VISIBLE: true",
       `FAST_GRID_ITEM_COUNT: ${photos.length}`,
+      `GALLERY_VISIBLE_HEIGHT: ${expandedGridHeight}`,
+      `GALLERY_RENDERED_CHILDREN: ${Math.min(photos.length, 9)}`,
       "FAST_TIMELINE_VISIBLE",
       "FAST_TIMELINE_ADAPTER_SET",
       `FAST_TIMELINE_ITEM_COUNT: ${grid.adapter.itemCount}`,
       "FAST_TIMELINE_UI_ATTACHED"
     ]
   };
+}
+
+function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17) } = {}) {
+  const state = {
+    photos: selectedVisit,
+    cuts: { CAMERAS: 0 },
+    currentStage: "TOMADAS",
+    selectedIndex: -1,
+    autoAssignCalls: 0,
+    logs: []
+  };
+  const nextStage = () => timelineOrder.slice(1).find((category) => state.cuts[category] == null) || null;
+  const stageButtons = () => Object.fromEntries(timelineOrder.slice(1).map((category) => [category, {
+    enabled: category === nextStage() && state.selectedIndex >= 0,
+    text: state.cuts[category] == null ? `INÍCIO ${category}` : `INÍCIO ${category}: #${state.cuts[category] + 1}`
+  }]));
+  const clickThumbnail = (index) => {
+    state.selectedIndex = index;
+    state.currentStage = nextStage();
+    state.logs.push(`THUMBNAIL_CLICKED: index=${index}`);
+    state.logs.push(`SELECTED_PHOTO_INDEX: ${index}`);
+    state.logs.push(`CURRENT_REVIEW_STAGE: ${state.currentStage}`);
+    state.logs.push(`STAGE_BUTTON_ENABLED: ${stageButtons()[state.currentStage]?.enabled === true}`);
+    return { state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
+  };
+  const confirmStage = (category) => {
+    if (state.selectedIndex < 0 || category !== nextStage()) return { confirmed: false, state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
+    state.cuts[category] = state.selectedIndex;
+    state.selectedIndex = -1;
+    state.currentStage = nextStage();
+    return { confirmed: true, state: { ...state, cuts: { ...state.cuts } }, stageButtons: stageButtons() };
+  };
+  return { state, clickThumbnail, confirmStage, stageButtons };
 }
 
 test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () => {
@@ -878,6 +915,55 @@ test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () =>
   assert.ok(ui.logs.includes("FAST_GRID_ITEM_COUNT: 51"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ADAPTER_SET"));
   assert.ok(ui.logs.includes("FAST_TIMELINE_ITEM_COUNT: 51"));
+});
+
+
+test("FAST_TIMELINE galeria fica visivel com 17 fotos em viewport de celular", () => {
+  const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(17), screenHeight: 640 });
+  assert.equal(ui.grid.adapter.itemCount, 17);
+  assert.ok(ui.grid.height >= 260);
+  assert.ok(ui.panelChildren.indexOf("timelineGrid") < ui.panelChildren.indexOf("timelineStageButtons"));
+  assert.ok(ui.panelChildren.indexOf("timelineGrid") < ui.panelChildren.indexOf("timelineActionRow"));
+  assert.ok(ui.logs.includes("GALLERY_INPUT_COUNT: 17"));
+  assert.ok(ui.logs.some((line) => line.startsWith("GALLERY_VISIBLE_HEIGHT: ")));
+  assert.ok(ui.logs.some((line) => line.startsWith("GALLERY_RENDERED_CHILDREN: ")));
+});
+
+test("FAST_TIMELINE clique em thumbnail apenas seleciona e nao atribui corte", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  const afterClick = flow.clickThumbnail(4);
+  assert.equal(afterClick.state.photos.length, 17);
+  assert.equal(afterClick.state.selectedIndex, 4);
+  assert.equal(afterClick.state.cuts.TOMADAS, undefined);
+  assert.equal(afterClick.state.autoAssignCalls, 0);
+  assert.equal(afterClick.stageButtons.TOMADAS.enabled, true);
+  assert.equal(afterClick.stageButtons.RACK.enabled, false);
+  assert.ok(afterClick.state.logs.includes("THUMBNAIL_CLICKED: index=4"));
+  assert.ok(afterClick.state.logs.includes("STAGE_BUTTON_ENABLED: true"));
+});
+
+test("FAST_TIMELINE botao da etapa confirma corte e avanca preservando 17 fotos", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
+  flow.clickThumbnail(4);
+  const afterTomadas = flow.confirmStage("TOMADAS");
+  assert.equal(afterTomadas.confirmed, true);
+  assert.equal(afterTomadas.state.photos.length, 17);
+  assert.equal(afterTomadas.state.cuts.TOMADAS, 4);
+  assert.equal(afterTomadas.state.selectedIndex, -1);
+  assert.equal(afterTomadas.state.currentStage, "RACK");
+  assert.equal(afterTomadas.stageButtons.RACK.enabled, false);
+  flow.clickThumbnail(8);
+  assert.equal(flow.stageButtons().RACK.enabled, true);
+});
+
+test("FAST_TIMELINE galeria usa apenas fotos selecionadas e nao reintroduz conjunto 214", () => {
+  const physical = runPhysicalPipeline({ photos: physicalPrintFixture214(), date: "2026-08-25", start: "09:36", end: "09:37", cityHint: "Ibicoara" });
+  const selectedVisit = timelinePhotos(17);
+  const ui = renderTimelineUiHarness({ selectedVisit, screenHeight: 640 });
+  assert.equal(physical.afterDate, 214);
+  assert.ok(physical.timeline.length < 214);
+  assert.equal(ui.grid.adapter.itemCount, 17);
+  assert.notEqual(ui.grid.adapter.itemCount, physical.afterDate);
 });
 
 test("FAST_TIMELINE permite recolher e expandir preservando grid de 51 fotos", () => {
