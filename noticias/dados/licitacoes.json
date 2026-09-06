@@ -1,5 +1,5 @@
 {
-  "atualizadoEm": "2026-09-06T13:45:03.969Z",
+  "atualizadoEm": "2026-09-06T14:45:57.611Z",
   "fonte": "PNCP",
   "total": 10,
   "licitacoes": [
@@ -20,9 +20,9 @@
       "numeroProcesso": "178733/2026",
       "valorEstimado": 1567847.04,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T14:24:06.000Z",
-      "dataAbertura": "2026-08-25T11:00:00.000Z",
-      "dataLimite": "2026-09-11T13:00:00.000Z",
+      "dataPublicacao": "2026-08-24T11:24:06.000Z",
+      "dataAbertura": "2026-08-25T08:00:00.000Z",
+      "dataLimite": "2026-09-11T10:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -35,8 +35,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "0c2ab0c83c59f9e9",
@@ -55,9 +55,9 @@
       "numeroProcesso": "355/2026",
       "valorEstimado": 1015839.76,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T14:32:05.000Z",
-      "dataAbertura": "2026-08-24T16:00:00.000Z",
-      "dataLimite": "2026-09-10T12:00:00.000Z",
+      "dataPublicacao": "2026-08-24T11:32:05.000Z",
+      "dataAbertura": "2026-08-24T13:00:00.000Z",
+      "dataLimite": "2026-09-10T09:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -71,8 +71,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "97fa8cf276fcedba",
@@ -91,9 +91,9 @@
       "numeroProcesso": "103-2026",
       "valorEstimado": 1588485.03,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T12:58:26.000Z",
-      "dataAbertura": "2026-08-24T13:00:00.000Z",
-      "dataLimite": "2026-09-08T11:30:00.000Z",
+      "dataPublicacao": "2026-08-24T09:58:26.000Z",
+      "dataAbertura": "2026-08-24T10:00:00.000Z",
+      "dataLimite": "2026-09-08T08:30:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Infraestrutura",
       "palavrasEncontradas": [
@@ -109,8 +109,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "817d25074cdfa8a0",
@@ -129,9 +129,9 @@
       "numeroProcesso": "5310103350/2026",
       "valorEstimado": 50672667.43,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T12:49:23.000Z",
-      "dataAbertura": "2026-08-18T12:00:00.000Z",
-      "dataLimite": "2026-09-25T12:00:00.000Z",
+      "dataPublicacao": "2026-08-24T09:49:23.000Z",
+      "dataAbertura": "2026-08-18T09:00:00.000Z",
+      "dataLimite": "2026-09-25T09:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Infraestrutura",
       "palavrasEncontradas": [
@@ -146,8 +146,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "c793cc8a9e4d9971",
@@ -166,9 +166,9 @@
       "numeroProcesso": "2026.08.045",
       "valorEstimado": 3253548.91,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T13:48:50.000Z",
-      "dataAbertura": "2026-08-25T12:00:00.000Z",
-      "dataLimite": "2026-09-11T11:00:00.000Z",
+      "dataPublicacao": "2026-08-24T10:48:50.000Z",
+      "dataAbertura": "2026-08-25T09:00:00.000Z",
+      "dataLimite": "2026-09-11T08:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -182,8 +182,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "6b47387204e68217",
@@ -202,9 +202,9 @@
       "numeroProcesso": "0308.01/2026",
       "valorEstimado": 1769851.54,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T12:31:20.000Z",
-      "dataAbertura": "2026-08-24T13:00:00.000Z",
-      "dataLimite": "2026-09-10T10:00:00.000Z",
+      "dataPublicacao": "2026-08-24T09:31:20.000Z",
+      "dataAbertura": "2026-08-24T10:00:00.000Z",
+      "dataLimite": "2026-09-10T07:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -217,8 +217,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "62cd91bd40191621",
@@ -237,9 +237,9 @@
       "numeroProcesso": "SEMSUR-20260720287",
       "valorEstimado": 1228307.32,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T12:48:50.000Z",
-      "dataAbertura": "2026-08-24T12:48:47.000Z",
-      "dataLimite": "2026-09-10T11:59:00.000Z",
+      "dataPublicacao": "2026-08-24T09:48:50.000Z",
+      "dataAbertura": "2026-08-24T09:48:47.000Z",
+      "dataLimite": "2026-09-10T08:59:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -253,8 +253,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "4d8276ba716187a6",
@@ -273,9 +273,9 @@
       "numeroProcesso": "00310.000679/2026-81",
       "valorEstimado": 916121.65,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T12:11:17.000Z",
-      "dataAbertura": "2026-08-24T17:00:00.000Z",
-      "dataLimite": "2026-09-10T11:29:00.000Z",
+      "dataPublicacao": "2026-08-24T09:11:17.000Z",
+      "dataAbertura": "2026-08-24T14:00:00.000Z",
+      "dataLimite": "2026-09-10T08:29:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -289,8 +289,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "3f1059dc062f186d",
@@ -309,9 +309,9 @@
       "numeroProcesso": "02810033.000576/2025-47",
       "valorEstimado": 824450.25,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T13:32:55.000Z",
-      "dataAbertura": "2026-08-27T13:00:00.000Z",
-      "dataLimite": "2026-09-16T13:00:00.000Z",
+      "dataPublicacao": "2026-08-24T10:32:55.000Z",
+      "dataAbertura": "2026-08-27T10:00:00.000Z",
+      "dataLimite": "2026-09-16T10:00:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -324,8 +324,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     },
     {
       "id": "feb02253cda0304e",
@@ -344,9 +344,9 @@
       "numeroProcesso": "78",
       "valorEstimado": 486272.08,
       "moeda": "BRL",
-      "dataPublicacao": "2026-08-24T14:07:39.000Z",
-      "dataAbertura": "2026-08-21T13:00:00.000Z",
-      "dataLimite": "2026-09-10T11:30:00.000Z",
+      "dataPublicacao": "2026-08-24T11:07:39.000Z",
+      "dataAbertura": "2026-08-21T10:00:00.000Z",
+      "dataLimite": "2026-09-10T08:30:00.000Z",
       "situacao": "Divulgada no PNCP",
       "categoria": "Engenharia",
       "palavrasEncontradas": [
@@ -360,8 +360,8 @@
       "dominioFonte": "pncp.gov.br",
       "linkValidado": true,
       "validacaoFonte": "api-consulta-pncp",
-      "validadoEm": "2026-09-06T13:45:03.969Z",
-      "dataColeta": "2026-09-06T13:45:03.969Z"
+      "validadoEm": "2026-09-06T14:45:57.611Z",
+      "dataColeta": "2026-09-06T14:45:57.611Z"
     }
   ]
 }
