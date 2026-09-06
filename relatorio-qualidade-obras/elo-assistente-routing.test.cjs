@@ -2548,6 +2548,27 @@ test('ELO media command: player online pede autoplay e compacta com teclado aber
   assert.equal(result.blocked, true);
   assert.equal(context.window.EloMediaPlayer.getState(), 'PLAY_BLOCKED');
 });
+test('ELO media command: player online sem teclado permanece normal', async () => {
+  const { context, elements, getLatestPlayerConfig } = loadEloMediaPlayerContext({
+    activeElement: null,
+    innerHeight: 800,
+    visualViewport: { height: 800, addEventListener() {} }
+  });
+  context.document.activeElement = null;
+  context.window.EloMediaPlayer.play({ title: 'Sultans of Swing', artist: 'Dire Straits', videoId: 'abc123xyz', playable: true, embeddable: true });
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const root = elements.get('elo-real-media-player');
+  const host = elements.get('elo-real-media-host');
+  const config = getLatestPlayerConfig();
+
+  assert.ok(root);
+  assert.equal(root.dataset.eloMediaCompact, 'false');
+  assert.equal(host.style.display, '');
+  assert.equal(config.playerVars.autoplay, 1);
+});
 function createMusicResolverFixture(playCalls) {
   const candidates = [
     { id: 'sultans', title: 'Sultans of Swing', artist: 'Dire Straits', relevance: 1 },
