@@ -422,27 +422,103 @@ function extractJson(text) {
   return JSON.parse(match[0]);
 }
 
+function redactSensitive(value) {
+  let text = clean(value);
+  const apiKey = clean(process.env.OPENAI_API_KEY);
+  if (apiKey) text = text.split(apiKey).join("[REDACTED]");
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED]")
+    .replace(/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
+    .slice(0, 700);
+}
+
+function openAiRequestId(response) {
+  return response?.headers?.get?.("x-request-id")
+    || response?.headers?.get?.("request-id")
+    || response?.headers?.get?.("openai-request-id")
+    || "";
+}
+
+function classifyOpenAiFailure({ status = 0, code = "", type = "", message = "", errorName = "" } = {}) {
+  const normalizedCode = normalizeText(code);
+  const normalizedType = normalizeText(type);
+  const normalizedMessage = normalizeText(message);
+  const normalizedName = normalizeText(errorName);
+  if (normalizedName.includes("abort") || normalizedCode.includes("timeout") || normalizedMessage.includes("timeout")) return "TIMEOUT";
+  if (!status && (normalizedName.includes("typeerror") || normalizedMessage.includes("fetch") || normalizedMessage.includes("network") || normalizedCode.includes("econn") || normalizedCode.includes("enotfound"))) return "NETWORK_ERROR";
+  if (status === 401) return "AUTH_ERROR";
+  if (status === 403) return "PERMISSION_ERROR";
+  if (status === 404 || normalizedCode.includes("model") || normalizedType.includes("model") || normalizedMessage.includes("model")) return "MODEL_ERROR";
+  if (status === 429) return "RATE_LIMIT_OR_QUOTA";
+  if (status >= 500) return "OPENAI_SERVICE_ERROR";
+  return "UNKNOWN_ERROR";
+}
+
+export function buildOpenAiErrorDiagnostic({ status = 0, payload = null, model = "", requestId = "", cause = null } = {}) {
+  const error = payload?.error && typeof payload.error === "object" ? payload.error : {};
+  const message = redactSensitive(error.message || cause?.message || (status ? `OpenAI HTTP ${status}` : "OpenAI call failed"));
+  const code = redactSensitive(error.code || cause?.code || "");
+  const type = redactSensitive(error.type || cause?.name || "");
+  return {
+    provider: "openai",
+    status: status || null,
+    classification: classifyOpenAiFailure({ status, code, type, message, errorName: cause?.name }),
+    type: type || null,
+    code: code || null,
+    message,
+    model: redactSensitive(model),
+    requestId: redactSensitive(requestId),
+  };
+}
+
+export function formatOpenAiDiagnostic(diagnostic = {}) {
+  return [
+    "OPENAI CALL FAILED",
+    `HTTP STATUS: ${diagnostic.status ?? "n/a"}`,
+    `ERROR CLASSIFICATION: ${diagnostic.classification || "UNKNOWN_ERROR"}`,
+    `ERROR TYPE/CODE: ${[diagnostic.type, diagnostic.code].filter(Boolean).join(" / ") || "n/a"}`,
+    `ERROR MESSAGE: ${diagnostic.message || "n/a"}`,
+    `MODEL: ${diagnostic.model || "n/a"}`,
+    `REQUEST ID: ${diagnostic.requestId || "n/a"}`,
+  ];
+}
+
+function createOpenAiError(diagnostic) {
+  const error = new Error(diagnostic.message || "OpenAI call failed");
+  error.name = "OpenAiCallError";
+  error.openAiDiagnostic = diagnostic;
+  return error;
+}
+
 export async function generateEditorialArticle({ config, pauta, articles, posts = [], fetchImpl = fetch } = {}) {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY ausente.");
   const model = process.env[config.llm?.modelEnv || "OPENAI_ELO_AUTOPILOT_MODEL"] || process.env[config.llm?.fallbackModelEnv || "OPENAI_MODEL"] || "gpt-4.1-mini";
   const prompt = buildEditorialPrompt({ config, pauta, articles, posts });
-  const response = await fetchImpl("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        { role: "system", content: "Voce gera JSON editorial estrito para publicacao web." },
-        { role: "user", content: prompt },
-      ],
-      text: { format: { type: "json_object" } },
-    }),
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload?.error?.message || `OpenAI HTTP ${response.status}`);
+  let response;
+  try {
+    response = await fetchImpl("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        input: [
+          { role: "system", content: "Voce gera JSON editorial estrito para publicacao web." },
+          { role: "user", content: prompt },
+        ],
+        text: { format: { type: "json_object" } },
+      }),
+    });
+  } catch (error) {
+    throw createOpenAiError(buildOpenAiErrorDiagnostic({ model, cause: error }));
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw createOpenAiError(buildOpenAiErrorDiagnostic({ status: response.status, payload, model, requestId: openAiRequestId(response) }));
+  }
   const output = payload.output_text || payload.output?.flatMap((item) => item.content || []).map((item) => item.text || "").join("\n") || "";
   return { article: validateLlmArticle(extractJson(output)), usage: payload.usage || null, model };
 }
@@ -826,6 +902,7 @@ export async function runAutopilot({
     usage: null,
     imageUsage: null,
     cost: null,
+    openAiDiagnostic: null,
     commandTopic,
     draftId: "",
     imageAbsolutePath: "",
@@ -876,6 +953,10 @@ export async function runAutopilot({
     report.usage = generated.usage;
     report.cost = estimateCost(generated.usage, config);
   } catch (error) {
+    if (error.openAiDiagnostic) {
+      report.openAiDiagnostic = error.openAiDiagnostic;
+      formatOpenAiDiagnostic(error.openAiDiagnostic).forEach((line) => log(line));
+    }
     report.blockers.push(`LLM falhou: ${error.message}`);
     return report;
   }
@@ -1015,6 +1096,7 @@ export function logReport(report, { log = console.log, dryRun = false, shouldPub
   log(`CLAIMS NAO SUPORTADOS: ${report.claimStats?.unsupported ?? 0}`);
   log(`REVISAO AUTOMATICA: ${report.autoRevision || "NAO"}`);
   log(`LLM: ${report.llm}`);
+  if (report.openAiDiagnostic) formatOpenAiDiagnostic(report.openAiDiagnostic).forEach((line) => log(line));
   log(`EVIDENCE MAP: ${report.evidenceMap}`);
   log(`CLAIM VALIDATION: ${report.claimValidation}`);
   log(`FACTUAL VERIFIER: ${report.factualVerifier}`);

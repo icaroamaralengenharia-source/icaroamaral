@@ -14,6 +14,9 @@ import {
   collectCandidates,
   enforceFactualGrounding,
   extractArticle,
+  buildOpenAiErrorDiagnostic,
+  formatOpenAiDiagnostic,
+  generateEditorialArticle,
   generateEditorialImage,
   groupPautas,
   isDuplicatePauta,
@@ -481,4 +484,105 @@ test("caso Workshop positivo preserva fatos suportados com uma fonte", () => {
   });
   assert.equal(validateSourcePolicy(classifyPauta({ titulo: "Workshop de Negociacoes Coletivas" }, [workshopSource]), [workshopSource]).ok, true);
   assert.equal(enforceFactualGrounding(article, [workshopSource]).ok, true);
+});
+
+
+test("diagnostico OpenAI 401 nao expoe chave e mantem falha", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-secret-auth-test-1234567890";
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-openai-401-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFixtureConfig(configPath);
+  const logs = [];
+  const fetchImpl = async (url) => String(url).includes("api.openai.com")
+    ? response(JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_api_key", message: "Incorrect API key provided: sk-secret-auth-test-1234567890" } }), { status: 401, contentType: "application/json", headers: { "x-request-id": "req_auth_123" } })
+    : fakePipelineFetch(url);
+  const report = await runAutopilot({ dryRun: true, publish: false, configPath, now, lookup, log: (line) => logs.push(String(line)), fetchImpl });
+  const output = logs.join("\n") + "\n" + JSON.stringify(report);
+  assert.equal(report.llm, "FAIL");
+  assert.equal(report.openAiDiagnostic.classification, "AUTH_ERROR");
+  assert.equal(report.openAiDiagnostic.status, 401);
+  assert.equal(report.openAiDiagnostic.code, "invalid_api_key");
+  assert.match(logs.join("\n"), /OPENAI CALL FAILED/);
+  assert.doesNotMatch(output, /sk-secret-auth-test-1234567890|Bearer\s+sk-secret/i);
+  process.env.OPENAI_API_KEY = originalKey;
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("diagnostico OpenAI 429 classifica quota sem expor chave", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-secret-quota-test-1234567890";
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => response(JSON.stringify({ error: { type: "insufficient_quota", code: "insufficient_quota", message: "You exceeded your current quota for sk-secret-quota-test-1234567890" } }), { status: 429, contentType: "application/json" }),
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "RATE_LIMIT_OR_QUOTA");
+  assert.equal(error.openAiDiagnostic.status, 429);
+  assert.doesNotMatch(formatOpenAiDiagnostic(error.openAiDiagnostic).join("\n"), /sk-secret-quota-test-1234567890/);
+  process.env.OPENAI_API_KEY = originalKey;
+});
+
+test("diagnostico OpenAI classifica erro de modelo", async () => {
+  const originalModel = process.env.OPENAI_ELO_AUTOPILOT_MODEL;
+  process.env.OPENAI_ELO_AUTOPILOT_MODEL = "gpt-4.1-mini";
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => response(JSON.stringify({ error: { type: "invalid_request_error", code: "model_not_found", message: "The model does not exist or you do not have access to it." } }), { status: 404, contentType: "application/json" }),
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "MODEL_ERROR");
+  assert.equal(error.openAiDiagnostic.model, "gpt-4.1-mini");
+  if (originalModel == null) delete process.env.OPENAI_ELO_AUTOPILOT_MODEL;
+  else process.env.OPENAI_ELO_AUTOPILOT_MODEL = originalModel;
+});
+
+test("diagnostico OpenAI classifica erro de rede", async () => {
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => { throw new TypeError("fetch failed network unreachable"); },
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "NETWORK_ERROR");
+  assert.equal(error.openAiDiagnostic.status, null);
+  assert.match(formatOpenAiDiagnostic(error.openAiDiagnostic).join("\n"), /OPENAI CALL FAILED/);
+});
+
+
+test("diagnostico OpenAI 403 classifica permissao", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ status: 403, payload: { error: { type: "permission_error", code: "organization_restricted", message: "Project does not have permission" } }, model: "gpt-4.1-mini", requestId: "req_perm_123" });
+  assert.equal(diagnostic.classification, "PERMISSION_ERROR");
+  assert.equal(diagnostic.status, 403);
+  assert.equal(diagnostic.requestId, "req_perm_123");
+});
+
+test("diagnostico OpenAI 500 classifica servico externo", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ status: 500, payload: { error: { type: "server_error", code: "server_error", message: "Internal server error" } }, model: "gpt-4.1-mini" });
+  assert.equal(diagnostic.classification, "OPENAI_SERVICE_ERROR");
+});
+
+test("diagnostico OpenAI AbortError classifica timeout", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ model: "gpt-4.1-mini", cause: { name: "AbortError", message: "The operation was aborted by timeout" } });
+  assert.equal(diagnostic.classification, "TIMEOUT");
+});
+
+test("diagnostico OpenAI redige Bearer sk e JWT sem perder campos uteis", () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-live-secret-redaction-1234567890";
+  const diagnostic = buildOpenAiErrorDiagnostic({
+    status: 401,
+    payload: { error: { type: "invalid_request_error", code: "invalid_api_key", message: "Bearer sk-live-secret-redaction-1234567890 jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzZWNyZXQifQ.signaturetoken123" } },
+    model: "gpt-4.1-mini",
+    requestId: "req_redaction_123",
+  });
+  const output = formatOpenAiDiagnostic(diagnostic).join("\n");
+  assert.match(output, /HTTP STATUS: 401/);
+  assert.match(output, /MODEL: gpt-4\.1-mini/);
+  assert.match(output, /REQUEST ID: req_redaction_123/);
+  assert.doesNotMatch(output, /sk-live-secret-redaction-1234567890|Bearer sk-live|eyJhbGci/);
+  if (originalKey == null) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = originalKey;
 });
