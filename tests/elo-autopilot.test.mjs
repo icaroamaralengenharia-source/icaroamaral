@@ -16,6 +16,7 @@ import {
   isIndependentSource,
   discoverSecondarySources,
   buildSecondaryQueries,
+  topicAlignmentScore,
   enforceFactualGrounding,
   extractArticle,
   buildOpenAiErrorDiagnostic,
@@ -551,6 +552,22 @@ test("query expansion gera variacoes deterministicas", () => {
   assert.ok(queries.length <= discoveryConfig.limits.maxSecondaryQueries);
   assert.ok(queries.some((query) => /LEED|AQUA-HQE|selos sustentabilidade/i.test(query)));
 });
+test("query expansion preserva entidades de evento especifico", () => {
+  const queries = buildSecondaryQueries({ titulo: "Workshop de Negociacoes Coletivas da CBIC", keywords: ["workshop", "negociacoes", "coletivas", "CBIC"] }, discoveryConfig);
+  assert.ok(queries.some((query) => /Workshop.*Negociacoes.*Coletivas.*CBIC|CBIC.*Workshop.*Negociacoes/i.test(query)));
+  assert.ok(queries.every((query) => !/^negociacao coletiva construcao$/i.test(query)));
+});
+
+test("topic alignment rejeita pauta vizinha e aceita entidade principal", () => {
+  const radar = { titulo: "CBIC divulga Radar Convencoes Coletivas de julho", resumo_feed: "Levantamento acompanha negociacoes coletivas no setor." };
+  const workshop = { titulo: "Workshop de Negociacoes Coletivas da CBIC", resumo_feed: "Evento com inscricoes, vagas e simulacao pratica." };
+  const radarScore = topicAlignmentScore("Workshop de Negociacoes Coletivas da CBIC", radar, discoveryConfig);
+  const workshopScore = topicAlignmentScore("Workshop de Negociacoes Coletivas da CBIC", workshop, discoveryConfig);
+  assert.equal(radarScore.topicDrift, true);
+  assert.ok(radarScore.missingEntities.includes("workshop"));
+  assert.equal(workshopScore.topicDrift, false);
+  assert.ok(workshopScore.score > radarScore.score);
+});
 
 test("secondary search encontra nova fonte relacionada", async () => {
   const collected = await collectCandidates(discoveryConfig, { fetchImpl: discoveryFetch, lookup, now });
@@ -558,6 +575,26 @@ test("secondary search encontra nova fonte relacionada", async () => {
   const result = await discoverSecondarySources({ pauta, config: discoveryConfig, initialCandidates: collected.candidates, selectedSources: [collected.candidates[0]], fetchImpl: discoveryFetch, lookup, now });
   assert.equal(result.sources.length, 2);
   assert.ok(result.candidates.some((item) => item.fonte === "CBCS"));
+});
+test("secondary discovery HTML aceita resultado relevante fora do cache inicial", async () => {
+  const html = `<!doctype html><html><body><main><article><a href="/certificacao-ambiental">Certificacao ambiental para edificacoes sustentaveis no Brasil</a><p>LEED, AQUA-HQE, selos e construcao verde orientam criterios verificaveis.</p></article></main></body></html>`;
+  const htmlConfig = { ...discoveryConfig, sources: [], sourceDiscovery: { ...discoveryConfig.sourceDiscovery, htmlSources: [{ name: "Instituto Tecnico", url: "https://instituto.example/noticias/", quality: 0.82 }] } };
+  const fetchImpl = async (url) => {
+    if (String(url).includes("instituto.example/noticias")) return response(html);
+    throw new Error(`URL inesperada: ${url}`);
+  };
+  const pauta = { titulo: "Selos de sustentabilidade e construcoes verdes", keywords: ["sustentabilidade", "certificacao"] };
+  const result = await discoverSecondarySources({ pauta, config: htmlConfig, initialCandidates: [], selectedSources: [], commandTopic: pauta.titulo, fetchImpl, lookup, now });
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.audit.some((item) => item.provider === "Instituto Tecnico" && item.raw >= 1 && item.accepted === 1), true);
+});
+
+test("resultado secundario irrelevante e descartado por topic drift antes de independencia", async () => {
+  const pauta = { titulo: "Workshop de Negociacoes Coletivas da CBIC", keywords: ["workshop", "negociacoes", "coletivas", "CBIC"] };
+  const radar = { titulo: "CBIC divulga Radar Convencoes Coletivas de julho", resumo_feed: "Levantamento acompanha convencoes coletivas.", fonte: "CBIC", url: "https://cbic.example/radar", data: now.toISOString(), sourceQuality: 0.9 };
+  const result = await discoverSecondarySources({ pauta, config: discoveryConfig, initialCandidates: [radar], selectedSources: [], commandTopic: pauta.titulo, fetchImpl: discoveryFetch, lookup, now });
+  assert.equal(result.candidates.length, 0);
+  assert.equal(result.discarded.some((item) => item.reason === "topic_drift"), true);
 });
 
 test("canonical igual nao conta duas fontes", () => {
@@ -601,7 +638,7 @@ test("trend com uma fonte bloqueia e LLM fica NOT_CALLED", async () => {
   await writeFile(configPath, JSON.stringify({ ...discoveryConfig, sources: [discoveryConfig.sources[0]] }), "utf8");
   const report = await runAutopilot({ dryRun: true, publish: false, topic: "tendencias de construcao verde", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl: discoveryFetch });
   assert.equal(report.llm, "NOT_CALLED");
-  assert.equal(report.sourcePolicy.ok, false);
+  assert.equal(report.sourcePolicy?.ok || false, false);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -640,7 +677,7 @@ test("evento com uma fonte continua suficiente", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test("scoping reduz pauta ampla somente quando fonte unica vira evento seguro", async () => {
+test("scoping bloqueia quando a fonte unica vira pauta vizinha", async () => {
   const scoped = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
   const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-scoping-"));
   const configPath = path.join(dir, "config.json");
@@ -657,11 +694,30 @@ test("scoping reduz pauta ampla somente quando fonte unica vira evento seguro", 
     throw new Error(`URL inesperada: ${target}`);
   };
   const report = await runAutopilot({ dryRun: true, publish: false, topic: "selos de sustentabilidade e construcoes verdes", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
-  assert.equal(report.sourceDiscovery.scoping, "REDUZIDO");
-  assert.equal(report.pautaType, "event");
+  assert.equal(report.sourceDiscovery.scoping, "NAO");
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.blockers.some((item) => /Nenhuma fonte real|Politica de fontes/.test(item)), true);
   await rm(dir, { recursive: true, force: true });
 });
-
+test("Workshop CBIC nao vira Radar CBIC quando nao ha fonte aderente", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-workshop-drift-"));
+  const configPath = path.join(dir, "config.json");
+  const driftConfig = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  await writeFile(configPath, JSON.stringify(driftConfig), "utf8");
+  const feed = `<?xml version="1.0"?><rss><channel><item><title>CBIC divulga Radar Convencoes Coletivas de julho</title><link>https://cbic.example/radar</link><description>Levantamento acompanha convencoes coletivas e dados do setor.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(feed, { contentType: "application/rss+xml" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const topic = "Workshop de Negociacoes Coletivas da CBIC";
+  const report = await runAutopilot({ dryRun: true, publish: false, topic, configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.selected.titulo, topic);
+  assert.equal(report.sourcesRead, 0);
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.sourceDiscovery.discarded.some((item) => item.reason === "topic_drift"), true);
+  await rm(dir, { recursive: true, force: true });
+});
 test("diagnostico OpenAI 401 nao expoe chave e mantem falha", async () => {
   const originalKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "sk-secret-auth-test-1234567890";

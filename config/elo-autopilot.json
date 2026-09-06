@@ -47,10 +47,10 @@
   "weights": {
     "recency": 2.2,
     "sourceCount": 3.4,
-    "topicRelevance": 3.0,
+    "topicRelevance": 3,
     "keywordRepetition": 1.4,
     "sourceQuality": 1.2,
-    "novelty": 2.0
+    "novelty": 2
   },
   "limits": {
     "maxFeedBytes": 1500000,
@@ -67,7 +67,9 @@
     "maxSourcesSelected": 5,
     "secondarySourceMinScore": 1.15,
     "secondarySourceMinRelevance": 0.24,
-    "commandTopicMinRelevance": 0.18
+    "commandTopicMinRelevance": 0.18,
+    "topicAlignmentMinScore": 0.5,
+    "specificTopicAlignmentMinScore": 0.68
   },
   "llm": {
     "provider": "openai",
@@ -111,7 +113,56 @@
       "aqua": [
         "AQUA-HQE construcao sustentavel Brasil",
         "certificacao AQUA-HQE edificios"
+      ],
+      "selos": [
+        "certificacoes construcao sustentavel Brasil",
+        "selos construcao verde Brasil",
+        "LEED AQUA-HQE construcao Brasil",
+        "certificacao ambiental edificacoes Brasil",
+        "green building certificacoes Brasil"
+      ],
+      "verdes": [
+        "selos construcao verde Brasil",
+        "green building certificacoes Brasil"
+      ],
+      "edificacoes": [
+        "certificacao ambiental edificacoes Brasil",
+        "edificacoes sustentaveis certificacao ambiental"
+      ],
+      "workshop": [
+        "Workshop Negociacoes Coletivas CBIC",
+        "CBIC Workshop Negociacoes Coletivas",
+        "Negociacoes Coletivas construcao civil CBIC workshop"
+      ],
+      "negociacoes": [
+        "Workshop Negociacoes Coletivas CBIC",
+        "CBIC Workshop Negociacoes Coletivas"
+      ],
+      "coletivas": [
+        "Negociacoes Coletivas construcao civil CBIC workshop"
       ]
-    }
+    },
+    "htmlSources": [
+      {
+        "name": "GBC Brasil Busca Publica",
+        "url": "https://www.gbcbrasil.org.br/",
+        "quality": 0.88
+      },
+      {
+        "name": "CBCS Noticias",
+        "url": "https://cbcs.org.br/category/noticias/",
+        "quality": 0.86
+      },
+      {
+        "name": "CAU/BR Noticias",
+        "url": "https://caubr.gov.br/noticias/",
+        "quality": 0.9
+      },
+      {
+        "name": "CBIC Noticias",
+        "url": "https://cbic.org.br/noticias/",
+        "quality": 0.9
+      }
+    ]
   }
 }

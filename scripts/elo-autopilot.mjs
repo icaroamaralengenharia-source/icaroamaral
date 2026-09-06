@@ -243,14 +243,20 @@ export function subjectKey(candidate, topics = []) {
   return selected.slice(0, 3).join("-") || slugify(candidate.titulo).split("-").slice(0, 3).join("-");
 }
 
-function setSimilarity(a, b) {
-  const aa = a instanceof Set ? a : tokenSet(a);
-  const bb = b instanceof Set ? b : tokenSet(b);
-  if (!aa.size || !bb.size) return 0;
-  const intersection = [...aa].filter((token) => bb.has(token)).length;
-  return intersection / Math.max(aa.size, bb.size);
+function tokenMatches(token, other) {
+  if (token === other) return true;
+  if (token.length < 5 || other.length < 5) return false;
+  const size = Math.min(7, token.length - 1, other.length - 1);
+  return token.slice(0, size) === other.slice(0, size);
 }
 
+function setSimilarity(a, b) {
+  const aa = [...(a instanceof Set ? a : tokenSet(a))];
+  const bb = [...(b instanceof Set ? b : tokenSet(b))];
+  if (!aa.length || !bb.length) return 0;
+  const intersection = aa.filter((token) => bb.some((other) => tokenMatches(token, other))).length;
+  return intersection / Math.max(aa.length, bb.length);
+}
 function titleSimilarity(a, b) {
   return setSimilarity(a, b);
 }
@@ -259,6 +265,63 @@ function candidateText(candidate = {}) {
   return [candidate.titulo, candidate.resumo_feed, candidate.categoria, candidate.fonte].filter(Boolean).join(" ");
 }
 
+function topicAlignmentTerms(value) {
+  const preserved = new Set(["cbic", "cau", "mma", "leed", "aqua", "hqe", "workshop"]);
+  const generic = new Set(["construcao", "construcoes", "civil", "engenharia", "arquitetura", "brasil"]);
+  return unique(normalizeText(value).split(/\s+/).filter((token) => {
+    if (token.length < 3) return false;
+    if (preserved.has(token)) return true;
+    if (generic.has(token)) return false;
+    return !DEFAULT_STOPWORDS.has(token);
+  }));
+}
+
+function isSpecificTopic(topic = "") {
+  const original = String(topic || "");
+  const normalized = normalizeText(original);
+  return /\b(workshop|seminario|evento|curso|congresso|webinar|agenda|inscric|vagas)\b/.test(normalized)
+    || /\b[A-ZÀ-Ý]{2,}\b/.test(original);
+}
+
+function textIncludesTerm(text, term) {
+  const normalized = normalizeText(text);
+  if (normalized.includes(term)) return true;
+  if (term.length < 5) return false;
+  const root = term.slice(0, Math.min(7, term.length - 1));
+  return normalized.split(/\s+/).some((word) => word.startsWith(root) || term.startsWith(word.slice(0, Math.min(7, word.length))));
+}
+export function topicAlignmentScore(topic = "", candidate = {}, config = {}) {
+  const normalizedTopic = normalizeText(topic);
+  if (!normalizedTopic) return { score: 1, threshold: 0, topicDrift: false, terms: [], missingTerms: [], entityTerms: [], missingEntities: [] };
+  const text = [candidate.titulo, candidate.resumo_feed, candidate.categoria, candidate.fonte, candidate.keywords?.join(" "), ...(candidate.items || []).flatMap((item) => [item.titulo, item.resumo_feed, item.fonte])].join(" ");
+  const titleText = [candidate.titulo, ...(candidate.items || []).map((item) => item.titulo)].join(" ");
+  const normalizedText = normalizeText(text);
+  const terms = topicAlignmentTerms(topic);
+  const entityTerms = unique([
+    ...[...String(topic).matchAll(/\b[A-ZÀ-Ý]{2,}\b/g)].map((match) => normalizeText(match[0])),
+    ...terms.filter((term) => /\b(workshop|seminario|evento|curso|congresso|webinar)\b/.test(term)),
+  ]);
+  const hits = terms.filter((term) => textIncludesTerm(normalizedText, term));
+  const titleHits = terms.filter((term) => textIncludesTerm(titleText, term));
+  const missingTerms = terms.filter((term) => !textIncludesTerm(normalizedText, term));
+  const missingEntities = entityTerms.filter((term) => !textIncludesTerm(normalizedText, term));
+  const coverage = terms.length ? hits.length / terms.length : setSimilarity(text, topic);
+  const titleCoverage = terms.length ? titleHits.length / terms.length : 0;
+  const exact = normalizedTopic && normalizedText.includes(normalizedTopic) ? 1 : 0;
+  const similarity = Math.max(setSimilarity(text, topic), titleSimilarity(candidate.titulo || "", topic));
+  let score = exact ? 1 : coverage * 0.6 + similarity * 0.25 + titleCoverage * 0.15;
+  if (missingEntities.length) score *= 0.45;
+  const threshold = Number((isSpecificTopic(topic) ? config.limits?.specificTopicAlignmentMinScore : config.limits?.topicAlignmentMinScore) || (isSpecificTopic(topic) ? 0.68 : 0.5));
+  return {
+    score: Number(Math.min(1, score).toFixed(3)),
+    threshold,
+    topicDrift: score < threshold || missingEntities.length > 0,
+    terms,
+    missingTerms,
+    entityTerms,
+    missingEntities,
+  };
+}
 function candidateSimilarity(a = {}, b = {}) {
   const title = titleSimilarity(a.titulo || "", b.titulo || "");
   const body = setSimilarity(candidateText(a), candidateText(b));
@@ -328,15 +391,23 @@ export function buildSecondaryQueries(pauta = {}, config = {}) {
   const limits = config.limits || {};
   const aliases = config.sourceDiscovery?.queryAliases || {};
   const maxQueries = Number(limits.maxSecondaryQueries || 5);
+  const titleTerms = topicAlignmentTerms(pauta.titulo || "");
+  const specificQueries = isSpecificTopic(pauta.titulo || "") && titleTerms.length
+    ? [
+        titleTerms.join(" "),
+        titleTerms.includes("cbic") ? `CBIC ${titleTerms.filter((term) => term !== "cbic").join(" ")}` : "",
+        titleTerms.includes("workshop") ? `${titleTerms.filter((term) => term !== "workshop").join(" ")} workshop` : "",
+      ]
+    : [];
   const base = unique([
     pauta.titulo,
+    ...specificQueries,
     (pauta.keywords || []).slice(0, 5).join(" "),
     ...(pauta.items || []).slice(0, 2).map((item) => item.titulo),
   ].map(clean)).filter(Boolean);
   const aliasQueries = unique(tokens([pauta.titulo, pauta.keywords?.join(" ")].join(" ")).flatMap((word) => aliases[word] || []));
   return unique([...base, ...aliasQueries].map((query) => clean(query).slice(0, 140))).slice(0, maxQueries);
 }
-
 function sourceCandidateRelevance(candidate, pauta, queries) {
   const queryText = queries.join(" ");
   return Math.max(candidateSimilarity(candidate, { titulo: pauta.titulo, resumo_feed: pauta.keywords?.join(" ") }), setSimilarity(candidateText(candidate), queryText));
@@ -351,13 +422,59 @@ function sourceCandidateScore(candidate, relevance, now = new Date()) {
 
 function commandTopicRelevance(pauta = {}, commandTopic = "") {
   if (!commandTopic) return 1;
-  const pautaText = [pauta.titulo, pauta.keywords?.join(" "), ...(pauta.items || []).flatMap((item) => [item.titulo, item.resumo_feed])].join(" ");
-  const normalizedPauta = normalizeText(pautaText);
-  const normalizedTopic = normalizeText(commandTopic);
-  if (normalizedTopic && normalizedPauta.includes(normalizedTopic)) return 1;
-  return Math.max(setSimilarity(pautaText, commandTopic), titleSimilarity(pauta.titulo || "", commandTopic));
+  return topicAlignmentScore(commandTopic, pauta).score;
 }
 
+function candidateUrlFromAnchor(anchor, baseUrl) {
+  try {
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return "";
+    return new URL(href, baseUrl).href;
+  } catch {
+    return "";
+  }
+}
+
+function collectHtmlCandidates(html, source = {}, baseUrl = source.url) {
+  const dom = new JSDOM(html, { url: baseUrl, virtualConsole: new VirtualConsole() });
+  const candidates = [];
+  for (const anchor of dom.window.document.querySelectorAll("a[href]")) {
+    const titulo = clean(anchor.textContent);
+    const url = candidateUrlFromAnchor(anchor, baseUrl);
+    if (!titulo || titulo.length < 12 || !url) continue;
+    const parentText = clean(anchor.closest("article, li, .post, .entry, .card, body")?.textContent || titulo).slice(0, 500);
+    candidates.push({
+      id: hash(`${source.name}|${url}|${titulo}`),
+      titulo,
+      url,
+      canonical: url,
+      domain: hostname(url),
+      fonte: source.name,
+      data: "",
+      resumo_feed: parentText,
+      categoria: "html",
+      sourceQuality: Number(source.quality || 0.72),
+    });
+  }
+  const seen = new Set();
+  return candidates.filter((item) => {
+    const key = normalizeUrlKey(item.url);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function collectHtmlSource(source, { fetchImpl = fetch, lookup = dns.lookup, config = {} } = {}) {
+  const result = await fetchSafe(source.url, {
+    fetchImpl,
+    lookup,
+    maxBytes: config.limits?.maxHtmlBytes || 900000,
+    timeoutMs: config.limits?.timeoutMs || 15000,
+    allowedContentType: /text\/html|application\/xhtml\+xml/i,
+  });
+  return collectHtmlCandidates(result.body.toString("utf8"), source, result.url);
+}
 export function selectSourcesForPauta(pauta, maxSources = 5) {
   const seenUrls = new Set();
   const seenSources = new Set();
@@ -374,36 +491,87 @@ export function selectSourcesForPauta(pauta, maxSources = 5) {
     .slice(0, maxSources);
 }
 
-export async function discoverSecondarySources({ pauta, config, initialCandidates = [], selectedSources = [], fetchImpl = fetch, lookup = dns.lookup, now = new Date() } = {}) {
+export async function discoverSecondarySources({ pauta, config, initialCandidates = [], selectedSources = [], commandTopic = "", fetchImpl = fetch, lookup = dns.lookup, now = new Date() } = {}) {
   const limits = config.limits || {};
   const queries = buildSecondaryQueries(pauta, config);
   const maxCandidates = Number(limits.maxSecondaryCandidates || 80);
   const maxSources = Number(limits.maxSourcesSelected || limits.maxSourcesPerPost || 5);
-  const pool = [...initialCandidates];
-  for (const source of config.secondarySources || []) {
-    const collected = await collectCandidates({ ...config, sources: [source] }, { fetchImpl, lookup, now });
-    pool.push(...collected.candidates);
-  }
+  const minRelevance = Number(limits.secondarySourceMinRelevance || 0.24);
+  const minScore = Number(limits.secondarySourceMinScore || 1.15);
   const selectedKeys = new Set(selectedSources.map((item) => normalizeUrlKey(item.url)));
-  const candidates = pool
-    .filter((item) => item?.url && !selectedKeys.has(normalizeUrlKey(item.url)))
-    .map((item) => {
-      const discoveryRelevance = sourceCandidateRelevance(item, pauta, queries);
-      return { ...item, discoveryRelevance, discoveryScore: sourceCandidateScore(item, discoveryRelevance, now) };
-    })
-    .filter((item) => item.discoveryRelevance >= Number(limits.secondarySourceMinRelevance || 0.24) && item.discoveryScore >= Number(limits.secondarySourceMinScore || 1.15))
+  const audit = [];
+  const accepted = [];
+  const discarded = [];
+
+  const auditCandidates = (provider, sourceType, query, rawItems) => {
+    let acceptedCount = 0;
+    let discardedCount = 0;
+    for (const item of rawItems) {
+      const urlKey = normalizeUrlKey(item.url);
+      const discoveryRelevance = sourceCandidateRelevance(item, pauta, [query]);
+      const discoveryScore = sourceCandidateScore(item, discoveryRelevance, now);
+      const alignment = commandTopic ? topicAlignmentScore(commandTopic, item, config) : { score: 1, topicDrift: false, missingTerms: [], missingEntities: [] };
+      let reason = "";
+      if (!item?.url) reason = "missing_url";
+      else if (selectedKeys.has(urlKey)) reason = "already_selected";
+      else if (alignment.topicDrift) reason = "topic_drift";
+      else if (discoveryRelevance < minRelevance) reason = "low_relevance";
+      else if (discoveryScore < minScore) reason = "low_score";
+      if (reason) {
+        discardedCount += 1;
+        discarded.push({ provider, query, fonte: item.fonte, url: item.url, reason, relevance: Number(discoveryRelevance.toFixed(3)), score: discoveryScore, topicAlignment: alignment.score, missingTerms: alignment.missingTerms, missingEntities: alignment.missingEntities });
+        continue;
+      }
+      acceptedCount += 1;
+      accepted.push({ ...item, discoveryQuery: query, discoveryProvider: provider, discoveryRelevance, discoveryScore, topicAlignment: alignment.score });
+    }
+    audit.push({ query, provider, sourceType, raw: rawItems.length, accepted: acceptedCount, discarded: discardedCount });
+  };
+
+  for (const query of queries) {
+    auditCandidates("feed-cache", "rss", query, initialCandidates);
+    for (const source of config.secondarySources || []) {
+      try {
+        const collected = await collectCandidates({ ...config, sources: [source] }, { fetchImpl, lookup, now });
+        auditCandidates(source.name, source.type || "rss", query, collected.candidates);
+      } catch (error) {
+        audit.push({ query, provider: source.name, sourceType: source.type || "rss", raw: 0, accepted: 0, discarded: 0, error: error.message });
+      }
+    }
+    for (const source of config.sourceDiscovery?.htmlSources || []) {
+      try {
+        const collected = await collectHtmlSource(source, { fetchImpl, lookup, config });
+        auditCandidates(source.name, "html", query, collected);
+      } catch (error) {
+        audit.push({ query, provider: source.name, sourceType: "html", raw: 0, accepted: 0, discarded: 0, error: error.message });
+      }
+    }
+  }
+
+  const seen = new Set();
+  const candidates = accepted
     .sort((a, b) => b.discoveryScore - a.discoveryScore)
+    .filter((item) => {
+      const key = normalizeUrlKey(item.url);
+      if (seen.has(key)) {
+        discarded.push({ provider: item.discoveryProvider, query: item.discoveryQuery, fonte: item.fonte, url: item.url, reason: "duplicate_url", relevance: Number(item.discoveryRelevance.toFixed(3)), score: item.discoveryScore, topicAlignment: item.topicAlignment });
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
     .slice(0, maxCandidates);
-  const seededSources = selectedSources.map((item) => ({ ...item, discoveryRelevance: 1, discoveryScore: Number.MAX_SAFE_INTEGER }));
+  const seededSources = selectedSources.map((item) => ({ ...item, discoveryRelevance: 1, discoveryScore: Number.MAX_SAFE_INTEGER, topicAlignment: 1 }));
   const sources = selectSourcesForPauta({ items: [...seededSources, ...candidates] }, maxSources);
   return {
     queries,
     candidates,
     sources,
+    audit,
+    discarded,
     uniqueSources: new Set(sources.map((item) => normalizeText(item.fonte))).size,
   };
 }
-
 export function classifyPauta(pauta = {}, articles = [], commandTopic = "") {
   const text = normalizeText([
     commandTopic,
@@ -1032,6 +1200,8 @@ export async function runAutopilot({
     cost: null,
     openAiDiagnostic: null,
     commandTopic,
+    topicAlignment: null,
+    topicDrift: false,
     draftId: "",
     imageAbsolutePath: "",
     sourceDiscovery: {
@@ -1041,6 +1211,7 @@ export async function runAutopilot({
       uniqueSources: 0,
       independentSources: 0,
       discarded: [],
+      queryAudit: [],
       multiSource: "FAIL",
       scoping: "NAO",
     },
@@ -1054,8 +1225,10 @@ export async function runAutopilot({
   report.candidates = collected.candidates.length;
   const ranked = rankPautas(groupPautas(collected.candidates, config), config, previous.posts, now);
   report.pautas = ranked.length;
-  const topicRanked = commandTopic ? ranked.filter((item) => commandTopicRelevance(item, commandTopic) >= Number(config.limits?.commandTopicMinRelevance || 0.18)) : ranked;
-  let pauta = topicRanked.find((item) => !isDuplicatePauta(item, previous.posts));
+  const alignedRanked = commandTopic
+    ? ranked.map((item) => ({ ...item, topicAlignment: topicAlignmentScore(commandTopic, item, config) })).filter((item) => !item.topicAlignment.topicDrift)
+    : ranked;
+  let pauta = alignedRanked.find((item) => !isDuplicatePauta(item, previous.posts));
   if (!pauta && commandTopic) {
     pauta = {
       key: slugify(commandTopic),
@@ -1072,13 +1245,18 @@ export async function runAutopilot({
     return report;
   }
   report.selected = pauta;
+  report.topicAlignment = commandTopic ? topicAlignmentScore(commandTopic, pauta, config) : null;
+  report.topicDrift = Boolean(report.topicAlignment?.topicDrift);
   let selectedSources = selectSourcesForPauta(pauta, config.limits?.maxSourcesPerPost || 5);
-  const secondary = await discoverSecondarySources({ pauta, config, initialCandidates: collected.candidates, selectedSources, fetchImpl, lookup, now });
+  const discoveryPauta = commandTopic ? { ...pauta, titulo: commandTopic, keywords: unique([...tokens(commandTopic), ...(pauta.keywords || [])]) } : pauta;
+  const secondary = await discoverSecondarySources({ pauta: discoveryPauta, config, initialCandidates: collected.candidates, selectedSources, commandTopic, fetchImpl, lookup, now });
   selectedSources = secondary.sources;
   report.sourceDiscovery.secondarySearch = secondary.queries.length ? "PASS" : "SKIPPED";
   report.sourceDiscovery.queries = secondary.queries;
   report.sourceDiscovery.secondaryCandidates = secondary.candidates.length;
   report.sourceDiscovery.uniqueSources = secondary.uniqueSources;
+  report.sourceDiscovery.queryAudit = secondary.audit;
+  report.sourceDiscovery.discarded = secondary.discarded;
   report.sourcesSelected = selectedSources;
   const articles = [];
   for (const source of selectedSources.slice(0, Number(config.limits?.maxSourcesToRead || config.limits?.maxSourcesPerPost || 5))) {
@@ -1092,7 +1270,7 @@ export async function runAutopilot({
   const independent = selectIndependentSources(articles, Number(config.limits?.maxSourcesSelected || config.limits?.maxSourcesPerPost || 5));
   const independentArticles = independent.sources.map((article, index) => ({ ...article, sourceId: `source_${index + 1}` }));
   articles.splice(0, articles.length, ...independentArticles);
-  report.sourceDiscovery.discarded = independent.discarded;
+  report.sourceDiscovery.discarded = [...(report.sourceDiscovery.discarded || []), ...independent.discarded];
   report.sourceDiscovery.independentSources = articles.length;
   report.sourceDiscovery.multiSource = articles.length >= 2 ? "PASS" : "FAIL";
   report.sourcesRead = articles.length;
@@ -1269,9 +1447,17 @@ export function logReport(report, { log = console.log, dryRun = false, shouldPub
   log(`PAUTAS: ${report.pautas}`);
   log(`PAUTA ESCOLHIDA: ${report.selected?.titulo || "nenhuma"}`);
   log(`SCORE: ${report.selected?.score ?? "n/a"}`);
+  if (report.topicAlignment) {
+    log(`TOPIC ALIGNMENT: ${report.topicAlignment.score}/${report.topicAlignment.threshold}`);
+    log(`REJECTED FOR TOPIC DRIFT: ${report.topicDrift ? "SIM" : "NAO"}`);
+  }
   if (report.sourceDiscovery) {
     log("QUERY SECUNDARIA:");
     (report.sourceDiscovery.queries || []).forEach((query, index) => log(`${index + 1}. ${query}`));
+    if (report.sourceDiscovery.queryAudit?.length) {
+      log("AUDITORIA QUERY/PROVEDOR:");
+      report.sourceDiscovery.queryAudit.forEach((item) => log(`- ${item.provider} [${item.sourceType}] | ${item.query}: brutos=${item.raw} aceitos=${item.accepted} descartados=${item.discarded}${item.error ? ` erro=${item.error}` : ""}`));
+    }
     log(`CANDIDATOS SECUNDARIOS: ${report.sourceDiscovery.secondaryCandidates ?? 0}`);
     log(`FONTES UNICAS: ${report.sourceDiscovery.uniqueSources ?? 0}`);
     log(`FONTES INDEPENDENTES DISCOVERY: ${report.sourceDiscovery.independentSources ?? 0}`);
