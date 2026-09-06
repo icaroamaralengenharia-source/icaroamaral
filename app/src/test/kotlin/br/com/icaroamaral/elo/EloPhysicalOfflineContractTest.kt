@@ -74,6 +74,7 @@ class EloPhysicalOfflineContractTest {
         assertTrue(source.contains("ELO offline - recursos locais disponiveis"))
         assertTrue(source.contains("isClickable = false"))
         assertTrue(source.contains("SOFT_INPUT_ADJUST_RESIZE"))
+        assertTrue(source.contains("mediaPlaybackRequiresUserGesture = false"))
         assertTrue(source.contains("addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))"))
     }
 }

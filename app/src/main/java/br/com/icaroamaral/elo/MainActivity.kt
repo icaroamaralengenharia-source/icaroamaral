@@ -137,6 +137,7 @@ class MainActivity : Activity() {
     private fun configureSecureSettings(settings: WebSettings) {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.allowFileAccess = false
         settings.allowContentAccess = false
