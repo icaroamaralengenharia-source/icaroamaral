@@ -10582,3 +10582,25 @@ body.stock-full-context [data-stock-full-permission][disabled] {
     padding: 18px;
   }
 }
+
+/* Hotfix visual RDO 2: regra final para vencer a cascata e evitar labels claros. */
+html body .route-panel[data-route="diario"] .diary-form label,
+html body .route-panel[data-route="diario"] .composition-form label,
+html body .route-panel[data-route="diario"] .image-upload-field label,
+html body .route-panel[data-route="diario"] .compact-search label {
+  color: var(--navy);
+  opacity: 1;
+}
+
+html body .route-panel[data-route="diario"] .rdo-macro-section summary small,
+html body .route-panel[data-route="diario"] .compact-search,
+html body .route-panel[data-route="diario"] .upload-hint,
+html body .route-panel[data-route="diario"] .image-preview p,
+html body .route-panel[data-route="diario"] .diary-list-item span,
+html body .route-panel[data-route="diario"] .diary-list-item p,
+html body .route-panel[data-route="diario"] .material-summary.empty-list,
+html body .route-panel[data-route="diario"] .entity-list.empty-list,
+html body .route-panel[data-route="diario"] .diary-audit.empty-list {
+  color: #41556b;
+  opacity: 1;
+}
