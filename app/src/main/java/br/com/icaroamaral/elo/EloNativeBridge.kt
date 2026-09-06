@@ -7,7 +7,8 @@ class EloNativeBridge(
     private val currentUrlProvider: () -> String?,
     private val wakeController: EloWakeController,
     private val offlineController: EloOfflineController,
-    private val capabilities: EloNativeCapabilities = EloNativeCapabilities()
+    private val capabilities: EloNativeCapabilities = EloNativeCapabilities(),
+    private val dispatchGate: EloOfflineDispatchGate = EloOfflineDispatchGate()
 ) {
     @JavascriptInterface
     fun getCapabilities(): String {
@@ -24,7 +25,13 @@ class EloNativeBridge(
     @JavascriptInterface
     fun playOfflineMusic(command: String): String {
         if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
-        return offlineController.playOfflineMusic(command)
+        return routeTrustedOfflineCommand(command)
+    }
+
+    @JavascriptInterface
+    fun routeOfflineChat(command: String): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return routeTrustedOfflineCommand(command)
     }
 
     @JavascriptInterface
@@ -42,6 +49,15 @@ class EloNativeBridge(
     fun setWakeEnabled(enabled: Boolean): Boolean {
         if (!isTrustedCaller()) return false
         return wakeController.setWakeEnabled(enabled)
+    }
+
+    private fun routeTrustedOfflineCommand(command: String): String {
+        val connectivity = EloConnectivityState.valueOf(offlineController.connectivityState())
+        return when (dispatchGate.evaluate(command, connectivity)) {
+            EloOfflineDispatchDecision.RouteWeb -> "{\"trusted\":true,\"handled\":false,\"route\":\"web\"}"
+            EloOfflineDispatchDecision.Duplicate -> "{\"trusted\":true,\"handled\":true,\"duplicate\":true,\"route\":\"native\"}"
+            EloOfflineDispatchDecision.DispatchNative -> offlineController.playOfflineMusic(command)
+        }
     }
 
     private fun isTrustedCaller(): Boolean = originPolicy.isTrustedUrl(currentUrlProvider())
