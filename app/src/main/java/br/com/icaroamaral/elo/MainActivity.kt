@@ -299,7 +299,7 @@ class MainActivity : Activity() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downRawX
                     val dy = event.rawY - downRawY
-                    if (!dragging && dx * dx + dy * dy > slop * slop) dragging = true
+                    if (!dragging && dx * dx + dy * dy > slop.toFloat() * slop.toFloat()) dragging = true
                     if (dragging) {
                         moveMusicPanel(panel, startX + dx, startY + dy, persist = false)
                     }
