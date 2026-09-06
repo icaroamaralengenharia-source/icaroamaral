@@ -30619,7 +30619,7 @@ function isEloResidentialNewPipelineEnabled_() {
     message.setAttribute("aria-live", "polite");
     message.setAttribute("data-elo-typing", "true");
     const bubble = createElement("div", "elo-message-bubble elo-typing-bubble");
-    const label = createElement("span", "elo-typing-label", "Elo está pensando");
+    const label = createElement("span", "elo-typing-label", "Estou pensando");
     const dots = createElement("span", "elo-typing-dots");
     [0, 1, 2].forEach(function () {
       dots.appendChild(createElement("span", ""));
