@@ -16,7 +16,7 @@ defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260601-premium-landing">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260906-rdo-final-real-test-bugs">
   <link rel="stylesheet" href="../elo.css">
 </head>
 <body>
@@ -735,6 +735,7 @@ defer></script>
                       <option value="Piso">Piso</option>
                       <option value="Revestimento">Revestimento</option>
                       <option value="Pintura">Pintura</option>
+                      <option value="Escavação">Escavação</option>
                       <option value="Tubulação de esgoto">Tubulação de esgoto</option>
                       <option value="Tubulação de água">Tubulação de água</option>
                       <option value="Ralos">Ralos</option>
@@ -809,9 +810,9 @@ defer></script>
                     </select>
                   </label>
                   <label>
-                    Item do almoxarifado
+                    Item vinculado do almoxarifado
                     <select name="materialRequestAlmoxItemId" id="dailyLogMaterialRequestAlmoxSelect">
-                      <option value="">Consultar por nome</option>
+                      <option value="">Sem item vinculado - conferir manualmente</option>
                     </select>
                   </label>
                   <label>
@@ -991,7 +992,7 @@ defer></script>
                     <input name="dailyPhoto" id="dailyLogPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple>
                   </label>
                   <label>
-                    Legenda da foto
+                    Legenda padrão das fotos
                     <input name="dailyPhotoCaption" type="text">
                   </label>
                 </div>
@@ -1026,7 +1027,10 @@ defer></script>
             </form>
           </section>
 
-          <aside class="diary-side-panels">
+          <button type="button" class="mini-button diary-tools-toggle" id="diaryToolsToggle" aria-controls="diarySidePanels" aria-expanded="false">Ferramentas e biblioteca</button>
+          <div class="diary-tools-backdrop" id="diaryToolsBackdrop" hidden></div>
+          <aside class="diary-side-panels" id="diarySidePanels" aria-label="Ferramentas e biblioteca do diário" aria-hidden="true">
+            <button type="button" class="mini-button diary-tools-close" id="diaryToolsClose">Fechar ferramentas</button>
             <section class="workspace-card" id="diary-records">
               <h3>Registros do Diário</h3>
               <label class="compact-search">
@@ -2336,7 +2340,7 @@ defer></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
   <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
   <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260906-rdo-final-real-test-bugs"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20260727-command-bridge-v1" defer></script>
   <script src="elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>

@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   --navy: #061a32;
   --navy-soft: #0d2a48;
@@ -10580,5 +10580,165 @@ body.stock-full-context [data-stock-full-permission][disabled] {
 
   body.stock-full-context .stock-full-login-card {
     padding: 18px;
+  }
+}
+
+/* Hotfix visual RDO 2: regra final para vencer a cascata e evitar labels claros. */
+html body .route-panel[data-route="diario"] .diary-form label,
+html body .route-panel[data-route="diario"] .composition-form label,
+html body .route-panel[data-route="diario"] .image-upload-field label,
+html body .route-panel[data-route="diario"] .compact-search label {
+  color: var(--navy);
+  opacity: 1;
+}
+
+html body .route-panel[data-route="diario"] .rdo-macro-section summary small,
+html body .route-panel[data-route="diario"] .compact-search,
+html body .route-panel[data-route="diario"] .upload-hint,
+html body .route-panel[data-route="diario"] .image-preview p,
+html body .route-panel[data-route="diario"] .diary-list-item span,
+html body .route-panel[data-route="diario"] .diary-list-item p,
+html body .route-panel[data-route="diario"] .material-summary.empty-list,
+html body .route-panel[data-route="diario"] .entity-list.empty-list,
+html body .route-panel[data-route="diario"] .diary-audit.empty-list {
+  color: #41556b;
+  opacity: 1;
+}
+/* Bugfix final RDO - UX do teste real */
+.route-panel[data-route="diario"] .diary-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.route-panel[data-route="diario"] .diary-tools-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  margin: 0 0 14px auto;
+  border-color: rgba(15, 118, 110, 0.36);
+  color: #061a32;
+  background: #ffffff;
+}
+
+.route-panel[data-route="diario"] .diary-tools-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: rgba(6, 26, 50, 0.28);
+}
+
+.route-panel[data-route="diario"] .diary-side-panels {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 75;
+  display: grid;
+  align-content: start;
+  width: min(440px, calc(100vw - 24px));
+  max-width: 100%;
+  padding: 18px;
+  overflow-y: auto;
+  background: #f8fbfc;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: -18px 0 44px rgba(6, 26, 50, 0.22);
+  transform: translateX(104%);
+  transition: transform 180ms ease;
+}
+
+body.rdo-tools-open .route-panel[data-route="diario"] .diary-side-panels {
+  transform: translateX(0);
+}
+
+.route-panel[data-route="diario"] .diary-tools-close {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  justify-self: end;
+  margin-bottom: 2px;
+  background: #ffffff;
+}
+
+.route-panel[data-route="diario"] .diary-photo-caption-field {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  color: #061a32;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.route-panel[data-route="diario"] .diary-photo-caption-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #061a32;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.route-panel[data-route="diario"] .diary-save-button:disabled,
+.route-panel[data-route="diario"] .diary-save-button[disabled] {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.route-panel[data-route="diario"] .report-elo-chat .elo-standalone-panel {
+  display: grid;
+  grid-template-rows: minmax(220px, 1fr) auto auto;
+  min-height: 440px;
+  max-height: min(68vh, 640px);
+  overflow: hidden;
+}
+
+.route-panel[data-route="diario"] .report-elo-chat .elo-messages {
+  min-height: 220px;
+  max-height: 380px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.route-panel[data-route="diario"] .report-elo-chat .elo-input-row {
+  display: grid;
+  grid-template-columns: auto minmax(240px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.route-panel[data-route="diario"] .report-elo-chat .elo-input {
+  min-height: 46px;
+  max-height: 140px;
+  resize: vertical;
+}
+
+.route-panel[data-route="diario"] .report-elo-chat .elo-voice-status {
+  min-height: 24px;
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="diario"] .diary-tools-toggle {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .route-panel[data-route="diario"] .diary-side-panels {
+    width: min(100vw, 420px);
+    padding: 14px;
+  }
+
+  .route-panel[data-route="diario"] .report-elo-chat .elo-input-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .route-panel[data-route="diario"] .report-elo-chat .elo-input-row .elo-attach-button,
+  .route-panel[data-route="diario"] .report-elo-chat .elo-input-row .elo-voice-button {
+    grid-column: span 1;
+  }
+
+  .route-panel[data-route="diario"] .report-elo-chat .elo-input {
+    grid-column: 1 / -1;
   }
 }

@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -214,6 +214,9 @@
   const dailyLogPdfButton = document.getElementById("dailyLogPdfButton");
   const dailyLogShareWhatsappButton = document.getElementById("dailyLogShareWhatsapp");
   const dailyLogShareEmailButton = document.getElementById("dailyLogShareEmail");
+  const diaryToolsToggle = document.getElementById("diaryToolsToggle");
+  const diaryToolsClose = document.getElementById("diaryToolsClose");
+  const diaryToolsBackdrop = document.getElementById("diaryToolsBackdrop");
   const compositionForm = document.getElementById("compositionForm");
   const compositionAddMaterialButton = document.getElementById("compositionAddMaterial");
   const compositionMaterialsList = document.getElementById("compositionMaterialsList");
@@ -280,6 +283,9 @@
   const ALMOX_OCR_PDFJS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ALMOX_OCR_PDF_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ALMOX_OCR_PDF_MAX_PAGES = 3;
+  const RDO_DRAFT_STORAGE_PREFIX = "obrareport:rdo:draft:v1";
+  const RDO_DRAFT_INDEX_KEY = "obrareport:rdo:draft:index:v1";
+  const RDO_DRAFT_LAST_KEY_PREFIX = "obrareport:rdo:draft:last:v1";
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
@@ -302,6 +308,7 @@
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
+  let dailyLogDraftSaveTimer = null;
   let localSaveTimer = null;
   let cloudSyncTimer = null;
   let billingAlertTimer = null;
@@ -311,6 +318,7 @@
   let aiApplyStructuredButton = null;
   let dailyLogDraft = createEmptyDailyLogDraft_();
   let currentDailyLogMaterialRequests_ = [];
+  let isRestoringDailyLogDraft = false;
   let dailyLogSearchTerm = "";
   let executionStockAlertHistoryFilters = { status: "all", severity: "all" };
   let operationalDocumentFilters = { type: "all", status: "all" };
@@ -1957,14 +1965,17 @@
 
         event.preventDefault();
         event.stopImmediatePropagation();
+        flushDailyLogDraft_();
         setLastOpened_("diario");
         scheduleLocalDataSave_();
         showDashboardPanel_("diario");
+        restoreDailyLogDraftForCurrentContext_({ announce: true });
       }, true);
     }
 
     routeButtons.forEach(function (button) {
       button.addEventListener("click", function () {
+        flushDailyLogDraft_();
         setLastOpened_(button.dataset.routeTarget);
         scheduleLocalDataSave_();
         showDashboardPanel_(button.dataset.routeTarget);
@@ -2891,7 +2902,7 @@
     setLastOpened_("diario", firstWork ? firstWork.clientId : "", firstWork ? firstWork.id : "", "");
     scheduleLocalDataSave_();
     showDashboardPanel_("diario");
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: true });
 
     if (firstWork && dailyLogWorkSelect) {
       dailyLogWorkSelect.value = firstWork.id;
@@ -2951,7 +2962,7 @@
     setLastOpened_("diario", selectedWork ? selectedWork.clientId : "", selectedWork ? selectedWork.id : "", "");
     scheduleLocalDataSave_();
     showDashboardPanel_("diario");
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: true });
 
     if (selectedWork && dailyLogWorkSelect) {
       dailyLogWorkSelect.value = selectedWork.id;
@@ -4638,16 +4649,47 @@
       dailyLogRouteButton.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        flushDailyLogDraft_();
         setLastOpened_("diario");
         scheduleLocalDataSave_();
         showDashboardPanel_("diario");
+        restoreDailyLogDraftForCurrentContext_({ announce: true });
       }, true);
     }
 
     dailyLogForm.addEventListener("submit", function (event) {
       event.preventDefault();
+      flushDailyLogDraft_();
       saveDailyLogFromForm_();
     });
+
+    dailyLogForm.addEventListener("input", function () {
+      scheduleDailyLogDraftSave_();
+    });
+
+    dailyLogForm.addEventListener("change", function () {
+      scheduleDailyLogDraftSave_();
+    });
+
+    bindDiaryToolsDrawer_();
+
+    if (dailyLogForm.elements.productionService) {
+      dailyLogForm.elements.productionService.addEventListener("change", function () {
+        syncDailyLogProductionUnit_();
+        clearDailyLogEstimate_();
+      });
+      syncDailyLogProductionUnit_();
+    }
+
+    if (dailyLogPhotosList) {
+      dailyLogPhotosList.addEventListener("input", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : null;
+        if (!target || !target.matches || !target.matches("[data-diary-photo-caption-id]")) {
+          return;
+        }
+        updateDailyLogPhotoCaption_(target.dataset.diaryPhotoCaptionId, target.value);
+      });
+    }
 
     dailyLogForm.addEventListener("click", function (event) {
       const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
@@ -4658,6 +4700,7 @@
       if (pdfButton) {
         event.preventDefault();
         try {
+          flushDailyLogDraft_();
           openDailyLogPdf_(collectDailyLogSnapshot_());
         } catch (error) {
           console.error(error);
@@ -4685,7 +4728,7 @@
 
     if (dailyLogResetButton) {
       dailyLogResetButton.addEventListener("click", function () {
-        resetDailyLogForm_();
+        resetDailyLogForm_({ clearDraft: true });
       });
     }
 
@@ -4742,6 +4785,7 @@
       dailyLogPdfButton.addEventListener("click", function (event) {
         event.stopPropagation();
         try {
+          flushDailyLogDraft_();
           openDailyLogPdf_(collectDailyLogSnapshot_());
         } catch (error) {
           console.error(error);
@@ -4752,12 +4796,14 @@
 
     if (dailyLogShareWhatsappButton) {
       dailyLogShareWhatsappButton.addEventListener("click", function () {
+        flushDailyLogDraft_();
         shareDailyLogSummary_("whatsapp");
       });
     }
 
     if (dailyLogShareEmailButton) {
       dailyLogShareEmailButton.addEventListener("click", function () {
+        flushDailyLogDraft_();
         shareDailyLogSummary_("email");
       });
     }
@@ -4843,8 +4889,12 @@
       });
     }
 
+    window.addEventListener("pagehide", function () {
+      flushDailyLogDraft_();
+    });
+
     initializeCompositionLibrary_();
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: false, restoreDraft: true });
   }
 
   function createEmptyDailyLogDraft_() {
@@ -5318,9 +5368,9 @@
       const stockMatch = matchPredictedMaterialToStockItem(material, stock);
       const stockItem = stockMatch && stockMatch.item ? stockMatch.item : null;
       const requiredQuantity = roundQuantity_(parseNumber_(material.quantity || material.predictedQuantity || material.estimated));
-      const currentBalance = stockMatch ? roundQuantity_(parseNumber_(stockMatch.realBalance)) : 0;
-      const purchaseQuantity = roundQuantity_(Math.max(requiredQuantity - currentBalance, 0));
-      const status = getStockAiPurchasePlanStatus_(requiredQuantity, currentBalance, stockMatch);
+      const currentBalance = stockMatch ? roundQuantity_(parseNumber_(stockMatch.realBalance)) : null;
+      const purchaseQuantity = stockMatch ? roundQuantity_(Math.max(requiredQuantity - currentBalance, 0)) : null;
+      const status = getStockAiPurchasePlanStatus_(requiredQuantity, stockMatch ? currentBalance : 0, stockMatch);
 
       return {
         id: "purchase_plan_" + normalizeCompositionKey_(material.name) + "_" + normalizeUnitKey_(material.unit || "un"),
@@ -5732,8 +5782,8 @@
       lines.push("");
       lines.push("Planejamento de compra pelo saldo local:");
       purchaseItems.forEach(function (item) {
-        lines.push("- " + item.materialName + ": saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
-          ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit + " (" + item.status + ")");
+        lines.push("- " + item.materialName + ": saldo " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+          ", comprar " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") + " (" + formatPurchasePlanStatus_(item.status) + ")");
       });
     }
 
@@ -5755,7 +5805,7 @@
     }
     const executedQuantity = parseNumber_(input.quantity || input.executedQuantity);
     const service = clean(input.service || input.serviceName || (composition && composition.service));
-    const unit = clean(input.unit || (composition && composition.productionUnit)) || "un";
+    const unit = clean(composition && composition.productionUnit) || clean(input.unit) || "un";
     const result = {
       service: service,
       executedQuantity: roundQuantity_(executedQuantity),
@@ -5886,9 +5936,10 @@
       const predictedItem = predicted[key];
       const actualItem = actual[key];
       const estimated = roundQuantity_(predictedItem ? predictedItem.quantity : 0);
-      const registered = roundQuantity_(actualItem ? actualItem.quantity : 0);
-      const difference = roundQuantity_(registered - estimated);
-      const differencePercent = estimated > 0 ? roundQuantity_((difference / estimated) * 100) : 0;
+      const hasRegisteredConsumption = Boolean(actualItem);
+      const registered = hasRegisteredConsumption ? roundQuantity_(actualItem.quantity) : null;
+      const difference = hasRegisteredConsumption ? roundQuantity_(registered - estimated) : null;
+      const differencePercent = hasRegisteredConsumption && estimated > 0 ? roundQuantity_((difference / estimated) * 100) : null;
 
       return {
         name: (predictedItem && predictedItem.name) || (actualItem && actualItem.name) || "Material",
@@ -5898,16 +5949,21 @@
         predicted: estimated,
         registered: registered,
         actual: registered,
+        hasRegisteredConsumption: hasRegisteredConsumption,
         difference: difference,
         differencePercent: differencePercent,
-        status: classifyStockAiConsumptionStatus_(estimated, registered, differencePercent)
+        status: classifyStockAiConsumptionStatus_(estimated, registered, differencePercent, hasRegisteredConsumption)
       };
     }).sort(function (a, b) {
       return String(a.name || "").localeCompare(String(b.name || ""));
     });
   }
 
-  function classifyStockAiConsumptionStatus_(estimated, registered, differencePercent) {
+  function classifyStockAiConsumptionStatus_(estimated, registered, differencePercent, hasRegisteredConsumption) {
+    if (!hasRegisteredConsumption && estimated > 0) {
+      return "consumo real não informado";
+    }
+
     if (estimated <= 0 && registered > 0) {
       return "sem previsão";
     }
@@ -5985,7 +6041,7 @@
 
     const actions = document.createElement("div");
     actions.className = "button-row";
-    actions.appendChild(createEstimateActionButton_("Aplicar ao diário", "apply", "next-action compact"));
+    actions.appendChild(createEstimateActionButton_("Aplicar como sugestão", "apply", "next-action compact"));
     actions.appendChild(createEstimateActionButton_("Editar antes de aplicar", "edit", "secondary-action compact"));
     actions.appendChild(createEstimateActionButton_("Copiar lista de compras", "copy-purchase-plan", "secondary-action compact"));
     actions.appendChild(createEstimateActionButton_("Cancelar", "cancel", "mini-button danger"));
@@ -6050,7 +6106,7 @@
       list.appendChild(createDiaryListItem_(
         item.name,
         "Estimado: " + formatQuantity_(item.estimated) + " " + item.unit +
-          " · Registrado: " + formatQuantity_(item.registered) + " " + item.unit +
+          " · Registrado: " + formatAuditRegisteredQuantity_(item) +
           " · " + formatAuditDifference_(item) +
           " · Status: " + formatStockAiConsumptionStatus_(item.status),
         "",
@@ -6087,9 +6143,9 @@
       list.appendChild(createDiaryListItem_(
         item.materialName,
         "Previsto: " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
-          " · Saldo: " + formatQuantity_(item.currentBalance) + " " + item.unit +
-          " · Comprar: " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
-          " · Status: " + item.status,
+          " · Saldo: " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+          " · Comprar: " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") +
+          " · Status: " + formatPurchasePlanStatus_(item.status),
         item.note,
         []
       ));
@@ -6164,9 +6220,9 @@
 
     (purchasePlan.items || []).forEach(function (item) {
       lines.push("- " + item.materialName + ": previsto " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
-        ", saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
-        ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
-        " (" + item.status + ").");
+        ", saldo " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+        ", comprar " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") +
+        " (" + formatPurchasePlanStatus_(item.status) + ").");
     });
 
     lines.push("");
@@ -6190,13 +6246,13 @@
         unit: item.unit || "un",
         unitValue: 0,
         totalValue: 0,
-        note: item.note || "Consumo calculado por composição estimada. Revise antes de aplicar."
+        note: item.note || "Sugestão de consumo estimado por composição. Confirme ou edite antes de salvar como consumo real."
       });
     });
 
     clearDailyLogEstimate_();
     renderDailyLogDraftLists_();
-    setDailyLogStatus_("Materiais estimados aplicados ao diário. Revise e salve o registro.", "success");
+    setDailyLogStatus_("Sugestões de materiais adicionadas ao diário. Confirme, edite ou remova antes de salvar.", "success");
   }
 
   function collectEstimatedItemsFromPanel_() {
@@ -6244,6 +6300,9 @@
   }
 
   function formatAuditDifference_(item) {
+    if (item && item.hasRegisteredConsumption === false) {
+      return "Consumo real não informado";
+    }
     const difference = Number(item && item.difference || 0);
     const unit = item && item.unit ? " " + item.unit : "";
     const percent = Number(item && item.differencePercent || 0);
@@ -6265,7 +6324,28 @@
     if (normalized === "critico") {
       return "crítico";
     }
-    return normalized || "dentro do previsto";
+    if (normalized === "consumo real nao informado" || normalized === "consumo real não informado") {
+      return "consumo real não informado";
+    }
+    return normalizeDisplayText_(normalized || "dentro do previsto");
+  }
+
+  function formatAuditRegisteredQuantity_(item) {
+    if (item && item.hasRegisteredConsumption === false) {
+      return "Não informado";
+    }
+    return formatQuantity_(item && item.registered) + " " + ((item && item.unit) || "un");
+  }
+
+  function formatPurchasePlanQuantity_(value, unit, unavailable) {
+    if (unavailable || value === null || value === undefined) {
+      return "Não consultável";
+    }
+    return formatQuantity_(value) + " " + (unit || "un");
+  }
+
+  function formatPurchasePlanStatus_(status) {
+    return normalizeDisplayText_(status || "pendente");
   }
 
   function renderDailyLogWorkOptions_(works) {
@@ -6310,6 +6390,10 @@
       return;
     }
 
+    if (dailyLogSaveButton && dailyLogSaveButton.disabled) {
+      return;
+    }
+
     const logItem = collectDailyLogForm_();
 
     if (!logItem.workId || !logItem.date || !logItem.responsible) {
@@ -6317,25 +6401,44 @@
       return;
     }
 
-    ensureLocalState_(appState);
-    const existingIndex = appState.dailyLogs.findIndex(function (item) {
-      return item.id === logItem.id;
-    });
-
-    if (existingIndex >= 0) {
-      logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
-      appState.dailyLogs[existingIndex] = logItem;
-    } else {
-      appState.dailyLogs.push(logItem);
+    if (dailyLogSaveButton) {
+      dailyLogSaveButton.disabled = true;
+      dailyLogSaveButton.textContent = "Salvando diário...";
     }
+    setDailyLogStatus_("Salvando diário e enviando para sincronização...", "info");
 
-    const work = findWork_(logItem.workId);
-    setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
-    saveLocalData({ syncCloud: true });
-    refreshExecutionStockAnalysisAfterRdoSave_(logItem);
-    renderSaasState_();
-    resetDailyLogForm_();
-    setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+    try {
+      ensureLocalState_(appState);
+      const existingIndex = appState.dailyLogs.findIndex(function (item) {
+        return item.id === logItem.id;
+      });
+
+      if (existingIndex >= 0) {
+        logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
+        appState.dailyLogs[existingIndex] = logItem;
+      } else {
+        appState.dailyLogs.push(logItem);
+      }
+
+      const work = findWork_(logItem.workId);
+      setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
+      saveLocalData({ syncCloud: true });
+      refreshExecutionStockAnalysisAfterRdoSave_(logItem);
+      renderSaasState_();
+      clearDailyLogDraftForLog_(logItem);
+      resetDailyLogForm_({ clearDraft: false });
+      setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+    } catch (error) {
+      console.error(error);
+      setDailyLogStatus_(error.message || "Não foi possível salvar o diário.", "error");
+    } finally {
+      if (dailyLogSaveButton) {
+        window.setTimeout(function () {
+          dailyLogSaveButton.disabled = false;
+          dailyLogSaveButton.textContent = "Salvar diário";
+        }, 700);
+      }
+    }
   }
 
   function saveDailyLogPreviewFromElo_(preview) {
@@ -6517,11 +6620,346 @@
     return JSON.parse(JSON.stringify(items || []));
   }
 
-  function resetDailyLogForm_() {
+  function scheduleDailyLogDraftSave_() {
+    if (isRestoringDailyLogDraft || !dailyLogForm || !currentUser) {
+      return;
+    }
+
+    window.clearTimeout(dailyLogDraftSaveTimer);
+    dailyLogDraftSaveTimer = window.setTimeout(function () {
+      persistDailyLogDraft_({ announce: false });
+    }, 450);
+  }
+
+  function flushDailyLogDraft_() {
+    window.clearTimeout(dailyLogDraftSaveTimer);
+    persistDailyLogDraft_({ announce: false });
+  }
+
+  function persistDailyLogDraft_(options) {
+    if (isRestoringDailyLogDraft || !dailyLogForm || !currentUser) {
+      return false;
+    }
+
+    const logItem = collectDailyLogForm_();
+    if (!hasMeaningfulDailyLogDraft_(logItem)) {
+      return false;
+    }
+
+    if (dailyLogForm.elements.dailyLogId && !clean(dailyLogForm.elements.dailyLogId.value)) {
+      dailyLogForm.elements.dailyLogId.value = logItem.id;
+    }
+
+    const identity = getDailyLogDraftIdentity_(logItem);
+    const key = buildDailyLogDraftStorageKey_(identity);
+    const payload = {
+      version: 1,
+      kind: "rdo-draft",
+      key: key,
+      identity: identity,
+      savedDailyLogId: logItem.id,
+      updatedAt: new Date().toISOString(),
+      logItem: logItem
+    };
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(payload));
+      window.localStorage.setItem(buildDailyLogDraftLastStorageKey_(identity), key);
+      registerDailyLogDraftKey_(key);
+      if (options && options.announce) {
+        setDailyLogStatus_("Rascunho salvo automaticamente.", "info");
+      }
+      return true;
+    } catch (error) {
+      console.warn("Não foi possível salvar o rascunho local do RDO.", error);
+      return false;
+    }
+  }
+
+  function hasMeaningfulDailyLogDraft_(logItem) {
+    if (!logItem) {
+      return false;
+    }
+
+    const hasLists = [logItem.productions, logItem.materials, logItem.materialRequests, logItem.tools, logItem.photos].some(function (items) {
+      return Array.isArray(items) && items.length > 0;
+    });
+    if (hasLists) {
+      return true;
+    }
+
+    return [
+      logItem.workId,
+      logItem.responsible,
+      logItem.impactNote,
+      logItem.startTime,
+      logItem.endTime,
+      logItem.teamPresent,
+      logItem.employeeCount,
+      logItem.teamNotes,
+      logItem.services,
+      logItem.progress,
+      logItem.interferences,
+      logItem.visits,
+      logItem.occurrences,
+      logItem.stoppedEquipment,
+      logItem.generalNotes,
+      logItem.summary,
+      logItem.safety && logItem.safety.description,
+      logItem.safety && logItem.safety.actions,
+      logItem.safety && logItem.safety.responsible
+    ].some(function (value) {
+      return Boolean(clean(value));
+    });
+  }
+
+  function getDailyLogDraftIdentity_(logItem) {
+    const session = appState.session || {};
+    const tenantId = clean(
+      session.companyId ||
+      session.institutionId ||
+      session.tenantId ||
+      stockFullAuthContext.institutionId ||
+      "local"
+    );
+    const userId = clean(logItem && logItem.userId) || clean(currentUser && currentUser.id) || clean(session.userId) || "anonymous";
+    const workId = clean(logItem && logItem.workId) || clean(appState.local && appState.local.lastWorkId) || "sem-obra";
+    const date = clean(logItem && logItem.date) || "sem-data";
+
+    return {
+      tenantId: tenantId,
+      workId: workId,
+      date: date,
+      userId: userId
+    };
+  }
+
+  function buildDailyLogDraftStorageKey_(identity) {
+    const safe = identity || {};
+    return [
+      RDO_DRAFT_STORAGE_PREFIX,
+      safe.tenantId || "local",
+      safe.workId || "sem-obra",
+      safe.date || "sem-data",
+      safe.userId || "anonymous"
+    ].map(encodeURIComponent).join(":");
+  }
+
+  function buildDailyLogDraftLastStorageKey_(identity) {
+    const safe = identity || {};
+    return [
+      RDO_DRAFT_LAST_KEY_PREFIX,
+      safe.tenantId || "local",
+      safe.userId || "anonymous"
+    ].map(encodeURIComponent).join(":");
+  }
+  function registerDailyLogDraftKey_(key) {
+    const keys = readDailyLogDraftIndex_();
+    if (keys.indexOf(key) < 0) {
+      keys.push(key);
+      writeDailyLogDraftIndex_(keys);
+    }
+  }
+
+  function readDailyLogDraftIndex_() {
+    try {
+      return JSON.parse(window.localStorage.getItem(RDO_DRAFT_INDEX_KEY) || "[]").filter(function (key) {
+        return typeof key === "string" && key.indexOf(RDO_DRAFT_STORAGE_PREFIX) === 0;
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeDailyLogDraftIndex_(keys) {
+    try {
+      window.localStorage.setItem(RDO_DRAFT_INDEX_KEY, JSON.stringify(keys || []));
+    } catch (error) {
+      console.warn("Não foi possível atualizar o índice de rascunhos do RDO.", error);
+    }
+  }
+
+  function restoreDailyLogDraftForCurrentContext_(options) {
+    if (!dailyLogForm || !currentUser) {
+      return false;
+    }
+
+    const current = collectDailyLogForm_();
+    const payload = findBestDailyLogDraftPayload_(current) || findLastDailyLogDraftPayload_(current);
+    if (!payload || !payload.logItem) {
+      return false;
+    }
+
+    const saved = findSavedDailyLogForDraft_(payload.logItem);
+    if (saved && compareIsoDate_(saved.updatedAt, payload.updatedAt) >= 0) {
+      return false;
+    }
+
+    applyDailyLogDraftPayload_(payload);
+    if (!options || options.announce !== false) {
+      setDailyLogStatus_("Rascunho restaurado.", "info");
+    }
+    return true;
+  }
+
+  function findBestDailyLogDraftPayload_(currentLog) {
+    const currentIdentity = getDailyLogDraftIdentity_(currentLog);
+    const candidates = readDailyLogDraftIndex_().map(readDailyLogDraftPayload_).filter(Boolean).filter(function (payload) {
+      return payload.identity &&
+        payload.identity.tenantId === currentIdentity.tenantId &&
+        payload.identity.userId === currentIdentity.userId &&
+        payload.identity.workId === currentIdentity.workId &&
+        payload.identity.date === currentIdentity.date;
+    }).sort(function (a, b) {
+      return compareIsoDate_(b.updatedAt, a.updatedAt);
+    });
+
+    return candidates[0] || null;
+  }
+
+  function readDailyLogDraftPayload_(key) {
+    try {
+      const payload = JSON.parse(window.localStorage.getItem(key) || "null");
+      return payload && payload.version === 1 && payload.kind === "rdo-draft" ? payload : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function findLastDailyLogDraftPayload_(currentLog) {
+    const currentIdentity = getDailyLogDraftIdentity_(currentLog);
+    let lastKey = "";
+    try {
+      lastKey = clean(window.localStorage.getItem(buildDailyLogDraftLastStorageKey_(currentIdentity)));
+    } catch (error) {
+      return null;
+    }
+
+    const payload = lastKey ? readDailyLogDraftPayload_(lastKey) : null;
+    if (!payload || !payload.identity) {
+      return null;
+    }
+
+    const sameUserContext = payload.identity.tenantId === currentIdentity.tenantId &&
+      payload.identity.userId === currentIdentity.userId;
+    const sameWorkContext = currentIdentity.workId === "sem-obra" ||
+      payload.identity.workId === currentIdentity.workId;
+
+    return sameUserContext && sameWorkContext ? payload : null;
+  }
+  function findSavedDailyLogForDraft_(draftLog) {
+    const draftIdentity = getDailyLogDraftIdentity_(draftLog);
+    return (appState.dailyLogs || []).find(function (logItem) {
+      const savedIdentity = getDailyLogDraftIdentity_(logItem);
+      return clean(logItem.id) === clean(draftLog.id) || (
+        savedIdentity.tenantId === draftIdentity.tenantId &&
+        savedIdentity.userId === draftIdentity.userId &&
+        savedIdentity.workId === draftIdentity.workId &&
+        savedIdentity.date === draftIdentity.date
+      );
+    }) || null;
+  }
+
+  function compareIsoDate_(a, b) {
+    const left = Date.parse(a || "") || 0;
+    const right = Date.parse(b || "") || 0;
+    return left === right ? 0 : (left > right ? 1 : -1);
+  }
+
+  function applyDailyLogDraftPayload_(payload) {
+    const logItem = payload.logItem || {};
+    isRestoringDailyLogDraft = true;
+    try {
+      dailyLogForm.elements.dailyLogId.value = logItem.id || "";
+      setDailyLogField_("workId", logItem.workId);
+      setDailyLogField_("date", logItem.date);
+      setDailyLogField_("responsible", logItem.responsible);
+      setDailyLogField_("weather", logItem.weather);
+      setDailyLogField_("impact", logItem.impact);
+      setDailyLogField_("impactNote", logItem.impactNote);
+      setDailyLogField_("startTime", logItem.startTime);
+      setDailyLogField_("endTime", logItem.endTime);
+      setDailyLogField_("teamPresent", logItem.teamPresent);
+      setDailyLogField_("employeeCount", logItem.employeeCount);
+      setDailyLogField_("teamNotes", logItem.teamNotes);
+      setDailyLogField_("services", logItem.services);
+      setDailyLogField_("progress", logItem.progress);
+      setDailyLogField_("interferences", logItem.interferences);
+      setDailyLogField_("visits", logItem.visits);
+      setDailyLogField_("safetyOccurrence", logItem.safety && logItem.safety.occurrence);
+      setDailyLogField_("safetyDescription", logItem.safety && logItem.safety.description);
+      setDailyLogField_("safetyActions", logItem.safety && logItem.safety.actions);
+      setDailyLogField_("safetyResponsible", logItem.safety && logItem.safety.responsible);
+      setDailyLogField_("occurrences", logItem.occurrences);
+      setDailyLogField_("stoppedEquipment", logItem.stoppedEquipment);
+      setDailyLogField_("generalNotes", logItem.generalNotes);
+      setDailyLogField_("summary", logItem.summary);
+      dailyLogDraft = createEmptyDailyLogDraft_();
+      dailyLogDraft.productions = cloneDailyLogItems_(logItem.productions);
+      dailyLogDraft.materials = cloneDailyLogItems_(logItem.materials);
+      dailyLogDraft.tools = cloneDailyLogItems_(logItem.tools);
+      dailyLogDraft.photos = cloneDailyLogItems_(logItem.photos);
+      currentDailyLogMaterialRequests_ = cloneDailyLogItems_(logItem.materialRequests);
+      clearDailyLogEstimate_();
+      renderDailyLogDraftLists_();
+      if (dailyLogWorkSelect && logItem.workId) {
+        dailyLogWorkSelect.value = logItem.workId;
+      }
+    } finally {
+      isRestoringDailyLogDraft = false;
+    }
+  }
+
+  function clearDailyLogDraftForLog_(logItem) {
+    if (!logItem) {
+      return;
+    }
+
+    const identity = getDailyLogDraftIdentity_(logItem);
+    clearDailyLogDraftKey_(buildDailyLogDraftStorageKey_(identity));
+  }
+
+  function clearCurrentDailyLogDraft_() {
+    if (!dailyLogForm || !currentUser) {
+      return;
+    }
+
+    clearDailyLogDraftForLog_(collectDailyLogForm_());
+  }
+
+  function clearDailyLogDraftKey_(key) {
+    try {
+      window.localStorage.removeItem(key);
+      writeDailyLogDraftIndex_(readDailyLogDraftIndex_().filter(function (item) {
+        return item !== key;
+      }));
+      clearLastDailyLogDraftKey_(key);
+    } catch (error) {
+      console.warn("Não foi possível limpar o rascunho local do RDO.", error);
+    }
+  }
+  function clearLastDailyLogDraftKey_(removedKey) {
+    try {
+      const currentIdentity = getDailyLogDraftIdentity_(collectDailyLogForm_());
+      const lastKeyStorage = buildDailyLogDraftLastStorageKey_(currentIdentity);
+      if (window.localStorage.getItem(lastKeyStorage) === removedKey) {
+        window.localStorage.removeItem(lastKeyStorage);
+      }
+    } catch (error) {
+      console.warn("Não foi possível limpar a referência do último rascunho do RDO.", error);
+    }
+  }
+  function resetDailyLogForm_(options) {
+    const settings = options || {};
     if (!dailyLogForm) {
       return;
     }
 
+    if (settings.clearDraft) {
+      clearCurrentDailyLogDraft_();
+    }
+
+    isRestoringDailyLogDraft = true;
     dailyLogForm.reset();
     dailyLogForm.elements.dailyLogId.value = "";
     dailyLogDraft = createEmptyDailyLogDraft_();
@@ -6557,6 +6995,11 @@
     }
 
     renderDailyLogDraftLists_();
+    isRestoringDailyLogDraft = false;
+
+    if (settings.restoreDraft) {
+      restoreDailyLogDraftForCurrentContext_({ announce: true });
+    }
   }
 
   function loadDailyLogIntoForm_(dailyLogId) {
@@ -6566,6 +7009,8 @@
       return;
     }
 
+    flushDailyLogDraft_();
+    isRestoringDailyLogDraft = true;
     dailyLogForm.reset();
     dailyLogForm.elements.dailyLogId.value = logItem.id;
     setDailyLogField_("workId", logItem.workId);
@@ -6600,6 +7045,8 @@
     currentDailyLogMaterialRequests_ = cloneDailyLogItems_(logItem.materialRequests);
     clearDailyLogEstimate_();
     renderDailyLogDraftLists_();
+    isRestoringDailyLogDraft = false;
+    persistDailyLogDraft_({ announce: false });
     setDailyLogStatus_("Diário carregado para edição.", "info");
     dailyLogForm.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -6608,6 +7055,62 @@
     if (dailyLogForm && dailyLogForm.elements[name]) {
       dailyLogForm.elements[name].value = value || "";
     }
+  }
+
+  function bindDiaryToolsDrawer_() {
+    if (!diaryToolsToggle) {
+      return;
+    }
+
+    diaryToolsToggle.addEventListener("click", function () {
+      setDiaryToolsOpen_(!document.body.classList.contains("rdo-tools-open"));
+    });
+
+    if (diaryToolsClose) {
+      diaryToolsClose.addEventListener("click", function () {
+        setDiaryToolsOpen_(false);
+      });
+    }
+
+    if (diaryToolsBackdrop) {
+      diaryToolsBackdrop.addEventListener("click", function () {
+        setDiaryToolsOpen_(false);
+      });
+    }
+  }
+
+  function setDiaryToolsOpen_(isOpen) {
+    document.body.classList.toggle("rdo-tools-open", Boolean(isOpen));
+    if (diaryToolsToggle) {
+      diaryToolsToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+    const panel = document.getElementById("diarySidePanels");
+    if (panel) {
+      panel.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    }
+    if (diaryToolsBackdrop) {
+      diaryToolsBackdrop.hidden = !isOpen;
+    }
+  }
+
+  function getDailyLogProductionUnitForService_(service, fallback) {
+    const composition = findCompositionForProduction_({ service: service, quantity: 1, unit: "" });
+    return clean(composition && composition.productionUnit) || clean(fallback) || "m²";
+  }
+
+  function syncDailyLogProductionUnit_() {
+    if (!dailyLogForm || !dailyLogForm.elements.productionService || !dailyLogForm.elements.productionUnit) {
+      return;
+    }
+    const service = dailyLogForm.elements.productionService.value;
+    dailyLogForm.elements.productionUnit.value = getDailyLogProductionUnitForService_(service, dailyLogForm.elements.productionUnit.value);
+  }
+
+  function cleanDailyLogServicesText_(services) {
+    return String(services || "")
+      .replace(/(?:^|\n)\s*Produção executada:[^\n]*(?:\n|$)/gi, "\n")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
   }
 
   function syncProductionSummaryToServicesField_() {
@@ -6641,7 +7144,7 @@
 
     const service = clean(dailyLogForm.elements.productionService && dailyLogForm.elements.productionService.value) || "Outro";
     const quantity = parseNumber_(dailyLogForm.elements.productionQuantity && dailyLogForm.elements.productionQuantity.value);
-    const unit = clean(dailyLogForm.elements.productionUnit && dailyLogForm.elements.productionUnit.value) || "m²";
+    const unit = getDailyLogProductionUnitForService_(service, dailyLogForm.elements.productionUnit && dailyLogForm.elements.productionUnit.value);
     const note = clean(dailyLogForm.elements.productionNote && dailyLogForm.elements.productionNote.value);
 
     if (!service || quantity <= 0) {
@@ -6669,7 +7172,7 @@
     dailyLogDraft.editingProductionId = "";
     dailyLogForm.elements.productionService.value = "Alvenaria";
     dailyLogForm.elements.productionQuantity.value = "";
-    dailyLogForm.elements.productionUnit.value = "m²";
+    dailyLogForm.elements.productionUnit.value = getDailyLogProductionUnitForService_("Alvenaria", "m²");
     dailyLogForm.elements.productionNote.value = "";
     if (dailyLogAddProductionButton) {
       dailyLogAddProductionButton.textContent = "Adicionar produção";
@@ -7358,7 +7861,7 @@
         "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
         "Faltante: " + (request.missingQuantity === null || request.missingQuantity === undefined ? "-" : formatQuantity_(request.missingQuantity) + " " + (request.requestedUnit || "un")),
-        "Status: " + (request.decisionStatus || request.status),
+        "Status: " + normalizeDisplayText_(request.decisionStatus || request.status),
         getRdoMaterialRequestApprovalLabel_(request),
         getRdoMaterialRequestDeliveryLabel_(request)
       ].join(" - ");
@@ -7390,12 +7893,12 @@
     }
 
     const counts = requests.reduce(function (summary, request) {
-      const status = request.status || "pendente";
+      const status = normalizeDisplayText_(request.status || "pendente");
       summary[status] = (summary[status] || 0) + 1;
       return summary;
     }, {});
     const approvalCounts = requests.reduce(function (summary, request) {
-      const status = request.approvalStatus || "sem_decisao";
+      const status = normalizeDisplayText_(request.approvalStatus || "sem_decisao");
       summary[status] = (summary[status] || 0) + 1;
       return summary;
     }, {});
@@ -7404,8 +7907,8 @@
         request.requestedName || "Material",
         "solicitado " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
         "previsto " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
-        "saldo " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
-        "status tecnico " + (request.status || "pendente"),
+        "saldo " + (request.availableQuantity === null ? "não consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
+        "status técnico " + normalizeDisplayText_(request.status || "pendente"),
         buildRdoMaterialRequestApprovalSummary_(request),
         getRdoMaterialRequestDeliveryLabel_(request)
       ].join(", ");
@@ -7413,11 +7916,11 @@
 
     return "Solicitacoes de material do dia: " + requests.length + ". " +
       Object.keys(counts).map(function (status) {
-        return status + ": " + counts[status];
-      }).join("; ") + ". Aprovacoes: " +
+        return normalizeDisplayText_(status) + ": " + counts[status];
+      }).join("; ") + ". Aprovações: " +
       Object.keys(approvalCounts).map(function (status) {
-        return status + ": " + approvalCounts[status];
-      }).join("; ") + ". APROVACOES DE SOLICITACOES DE MATERIAL: " + requestLines.join(" | ") + ".";
+        return normalizeDisplayText_(status) + ": " + approvalCounts[status];
+      }).join("; ") + ". Aprovações de solicitações de material: " + requestLines.join(" | ") + ".";
   }
 
   function renderRdoMaterialRequestProductionOptions_() {
@@ -7441,7 +7944,7 @@
 
     const selected = dailyLogMaterialRequestAlmoxSelect.value;
     dailyLogMaterialRequestAlmoxSelect.innerHTML = "";
-    dailyLogMaterialRequestAlmoxSelect.appendChild(new Option("Consultar por nome", ""));
+    dailyLogMaterialRequestAlmoxSelect.appendChild(new Option("Sem item vinculado - conferir manualmente", ""));
 
     try {
       calculateAlmoxBalances_().forEach(function (balance) {
@@ -7455,7 +7958,7 @@
       console.warn("Nao foi possivel listar itens do almoxarifado para o RDO.", error);
     }
 
-    dailyLogMaterialRequestAlmoxSelect.value = selected;
+    dailyLogMaterialRequestAlmoxSelect.value = Array.from(dailyLogMaterialRequestAlmoxSelect.options).some(function (option) { return option.value === selected; }) ? selected : "";
   }
 
   // TODO Fase 2:
@@ -7543,6 +8046,7 @@
     dailyLogPhotoInput.value = "";
     dailyLogForm.elements.dailyPhotoCaption.value = "";
     renderDailyLogDraftLists_();
+    persistDailyLogDraft_({ announce: false });
     setDailyLogStatus_(files.length + " foto(s) adicionada(s) ao diário.", "success");
   }
 
@@ -7603,6 +8107,7 @@
         return item.id !== id;
       });
       renderDailyLogDraftLists_();
+      scheduleDailyLogDraftSave_();
     }
   }
 
@@ -7787,18 +8292,37 @@
     dailyLogDraft.photos.forEach(function (item) {
       const card = document.createElement("article");
       const image = document.createElement("img");
-      const caption = document.createElement("span");
+      const caption = document.createElement("label");
+      const captionText = document.createElement("span");
+      const captionInput = document.createElement("input");
       const remove = createDiaryActionButton_("Remover", "remove-photo", item.id);
 
       card.className = "diary-photo-card";
       image.src = item.previewDataUrl || ("data:image/jpeg;base64," + (item.payload && item.payload.base64 || ""));
       image.alt = item.caption || "Foto do diário";
-      caption.textContent = item.caption || "Foto do dia";
+      caption.className = "diary-photo-caption-field";
+      captionText.textContent = "Legenda da foto";
+      captionInput.type = "text";
+      captionInput.value = item.caption || "";
+      captionInput.placeholder = "Descreva esta foto";
+      captionInput.dataset.diaryPhotoCaptionId = item.id;
+      caption.appendChild(captionText);
+      caption.appendChild(captionInput);
       card.appendChild(image);
       card.appendChild(caption);
       card.appendChild(remove);
       dailyLogPhotosList.appendChild(card);
     });
+  }
+
+  function updateDailyLogPhotoCaption_(photoId, value) {
+    const photo = (dailyLogDraft.photos || []).find(function (item) {
+      return item.id === photoId;
+    });
+    if (photo) {
+      photo.caption = clean(value);
+      scheduleDailyLogDraftSave_();
+    }
   }
 
   function createDiaryListItem_(title, detail, note, actions) {
@@ -20072,16 +20596,18 @@
 
     parts.push(intro + ".");
 
-    if (logItem.services) {
-      parts.push("Serviços executados: " + logItem.services + ".");
+    const servicesText = cleanDailyLogServicesText_(logItem.services);
+    if (servicesText) {
+      parts.push("Serviços executados: " + servicesText + ".");
     }
 
     if (logItem.productions && logItem.productions.length) {
       parts.push("Produção executada: " + formatProductionCollection_(logItem.productions) + ".");
     }
 
-    if (logItem.employeeCount || logItem.teamPresent) {
-      parts.push("A equipe contou com " + [logItem.employeeCount && logItem.employeeCount + " funcionário(s)", logItem.teamPresent].filter(Boolean).join(" e ") + ".");
+    const teamLine = formatDailyLogTeamLine_(logItem);
+    if (teamLine !== "-") {
+      parts.push(teamLine + ".");
     }
 
     if (logItem.weather || logItem.impact) {
@@ -20093,7 +20619,7 @@
     }
 
     if (logItem.materialRequests && logItem.materialRequests.length) {
-      parts.push("SOLICITACOES DE MATERIAL DO DIA: " + buildDailyLogMaterialRequestsAuditText_(logItem));
+      parts.push(buildDailyLogMaterialRequestsAuditText_(logItem));
     }
 
     if (logItem.tools && logItem.tools.length) {
@@ -20119,7 +20645,8 @@
 
   function shareDailyLogSummary_(channel) {
     const snapshot = collectDailyLogSnapshot_();
-    const message = channel === "email" ? buildDailyLogEmailBody_(snapshot) : buildDailyLogWhatsappMessage_(snapshot);
+    setDailyLogStatus_(channel === "email" ? "Preparando e-mail do RDO..." : "Preparando mensagem do WhatsApp...", "info");
+    const message = normalizeDisplayText_(channel === "email" ? buildDailyLogEmailBody_(snapshot) : buildDailyLogWhatsappMessage_(snapshot));
     const subject = buildDailyLogShareSubject_(snapshot);
 
     if (channel === "whatsapp") {
@@ -20227,7 +20754,7 @@
         ["Observações da equipe", logItem.teamNotes]
       ]),
       buildDailyLogPdfTextSection_("Serviços executados", [
-        ["Serviços", logItem.services],
+        ["Serviços", cleanDailyLogServicesText_(logItem.services)],
         ["Avanço físico estimado", logItem.progress ? logItem.progress + "%" : ""],
         ["Interferências", logItem.interferences],
         ["Visitas recebidas", logItem.visits]
@@ -20245,7 +20772,7 @@
         return [
           item.name,
           formatQuantity_(item.estimated) + " " + item.unit,
-          formatQuantity_(item.registered) + " " + item.unit,
+          formatAuditRegisteredQuantity_(item),
           formatAuditDifference_(item),
           formatStockAiConsumptionStatus_(item.status)
         ];
@@ -20254,9 +20781,9 @@
         return [
           item.materialName,
           formatQuantity_(item.predictedQuantity) + " " + item.unit,
-          formatQuantity_(item.currentBalance) + " " + item.unit,
-          formatQuantity_(item.purchaseQuantity) + " " + item.unit,
-          item.status
+          formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque"),
+          formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque"),
+          formatPurchasePlanStatus_(item.status)
         ];
       })),
       buildDailyLogPdfTableSection_("Ferramentas e equipamentos", ["Nome", "Situação", "Observação"], (logItem.tools || []).map(function (item) {
@@ -20273,10 +20800,7 @@
         ["Equipamentos parados ou com problema", logItem.stoppedEquipment],
         ["Observações gerais", logItem.generalNotes]
       ]),
-      buildDailyLogPdfPhotosSection_(logItem.photos || []),
-      buildDailyLogPdfTextSection_("Resumo executivo", [
-        ["Resumo do dia", logItem.summary || buildDailyLogSummary_(logItem)]
-      ])
+      buildDailyLogPdfPhotosSection_(logItem.photos || [])
     ];
 
     if (estimated.missing && estimated.missing.length) {
@@ -20341,7 +20865,7 @@
       "<section class=\"rdo-summary-panel\">",
       "<div>",
       "<span>Resumo executivo</span>",
-      "<strong>" + escapeHtml_(safePdfText_(logItem.summary || buildDailyLogSummary_(logItem))) + "</strong>",
+      "<strong>" + escapeHtml_(safePdfText_(buildDailyLogSummary_(logItem))) + "</strong>",
       "</div>",
       "<ul>",
       "<li><span>Produção</span><strong>" + productions.length + "</strong></li>",
@@ -20533,7 +21057,7 @@
       "Segurança: " + formatDailyLogSafetyLine_(logItem),
       "Fotos: " + formatDailyLogPhotosLine_(logItem),
       "",
-      logItem.summary ? "Resumo do dia: " + logItem.summary : buildDailyLogSummary_(logItem)
+      "Resumo do dia: " + buildDailyLogSummary_(logItem)
     ].filter(function (line) {
       return line !== "";
     });
@@ -20550,7 +21074,7 @@
   function buildDailyLogWhatsappMessage_(logItem) {
     const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
     const clientName = logItem.client ? logItem.client.name : "";
-    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+    const summary = buildDailyLogSummary_(logItem);
 
     return [
       "🏗️ *OBRAREPORT — RESUMO DA OBRA*",
@@ -20589,7 +21113,7 @@
     const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
     const clientName = logItem.client ? logItem.client.name : "";
     const responsible = logItem.responsible || (currentUser && currentUser.name) || "Responsável técnico";
-    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+    const summary = buildDailyLogSummary_(logItem);
 
     return [
       "Olá, " + (clientName || "cliente") + ".",
@@ -20657,11 +21181,28 @@
   }
 
   function formatDailyLogTeamLine_(logItem) {
-    return [
-      logItem.employeeCount ? logItem.employeeCount + " funcionário(s)" : "",
-      logItem.teamPresent || "",
-      logItem.teamNotes || ""
-    ].filter(Boolean).join(" · ") || "-";
+    const employeeCount = parseNumber_(logItem.employeeCount);
+    const teamPresent = clean(logItem.teamPresent).toLowerCase();
+    const parts = [];
+
+    if (teamPresent === "sim") {
+      parts.push(employeeCount > 0 ? "Equipe presente com " + formatEmployeeCountLabel_(employeeCount) : "Equipe presente");
+    } else if (teamPresent === "não" || teamPresent === "nao") {
+      parts.push("Equipe não presente");
+    } else if (employeeCount > 0) {
+      parts.push(formatEmployeeCountLabel_(employeeCount));
+    }
+
+    if (logItem.teamNotes) {
+      parts.push(logItem.teamNotes);
+    }
+
+    return parts.join(" · ") || "-";
+  }
+
+  function formatEmployeeCountLabel_(count) {
+    const value = Number(count || 0);
+    return formatQuantity_(value) + (value === 1 ? " funcionário" : " funcionários");
   }
 
   function formatDailyLogSafetyLine_(logItem) {
@@ -20704,6 +21245,17 @@
       .replace(/m\u00c2\u00b2/g, "m²")
       .replace(/m\u00c2\u00b3/g, "m³")
       .replace(/\u00c2\u00b7/g, "·")
+      .replace(/sem_decisao/g, "sem decisão")
+      .replace(/sem_item_almoxarifado/g, "sem item no almoxarifado")
+      .replace(/nao consultado/g, "não consultado")
+      .replace(/nao informado/g, "não informado")
+      .replace(/consumo real nao informado/g, "consumo real não informado")
+      .replace(/Solicitacoes/g, "Solicitações")
+      .replace(/solicitacao/g, "solicitação")
+      .replace(/Solicitacao/g, "Solicitação")
+      .replace(/Aprovacoes/g, "Aprovações")
+      .replace(/aprovacoes/g, "aprovações")
+      .replace(/status tecnico/g, "status técnico")
       .replace(/cer\u00c2mico/g, "cerâmico")
       .replace(/Cer\u00c2mico/g, "Cerâmico")
       .replace(/cer\u00c3\u00a2mico/g, "cerâmico")
@@ -21262,6 +21814,9 @@
   }
 
   function renderFotoUnidadeFields() {
+    if (!fotosUnidadeContainer) {
+      return;
+    }
     const fragment = document.createDocumentFragment();
 
     for (let index = 1; index <= maxFotosUnidade; index += 1) {
@@ -21281,6 +21836,9 @@
   }
 
   function renderInconformidadeFields() {
+    if (!inconformidadesContainer) {
+      return;
+    }
     const fragment = document.createDocumentFragment();
 
     for (let index = 1; index <= maxInconformidades; index += 1) {
