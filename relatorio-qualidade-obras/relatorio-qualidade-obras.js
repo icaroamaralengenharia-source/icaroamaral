@@ -283,6 +283,9 @@
   const ALMOX_OCR_PDFJS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ALMOX_OCR_PDF_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ALMOX_OCR_PDF_MAX_PAGES = 3;
+  const RDO_DRAFT_STORAGE_PREFIX = "obrareport:rdo:draft:v1";
+  const RDO_DRAFT_INDEX_KEY = "obrareport:rdo:draft:index:v1";
+  const RDO_DRAFT_LAST_KEY_PREFIX = "obrareport:rdo:draft:last:v1";
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
@@ -305,6 +308,7 @@
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
+  let dailyLogDraftSaveTimer = null;
   let localSaveTimer = null;
   let cloudSyncTimer = null;
   let billingAlertTimer = null;
@@ -314,6 +318,7 @@
   let aiApplyStructuredButton = null;
   let dailyLogDraft = createEmptyDailyLogDraft_();
   let currentDailyLogMaterialRequests_ = [];
+  let isRestoringDailyLogDraft = false;
   let dailyLogSearchTerm = "";
   let executionStockAlertHistoryFilters = { status: "all", severity: "all" };
   let operationalDocumentFilters = { type: "all", status: "all" };
@@ -1960,14 +1965,17 @@
 
         event.preventDefault();
         event.stopImmediatePropagation();
+        flushDailyLogDraft_();
         setLastOpened_("diario");
         scheduleLocalDataSave_();
         showDashboardPanel_("diario");
+        restoreDailyLogDraftForCurrentContext_({ announce: true });
       }, true);
     }
 
     routeButtons.forEach(function (button) {
       button.addEventListener("click", function () {
+        flushDailyLogDraft_();
         setLastOpened_(button.dataset.routeTarget);
         scheduleLocalDataSave_();
         showDashboardPanel_(button.dataset.routeTarget);
@@ -2894,7 +2902,7 @@
     setLastOpened_("diario", firstWork ? firstWork.clientId : "", firstWork ? firstWork.id : "", "");
     scheduleLocalDataSave_();
     showDashboardPanel_("diario");
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: true });
 
     if (firstWork && dailyLogWorkSelect) {
       dailyLogWorkSelect.value = firstWork.id;
@@ -2954,7 +2962,7 @@
     setLastOpened_("diario", selectedWork ? selectedWork.clientId : "", selectedWork ? selectedWork.id : "", "");
     scheduleLocalDataSave_();
     showDashboardPanel_("diario");
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: true });
 
     if (selectedWork && dailyLogWorkSelect) {
       dailyLogWorkSelect.value = selectedWork.id;
@@ -4641,15 +4649,26 @@
       dailyLogRouteButton.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        flushDailyLogDraft_();
         setLastOpened_("diario");
         scheduleLocalDataSave_();
         showDashboardPanel_("diario");
+        restoreDailyLogDraftForCurrentContext_({ announce: true });
       }, true);
     }
 
     dailyLogForm.addEventListener("submit", function (event) {
       event.preventDefault();
+      flushDailyLogDraft_();
       saveDailyLogFromForm_();
+    });
+
+    dailyLogForm.addEventListener("input", function () {
+      scheduleDailyLogDraftSave_();
+    });
+
+    dailyLogForm.addEventListener("change", function () {
+      scheduleDailyLogDraftSave_();
     });
 
     bindDiaryToolsDrawer_();
@@ -4681,6 +4700,7 @@
       if (pdfButton) {
         event.preventDefault();
         try {
+          flushDailyLogDraft_();
           openDailyLogPdf_(collectDailyLogSnapshot_());
         } catch (error) {
           console.error(error);
@@ -4708,7 +4728,7 @@
 
     if (dailyLogResetButton) {
       dailyLogResetButton.addEventListener("click", function () {
-        resetDailyLogForm_();
+        resetDailyLogForm_({ clearDraft: true });
       });
     }
 
@@ -4765,6 +4785,7 @@
       dailyLogPdfButton.addEventListener("click", function (event) {
         event.stopPropagation();
         try {
+          flushDailyLogDraft_();
           openDailyLogPdf_(collectDailyLogSnapshot_());
         } catch (error) {
           console.error(error);
@@ -4775,12 +4796,14 @@
 
     if (dailyLogShareWhatsappButton) {
       dailyLogShareWhatsappButton.addEventListener("click", function () {
+        flushDailyLogDraft_();
         shareDailyLogSummary_("whatsapp");
       });
     }
 
     if (dailyLogShareEmailButton) {
       dailyLogShareEmailButton.addEventListener("click", function () {
+        flushDailyLogDraft_();
         shareDailyLogSummary_("email");
       });
     }
@@ -4866,8 +4889,12 @@
       });
     }
 
+    window.addEventListener("pagehide", function () {
+      flushDailyLogDraft_();
+    });
+
     initializeCompositionLibrary_();
-    resetDailyLogForm_();
+    resetDailyLogForm_({ clearDraft: false, restoreDraft: true });
   }
 
   function createEmptyDailyLogDraft_() {
@@ -6398,7 +6425,8 @@
       saveLocalData({ syncCloud: true });
       refreshExecutionStockAnalysisAfterRdoSave_(logItem);
       renderSaasState_();
-      resetDailyLogForm_();
+      clearDailyLogDraftForLog_(logItem);
+      resetDailyLogForm_({ clearDraft: false });
       setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
     } catch (error) {
       console.error(error);
@@ -6592,11 +6620,346 @@
     return JSON.parse(JSON.stringify(items || []));
   }
 
-  function resetDailyLogForm_() {
+  function scheduleDailyLogDraftSave_() {
+    if (isRestoringDailyLogDraft || !dailyLogForm || !currentUser) {
+      return;
+    }
+
+    window.clearTimeout(dailyLogDraftSaveTimer);
+    dailyLogDraftSaveTimer = window.setTimeout(function () {
+      persistDailyLogDraft_({ announce: false });
+    }, 450);
+  }
+
+  function flushDailyLogDraft_() {
+    window.clearTimeout(dailyLogDraftSaveTimer);
+    persistDailyLogDraft_({ announce: false });
+  }
+
+  function persistDailyLogDraft_(options) {
+    if (isRestoringDailyLogDraft || !dailyLogForm || !currentUser) {
+      return false;
+    }
+
+    const logItem = collectDailyLogForm_();
+    if (!hasMeaningfulDailyLogDraft_(logItem)) {
+      return false;
+    }
+
+    if (dailyLogForm.elements.dailyLogId && !clean(dailyLogForm.elements.dailyLogId.value)) {
+      dailyLogForm.elements.dailyLogId.value = logItem.id;
+    }
+
+    const identity = getDailyLogDraftIdentity_(logItem);
+    const key = buildDailyLogDraftStorageKey_(identity);
+    const payload = {
+      version: 1,
+      kind: "rdo-draft",
+      key: key,
+      identity: identity,
+      savedDailyLogId: logItem.id,
+      updatedAt: new Date().toISOString(),
+      logItem: logItem
+    };
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(payload));
+      window.localStorage.setItem(buildDailyLogDraftLastStorageKey_(identity), key);
+      registerDailyLogDraftKey_(key);
+      if (options && options.announce) {
+        setDailyLogStatus_("Rascunho salvo automaticamente.", "info");
+      }
+      return true;
+    } catch (error) {
+      console.warn("Não foi possível salvar o rascunho local do RDO.", error);
+      return false;
+    }
+  }
+
+  function hasMeaningfulDailyLogDraft_(logItem) {
+    if (!logItem) {
+      return false;
+    }
+
+    const hasLists = [logItem.productions, logItem.materials, logItem.materialRequests, logItem.tools, logItem.photos].some(function (items) {
+      return Array.isArray(items) && items.length > 0;
+    });
+    if (hasLists) {
+      return true;
+    }
+
+    return [
+      logItem.workId,
+      logItem.responsible,
+      logItem.impactNote,
+      logItem.startTime,
+      logItem.endTime,
+      logItem.teamPresent,
+      logItem.employeeCount,
+      logItem.teamNotes,
+      logItem.services,
+      logItem.progress,
+      logItem.interferences,
+      logItem.visits,
+      logItem.occurrences,
+      logItem.stoppedEquipment,
+      logItem.generalNotes,
+      logItem.summary,
+      logItem.safety && logItem.safety.description,
+      logItem.safety && logItem.safety.actions,
+      logItem.safety && logItem.safety.responsible
+    ].some(function (value) {
+      return Boolean(clean(value));
+    });
+  }
+
+  function getDailyLogDraftIdentity_(logItem) {
+    const session = appState.session || {};
+    const tenantId = clean(
+      session.companyId ||
+      session.institutionId ||
+      session.tenantId ||
+      stockFullAuthContext.institutionId ||
+      "local"
+    );
+    const userId = clean(logItem && logItem.userId) || clean(currentUser && currentUser.id) || clean(session.userId) || "anonymous";
+    const workId = clean(logItem && logItem.workId) || clean(appState.local && appState.local.lastWorkId) || "sem-obra";
+    const date = clean(logItem && logItem.date) || "sem-data";
+
+    return {
+      tenantId: tenantId,
+      workId: workId,
+      date: date,
+      userId: userId
+    };
+  }
+
+  function buildDailyLogDraftStorageKey_(identity) {
+    const safe = identity || {};
+    return [
+      RDO_DRAFT_STORAGE_PREFIX,
+      safe.tenantId || "local",
+      safe.workId || "sem-obra",
+      safe.date || "sem-data",
+      safe.userId || "anonymous"
+    ].map(encodeURIComponent).join(":");
+  }
+
+  function buildDailyLogDraftLastStorageKey_(identity) {
+    const safe = identity || {};
+    return [
+      RDO_DRAFT_LAST_KEY_PREFIX,
+      safe.tenantId || "local",
+      safe.userId || "anonymous"
+    ].map(encodeURIComponent).join(":");
+  }
+  function registerDailyLogDraftKey_(key) {
+    const keys = readDailyLogDraftIndex_();
+    if (keys.indexOf(key) < 0) {
+      keys.push(key);
+      writeDailyLogDraftIndex_(keys);
+    }
+  }
+
+  function readDailyLogDraftIndex_() {
+    try {
+      return JSON.parse(window.localStorage.getItem(RDO_DRAFT_INDEX_KEY) || "[]").filter(function (key) {
+        return typeof key === "string" && key.indexOf(RDO_DRAFT_STORAGE_PREFIX) === 0;
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeDailyLogDraftIndex_(keys) {
+    try {
+      window.localStorage.setItem(RDO_DRAFT_INDEX_KEY, JSON.stringify(keys || []));
+    } catch (error) {
+      console.warn("Não foi possível atualizar o índice de rascunhos do RDO.", error);
+    }
+  }
+
+  function restoreDailyLogDraftForCurrentContext_(options) {
+    if (!dailyLogForm || !currentUser) {
+      return false;
+    }
+
+    const current = collectDailyLogForm_();
+    const payload = findBestDailyLogDraftPayload_(current) || findLastDailyLogDraftPayload_(current);
+    if (!payload || !payload.logItem) {
+      return false;
+    }
+
+    const saved = findSavedDailyLogForDraft_(payload.logItem);
+    if (saved && compareIsoDate_(saved.updatedAt, payload.updatedAt) >= 0) {
+      return false;
+    }
+
+    applyDailyLogDraftPayload_(payload);
+    if (!options || options.announce !== false) {
+      setDailyLogStatus_("Rascunho restaurado.", "info");
+    }
+    return true;
+  }
+
+  function findBestDailyLogDraftPayload_(currentLog) {
+    const currentIdentity = getDailyLogDraftIdentity_(currentLog);
+    const candidates = readDailyLogDraftIndex_().map(readDailyLogDraftPayload_).filter(Boolean).filter(function (payload) {
+      return payload.identity &&
+        payload.identity.tenantId === currentIdentity.tenantId &&
+        payload.identity.userId === currentIdentity.userId &&
+        payload.identity.workId === currentIdentity.workId &&
+        payload.identity.date === currentIdentity.date;
+    }).sort(function (a, b) {
+      return compareIsoDate_(b.updatedAt, a.updatedAt);
+    });
+
+    return candidates[0] || null;
+  }
+
+  function readDailyLogDraftPayload_(key) {
+    try {
+      const payload = JSON.parse(window.localStorage.getItem(key) || "null");
+      return payload && payload.version === 1 && payload.kind === "rdo-draft" ? payload : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function findLastDailyLogDraftPayload_(currentLog) {
+    const currentIdentity = getDailyLogDraftIdentity_(currentLog);
+    let lastKey = "";
+    try {
+      lastKey = clean(window.localStorage.getItem(buildDailyLogDraftLastStorageKey_(currentIdentity)));
+    } catch (error) {
+      return null;
+    }
+
+    const payload = lastKey ? readDailyLogDraftPayload_(lastKey) : null;
+    if (!payload || !payload.identity) {
+      return null;
+    }
+
+    const sameUserContext = payload.identity.tenantId === currentIdentity.tenantId &&
+      payload.identity.userId === currentIdentity.userId;
+    const sameWorkContext = currentIdentity.workId === "sem-obra" ||
+      payload.identity.workId === currentIdentity.workId;
+
+    return sameUserContext && sameWorkContext ? payload : null;
+  }
+  function findSavedDailyLogForDraft_(draftLog) {
+    const draftIdentity = getDailyLogDraftIdentity_(draftLog);
+    return (appState.dailyLogs || []).find(function (logItem) {
+      const savedIdentity = getDailyLogDraftIdentity_(logItem);
+      return clean(logItem.id) === clean(draftLog.id) || (
+        savedIdentity.tenantId === draftIdentity.tenantId &&
+        savedIdentity.userId === draftIdentity.userId &&
+        savedIdentity.workId === draftIdentity.workId &&
+        savedIdentity.date === draftIdentity.date
+      );
+    }) || null;
+  }
+
+  function compareIsoDate_(a, b) {
+    const left = Date.parse(a || "") || 0;
+    const right = Date.parse(b || "") || 0;
+    return left === right ? 0 : (left > right ? 1 : -1);
+  }
+
+  function applyDailyLogDraftPayload_(payload) {
+    const logItem = payload.logItem || {};
+    isRestoringDailyLogDraft = true;
+    try {
+      dailyLogForm.elements.dailyLogId.value = logItem.id || "";
+      setDailyLogField_("workId", logItem.workId);
+      setDailyLogField_("date", logItem.date);
+      setDailyLogField_("responsible", logItem.responsible);
+      setDailyLogField_("weather", logItem.weather);
+      setDailyLogField_("impact", logItem.impact);
+      setDailyLogField_("impactNote", logItem.impactNote);
+      setDailyLogField_("startTime", logItem.startTime);
+      setDailyLogField_("endTime", logItem.endTime);
+      setDailyLogField_("teamPresent", logItem.teamPresent);
+      setDailyLogField_("employeeCount", logItem.employeeCount);
+      setDailyLogField_("teamNotes", logItem.teamNotes);
+      setDailyLogField_("services", logItem.services);
+      setDailyLogField_("progress", logItem.progress);
+      setDailyLogField_("interferences", logItem.interferences);
+      setDailyLogField_("visits", logItem.visits);
+      setDailyLogField_("safetyOccurrence", logItem.safety && logItem.safety.occurrence);
+      setDailyLogField_("safetyDescription", logItem.safety && logItem.safety.description);
+      setDailyLogField_("safetyActions", logItem.safety && logItem.safety.actions);
+      setDailyLogField_("safetyResponsible", logItem.safety && logItem.safety.responsible);
+      setDailyLogField_("occurrences", logItem.occurrences);
+      setDailyLogField_("stoppedEquipment", logItem.stoppedEquipment);
+      setDailyLogField_("generalNotes", logItem.generalNotes);
+      setDailyLogField_("summary", logItem.summary);
+      dailyLogDraft = createEmptyDailyLogDraft_();
+      dailyLogDraft.productions = cloneDailyLogItems_(logItem.productions);
+      dailyLogDraft.materials = cloneDailyLogItems_(logItem.materials);
+      dailyLogDraft.tools = cloneDailyLogItems_(logItem.tools);
+      dailyLogDraft.photos = cloneDailyLogItems_(logItem.photos);
+      currentDailyLogMaterialRequests_ = cloneDailyLogItems_(logItem.materialRequests);
+      clearDailyLogEstimate_();
+      renderDailyLogDraftLists_();
+      if (dailyLogWorkSelect && logItem.workId) {
+        dailyLogWorkSelect.value = logItem.workId;
+      }
+    } finally {
+      isRestoringDailyLogDraft = false;
+    }
+  }
+
+  function clearDailyLogDraftForLog_(logItem) {
+    if (!logItem) {
+      return;
+    }
+
+    const identity = getDailyLogDraftIdentity_(logItem);
+    clearDailyLogDraftKey_(buildDailyLogDraftStorageKey_(identity));
+  }
+
+  function clearCurrentDailyLogDraft_() {
+    if (!dailyLogForm || !currentUser) {
+      return;
+    }
+
+    clearDailyLogDraftForLog_(collectDailyLogForm_());
+  }
+
+  function clearDailyLogDraftKey_(key) {
+    try {
+      window.localStorage.removeItem(key);
+      writeDailyLogDraftIndex_(readDailyLogDraftIndex_().filter(function (item) {
+        return item !== key;
+      }));
+      clearLastDailyLogDraftKey_(key);
+    } catch (error) {
+      console.warn("Não foi possível limpar o rascunho local do RDO.", error);
+    }
+  }
+  function clearLastDailyLogDraftKey_(removedKey) {
+    try {
+      const currentIdentity = getDailyLogDraftIdentity_(collectDailyLogForm_());
+      const lastKeyStorage = buildDailyLogDraftLastStorageKey_(currentIdentity);
+      if (window.localStorage.getItem(lastKeyStorage) === removedKey) {
+        window.localStorage.removeItem(lastKeyStorage);
+      }
+    } catch (error) {
+      console.warn("Não foi possível limpar a referência do último rascunho do RDO.", error);
+    }
+  }
+  function resetDailyLogForm_(options) {
+    const settings = options || {};
     if (!dailyLogForm) {
       return;
     }
 
+    if (settings.clearDraft) {
+      clearCurrentDailyLogDraft_();
+    }
+
+    isRestoringDailyLogDraft = true;
     dailyLogForm.reset();
     dailyLogForm.elements.dailyLogId.value = "";
     dailyLogDraft = createEmptyDailyLogDraft_();
@@ -6632,6 +6995,11 @@
     }
 
     renderDailyLogDraftLists_();
+    isRestoringDailyLogDraft = false;
+
+    if (settings.restoreDraft) {
+      restoreDailyLogDraftForCurrentContext_({ announce: true });
+    }
   }
 
   function loadDailyLogIntoForm_(dailyLogId) {
@@ -6641,6 +7009,8 @@
       return;
     }
 
+    flushDailyLogDraft_();
+    isRestoringDailyLogDraft = true;
     dailyLogForm.reset();
     dailyLogForm.elements.dailyLogId.value = logItem.id;
     setDailyLogField_("workId", logItem.workId);
@@ -6675,6 +7045,8 @@
     currentDailyLogMaterialRequests_ = cloneDailyLogItems_(logItem.materialRequests);
     clearDailyLogEstimate_();
     renderDailyLogDraftLists_();
+    isRestoringDailyLogDraft = false;
+    persistDailyLogDraft_({ announce: false });
     setDailyLogStatus_("Diário carregado para edição.", "info");
     dailyLogForm.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -7674,6 +8046,7 @@
     dailyLogPhotoInput.value = "";
     dailyLogForm.elements.dailyPhotoCaption.value = "";
     renderDailyLogDraftLists_();
+    persistDailyLogDraft_({ announce: false });
     setDailyLogStatus_(files.length + " foto(s) adicionada(s) ao diário.", "success");
   }
 
@@ -7734,6 +8107,7 @@
         return item.id !== id;
       });
       renderDailyLogDraftLists_();
+      scheduleDailyLogDraftSave_();
     }
   }
 
@@ -7947,6 +8321,7 @@
     });
     if (photo) {
       photo.caption = clean(value);
+      scheduleDailyLogDraftSave_();
     }
   }
 
