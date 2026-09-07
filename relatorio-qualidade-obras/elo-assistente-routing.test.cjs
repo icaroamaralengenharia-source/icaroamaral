@@ -3461,6 +3461,70 @@ test('ELO Autopilot: voz usa o mesmo ask/router e prepara preview', async () => 
   assert.equal(elo.hasTypingIndicatorForTest(), false);
 });
 
+
+test('ELO Autopilot: transcript de voz com comando real prepara preview sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('Elo, publique sobre a alta do preço da arroba do boi gordo na Bahia.', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+
+  assert.equal(calls[0].type, 'prepare');
+  assert.equal(calls[0].input.topic, 'a alta do preço da arroba do boi gordo na Bahia');
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'a alta do preço da arroba do boi gordo na Bahia');
+  const previewText = elementText(messages);
+  assert.match(previewText, /Preparei a materia para o site|Ainda nao publiquei|Quer que eu publique/);
+  assert.doesNotMatch(previewText, /Slug:|Status:|pending|draft-autopilot|Preview editorial preparado/i);
+});
+
+test('ELO Autopilot: sim por voz publica uma vez e segundo sim nao duplica', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('Elo, publique sobre a alta do preço da arroba do boi gordo na Bahia.', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+
+  elo.ask('sim', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.match(elementText(messages), /Materia criada com sucesso|URL prevista/);
+
+  elo.ask('sim', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+});
+
+test('ELO Autopilot: cancelar por voz consome pending sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('Elo, publique sobre a alta do preço da arroba do boi gordo na Bahia.', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  elo.ask('cancelar', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  assert.equal(calls.filter((call) => call.type === 'cancel').length, 1);
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+});
 function fakeAutopilotApi(calls, options = {}) {
   return {
     prepare(input) {
