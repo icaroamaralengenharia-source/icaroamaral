@@ -8,6 +8,12 @@ const ARTIFACT_DIR = join(process.cwd(), "artifacts", "elo-mobile-regressions");
 async function openElo(page, viewport = { width: 390, height: 844 }) {
   await page.setViewportSize(viewport);
   await page.addInitScript((storageKey) => {
+    if (!window.name.includes("elo_mobile_regression_storage_ready")) {
+      window.sessionStorage.removeItem("elo_core_surface_state_v1");
+      window.localStorage.removeItem("elo_core_surface_state_v1");
+      window.localStorage.removeItem("elo_real_media_player_layout_v1");
+      window.name = [window.name, "elo_mobile_regression_storage_ready"].filter(Boolean).join(" ");
+    }
     window.sessionStorage.setItem(storageKey, JSON.stringify({
       authenticated: true,
       createdAt: Date.now(),
@@ -236,6 +242,101 @@ test.describe("Elo mobile regressions", () => {
     expect(answer).toContain("- Area: 56 m2");
     expect(answer).not.toMatch(/ainda s\s*Proxima acao/i);
     expect(answer).not.toMatch(/[{}][\s\S]*"/);
+  });
+
+  test("rotacao e reload preservam conversa pesquisa draft e scroll", async ({ page }) => {
+    await openElo(page);
+    await sendElo(page, "preco atual do cimento em Salvador");
+    await page.locator(".elo-input").fill("rascunho que nao pode sumir na rotacao");
+    await page.locator(".elo-messages").evaluate((messages) => { messages.scrollTop = messages.scrollHeight; });
+    const before = await page.locator(".elo-messages").evaluate((messages) => ({ scrollTop: messages.scrollTop, count: messages.querySelectorAll(".elo-message").length }));
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".site-access-gate")).toBeHidden();
+    await expect(page.locator(".elo-input-row")).toBeVisible();
+    await expect(page.locator(".elo-input")).toHaveValue("rascunho que nao pode sumir na rotacao");
+    await expect(page.locator(".elo-message.user")).toContainText([/preco atual do cimento em Salvador/i]);
+    await expect(page.locator(".elo-message.assistant:not(.is-typing)")).toContainText([/Resultado pesquisado/i]);
+    const landscape = await page.locator(".elo-messages").evaluate((messages) => ({ scrollTop: messages.scrollTop, count: messages.querySelectorAll(".elo-message").length }));
+    expect(landscape.count).toBeGreaterThanOrEqual(before.count);
+    expect(landscape.scrollTop).toBeGreaterThanOrEqual(0);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".site-access-gate")).toBeHidden();
+    await expect(page.locator(".elo-input")).toHaveValue("rascunho que nao pode sumir na rotacao");
+    await expect(page.locator(".elo-message.user")).toContainText([/preco atual do cimento em Salvador/i]);
+    await expect(page.locator(".elo-message.assistant:not(.is-typing)")).toContainText([/Resultado pesquisado/i]);
+  });
+
+  test("player flutuante move recolhe e nao bloqueia input", async ({ page }) => {
+    await openElo(page);
+    await page.addStyleTag({ content: "#elo-real-media-player { transition: none !important; }" });
+    await page.evaluate(() => {
+      HTMLMediaElement.prototype.play = function () {
+        this.dispatchEvent(new Event("playing"));
+        return Promise.resolve();
+      };
+      HTMLMediaElement.prototype.pause = function () {
+        this.dispatchEvent(new Event("pause"));
+      };
+    });
+    await page.evaluate(async () => {
+      await window.EloMediaPlayer.play({
+        source: "LOCAL_CLASSICAL",
+        title: "Fur Elise",
+        files: [{ url: "relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg", type: "audio/ogg" }]
+      });
+    });
+    const player = page.locator("#elo-real-media-player");
+    const handle = page.locator('[data-elo-media-drag-handle="true"]');
+    await expect(player).toBeVisible();
+    await expect(handle).toBeVisible();
+    await expect(page.locator("#elo-real-media-player")).toHaveCount(1);
+
+    const dragMouseStart = await handle.boundingBox();
+    expect(dragMouseStart).not.toBeNull();
+    await page.mouse.move(dragMouseStart.x + 20, dragMouseStart.y + 16);
+    await page.mouse.down();
+    await page.mouse.move(20, 60, { steps: 6 });
+    await page.mouse.up();
+    const afterMouse = await player.boundingBox();
+    expect(afterMouse.x).toBeGreaterThanOrEqual(10);
+    expect(afterMouse.y).toBeGreaterThanOrEqual(10);
+    expect(afterMouse.x + afterMouse.width).toBeLessThanOrEqual(390);
+    expect(afterMouse.y + afterMouse.height).toBeLessThanOrEqual(844);
+
+    await handle.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      node.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 7, pointerType: "touch", clientX: rect.left + 20, clientY: rect.top + 14 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 7, pointerType: "touch", clientX: 999, clientY: 999 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "touch", clientX: 999, clientY: 999 }));
+    });
+    const afterTouch = await player.boundingBox();
+    expect(afterTouch.x).toBeGreaterThanOrEqual(10);
+    expect(afterTouch.y).toBeGreaterThanOrEqual(10);
+    expect(afterTouch.x + afterTouch.width).toBeLessThanOrEqual(390);
+    expect(afterTouch.y + afterTouch.height).toBeLessThanOrEqual(844);
+
+    await page.locator('[data-elo-media-action="toggle-minimize"]').click();
+    await expect(player).toHaveAttribute("data-elo-media-minimized", "true");
+    await expect(player).toBeVisible();
+    expect(await page.evaluate(() => window.EloMediaPlayer.getState())).toBe("PLAYING");
+    const minimizedBox = await player.boundingBox();
+    const inputBox = await page.locator(".elo-input-row").boundingBox();
+    expect(Math.max(0, Math.min(minimizedBox.y + minimizedBox.height, inputBox.y + inputBox.height) - Math.max(minimizedBox.y, inputBox.y))).toBe(0);
+    await page.locator(".elo-input").fill("digitando com player recolhido");
+    await expect(page.locator(".elo-input")).toHaveValue("digitando com player recolhido");
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    const afterRotate = await player.boundingBox();
+    expect(afterRotate.x).toBeGreaterThanOrEqual(10);
+    expect(afterRotate.y).toBeGreaterThanOrEqual(10);
+    expect(afterRotate.x + afterRotate.width).toBeLessThanOrEqual(844);
+    expect(afterRotate.y + afterRotate.height).toBeLessThanOrEqual(390);
+    expect(await page.evaluate(() => window.EloMediaPlayer.getState())).toBe("PLAYING");
+    await expect(page.locator("#elo-real-media-player")).toHaveCount(1);
   });
 
   test("desktop mantem fluxo basico", async ({ page }) => {

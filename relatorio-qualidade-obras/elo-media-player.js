@@ -10,6 +10,8 @@
   const PLAYER_HOST_ID = "elo-real-media-host";
   const CONTROLS_ID = "elo-real-media-controls";
   const CONFIRM_TIMEOUT_MS = 9000;
+  const PLAYER_LAYOUT_STORAGE_KEY = "elo_real_media_player_layout_v1";
+  const PLAYER_MARGIN = 12;
 
   let state = STATE_IDLE;
   let currentMedia = null;
@@ -19,6 +21,7 @@
   let localQueueIndex = 0;
   let apiPromise = null;
   let playRunId = 0;
+  const playerLayoutState = { x: null, y: null, minimized: false, dragging: false, pointerId: null, offsetX: 0, offsetY: 0 };
 
   function log(name, payload) {
     try {
@@ -48,17 +51,205 @@
     });
   }
 
+  function readPlayerLayout_() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(PLAYER_LAYOUT_STORAGE_KEY) || "null");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function persistPlayerLayout_() {
+    try {
+      window.localStorage.setItem(PLAYER_LAYOUT_STORAGE_KEY, JSON.stringify({
+        x: Number(playerLayoutState.x),
+        y: Number(playerLayoutState.y),
+        minimized: playerLayoutState.minimized === true
+      }));
+    } catch (error) {}
+  }
+
+  function getViewportBox_() {
+    const viewport = window.visualViewport || {};
+    const docElement = document && document.documentElement || {};
+    const width = Number(viewport.width) || window.innerWidth || docElement.clientWidth || 360;
+    const height = Number(viewport.height) || window.innerHeight || docElement.clientHeight || 640;
+    const left = Number(viewport.offsetLeft) || 0;
+    const top = Number(viewport.offsetTop) || 0;
+    return { left: left, top: top, width: width, height: height };
+  }
+
+  function clampNumber_(value, min, max) {
+    if (max < min) return min;
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function measurePlayer_(root) {
+    const rect = root && root.getBoundingClientRect ? root.getBoundingClientRect() : null;
+    return {
+      width: Math.max(72, rect && rect.width || (playerLayoutState.minimized ? 168 : 360)),
+      height: Math.max(48, rect && rect.height || (playerLayoutState.minimized ? 56 : 280))
+    };
+  }
+
+  function applyPlayerMinimized_(root) {
+    const minimized = playerLayoutState.minimized === true;
+    root.dataset.eloMediaMinimized = minimized ? "true" : "false";
+    const host = document.getElementById(PLAYER_HOST_ID);
+    const controls = document.getElementById(CONTROLS_ID);
+    const toggle = root.querySelector('[data-elo-media-action="toggle-minimize"]');
+    if (host) host.hidden = minimized;
+    if (controls) controls.hidden = minimized;
+    if (toggle) {
+      toggle.textContent = minimized ? "Expandir" : "Recolher";
+      toggle.setAttribute("aria-label", minimized ? "Expandir player" : "Recolher player");
+    }
+  }
+
+  function applyPlayerPosition_(root) {
+    if (!root) return;
+    const viewport = getViewportBox_();
+    const size = measurePlayer_(root);
+    const minX = viewport.left + PLAYER_MARGIN;
+    const minY = viewport.top + PLAYER_MARGIN;
+    const maxX = viewport.left + viewport.width - size.width - PLAYER_MARGIN;
+    let maxY = viewport.top + viewport.height - size.height - PLAYER_MARGIN;
+    const composer = document.querySelector && document.querySelector(".elo-input-row");
+    if (composer && composer.getBoundingClientRect) {
+      const composerBox = composer.getBoundingClientRect();
+      if (composerBox && composerBox.height > 0 && composerBox.top < viewport.top + viewport.height) {
+        maxY = Math.min(maxY, composerBox.top - size.height - PLAYER_MARGIN);
+      }
+    }
+    if (!Number.isFinite(Number(playerLayoutState.x)) || !Number.isFinite(Number(playerLayoutState.y))) {
+      playerLayoutState.x = maxX;
+      playerLayoutState.y = maxY;
+    }
+    playerLayoutState.x = clampNumber_(Number(playerLayoutState.x), minX, maxX);
+    playerLayoutState.y = clampNumber_(Number(playerLayoutState.y), minY, maxY);
+    root.style.left = playerLayoutState.x + "px";
+    root.style.top = playerLayoutState.y + "px";
+    root.style.right = "auto";
+    root.style.bottom = "auto";
+  }
+
+  function snapPlayer_() {
+    const root = document.getElementById(PLAYER_ID);
+    if (!root) return;
+    const viewport = getViewportBox_();
+    const size = measurePlayer_(root);
+    const left = viewport.left + PLAYER_MARGIN;
+    const right = viewport.left + viewport.width - size.width - PLAYER_MARGIN;
+    const top = viewport.top + PLAYER_MARGIN;
+    let bottom = viewport.top + viewport.height - size.height - PLAYER_MARGIN;
+    const composer = document.querySelector && document.querySelector(".elo-input-row");
+    if (composer && composer.getBoundingClientRect) {
+      const composerBox = composer.getBoundingClientRect();
+      if (composerBox && composerBox.height > 0 && composerBox.top < viewport.top + viewport.height) {
+        bottom = Math.min(bottom, composerBox.top - size.height - PLAYER_MARGIN);
+      }
+    }
+    const distances = [
+      { x: left, y: playerLayoutState.y, distance: Math.abs(playerLayoutState.x - left) },
+      { x: right, y: playerLayoutState.y, distance: Math.abs(playerLayoutState.x - right) },
+      { x: playerLayoutState.x, y: top, distance: Math.abs(playerLayoutState.y - top) + 24 },
+      { x: playerLayoutState.x, y: bottom, distance: Math.abs(playerLayoutState.y - bottom) + 24 }
+    ].sort(function (a, b) { return a.distance - b.distance; });
+    playerLayoutState.x = distances[0].x;
+    playerLayoutState.y = distances[0].y;
+    applyPlayerPosition_(root);
+    persistPlayerLayout_();
+  }
+
+  function restorePlayerLayout_(root) {
+    const saved = readPlayerLayout_();
+    if (Number.isFinite(Number(saved.x)) && Number.isFinite(Number(saved.y))) {
+      playerLayoutState.x = Number(saved.x);
+      playerLayoutState.y = Number(saved.y);
+    }
+    playerLayoutState.minimized = saved.minimized === true;
+    applyPlayerMinimized_(root);
+    applyPlayerPosition_(root);
+    window.setTimeout(function () { applyPlayerPosition_(root); }, 0);
+  }
+
+  function bindPlayerMovement_(root, handle) {
+    if (!root || !handle || root.dataset.eloMediaDragBound) return;
+    root.dataset.eloMediaDragBound = "true";
+    handle.style.cursor = "grab";
+    handle.style.touchAction = "none";
+    handle.addEventListener("pointerdown", function (event) {
+      if (event.target && event.target.closest && event.target.closest("button,[data-elo-media-action]")) return;
+      if (event.button !== undefined && event.button !== 0) return;
+      const rect = root.getBoundingClientRect();
+      playerLayoutState.dragging = true;
+      playerLayoutState.pointerId = event.pointerId;
+      playerLayoutState.offsetX = event.clientX - rect.left;
+      playerLayoutState.offsetY = event.clientY - rect.top;
+      handle.style.cursor = "grabbing";
+      if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    window.addEventListener("pointermove", function (event) {
+      if (!playerLayoutState.dragging || event.pointerId !== playerLayoutState.pointerId) return;
+      playerLayoutState.x = event.clientX - playerLayoutState.offsetX;
+      playerLayoutState.y = event.clientY - playerLayoutState.offsetY;
+      applyPlayerPosition_(root);
+    });
+    window.addEventListener("pointerup", function (event) {
+      if (!playerLayoutState.dragging || event.pointerId !== playerLayoutState.pointerId) return;
+      playerLayoutState.dragging = false;
+      playerLayoutState.pointerId = null;
+      handle.style.cursor = "grab";
+      snapPlayer_();
+    });
+    ["resize", "orientationchange"].forEach(function (eventName) {
+      window.addEventListener(eventName, function () {
+        window.setTimeout(function () {
+          applyPlayerPosition_(root);
+          persistPlayerLayout_();
+        }, eventName === "orientationchange" ? 90 : 0);
+      });
+    });
+    if (window.visualViewport && typeof window.visualViewport.addEventListener === "function") {
+      window.visualViewport.addEventListener("resize", function () {
+        applyPlayerPosition_(root);
+        persistPlayerLayout_();
+      });
+      window.visualViewport.addEventListener("scroll", function () {
+        applyPlayerPosition_(root);
+        persistPlayerLayout_();
+      });
+    }
+  }
+
+  function togglePlayerMinimized_() {
+    const root = ensureRoot();
+    playerLayoutState.minimized = !playerLayoutState.minimized;
+    applyPlayerMinimized_(root);
+    applyPlayerPosition_(root);
+    persistPlayerLayout_();
+    return !playerLayoutState.minimized;
+  }
+
   function ensureRoot() {
     let root = document.getElementById(PLAYER_ID);
-    if (root) return root;
+    if (root) {
+      applyPlayerPosition_(root);
+      return root;
+    }
 
     root = document.createElement("section");
     root.id = PLAYER_ID;
     root.setAttribute("aria-label", "Player de mídia do ELO");
     root.style.position = "fixed";
-    root.style.right = "16px";
-    root.style.bottom = "16px";
-    root.style.width = "min(420px, calc(100vw - 32px))";
+    root.style.left = "0px";
+    root.style.top = "0px";
+    root.style.right = "auto";
+    root.style.bottom = "auto";
+    root.style.width = "min(360px, calc(100vw - 24px))";
+    root.style.maxWidth = "calc(100vw - 24px)";
     root.style.background = "#101820";
     root.style.color = "#fff";
     root.style.border = "1px solid rgba(255,255,255,.18)";
@@ -68,6 +259,36 @@
     root.style.overflow = "hidden";
     root.style.borderRadius = "8px";
 
+    const header = document.createElement("div");
+    header.setAttribute("data-elo-media-drag-handle", "true");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "space-between";
+    header.style.gap = "8px";
+    header.style.padding = "10px 12px";
+    header.style.background = "rgba(255,255,255,.08)";
+    header.style.userSelect = "none";
+
+    const headerTitle = document.createElement("strong");
+    headerTitle.textContent = "ELO Player";
+    headerTitle.style.font = "700 12px/1 Inter, system-ui, sans-serif";
+    headerTitle.style.letterSpacing = "0";
+
+    const minimizeButton = document.createElement("button");
+    minimizeButton.type = "button";
+    minimizeButton.textContent = "Recolher";
+    minimizeButton.setAttribute("data-elo-media-action", "toggle-minimize");
+    minimizeButton.setAttribute("aria-label", "Recolher player");
+    minimizeButton.style.border = "1px solid rgba(255,255,255,.22)";
+    minimizeButton.style.background = "rgba(255,255,255,.1)";
+    minimizeButton.style.color = "#fff";
+    minimizeButton.style.padding = "6px 8px";
+    minimizeButton.style.borderRadius = "6px";
+    minimizeButton.style.font = "600 11px/1 Inter, system-ui, sans-serif";
+    minimizeButton.style.cursor = "pointer";
+    header.appendChild(headerTitle);
+    header.appendChild(minimizeButton);
+
     const host = document.createElement("div");
     host.id = PLAYER_HOST_ID;
     host.style.aspectRatio = "16 / 9";
@@ -75,7 +296,7 @@
 
     const title = document.createElement("div");
     title.setAttribute("data-elo-media-title", "true");
-    title.style.padding = "10px 12px 0";
+    title.style.padding = "0 2px";
     title.style.font = "600 13px/1.35 Inter, system-ui, sans-serif";
     title.style.whiteSpace = "nowrap";
     title.style.overflow = "hidden";
@@ -103,6 +324,7 @@
       controls.appendChild(button);
     });
 
+    root.appendChild(header);
     root.appendChild(host);
     root.appendChild(title);
     root.appendChild(controls);
@@ -112,6 +334,9 @@
     controls.querySelector('[data-elo-media-action="pause"]').onclick = function () { return pause(); };
     controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
     controls.querySelector('[data-elo-media-action="stop"]').onclick = function () { return stop(); };
+    minimizeButton.onclick = function () { return togglePlayerMinimized_(); };
+    bindPlayerMovement_(root, header);
+    restorePlayerLayout_(root);
 
     log("MEDIA_PLAYER_LOADED", { provider: "youtube_iframe_api" });
     return root;
@@ -418,7 +643,9 @@
     resume: resume,
     stop: stop,
     getState: function () { return state; },
-    getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; }
+    getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
+    getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },
+    toggleMinimizedForTest: togglePlayerMinimized_
   };
 
   log("MEDIA_BRIDGE_LOADED", { player: "EloMediaPlayer", provider: "youtube_iframe_api" });
