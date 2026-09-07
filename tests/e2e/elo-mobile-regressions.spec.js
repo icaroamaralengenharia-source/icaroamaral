@@ -339,6 +339,74 @@ test.describe("Elo mobile regressions", () => {
     await expect(page.locator("#elo-real-media-player")).toHaveCount(1);
   });
 
+
+  test("apk mobile nao corta topo perfil composer ou input", async ({ page }) => {
+    await openElo(page, { width: 390, height: 844 });
+
+    async function visualMetrics() {
+      return await page.evaluate(() => {
+        function box(selector) {
+          const node = document.querySelector(selector);
+          if (!node) return null;
+          const rect = node.getBoundingClientRect();
+          return { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left, width: rect.width, height: rect.height };
+        }
+        const header = box(".elo-product-top");
+        const shell = box(".elo-product-shell");
+        const auth = box(".elo-local-auth");
+        const composer = box(".elo-input-row");
+        const input = box(".elo-input");
+        const send = box(".elo-send-button");
+        const brandLabel = box(".elo-brand-name");
+        return {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          header,
+          shell,
+          auth,
+          composer,
+          input,
+          send,
+          brandLabel,
+          visibleAuth: !!document.querySelector(".elo-local-auth") && getComputedStyle(document.querySelector(".elo-local-auth")).display !== "none",
+          clippedComposerText: !!input && !!composer && (input.top < composer.top || input.bottom > composer.bottom),
+          sendClipped: !!send && !!composer && (send.top < composer.top || send.bottom > composer.bottom),
+          topOverlap: !!header && header.top < 6,
+          firstContentUnderHeader: !!header && !!composer && composer.top <= header.bottom
+        };
+      });
+    }
+
+    let metrics = await visualMetrics();
+    console.log("ELO_APK_VISUAL_PORTRAIT", JSON.stringify(metrics));
+    expect(metrics.visibleAuth).toBe(true);
+    expect(metrics.topOverlap).toBe(false);
+    expect(metrics.firstContentUnderHeader).toBe(false);
+    expect(metrics.clippedComposerText).toBe(false);
+    expect(metrics.sendClipped).toBe(false);
+    expect(metrics.auth.left).toBeGreaterThanOrEqual(0);
+    expect(metrics.auth.right).toBeLessThanOrEqual(metrics.width);
+    await expect(page.locator(".elo-input")).toBeVisible();
+    await page.locator(".elo-input").fill("draft visual mobile");
+    await expect(page.locator(".elo-input")).toHaveValue("draft visual mobile");
+
+    await page.setViewportSize({ width: 390, height: 520 });
+    metrics = await visualMetrics();
+    console.log("ELO_APK_VISUAL_KEYBOARD", JSON.stringify(metrics));
+    expect(metrics.visibleAuth).toBe(true);
+    expect(metrics.topOverlap).toBe(false);
+    expect(metrics.clippedComposerText).toBe(false);
+    expect(metrics.sendClipped).toBe(false);
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    metrics = await visualMetrics();
+    console.log("ELO_APK_VISUAL_LANDSCAPE", JSON.stringify(metrics));
+    expect(metrics.visibleAuth).toBe(true);
+    expect(metrics.topOverlap).toBe(false);
+    expect(metrics.clippedComposerText).toBe(false);
+    expect(metrics.sendClipped).toBe(false);
+  });
+
   test("desktop mantem fluxo basico", async ({ page }) => {
     await openElo(page, { width: 1366, height: 768 });
     await sendElo(page, "me motive hoje");
