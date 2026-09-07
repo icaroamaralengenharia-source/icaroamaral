@@ -5,12 +5,17 @@ import { join } from "node:path";
 const SITE_ACCESS_STORAGE_KEY = "icaro_site_access_v2";
 const ARTIFACT_DIR = join(process.cwd(), "artifacts", "elo-mobile-regressions");
 
-async function openElo(page, viewport = { width: 390, height: 844 }) {
+async function openElo(page, viewport = { width: 390, height: 844 }, options = {}) {
   await page.setViewportSize(viewport);
-  await page.addInitScript((storageKey) => {
-    if (!window.name.includes("elo_mobile_regression_storage_ready")) {
+  await page.addInitScript(({ storageKey, preserveContinuityStorage }) => {
+    if (!preserveContinuityStorage && !window.name.includes("elo_mobile_regression_storage_ready")) {
       window.sessionStorage.removeItem("elo_core_surface_state_v1");
       window.localStorage.removeItem("elo_core_surface_state_v1");
+      Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)).filter(Boolean).forEach((key) => {
+        if (key.startsWith("elo_core_surface_state_v1::") || key.startsWith("elo_core_current_conversation_id_v1::")) {
+          window.localStorage.removeItem(key);
+        }
+      });
       window.localStorage.removeItem("elo_real_media_player_layout_v1");
       window.name = [window.name, "elo_mobile_regression_storage_ready"].filter(Boolean).join(" ");
     }
@@ -19,12 +24,11 @@ async function openElo(page, viewport = { width: 390, height: 844 }) {
       createdAt: Date.now(),
       expiresAt: Date.now() + 12 * 60 * 60 * 1000
     }));
-  }, SITE_ACCESS_STORAGE_KEY);
+  }, { storageKey: SITE_ACCESS_STORAGE_KEY, preserveContinuityStorage: Boolean(options.preserveContinuityStorage) });
   await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".site-access-gate")).toBeHidden();
   await expect(page.locator(".elo-input-row")).toBeVisible();
 }
-
 async function sendElo(page, text) {
   const currentAnswers = await page.locator(".elo-message.assistant:not(.is-typing)").count();
   await page.locator(".elo-input").fill(text);
@@ -340,6 +344,147 @@ test.describe("Elo mobile regressions", () => {
   });
 
 
+  test("apk mobile deixa rolagem perceptivel e respeita leitura", async ({ page }) => {
+    await openElo(page);
+    await sendElo(page, "mensagem inicial para ativar rolagem mobile");
+    await page.evaluate(() => {
+      for (let index = 0; index < 36; index += 1) {
+        window.EloAssistente.appendAssistantMessageForTest("historico " + index, "Mensagem longa de historico " + index + "\nLinha tecnica para criar altura e manter leitura antiga.", false, { responseLifecycle: "historical" });
+      }
+      window.EloAssistente.updateScrollToBottomForTest();
+    });
+
+    const messages = page.locator(".elo-messages");
+    await messages.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+    const bottom = await messages.evaluate((node) => node.scrollTop);
+    await messages.evaluate((node) => { node.scrollTop = Math.max(0, node.scrollTop - 220); node.dispatchEvent(new Event("scroll")); });
+    await page.evaluate(() => window.EloAssistente.updateScrollToBottomForTest());
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeVisible();
+
+    const scrolled = await messages.evaluate((node) => ({
+      scrollTop: node.scrollTop,
+      scrollHeight: node.scrollHeight,
+      clientHeight: node.clientHeight,
+      paddingRight: getComputedStyle(node).paddingRight,
+      scrollbarWidth: getComputedStyle(node).scrollbarWidth || "auto"
+    }));
+    expect(scrolled.scrollHeight).toBeGreaterThan(scrolled.clientHeight);
+    expect(scrolled.scrollTop).toBeLessThan(bottom);
+    expect(["thin", "auto", ""].includes(scrolled.scrollbarWidth)).toBe(true);
+
+    await page.evaluate(() => {
+      window.EloAssistente.appendAssistantMessageForTest("mensagem enquanto le", "Nova resposta sem puxar quem esta lendo acima.", false, { responseLifecycle: "new" });
+      window.EloAssistente.updateScrollToBottomForTest();
+    });
+    const afterAppend = await messages.evaluate((node) => ({ scrollTop: node.scrollTop, distanceFromBottom: node.scrollHeight - node.clientHeight - node.scrollTop }));
+    expect(afterAppend.distanceFromBottom).toBeGreaterThan(48);
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeVisible();
+
+    const buttonBox = await page.locator("[data-elo-scroll-bottom]").boundingBox();
+    const inputBox = await page.locator(".elo-input-row").boundingBox();
+    expect(buttonBox).not.toBeNull();
+    expect(inputBox).not.toBeNull();
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(inputBox.y + 4);
+
+    await page.locator("[data-elo-scroll-bottom]").click();
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeHidden();
+    const atEnd = await messages.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop);
+    expect(atEnd).toBeLessThanOrEqual(54);
+
+    await page.setViewportSize({ width: 390, height: 520 });
+    await messages.evaluate((node) => { node.scrollTop = Math.max(0, node.scrollTop - 180); node.dispatchEvent(new Event("scroll")); });
+    await page.evaluate(() => window.EloAssistente.updateScrollToBottomForTest());
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeVisible();
+    const keyboardButton = await page.locator("[data-elo-scroll-bottom]").boundingBox();
+    const keyboardInput = await page.locator(".elo-input-row").boundingBox();
+    expect(keyboardButton.y + keyboardButton.height).toBeLessThanOrEqual(keyboardInput.y + 4);
+
+    await page.evaluate(() => {
+      HTMLMediaElement.prototype.play = function () {
+        this.dispatchEvent(new Event("playing"));
+        return Promise.resolve();
+      };
+      HTMLMediaElement.prototype.pause = function () { this.dispatchEvent(new Event("pause")); };
+    });
+    await page.evaluate(async () => {
+      await window.EloMediaPlayer.play({
+        source: "LOCAL_CLASSICAL",
+        title: "Fur Elise",
+        files: [{ url: "relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg", type: "audio/ogg" }]
+      });
+    });
+    await expect(page.locator("#elo-real-media-player")).toBeVisible();
+    const playerBox = await page.locator("#elo-real-media-player").boundingBox();
+    const visibleButton = await page.locator("[data-elo-scroll-bottom]").boundingBox();
+    const overlap = Math.max(0, Math.min(playerBox.x + playerBox.width, visibleButton.x + visibleButton.width) - Math.max(playerBox.x, visibleButton.x)) * Math.max(0, Math.min(playerBox.y + playerBox.height, visibleButton.y + visibleButton.height) - Math.max(playerBox.y, visibleButton.y));
+    expect(overlap).toBe(0);
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await messages.evaluate((node) => { node.scrollTop = Math.max(0, node.scrollTop - 160); node.dispatchEvent(new Event("scroll")); });
+    await page.evaluate(() => window.EloAssistente.updateScrollToBottomForTest());
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeVisible();
+    await page.locator("[data-elo-scroll-bottom]").click();
+    await expect(page.locator("[data-elo-scroll-bottom]")).toBeHidden();
+  });
+  test("apk reabre preservando conversa e draft anonimos", async ({ page, context }) => {
+    await openElo(page);
+    await sendElo(page, "preco atual do cimento em Salvador");
+    await page.locator(".elo-input").fill("draft que deve voltar ao abrir o app");
+    await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+    await page.close();
+
+    const reopened = await context.newPage();
+    await openElo(reopened, { width: 390, height: 844 }, { preserveContinuityStorage: true });
+    await expect(reopened.locator(".elo-message.user")).toContainText([/preco atual do cimento em Salvador/i]);
+    await expect(reopened.locator(".elo-message.assistant:not(.is-typing)")).toContainText([/Resultado pesquisado/i]);
+    await expect(reopened.locator(".elo-input")).toHaveValue("draft que deve voltar ao abrir o app");
+    const keys = await reopened.evaluate(() => Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key) => key && key.startsWith("elo_core_surface_state_v1::anon_")));
+    expect(keys.length).toBeGreaterThan(0);
+  });
+
+  test("nova conversa limpa estado persistente ao reabrir", async ({ page, context }) => {
+    await openElo(page);
+    await sendElo(page, "me motive hoje");
+    await page.locator(".elo-input").fill("draft descartavel");
+    await page.evaluate(() => window.EloAssistente.clearLocalConversationForTest());
+    await expect(page.locator(".elo-input")).toHaveValue("");
+    await expect(page.locator(".elo-message.user")).toHaveCount(0);
+    await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+    await page.close();
+
+    const reopened = await context.newPage();
+    await openElo(reopened, { width: 390, height: 844 }, { preserveContinuityStorage: true });
+    await expect(reopened.locator(".elo-input")).toHaveValue("");
+    await expect(reopened.locator(".elo-message.user")).toHaveCount(0);
+    await expect(reopened.locator(".elo-messages")).not.toContainText(/Resposta de teste para: me motive hoje/i);
+  });
+
+  test("persistencia local nao mistura conversa entre usuarios", async ({ page, context }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("elo_core_auth_context_v1", JSON.stringify({ userId: "usuario-a", profile: { email: "a@elo.local" } }));
+      window.ELO_AUTH_CONTEXT = { userId: "usuario-a", profile: { email: "a@elo.local" } };
+    });
+    await openElo(page);
+    await sendElo(page, "conversa privada do usuario A");
+    await page.locator(".elo-input").fill("draft privado A");
+    await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+    await page.close();
+
+    const reopened = await context.newPage();
+    await reopened.addInitScript(() => {
+      localStorage.setItem("elo_core_auth_context_v1", JSON.stringify({ userId: "usuario-b", profile: { email: "b@elo.local" } }));
+      window.ELO_AUTH_CONTEXT = { userId: "usuario-b", profile: { email: "b@elo.local" } };
+    });
+    await openElo(reopened, { width: 390, height: 844 }, { preserveContinuityStorage: true });
+    await expect(reopened.locator(".elo-input")).toHaveValue("");
+    await expect(reopened.locator(".elo-message.user")).toHaveCount(0);
+    const scopes = await reopened.evaluate(() => ({
+      current: window.EloAssistente.getStorageIdentityScopeForTest(),
+      keys: Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key) => key && key.startsWith("elo_core_surface_state_v1::user_"))
+    }));
+    expect(scopes.current).toContain("usuario-b");
+    expect(scopes.keys.some((key) => key.includes("usuario-a"))).toBe(true);
+  });
   test("apk mobile nao corta topo perfil composer ou input", async ({ page }) => {
     await openElo(page, { width: 390, height: 844 });
 
