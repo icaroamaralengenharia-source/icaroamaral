@@ -32,6 +32,8 @@ test("RDO JS avoids stale or misleading production and stock text", () => {
 test("RDO JS protects dynamic containers and supports per-photo captions", () => {
   assert.match(js, /if \(!fotosUnidadeContainer\) \{\s*return;\s*\}/);
   assert.match(js, /if \(!inconformidadesContainer\) \{\s*return;\s*\}/);
+  assert.match(js, /if \(!isStockFullIsolatedApp_ && form\) \{/);
+  assert.match(js, /if \(form\) form\.addEventListener\("submit", async function/);
   assert.match(js, /data-diary-photo-caption-id/);
   assert.match(js, /function updateDailyLogPhotoCaption_/);
   assert.match(js, /dailyLogSaveButton\.disabled = true/);

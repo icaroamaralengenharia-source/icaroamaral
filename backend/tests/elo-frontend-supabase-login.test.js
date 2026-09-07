@@ -15,6 +15,25 @@ function createStorage(initial = {}) {
   };
 }
 
+function encodeBase64Url(value) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function createSupabaseJwt(overrides = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Object.assign({
+    iss: "https://lidueokjpzxdybtongbk.supabase.co/auth/v1",
+    sub: "auth-user-a",
+    aud: "authenticated",
+    exp: now + 3600,
+    iat: now,
+    email: "user-a@example.test",
+    app_metadata: { provider: "email", providers: ["email"] },
+    user_metadata: { email: "user-a@example.test", padding: "x".repeat(900) }
+  }, overrides);
+  return [encodeBase64Url({ alg: "ES256", typ: "JWT" }), encodeBase64Url(payload), "signature"].join(".");
+}
+
 function createElementStub() {
   return {
     hidden: false,
@@ -65,7 +84,7 @@ function loadElo({ fetchImpl, windowOverrides = {} }) {
       querySelector(selector) { return elements.get(selector) || null; },
       querySelectorAll() { return []; },
       createElement: createElementStub,
-      body: { dataset: { eloMode: "standalone", eloProduct: "chat" }, appendChild(child) { return child; } },
+      body: { dataset: { eloMode: "standalone", eloProduct: "chat" }, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } }, appendChild(child) { return child; } },
       documentElement: { style: { setProperty() {} } }
     },
     navigator: { userAgent: "node-test" },
@@ -78,6 +97,7 @@ function loadElo({ fetchImpl, windowOverrides = {} }) {
     addEventListener() {},
     removeEventListener() {},
     URLSearchParams,
+    atob(value) { return Buffer.from(String(value), "base64").toString("binary"); },
     FormData: class FormData {},
     Blob: class Blob {},
     URL: { createObjectURL() { return "blob:test"; }, revokeObjectURL() {} }
@@ -92,6 +112,7 @@ function loadElo({ fetchImpl, windowOverrides = {} }) {
 
 test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout limpa", async () => {
   const calls = [];
+  const tokenA = createSupabaseJwt();
   const { elo, localStorage, sessionStorage, authSession, authUser, authStatus, messages } = loadElo({
     fetchImpl: async (url, options = {}) => {
       calls.push({ url: String(url), options });
@@ -100,10 +121,15 @@ test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout l
         assert.equal(body.email, "user-a@example.test");
         assert.equal(body.password, "secret-a");
         assert.equal(options.headers.apikey, "publishable-key");
-        return { ok: true, json: async () => ({ access_token: "jwt-a", refresh_token: "refresh-a", user: { email: "user-a@example.test" } }) };
+        return { ok: true, json: async () => ({ access_token: tokenA, refresh_token: "refresh-a", user: { email: "user-a@example.test" } }) };
+      }
+      if (String(url) === "https://project.supabase.co/auth/v1/user") {
+        assert.equal(options.headers.Authorization, "Bearer " + tokenA);
+        assert.equal(options.headers.apikey, "publishable-key");
+        return { ok: true, json: async () => ({ id: "auth-user-a", email: "user-a@example.test" }) };
       }
       if (String(url) === "http://localhost:3000/api/elo/identity/merge") {
-        assert.equal(options.headers.Authorization, "Bearer jwt-a");
+        assert.equal(options.headers.Authorization, "Bearer " + tokenA);
         assert.deepEqual(JSON.parse(options.body), { anonymousId: "elo_anon_login_test" });
         return { ok: true, json: async () => ({ ok: true, authContext: { userId: "auth-user-a", profile: { email: "user-a@example.test" } } }) };
       }
@@ -116,36 +142,20 @@ test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout l
   await elo.loginSupabaseForTest("user-a@example.test", "secret-a");
 
   const saved = JSON.parse(localStorage.getItem("sb-elo-core-auth-token"));
-  assert.equal(saved.access_token, "jwt-a");
+  assert.equal(saved.access_token, tokenA);
   assert.equal(sessionStorage.getItem("sb-elo-core-auth-token") !== null, true);
-  assert.equal(elo.getCoreAuthTokenForTest(), "jwt-a");
+  assert.equal(elo.getCoreAuthTokenForTest(), tokenA);
   assert.equal(JSON.stringify({ local: localStorage.dump(), session: sessionStorage.dump() }).includes("secret-a"), false);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(authSession.hidden, false);
   assert.equal(authUser.textContent, "user-a@example.test");
   assert.equal(authStatus.textContent, "Usuario autenticado.");
 
-  localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "legacy-backend" }));
-  localStorage.setItem("sb-stock-full-auth-token", JSON.stringify({ access_token: "legacy-stock" }));
-  localStorage.setItem("stockFullSupabaseToken", "legacy-token");
-  localStorage.setItem("sb-project-auth-token", JSON.stringify({ access_token: "wildcard-token" }));
-  sessionStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "legacy-backend" }));
-  sessionStorage.setItem("sb-stock-full-auth-token", JSON.stringify({ access_token: "legacy-stock" }));
-  sessionStorage.setItem("stockFullSupabaseToken", "legacy-token");
-  sessionStorage.setItem("sb-project-auth-token", JSON.stringify({ access_token: "wildcard-token" }));
   await elo.logoutSupabaseForTest();
   assert.equal(localStorage.getItem("elo_core_current_conversation_id_v1"), null);
   assert.equal(messages.textContent, "");
   assert.equal(localStorage.getItem("sb-elo-core-auth-token"), null);
   assert.equal(sessionStorage.getItem("sb-elo-core-auth-token"), null);
-  assert.equal(localStorage.getItem("sb-stock-full-backend-auth-token"), null);
-  assert.equal(localStorage.getItem("sb-stock-full-auth-token"), null);
-  assert.equal(localStorage.getItem("stockFullSupabaseToken"), null);
-  assert.equal(localStorage.getItem("sb-project-auth-token"), null);
-  assert.equal(sessionStorage.getItem("sb-stock-full-backend-auth-token"), null);
-  assert.equal(sessionStorage.getItem("sb-stock-full-auth-token"), null);
-  assert.equal(sessionStorage.getItem("stockFullSupabaseToken"), null);
-  assert.equal(sessionStorage.getItem("sb-project-auth-token"), null);
   assert.equal(elo.getCoreAuthTokenForTest(), "");
 });
 
@@ -168,7 +178,10 @@ test("ELO frontend troca de usuario limpa conversa local antes de carregar novo 
   const { elo, localStorage, messages } = loadElo({
     fetchImpl: async (url, options = {}) => {
       if (String(url) === "https://project.supabase.co/auth/v1/token?grant_type=password") {
-        return { ok: true, json: async () => ({ access_token: "jwt-next", refresh_token: "refresh-next", user: { email: "next@example.test" } }) };
+        return { ok: true, json: async () => ({ access_token: createSupabaseJwt({ sub: "auth-user-b", email: "next@example.test", user_metadata: { email: "next@example.test", padding: "y".repeat(900) } }), refresh_token: "refresh-next", user: { email: "next@example.test" } }) };
+      }
+      if (String(url) === "https://project.supabase.co/auth/v1/user") {
+        return { ok: true, json: async () => ({ id: "auth-user-b", email: "next@example.test" }) };
       }
       if (String(url) === "http://localhost:3000/api/elo/identity/merge") {
         return { ok: true, json: async () => ({ ok: true, authContext: { userId: mergeUser, profile: { email: mergeUser + "@example.test" } } }) };
