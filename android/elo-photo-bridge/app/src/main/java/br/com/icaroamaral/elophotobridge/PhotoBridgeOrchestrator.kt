@@ -152,6 +152,25 @@ class PhotoBridgeOrchestrator(
     }
   }
 
+  suspend fun prepareFastTimelinePayloadForTimeWindows(
+    command: ParsedCommand,
+    group: VisitGroup,
+    windows: Map<PhotoCategory, CategoryTimeWindow>,
+    onProgress: suspend (PhotoBridgeProgress) -> Unit = {}
+  ): String {
+    Log.d(TAG, "PHOTOS_SENT_TO_TIMELINE: ${group.photos.size}")
+    Log.d(TAG, "PHOTOS_SENT_TO_AI: 0")
+    SelectionDiagnosticStore.recordTimelineSend(group.photos.size)
+    return withContext(Dispatchers.Default) {
+      coroutineContext.ensureActive()
+      onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.PREPARING_REPORT, "Organizando fotos por janelas temporais...", photoCount = group.photos.size))
+      val classified = TimeWindowOrganizer.distribute(group.photos, group.date, windows)
+      val built = adapter.buildPayload(command, group, classified)
+      onProgress(PhotoBridgeProgress(PhotoBridgeFlowStatus.CLASSIFICATION_REVIEW, "Janelas temporais prontas para revisao.", photoCount = group.photos.size, categoryCounts = built.photos.mapKeys { it.key.name.lowercase() }.mapValues { it.value.size }))
+      adapter.toJson(built)
+    }
+  }
+
   suspend fun preparePayloadForGroup(
     command: ParsedCommand,
     group: VisitGroup,
