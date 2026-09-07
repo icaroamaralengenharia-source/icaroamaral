@@ -373,7 +373,7 @@
     todayInput.valueAsDate = new Date();
   }
 
-  if (!isStockFullIsolatedApp_) {
+  if (!isStockFullIsolatedApp_ && form) {
     renderFotoUnidadeFields();
     renderInconformidadeFields();
     initializeWizard_();
@@ -402,7 +402,7 @@
 
   initializeHomeQueryActions_();
 
-  form.addEventListener("submit", async function (event) {
+  if (form) form.addEventListener("submit", async function (event) {
     event.preventDefault();
 
     try {
