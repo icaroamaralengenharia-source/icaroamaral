@@ -1,6 +1,7 @@
 package br.com.icaroamaral.elophotobridge
 
 import android.Manifest
+import android.net.Uri
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.ClipData
@@ -42,6 +43,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -104,6 +107,7 @@ class MainActivity : ComponentActivity() {
     screenModel.isProcessing = false
     retainedTimelineState = lastCustomNonConfigurationInstance as? RetainedTimelineState
     restoreRetainedTimelineState()
+    if (fastTimelineSession == null) restorePersistedFastTimelineSession()
     pendingPayloadJson = screenModel.state.payloadJson.takeIf(String::isNotBlank)
     buildUi()
     restoreUi(screenModel.state)
@@ -257,7 +261,7 @@ class MainActivity : ComponentActivity() {
     timelineReviewButton = Button(this).apply {
       text = "REVISAR BLOCOS"
       setTypeface(typeface, Typeface.BOLD)
-      setOnClickListener { showFastTimelineBlocksReview() }
+      setOnClickListener { if (TimelineOrganizer.validateCuts(currentTimelineGroup?.photos?.size ?: 0, timelineCuts).ok) showFastTimelinePreview() else showFastTimelineBlocksReview() }
     }
     timelineClearButton = Button(this).apply {
       text = "LIMPAR ORGANIZAÇÃO"
@@ -279,7 +283,7 @@ class MainActivity : ComponentActivity() {
     timelinePanel.addView(timelineGrid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     timelinePanel.addView(LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
-      TimelineOrganizer.orderedCategories.drop(1).forEach { category ->
+      TimelineOrganizer.orderedCategories.forEach { category ->
         val button = Button(this@MainActivity).apply {
           text = "CONFIRMAR INÍCIO ${categoryLabel(category).uppercase()}"
           textSize = 14f
@@ -1048,7 +1052,10 @@ class MainActivity : ComponentActivity() {
       return
     }
     selectedTimelinePhotoIndex = photoIndex
-    if (session != null) fastTimelineSession = session.copy(selectedPhotoIndex = photoIndex)
+    if (session != null) {
+      fastTimelineSession = session.copy(selectedPhotoIndex = photoIndex)
+      persistTimelineState(photos.map { it.uri.toString() }, null)
+    }
     val next = nextMissingTimelineCategory()
     val time = selectedTimelinePhotoTime(photoIndex, photos)
     Log.d("EloPhotoBridge", "THUMBNAIL_CLICKED: index=$photoIndex")
@@ -1098,7 +1105,7 @@ class MainActivity : ComponentActivity() {
         return
       }
       val nextCuts = timelineCuts.toMutableMap().apply { put(currentStage, photoIndex) }
-      val nextStage = TimelineOrganizer.orderedCategories.drop(1).firstOrNull { nextCuts[it] == null }
+      val nextStage = TimelineOrganizer.orderedCategories.firstOrNull { nextCuts[it] == null }
       val nextStatus = if (nextStage == null) FastTimelineSessionStatus.REVIEW else FastTimelineSessionStatus.ORGANIZING
       val nextSession = session.copy(
         stage = nextStage,
@@ -1132,7 +1139,7 @@ class MainActivity : ComponentActivity() {
   private fun nextMissingTimelineCategory(): PhotoCategory? {
     val session = fastTimelineSession
     if (session?.status == FastTimelineSessionStatus.ORGANIZING) return session.stage
-    return TimelineOrganizer.orderedCategories.drop(1).firstOrNull { timelineCuts[it] == null }
+    return TimelineOrganizer.orderedCategories.firstOrNull { timelineCuts[it] == null }
   }
 
   private fun updateTimelineControls() {
@@ -1150,13 +1157,13 @@ class MainActivity : ComponentActivity() {
     val readyForReview = isTimelineReviewStatus(sessionStatus) || (cutsComplete && next == null)
     timelineHeader.text = visitTimelineHeader(group, photos)
     timelineInstruction.text = timelineInstructionText()
-    timelineReviewButton.text = if (readyForReview) "REVISAR / GERAR RELATÓRIO" else "REVISAR BLOCOS"
+    timelineReviewButton.text = if (readyForReview) "PREVIEW" else "REVISAR BLOCOS"
     timelineReviewButton.isEnabled = !screenModel.isProcessing && readyForReview
     val hasSelection = selectedTimelinePhotoIndex in photos.indices
     timelineActionButtons.forEach { (category, button) ->
       val cut = timelineCuts[category]
       button.text = if (cut != null) "INÍCIO ${categoryLabel(category).uppercase()}: #${cut + 1}" else "CONFIRMAR INÍCIO ${categoryLabel(category).uppercase()}"
-      button.visibility = if (category == next && sessionStatus == FastTimelineSessionStatus.ORGANIZING) android.view.View.VISIBLE else android.view.View.GONE
+      button.visibility = android.view.View.VISIBLE
       button.isEnabled = category == next && hasSelection && !screenModel.isProcessing && !timelineTransitionInProgress && sessionStatus == FastTimelineSessionStatus.ORGANIZING
     }
     next?.let {
@@ -1172,7 +1179,7 @@ class MainActivity : ComponentActivity() {
       "ORGANIZAÇÃO CONCLUÍDA\nRevise os blocos e gere o relatório.\n$selected"
     } else if (next != null) {
       val step = TimelineOrganizer.orderedCategories.drop(1).indexOf(next) + 1
-      "ETAPA $step DE 4\nEscolha a primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
+      "ETAPA $step DE ${TimelineOrganizer.orderedCategories.size}\nEscolha a primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
     } else {
       "ORGANIZAÇÃO CONCLUÍDA\nMarcações completas. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
     }
@@ -1222,21 +1229,42 @@ class MainActivity : ComponentActivity() {
       updateTimelineControls()
       return
     }
+    fastTimelineSession = fastTimelineSession?.copy(status = FastTimelineSessionStatus.REVIEW, selectedPhotoIndex = -1)
+    fastTimelineSession?.let { syncTimelineFieldsFromSession(it) }
+    persistTimelineState(group.photos.map { it.uri.toString() }, null)
     val labels = TimelineOrganizer.orderedCategories.map { category ->
-      val range = timelineRangeFor(category, group.photos.size)
-      val first = range.first + 1
-      val last = range.last + 1
-      val rangeLabel = if (first == last) "#$first" else "#$first-#$last"
-      "${categoryLabel(category)}\n$rangeLabel\n${range.last - range.first + 1} fotos"
+      val marker = timelineCuts.getValue(category) + 1
+      val time = selectedTimelinePhotoTime(marker - 1, group.photos).ifBlank { "horário indisponível" }
+      "${categoryLabel(category)}\nFoto #$marker\n$time\nEDITAR"
     }.toTypedArray()
     AlertDialog.Builder(this)
-      .setTitle("Organização concluída")
-      .setItems(labels) { _, index -> showTimelineBlockPhotos(TimelineOrganizer.orderedCategories[index]) }
-      .setPositiveButton("GERAR RELATÓRIO ${currentTimelineCommand?.reportType ?: ReportType.SGTO}") { _, _ -> confirmFastTimelinePayload() }
-      .setNeutralButton("EDITAR MARCAÇÕES") { _, _ -> enterTimelineCutEditMode() }
+      .setTitle("REVISÃO FINAL")
+      .setItems(labels) { _, index -> showTimelineMarkerOptions(TimelineOrganizer.orderedCategories[index]) }
+      .setPositiveButton("PREVIEW") { _, _ -> showFastTimelinePreview() }
+      .setNeutralButton("EDITAR MARCAÇÕES") { _, _ -> showTimelineEditStagePicker() }
       .setNegativeButton("FECHAR", null)
       .show()
   }
+
+  private fun showTimelineMarkerOptions(category: PhotoCategory) {
+    AlertDialog.Builder(this)
+      .setTitle(categoryLabel(category))
+      .setItems(arrayOf("EDITAR MARCAÇÃO", "VER FOTOS DO BLOCO")) { _, index ->
+        if (index == 0) enterTimelineCutEditMode(category) else showTimelineBlockPhotos(category)
+      }
+      .setNegativeButton("CANCELAR", null)
+      .show()
+  }
+
+  private fun showTimelineEditStagePicker() {
+    val labels = TimelineOrganizer.orderedCategories.map { category -> categoryLabel(category) }.toTypedArray()
+    AlertDialog.Builder(this)
+      .setTitle("Editar marcação")
+      .setItems(labels) { _, index -> enterTimelineCutEditMode(TimelineOrganizer.orderedCategories[index]) }
+      .setNegativeButton("CANCELAR", null)
+      .show()
+  }
+
   private fun showTimelineBlockPhotos(category: PhotoCategory) {
     val group = currentTimelineGroup ?: return
     val range = timelineRangeFor(category, group.photos.size)
@@ -1261,6 +1289,54 @@ class MainActivity : ComponentActivity() {
       .mapNotNull { category -> timelineCuts[category]?.let { category to it } }
       .sortedWith(compareBy<Pair<PhotoCategory, Int>> { it.second }.thenBy { TimelineOrganizer.orderedCategories.indexOf(it.first) })
   }
+  private fun showFastTimelinePreview() {
+    val parsedCommand = currentTimelineCommand ?: return
+    val group = currentTimelineGroup ?: return
+    val validation = TimelineOrganizer.validateCuts(group.photos.size, timelineCuts)
+    if (!validation.ok) {
+      setStatus(validation.message, PhotoBridgeFlowStatus.FAST_TIMELINE)
+      updateTimelineControls()
+      return
+    }
+    val payload = buildFastTimelinePayload(parsedCommand, group)
+    pendingPayloadJson = payload
+    jsBridge.setPayload(payload)
+    fastTimelineSession = fastTimelineSession?.copy(status = FastTimelineSessionStatus.READY_FOR_ACTION, selectedPhotoIndex = -1)
+    fastTimelineSession?.let { syncTimelineFieldsFromSession(it) }
+    persistState(screenModel.state.copy(
+      flowStatus = PhotoBridgeFlowStatus.FAST_TIMELINE_READY_FOR_ACTION,
+      classificationMode = ClassificationMode.FAST_TIMELINE.name,
+      payloadJson = payload,
+      statusMessage = "Preview pronto. Confira e prepare o relatório."
+    ).withEvent("Preview gerado com o payload real da timeline."))
+    persistTimelineState(group.photos.map { it.uri.toString() }, null)
+    val blocks = TimelineOrganizer.orderedCategories.joinToString("\n") { category ->
+      val range = timelineRangeFor(category, group.photos.size)
+      val rangeLabel = if (range.first == range.last) "Foto #${range.first + 1}" else "Fotos #${range.first + 1}-#${range.last + 1}"
+      "${categoryLabel(category)} - $rangeLabel"
+    }
+    AlertDialog.Builder(this)
+      .setTitle("PREVIEW ${parsedCommand.reportType}")
+      .setMessage(listOf(
+        "Relatório: ${parsedCommand.reportType}",
+        "Cidade: ${group.city ?: "UNKNOWN"}",
+        "Data: ${group.date ?: "AMBIGUOUS"}",
+        "Fotos: ${group.photos.size}",
+        "Ordem final:",
+        blocks
+      ).joinToString("\n"))
+      .setPositiveButton("PREPARAR RELATÓRIO") { _, _ -> confirmFastTimelinePayload() }
+      .setNeutralButton("VOLTAR E EDITAR") { _, _ -> showFastTimelineBlocksReview() }
+      .setNegativeButton("FECHAR", null)
+      .show()
+  }
+
+  private fun buildFastTimelinePayload(parsedCommand: ParsedCommand, group: VisitGroup): String {
+    val classified = TimelineOrganizer.distribute(group.photos, timelineCuts, manualTimelineCategories())
+    val adapter = EloPhotoBridgeAdapter()
+    return adapter.toJson(adapter.buildPayload(parsedCommand, group, classified))
+  }
+
   private fun confirmFastTimelinePayload() {
     val parsedCommand = currentTimelineCommand ?: return
     val group = currentTimelineGroup ?: return
@@ -1297,7 +1373,7 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun isTimelineReviewStatus(status: FastTimelineSessionStatus?): Boolean {
-    return status == FastTimelineSessionStatus.REVIEW || status == FastTimelineSessionStatus.READY_TO_GENERATE || status == FastTimelineSessionStatus.COMPLETED
+    return status == FastTimelineSessionStatus.REVIEW || status == FastTimelineSessionStatus.PREVIEW || status == FastTimelineSessionStatus.READY_FOR_ACTION || status == FastTimelineSessionStatus.COMPLETED
   }
 
   private fun createFastTimelineSession(parsedCommand: ParsedCommand, group: VisitGroup): FastTimelineSession {
@@ -1305,7 +1381,7 @@ class MainActivity : ComponentActivity() {
       sessionId = UUID.randomUUID().toString(),
       command = parsedCommand,
       group = group,
-      stage = TimelineOrganizer.orderedCategories.drop(1).firstOrNull(),
+      stage = TimelineOrganizer.orderedCategories.firstOrNull(),
       selectedPhotoIndex = -1,
       cuts = TimelineOrganizer.defaultCuts(group.photos.size),
       status = FastTimelineSessionStatus.ORGANIZING
@@ -1327,8 +1403,12 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun enterTimelineCutEditMode() {
+    val editStage = TimelineOrganizer.orderedCategories.firstOrNull() ?: return
+    enterTimelineCutEditMode(editStage)
+  }
+
+  private fun enterTimelineCutEditMode(editStage: PhotoCategory) {
     val session = fastTimelineSession ?: return
-    val editStage = TimelineOrganizer.orderedCategories.drop(1).firstOrNull() ?: return
     val nextSession = session.copy(
       stage = editStage,
       selectedPhotoIndex = -1,
@@ -1336,14 +1416,22 @@ class MainActivity : ComponentActivity() {
     )
     fastTimelineSession = nextSession
     syncTimelineFieldsFromSession(nextSession)
+    persistTimelineState(session.group.photos.map { it.uri.toString() }, null)
     setStatus("Selecione novamente a foto inicial de ${categoryLabel(editStage)}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
     showTimelinePanel()
   }
 
   private fun persistTimelineState(photoIds: List<String>, warning: String?) {
+    val session = fastTimelineSession
     val next = screenModel.state.copy(
       timelinePhotoIds = photoIds,
-      cameraStartIndex = timelineCuts[PhotoCategory.CAMERAS] ?: 0,
+      fastTimelineSessionJson = session?.let { encodeFastTimelineSession(it) } ?: "",
+      fastTimelineSessionId = session?.sessionId.orEmpty(),
+      fastTimelineCurrentStage = session?.stage?.name.orEmpty(),
+      fastTimelineSelectedPhotoIndex = session?.selectedPhotoIndex ?: -1,
+      fastTimelineStatus = session?.status?.name.orEmpty(),
+      fastTimelineCategoryMarkersJson = encodeTimelineMarkers(timelineCuts),
+      cameraStartIndex = timelineCuts[PhotoCategory.CAMERAS] ?: -1,
       tomadasStartIndex = timelineCuts[PhotoCategory.TOMADAS] ?: -1,
       rackStartIndex = timelineCuts[PhotoCategory.RACK] ?: -1,
       mastroStartIndex = timelineCuts[PhotoCategory.MASTRO_ANTENA] ?: -1,
@@ -1352,6 +1440,145 @@ class MainActivity : ComponentActivity() {
     )
     persistState(if (warning != null) next.withEvent(warning) else next)
   }
+
+  private fun encodeTimelineMarkers(markers: Map<PhotoCategory, Int>): String {
+    val json = JSONObject()
+    markers.forEach { (category, index) -> json.put(category.name, index) }
+    return json.toString()
+  }
+
+  private fun restorePersistedFastTimelineSession() {
+    val session = decodeFastTimelineSession(screenModel.state.fastTimelineSessionJson) ?: return
+    if (session.status == FastTimelineSessionStatus.COMPLETED) return
+    fastTimelineSession = session
+    syncTimelineFieldsFromSession(session)
+    timelineExpanded = true
+    Log.d("EloPhotoBridge", "FAST_TIMELINE_RESTORE_PERSISTED: session=${session.sessionId} photos=${session.group.photos.size} stage=${session.stage?.name ?: session.status.name}")
+  }
+
+  private fun encodeFastTimelineSession(session: FastTimelineSession): String {
+    val cutsJson = JSONObject()
+    session.cuts.forEach { (category, index) -> cutsJson.put(category.name, index) }
+    val photosJson = JSONArray()
+    session.group.photos.forEach { photo ->
+      photosJson.put(JSONObject()
+        .put("uri", photo.uri.toString())
+        .put("displayName", photo.displayName)
+        .put("dateTaken", photo.dateTaken?.toString())
+        .put("dateAdded", photo.dateAdded?.toString())
+        .put("exifDateOriginal", photo.exifDateOriginal?.toString())
+        .put("width", photo.width)
+        .put("height", photo.height)
+        .put("mimeType", photo.mimeType)
+        .put("latitude", photo.latitude)
+        .put("longitude", photo.longitude)
+        .put("city", photo.city)
+        .put("dateModified", photo.dateModified?.toString())
+        .put("exifDateDigitized", photo.exifDateDigitized?.toString())
+        .put("exifDateOriginalRaw", photo.exifDateOriginalRaw)
+        .put("exifDateDigitizedRaw", photo.exifDateDigitizedRaw)
+        .put("dateTakenRaw", photo.dateTakenRaw)
+        .put("dateAddedRaw", photo.dateAddedRaw)
+        .put("dateModifiedRaw", photo.dateModifiedRaw))
+    }
+    return JSONObject()
+      .put("sessionId", session.sessionId)
+      .put("reportType", session.command.reportType.name)
+      .put("cityHint", session.command.cityHint)
+      .put("dateHint", session.command.dateHint?.toString())
+      .put("latestVisit", session.command.latestVisit)
+      .put("startTimeHint", session.command.startTimeHint?.toString())
+      .put("endTimeHint", session.command.endTimeHint?.toString())
+      .put("rawStartTimeHint", session.command.rawStartTimeHint)
+      .put("rawEndTimeHint", session.command.rawEndTimeHint)
+      .put("endTimeHasSeconds", session.command.endTimeHasSeconds)
+      .put("timeRangeInvalid", session.command.timeRangeInvalid)
+      .put("groupCity", session.group.city)
+      .put("groupDate", session.group.date?.toString())
+      .put("confidenceCity", session.group.confidenceCity)
+      .put("confidenceDate", session.group.confidenceDate)
+      .put("photos", photosJson)
+      .put("stage", session.stage?.name)
+      .put("selectedPhotoIndex", session.selectedPhotoIndex)
+      .put("cuts", cutsJson)
+      .put("status", session.status.name)
+      .toString()
+  }
+
+  private fun decodeFastTimelineSession(raw: String): FastTimelineSession? {
+    if (raw.isBlank()) return null
+    return runCatching {
+      val json = JSONObject(raw)
+      val photosJson = json.optJSONArray("photos") ?: JSONArray()
+      val photos = buildList {
+        for (index in 0 until photosJson.length()) {
+          val item = photosJson.optJSONObject(index) ?: continue
+          add(PhotoMetadata(
+            uri = Uri.parse(item.optString("uri")),
+            displayName = item.optString("displayName"),
+            dateTaken = parseInstantOrNull(item.optString("dateTaken")),
+            dateAdded = parseInstantOrNull(item.optString("dateAdded")),
+            exifDateOriginal = parseInstantOrNull(item.optString("exifDateOriginal")),
+            width = item.optNullableInt("width"),
+            height = item.optNullableInt("height"),
+            mimeType = item.optNullableString("mimeType"),
+            latitude = item.optNullableDouble("latitude"),
+            longitude = item.optNullableDouble("longitude"),
+            city = item.optNullableString("city"),
+            dateModified = parseInstantOrNull(item.optString("dateModified")),
+            exifDateDigitized = parseInstantOrNull(item.optString("exifDateDigitized")),
+            exifDateOriginalRaw = item.optNullableString("exifDateOriginalRaw"),
+            exifDateDigitizedRaw = item.optNullableString("exifDateDigitizedRaw"),
+            dateTakenRaw = item.optNullableLong("dateTakenRaw"),
+            dateAddedRaw = item.optNullableLong("dateAddedRaw"),
+            dateModifiedRaw = item.optNullableLong("dateModifiedRaw")
+          ))
+        }
+      }
+      if (photos.isEmpty()) return@runCatching null
+      val cutsJson = json.optJSONObject("cuts") ?: JSONObject()
+      val cuts = buildMap {
+        TimelineOrganizer.orderedCategories.forEach { category ->
+          if (cutsJson.has(category.name)) put(category, cutsJson.optInt(category.name))
+        }
+      }
+      val command = ParsedCommand(
+        reportType = runCatching { ReportType.valueOf(json.optString("reportType")) }.getOrDefault(ReportType.SGTO),
+        cityHint = json.optNullableString("cityHint"),
+        dateHint = parseDateOrNull(json.optString("dateHint")),
+        latestVisit = json.optBoolean("latestVisit", false),
+        startTimeHint = parseTimeOrNull(json.optString("startTimeHint")),
+        endTimeHint = parseTimeOrNull(json.optString("endTimeHint")),
+        rawStartTimeHint = json.optNullableString("rawStartTimeHint"),
+        rawEndTimeHint = json.optNullableString("rawEndTimeHint"),
+        endTimeHasSeconds = json.optBoolean("endTimeHasSeconds", false),
+        timeRangeInvalid = json.optBoolean("timeRangeInvalid", false)
+      )
+      FastTimelineSession(
+        sessionId = json.optString("sessionId"),
+        command = command,
+        group = VisitGroup(
+          city = json.optNullableString("groupCity"),
+          date = parseDateOrNull(json.optString("groupDate")),
+          photos = photos,
+          confidenceCity = json.optDouble("confidenceCity", 0.0),
+          confidenceDate = json.optDouble("confidenceDate", 0.0)
+        ),
+        stage = runCatching { PhotoCategory.valueOf(json.optString("stage")) }.getOrNull(),
+        selectedPhotoIndex = json.optInt("selectedPhotoIndex", -1),
+        cuts = cuts,
+        status = runCatching { FastTimelineSessionStatus.valueOf(json.optString("status")) }.getOrDefault(FastTimelineSessionStatus.ORGANIZING)
+      )
+    }.getOrNull()
+  }
+
+  private fun parseInstantOrNull(value: String?): Instant? = value?.takeUnless { it.isBlank() || it == "null" }?.let { runCatching { Instant.parse(it) }.getOrNull() }
+  private fun parseDateOrNull(value: String?): LocalDate? = value?.takeUnless { it.isBlank() || it == "null" }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+  private fun parseTimeOrNull(value: String?): LocalTime? = value?.takeUnless { it.isBlank() || it == "null" }?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+  private fun JSONObject.optNullableString(key: String): String? = optString(key).takeUnless { it.isBlank() || it == "null" }
+  private fun JSONObject.optNullableInt(key: String): Int? = if (has(key) && !isNull(key)) optInt(key) else null
+  private fun JSONObject.optNullableLong(key: String): Long? = if (has(key) && !isNull(key)) optLong(key) else null
+  private fun JSONObject.optNullableDouble(key: String): Double? = if (has(key) && !isNull(key)) optDouble(key) else null
 
   private fun manualTimelineCategories(): Map<String, PhotoCategory> {
     val json = runCatching { JSONObject(screenModel.state.timelineManualCategoriesJson) }.getOrNull() ?: return emptyMap()
@@ -1369,7 +1596,7 @@ class MainActivity : ComponentActivity() {
     val defaultCuts = TimelineOrganizer.defaultCuts(screenModel.state.timelinePhotoIds.size)
     timelineCuts = defaultCuts.toMutableMap()
     fastTimelineSession = fastTimelineSession?.copy(
-      stage = TimelineOrganizer.orderedCategories.drop(1).firstOrNull(),
+      stage = TimelineOrganizer.orderedCategories.firstOrNull(),
       selectedPhotoIndex = -1,
       cuts = defaultCuts,
       status = FastTimelineSessionStatus.ORGANIZING
@@ -1599,7 +1826,7 @@ class MainActivity : ComponentActivity() {
     logPayloadStats("PHOTO_SELECTED", payload)
     jsBridge.setPayload(payload)
     val next = stateStore.mergePayload(screenModel.state.copy(selectedVisitId = summary.id), payload).copy(
-      flowStatus = PhotoBridgeFlowStatus.READY_TO_REVIEW,
+      flowStatus = PhotoBridgeFlowStatus.FAST_TIMELINE_READY_FOR_ACTION,
       statusMessage = "Visita encontrada: ${summary.city}, ${summary.startTime}-${summary.endTime}.",
       selectedVisitId = summary.id
     ).withEvent("1 visita encontrada; aguardando revisão da classificação.")
@@ -1847,6 +2074,8 @@ class MainActivity : ComponentActivity() {
   private fun categoryJsonKey(category: PhotoCategory): String {
     return when (category) {
       PhotoCategory.CAIXA_FUNDO_MADEIRA -> "caixaFundoMadeira"
+      PhotoCategory.CAMERAS_EXTERNAS,
+      PhotoCategory.CAMERAS_INTERNAS -> "cameras"
       PhotoCategory.MASTRO_ANTENA -> "mastroAntena"
       PhotoCategory.TOMADA_DADOS -> "tomadaDados"
       PhotoCategory.TOMADA_CABO_PRETO -> "tomadaCaboPreto"
@@ -1863,6 +2092,8 @@ class MainActivity : ComponentActivity() {
   private fun categoryLabel(category: PhotoCategory): String {
     return when (category) {
       PhotoCategory.CAMERAS -> "CÂMERAS"
+      PhotoCategory.CAMERAS_EXTERNAS -> "CÂMERAS EXTERNAS"
+      PhotoCategory.CAMERAS_INTERNAS -> "CÂMERAS INTERNAS"
       PhotoCategory.TOMADAS -> "TOMADAS"
       PhotoCategory.RACK -> "RACK"
       PhotoCategory.CAIXA_FUNDO_MADEIRA -> "CAIXA FUNDO MADEIRA"
@@ -1873,7 +2104,7 @@ class MainActivity : ComponentActivity() {
     }
   }
 
-  private enum class FastTimelineSessionStatus { ORGANIZING, REVIEW, READY_TO_GENERATE, GENERATING, COMPLETED }
+  private enum class FastTimelineSessionStatus { ORGANIZING, REVIEW, PREVIEW, READY_FOR_ACTION, GENERATING, COMPLETED }
 
   private data class FastTimelineSession(
     val sessionId: String,

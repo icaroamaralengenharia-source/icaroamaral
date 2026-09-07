@@ -4,15 +4,16 @@ import java.time.Instant
 
 object TimelineOrganizer {
   val orderedCategories = listOf(
-    PhotoCategory.CAMERAS,
+    PhotoCategory.MASTRO_ANTENA,
+    PhotoCategory.CAMERAS_EXTERNAS,
+    PhotoCategory.CAMERAS_INTERNAS,
     PhotoCategory.TOMADAS,
     PhotoCategory.RACK,
-    PhotoCategory.MASTRO_ANTENA,
     PhotoCategory.CAIXA_FUNDO_MADEIRA
   )
 
   fun defaultCuts(photoCount: Int): Map<PhotoCategory, Int> {
-    return if (photoCount > 0) mapOf(PhotoCategory.CAMERAS to 0) else emptyMap()
+    return emptyMap()
   }
 
   fun validateCuts(photoCount: Int, cuts: Map<PhotoCategory, Int>): TimelineValidationResult {
@@ -37,7 +38,7 @@ object TimelineOrganizer {
       .map { it to cuts.getValue(it) }
       .sortedWith(compareBy<Pair<PhotoCategory, Int>> { it.second }.thenBy { orderedCategories.indexOf(it.first) })
     return ordered.mapIndexed { index, photo ->
-      val automaticCategory = indexedCuts.last { (_, startIndex) -> index >= startIndex }.first
+      val automaticCategory = (indexedCuts.lastOrNull { (_, startIndex) -> index >= startIndex } ?: indexedCuts.first()).first
       val category = manualCategories[photo.uri.toString()] ?: automaticCategory
       ClassifiedPhoto(
         metadata = photo,
@@ -52,6 +53,8 @@ object TimelineOrganizer {
   fun label(category: PhotoCategory): String {
     return when (category) {
       PhotoCategory.CAMERAS -> "Cameras"
+      PhotoCategory.CAMERAS_EXTERNAS -> "Cameras externas"
+      PhotoCategory.CAMERAS_INTERNAS -> "Cameras internas"
       PhotoCategory.TOMADAS -> "Tomadas"
       PhotoCategory.RACK -> "Rack"
       PhotoCategory.MASTRO_ANTENA -> "Mastro/Antena"
@@ -64,6 +67,8 @@ object TimelineOrganizer {
 
   private fun PhotoCategory.toReportCategory(): PhotoCategory {
     return when (this) {
+      PhotoCategory.CAMERAS_EXTERNAS,
+      PhotoCategory.CAMERAS_INTERNAS -> PhotoCategory.CAMERAS
       PhotoCategory.TOMADA_DADOS,
       PhotoCategory.TOMADA_CABO_PRETO -> PhotoCategory.TOMADAS
       else -> this

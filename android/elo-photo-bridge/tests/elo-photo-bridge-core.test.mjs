@@ -433,8 +433,8 @@ test("classificacao parcial monta contagens finais sem misturar visitas", async 
   assert.equal(result.counts.rack, 1);
   assert.equal(result.counts.unknown, 1);
 });
-const timelineOrder = ["CAMERAS", "TOMADAS", "RACK", "MASTRO_ANTENA", "CAIXA_FUNDO_MADEIRA"];
-const timelineKeys = { CAMERAS: "cameras", TOMADAS: "tomadas", RACK: "rack", MASTRO_ANTENA: "mastroAntena", CAIXA_FUNDO_MADEIRA: "caixaFundoMadeira", UNKNOWN: "unknown" };
+const timelineOrder = ["MASTRO_ANTENA", "CAMERAS_EXTERNAS", "CAMERAS_INTERNAS", "TOMADAS", "RACK", "CAIXA_FUNDO_MADEIRA"];
+const timelineKeys = { CAMERAS: "cameras", CAMERAS_EXTERNAS: "cameras", CAMERAS_INTERNAS: "cameras", TOMADAS: "tomadas", RACK: "rack", MASTRO_ANTENA: "mastroAntena", CAIXA_FUNDO_MADEIRA: "caixaFundoMadeira", UNKNOWN: "unknown" };
 
 function timelinePhotos(count) {
   return Array.from({ length: count }, (_, index) => ({
@@ -463,7 +463,7 @@ function distributeTimeline(photos, cuts, manual = {}) {
   const ordered = [...photos].sort((a, b) => bestDate(a).localeCompare(bestDate(b)));
   for (let index = 0; index < ordered.length; index += 1) {
     const markers = timelineOrder.map((item) => [item, cuts[item]]).sort((a, b) => a[1] - b[1] || timelineOrder.indexOf(a[0]) - timelineOrder.indexOf(b[0]));
-    const category = manual[ordered[index].uri] || markers.filter(([, start]) => index >= start).at(-1)[0];
+    const category = manual[ordered[index].uri] || (markers.filter(([, start]) => index >= start).at(-1) || markers[0])[0];
     const key = timelineKeys[category] || "unknown";
     payload.photos[key].push({ ...ordered[index], category, classification: { source: "SGTO_FAST_TIMELINE", confidence: 1, reason: manual[ordered[index].uri] ? "manual_category_adjustment" : "timeline_cut_points" } });
   }
@@ -471,7 +471,7 @@ function distributeTimeline(photos, cuts, manual = {}) {
 }
 
 function realFastTimelineCuts() {
-  return { CAMERAS: 0, TOMADAS: 7, RACK: 9, MASTRO_ANTENA: 25, CAIXA_FUNDO_MADEIRA: 26 };
+  return { MASTRO_ANTENA: 25, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 7, TOMADAS: 9, RACK: 26, CAIXA_FUNDO_MADEIRA: 41 };
 }
 
 function timelineRangeForHarness(category, photoCount, cuts) {
@@ -506,32 +506,32 @@ function timelineReviewFlowHarness({ photoCount = 51, cuts = realFastTimelineCut
   return { aiRequests, validation, blocks, state, afterBack, afterConfirm, afterClear };
 }
 function assertDefaultCuts(count) {
-  const payload = distributeTimeline(timelinePhotos(count), { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 });
-  assert.equal(payload.photos.cameras.length, 17);
-  assert.equal(payload.photos.tomadas.length, 13);
+  const payload = distributeTimeline(timelinePhotos(count), { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 30, RACK: 36, CAIXA_FUNDO_MADEIRA: 41 });
+  assert.equal(payload.photos.cameras.length, 30);
+  assert.equal(payload.photos.tomadas.length, 5);
   assert.equal(payload.photos.rack.length, 5);
-  assert.equal(payload.photos.mastroAntena.length, 6);
+  assert.equal(payload.photos.mastroAntena.length, 1);
   assert.equal(payload.photos.caixaFundoMadeira.length, count - 41);
   assert.equal(payload.photos.cameras[0].classification.source, "SGTO_FAST_TIMELINE");
 }
 
 test("SGTO_FAST_TIMELINE distribui 50 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(50));
 test("SGTO_FAST_TIMELINE distribui 51 fotos pelos cortes fisicos 1,13,27,34,42", () => {
-  const payload = distributeTimeline(timelinePhotos(51), { CAMERAS: 0, TOMADAS: 12, RACK: 26, MASTRO_ANTENA: 33, CAIXA_FUNDO_MADEIRA: 41 });
-  assert.equal(payload.photos.cameras.length, 12);
-  assert.equal(payload.photos.tomadas.length, 14);
+  const payload = distributeTimeline(timelinePhotos(51), { MASTRO_ANTENA: 33, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 12, TOMADAS: 26, RACK: 34, CAIXA_FUNDO_MADEIRA: 41 });
+  assert.equal(payload.photos.cameras.length, 26);
+  assert.equal(payload.photos.tomadas.length, 7);
   assert.equal(payload.photos.rack.length, 7);
-  assert.equal(payload.photos.mastroAntena.length, 8);
+  assert.equal(payload.photos.mastroAntena.length, 1);
   assert.equal(payload.photos.caixaFundoMadeira.length, 10);
   assert.equal(payload.photos.cameras[0].classification.source, "SGTO_FAST_TIMELINE");
 });test("SGTO_FAST_TIMELINE distribui 100 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(100));
 test("SGTO_FAST_TIMELINE distribui 200 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(200));
 
 test("SGTO_FAST_TIMELINE aceita ordem livre e bloqueia apenas ausencia ou foto invalida", () => {
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 16, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 }).ok, true);
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 17, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 35 }).ok, true);
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35 }).ok, false);
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 50 }).ok, false);
+  assert.equal(validateTimelineCuts(50, { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 17, RACK: 16, CAIXA_FUNDO_MADEIRA: 41 }).ok, true);
+  assert.equal(validateTimelineCuts(50, { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 17, RACK: 17, CAIXA_FUNDO_MADEIRA: 35 }).ok, true);
+  assert.equal(validateTimelineCuts(50, { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 30, RACK: 36 }).ok, false);
+  assert.equal(validateTimelineCuts(50, { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 30, RACK: 36, CAIXA_FUNDO_MADEIRA: 50 }).ok, false);
 });
 
 test("SGTO_FAST_TIMELINE preserva cortes quando ids das fotos nao mudam", () => {
@@ -544,7 +544,7 @@ test("SGTO_FAST_TIMELINE preserva cortes quando ids das fotos nao mudam", () => 
 test("SGTO_FAST_TIMELINE mover foto individual e payload final sem IA", () => {
   let aiCalls = 0;
   const photos = timelinePhotos(50);
-  const payload = distributeTimeline(photos, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 }, { [photos[20].uri]: "RACK" });
+  const payload = distributeTimeline(photos, { MASTRO_ANTENA: 35, CAMERAS_EXTERNAS: 0, CAMERAS_INTERNAS: 17, TOMADAS: 30, RACK: 36, CAIXA_FUNDO_MADEIRA: 41 }, { [photos[20].uri]: "RACK" });
   aiCalls += 0;
   assert.equal(payload.photos.rack.some((photo) => photo.uri === photos[20].uri), true);
   assert.equal(payload.photos.rack.find((photo) => photo.uri === photos[20].uri).classification.reason, "manual_category_adjustment");
@@ -867,11 +867,11 @@ function renderTimelineUiHarness({ selectedVisit, screenHeight = 1000 }) {
 
 function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sessionId = "session-1" } = {}) {
   let sequence = Number(sessionId.split("-").pop()) || 1;
-  const firstEditableStage = timelineOrder[1];
+  const firstEditableStage = timelineOrder[0];
   const state = {
     sessionId,
     photos: selectedVisit,
-    cuts: { CAMERAS: 0 },
+    cuts: {},
     currentStage: firstEditableStage,
     selectedIndex: -1,
     status: "ORGANIZING",
@@ -882,16 +882,16 @@ function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sess
     transitionInProgress: false,
     logs: ["FAST_TIMELINE_SESSION_START: id=" + sessionId + " photos=" + selectedVisit.length + " stage=" + firstEditableStage]
   };
-  const nextStageFromCuts = () => timelineOrder.slice(1).find((category) => state.cuts[category] == null) || null;
-  const isReview = () => ["REVIEW", "READY_TO_GENERATE", "COMPLETED"].includes(state.status);
-  const stageButtons = () => Object.fromEntries(timelineOrder.slice(1).map((category) => [category, {
+  const nextStageFromCuts = () => timelineOrder.find((category) => state.cuts[category] == null) || null;
+  const isReview = () => ["REVIEW", "PREVIEW", "READY_FOR_ACTION", "COMPLETED"].includes(state.status);
+  const stageButtons = () => Object.fromEntries(timelineOrder.map((category) => [category, {
     enabled: category === state.currentStage && state.selectedIndex >= 0 && state.status === "ORGANIZING" && !state.transitionInProgress,
-    visible: category === state.currentStage && state.status === "ORGANIZING",
+    visible: state.status === "ORGANIZING",
     text: state.cuts[category] == null ? "CONFIRMAR INÍCIO " + category : "INÍCIO " + category + ": #" + (state.cuts[category] + 1)
   }]));
   const reviewButton = () => ({
     enabled: isReview(),
-    text: isReview() ? "REVISAR / GERAR RELATÓRIO" : "REVISAR BLOCOS"
+    text: isReview() ? "PREVIEW" : "REVISAR BLOCOS"
   });
   const snapshot = () => ({ ...state, cuts: { ...state.cuts } });
   const clickThumbnail = (index) => {
@@ -936,20 +936,22 @@ function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sess
     sequence += 1;
     state.sessionId = "session-" + sequence;
     state.photos = photos;
-    state.cuts = { CAMERAS: 0 };
+    state.cuts = {};
     state.currentStage = firstEditableStage;
     state.selectedIndex = -1;
     state.status = "ORGANIZING";
     state.logs.push("FAST_TIMELINE_SESSION_START: id=" + state.sessionId + " photos=" + photos.length + " stage=" + firstEditableStage);
     return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
   };
-  const editCuts = () => {
+  const editCuts = (category = firstEditableStage) => {
     state.status = "ORGANIZING";
-    state.currentStage = firstEditableStage;
+    state.currentStage = category;
     state.selectedIndex = -1;
     return { state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
   };
-  return { state, clickThumbnail, confirmStage, duplicateConfirmWhileBusy, startNewCommand, editCuts, stageButtons, reviewButton };
+  const openPreview = () => { const enabled = validateTimelineCuts(state.photos.length, state.cuts).ok; const payload = enabled ? distributeTimeline(state.photos, state.cuts) : null; state.status = enabled ? "READY_FOR_ACTION" : state.status; return { enabled, order: timelineOrder, payload }; };
+  const finalAction = () => { state.status = "COMPLETED"; return { status: state.status, payloadReady: true }; };
+  return { state, clickThumbnail, confirmStage, duplicateConfirmWhileBusy, startNewCommand, editCuts, openPreview, finalAction, stageButtons, reviewButton };
 }
 test("FAST_TIMELINE painel inicia visivel expandido com grid de 51 fotos", () => {
   const ui = renderTimelineUiHarness({ selectedVisit: timelinePhotos(51) });
@@ -991,10 +993,10 @@ test("FAST_TIMELINE clique em thumbnail apenas seleciona e nao atribui corte", (
   const afterClick = flow.clickThumbnail(4);
   assert.equal(afterClick.state.photos.length, 17);
   assert.equal(afterClick.state.selectedIndex, 4);
-  assert.equal(afterClick.state.cuts.TOMADAS, undefined);
+  assert.equal(afterClick.state.cuts.MASTRO_ANTENA, undefined);
   assert.equal(afterClick.state.autoAssignCalls, 0);
-  assert.equal(afterClick.stageButtons.TOMADAS.enabled, true);
-  assert.equal(afterClick.stageButtons.RACK.enabled, false);
+  assert.equal(afterClick.stageButtons.MASTRO_ANTENA.enabled, true);
+  assert.equal(afterClick.stageButtons.CAMERAS_EXTERNAS.enabled, false);
   assert.ok(afterClick.state.logs.includes("THUMBNAIL_CLICKED: index=4"));
   assert.ok(afterClick.state.logs.includes("STAGE_BUTTON_ENABLED: true"));
 });
@@ -1002,28 +1004,28 @@ test("FAST_TIMELINE clique em thumbnail apenas seleciona e nao atribui corte", (
 test("FAST_TIMELINE botao da etapa confirma corte e avanca preservando 17 fotos", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
   flow.clickThumbnail(4);
-  const afterTomadas = flow.confirmStage("TOMADAS");
+  const afterTomadas = flow.confirmStage("MASTRO_ANTENA");
   assert.equal(afterTomadas.confirmed, true);
   assert.equal(afterTomadas.state.photos.length, 17);
-  assert.equal(afterTomadas.state.cuts.TOMADAS, 4);
+  assert.equal(afterTomadas.state.cuts.MASTRO_ANTENA, 4);
   assert.equal(afterTomadas.state.selectedIndex, -1);
-  assert.equal(afterTomadas.state.currentStage, "RACK");
-  assert.equal(afterTomadas.stageButtons.RACK.visible, true);
-  assert.equal(afterTomadas.stageButtons.RACK.enabled, false);
+  assert.equal(afterTomadas.state.currentStage, "CAMERAS_EXTERNAS");
+  assert.equal(afterTomadas.stageButtons.CAMERAS_EXTERNAS.visible, true);
+  assert.equal(afterTomadas.stageButtons.CAMERAS_EXTERNAS.enabled, false);
   flow.clickThumbnail(8);
-  assert.equal(flow.stageButtons().RACK.enabled, true);
+  assert.equal(flow.stageButtons().CAMERAS_EXTERNAS.enabled, true);
 });
 
 test("FAST_TIMELINE confirma as quatro etapas e libera revisao final", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
-  for (const [stage, index] of [["TOMADAS", 3], ["RACK", 7], ["MASTRO_ANTENA", 11], ["CAIXA_FUNDO_MADEIRA", 14]]) {
+  for (const [stage, index] of [["MASTRO_ANTENA", 3], ["CAMERAS_EXTERNAS", 7], ["CAMERAS_INTERNAS", 9], ["TOMADAS", 11], ["RACK", 13], ["CAIXA_FUNDO_MADEIRA", 14]]) {
     flow.clickThumbnail(index);
     const confirmed = flow.confirmStage(stage);
     assert.equal(confirmed.confirmed, true);
     assert.equal(confirmed.state.cuts[stage], index);
     assert.equal(confirmed.state.photos.length, 17);
   }
-  assert.deepEqual(flow.state.cuts, { CAMERAS: 0, TOMADAS: 3, RACK: 7, MASTRO_ANTENA: 11, CAIXA_FUNDO_MADEIRA: 14 });
+  assert.deepEqual(flow.state.cuts, { MASTRO_ANTENA: 3, CAMERAS_EXTERNAS: 7, CAMERAS_INTERNAS: 9, TOMADAS: 11, RACK: 13, CAIXA_FUNDO_MADEIRA: 14 });
   assert.equal(flow.state.currentStage, null);
   assert.equal(Object.values(flow.stageButtons()).every((button) => button.visible === false), true);
   assert.equal(validateTimelineCuts(flow.state.photos.length, flow.state.cuts).ok, true);
@@ -1073,14 +1075,14 @@ function fastTimelineRotationRestoreHarness({ photoCount = 17, selectedIndex = 7
 
 test("FAST_TIMELINE marcadores fisicos fora de ordem aceitam 41 fotos", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
-  for (const [stage, index] of [["TOMADAS", 19], ["RACK", 4], ["MASTRO_ANTENA", 31], ["CAIXA_FUNDO_MADEIRA", 11]]) {
+  for (const [stage, index] of [["MASTRO_ANTENA", 31], ["CAMERAS_EXTERNAS", 4], ["CAMERAS_INTERNAS", 12], ["TOMADAS", 19], ["RACK", 8], ["CAIXA_FUNDO_MADEIRA", 11]]) {
     flow.clickThumbnail(index);
     const confirmed = flow.confirmStage(stage);
     assert.equal(confirmed.confirmed, true);
     assert.equal(confirmed.state.cuts[stage], index);
     assert.equal(confirmed.state.photos.length, 41);
   }
-  assert.deepEqual(flow.state.cuts, { CAMERAS: 0, TOMADAS: 19, RACK: 4, MASTRO_ANTENA: 31, CAIXA_FUNDO_MADEIRA: 11 });
+  assert.deepEqual(flow.state.cuts, { MASTRO_ANTENA: 31, CAMERAS_EXTERNAS: 4, CAMERAS_INTERNAS: 12, TOMADAS: 19, RACK: 8, CAIXA_FUNDO_MADEIRA: 11 });
   assert.equal(validateTimelineCuts(41, flow.state.cuts).ok, true);
   assert.equal(flow.state.status, "REVIEW");
   assert.equal(flow.state.logs.some((line) => line.includes("order") || line.includes("deve começar")), false);
@@ -1090,12 +1092,12 @@ test("FAST_TIMELINE um clique confirma salva e avanca exatamente uma etapa", () 
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
   flow.clickThumbnail(19);
   const before = { handlers: flow.state.confirmHandlerCount, saves: flow.state.saveCount, advances: flow.state.stageAdvanceCount };
-  const confirmed = flow.confirmStage("TOMADAS");
+  const confirmed = flow.confirmStage("MASTRO_ANTENA");
   assert.equal(confirmed.confirmed, true);
   assert.equal(flow.state.confirmHandlerCount - before.handlers, 1);
   assert.equal(flow.state.saveCount - before.saves, 1);
   assert.equal(flow.state.stageAdvanceCount - before.advances, 1);
-  assert.equal(flow.state.currentStage, "RACK");
+  assert.equal(flow.state.currentStage, "CAMERAS_EXTERNAS");
   assert.equal(flow.state.selectedIndex, -1);
 });
 
@@ -1108,21 +1110,21 @@ test("FAST_TIMELINE uma acao duplicada nao salva nem repete evento de UI", () =>
   assert.equal(duplicateEvents.length, 1);
   assert.equal(flow.state.saveCount, 0);
   assert.equal(flow.state.stageAdvanceCount, 0);
-  assert.deepEqual(flow.state.cuts, { CAMERAS: 0 });
+  assert.deepEqual(flow.state.cuts, {});
 });
 test("FAST_TIMELINE novo comando inicia nova sessao e descarta cortes antigos", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17), sessionId: "session-10" });
   flow.clickThumbnail(3);
-  flow.confirmStage("TOMADAS");
+  flow.confirmStage("MASTRO_ANTENA");
   flow.clickThumbnail(7);
-  flow.confirmStage("RACK");
-  assert.equal(flow.state.cuts.TOMADAS, 3);
-  assert.equal(flow.state.cuts.RACK, 7);
+  flow.confirmStage("CAMERAS_EXTERNAS");
+  assert.equal(flow.state.cuts.MASTRO_ANTENA, 3);
+  assert.equal(flow.state.cuts.CAMERAS_EXTERNAS, 7);
 
   const restarted = flow.startNewCommand(timelinePhotos(17));
   assert.notEqual(restarted.state.sessionId, "session-10");
-  assert.deepEqual(restarted.state.cuts, { CAMERAS: 0 });
-  assert.equal(restarted.state.currentStage, "TOMADAS");
+  assert.deepEqual(restarted.state.cuts, {});
+  assert.equal(restarted.state.currentStage, "MASTRO_ANTENA");
   assert.equal(restarted.state.selectedIndex, -1);
   assert.equal(restarted.state.photos.length, 17);
 });
@@ -1133,41 +1135,41 @@ test("FAST_TIMELINE clique duplicado de confirmacao nao avanca duas etapas", () 
   const duplicate = flow.duplicateConfirmWhileBusy("TOMADAS");
   assert.equal(duplicate.duplicate, true);
   assert.equal(duplicate.confirmed, false);
-  assert.deepEqual(flow.state.cuts, { CAMERAS: 0 });
-  assert.equal(flow.state.currentStage, "TOMADAS");
+  assert.deepEqual(flow.state.cuts, {});
+  assert.equal(flow.state.currentStage, "MASTRO_ANTENA");
   assert.ok(flow.state.logs.includes("FAST_TIMELINE_DUPLICATE_CONFIRM_IGNORED"));
 
-  const confirmed = flow.confirmStage("TOMADAS");
+  const confirmed = flow.confirmStage("MASTRO_ANTENA");
   assert.equal(confirmed.confirmed, true);
-  assert.equal(flow.state.currentStage, "RACK");
+  assert.equal(flow.state.currentStage, "CAMERAS_EXTERNAS");
   assert.equal(flow.state.cuts.RACK, undefined);
 });
 
 test("FAST_TIMELINE somente botao da etapa ativa confirma", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
   flow.clickThumbnail(4);
-  const wrongStage = flow.confirmStage("RACK");
+  const wrongStage = flow.confirmStage("CAMERAS_EXTERNAS");
   assert.equal(wrongStage.confirmed, false);
-  assert.equal(flow.state.currentStage, "TOMADAS");
-  assert.equal(flow.state.cuts.TOMADAS, undefined);
-  assert.equal(flow.stageButtons().TOMADAS.visible, true);
-  assert.equal(flow.stageButtons().RACK.visible, false);
+  assert.equal(flow.state.currentStage, "MASTRO_ANTENA");
+  assert.equal(flow.state.cuts.MASTRO_ANTENA, undefined);
+  assert.equal(flow.stageButtons().MASTRO_ANTENA.visible, true);
+  assert.equal(flow.stageButtons().CAMERAS_EXTERNAS.visible, true);
 });
 
 test("FAST_TIMELINE revisao final libera gerar relatorio e editar cortes", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17) });
-  for (const [stage, index] of [["TOMADAS", 3], ["RACK", 7], ["MASTRO_ANTENA", 11], ["CAIXA_FUNDO_MADEIRA", 14]]) {
+  for (const [stage, index] of [["MASTRO_ANTENA", 3], ["CAMERAS_EXTERNAS", 7], ["CAMERAS_INTERNAS", 9], ["TOMADAS", 11], ["RACK", 13], ["CAIXA_FUNDO_MADEIRA", 14]]) {
     flow.clickThumbnail(index);
     flow.confirmStage(stage);
   }
   assert.equal(flow.state.status, "REVIEW");
   assert.equal(flow.reviewButton().enabled, true);
-  assert.equal(flow.reviewButton().text, "REVISAR / GERAR RELATÓRIO");
+  assert.equal(flow.reviewButton().text, "PREVIEW");
   assert.equal(Object.values(flow.stageButtons()).every((button) => button.visible === false), true);
 
   const edit = flow.editCuts();
   assert.equal(edit.state.status, "ORGANIZING");
-  assert.equal(edit.state.currentStage, "TOMADAS");
+  assert.equal(edit.state.currentStage, "MASTRO_ANTENA");
   assert.equal(edit.stageButtons.TOMADAS.visible, true);
   assert.equal(edit.reviewButton.enabled, false);
   assert.equal(edit.state.photos.length, 17);
@@ -1184,11 +1186,11 @@ test("FAST_TIMELINE galeria usa apenas fotos selecionadas e nao reintroduz conju
 });
 
 test("FAST_TIMELINE recreation preserva fotos etapa corte e selecao sem reprocessar", () => {
-  const result = fastTimelineRotationRestoreHarness({ photoCount: 17, selectedIndex: 7, cuts: { CAMERAS: 0, TOMADAS: 3 } });
+  const result = fastTimelineRotationRestoreHarness({ photoCount: 17, selectedIndex: 7, cuts: { MASTRO_ANTENA: 0, CAMERAS_EXTERNAS: 3 } });
   assert.equal(result.after.photos.length, 17);
   assert.equal(result.after.timelinePhotoIds.length, 17);
-  assert.equal(result.after.currentStage, "RACK");
-  assert.equal(result.after.cuts.TOMADAS, 3);
+  assert.equal(result.after.currentStage, "CAMERAS_INTERNAS");
+  assert.equal(result.after.cuts.CAMERAS_EXTERNAS, 3);
   assert.equal(result.after.selectedIndex, 7);
   assert.equal(result.after.galleryVisible, true);
   assert.equal(result.after.mediaStoreReads, 0);
@@ -1255,14 +1257,15 @@ test("FAST_TIMELINE cortes reais liberam revisar, confirmar e relatorio sem IA",
   assert.equal(flow.aiRequests, 0);
 });
 
-test("FAST_TIMELINE revisao mostra 5 blocos reais com ranges e total 51", () => {
+test("FAST_TIMELINE revisao mostra 6 marcadores reais com ranges e total 51", () => {
   const flow = timelineReviewFlowHarness();
   assert.deepEqual(flow.blocks.map(({ category, rangeLabel, count }) => ({ category, rangeLabel, count })), [
-    { category: "CAMERAS", rangeLabel: "#1-#7", count: 7 },
-    { category: "TOMADAS", rangeLabel: "#8-#9", count: 2 },
-    { category: "RACK", rangeLabel: "#10-#25", count: 16 },
     { category: "MASTRO_ANTENA", rangeLabel: "#26", count: 1 },
-    { category: "CAIXA_FUNDO_MADEIRA", rangeLabel: "#27-#51", count: 25 }
+    { category: "CAMERAS_EXTERNAS", rangeLabel: "#1-#7", count: 7 },
+    { category: "CAMERAS_INTERNAS", rangeLabel: "#8-#9", count: 2 },
+    { category: "TOMADAS", rangeLabel: "#10-#25", count: 16 },
+    { category: "RACK", rangeLabel: "#27-#41", count: 15 },
+    { category: "CAIXA_FUNDO_MADEIRA", rangeLabel: "#42-#51", count: 10 }
   ]);
   assert.equal(flow.blocks.reduce((sum, block) => sum + block.count, 0), 51);
 });
@@ -1698,4 +1701,50 @@ test("integracao parte do comando real e aplica janela antes de cidade", () => {
   assert.equal(result.timeline.length, 3);
   assert.equal(result.ai, 0);
   assert.ok(result.selected.length <= result.afterTime.length);
+});
+
+
+test("FAST_TIMELINE ordem oficial tem seis etapas", () => {
+  assert.deepEqual(timelineOrder, ["MASTRO_ANTENA", "CAMERAS_EXTERNAS", "CAMERAS_INTERNAS", "TOMADAS", "RACK", "CAIXA_FUNDO_MADEIRA"]);
+});
+
+test("FAST_TIMELINE botao visivel em todas as seis etapas e habilita so com selecao", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  for (const category of timelineOrder) assert.equal(flow.stageButtons()[category].visible, true);
+  assert.equal(flow.stageButtons().MASTRO_ANTENA.enabled, false);
+  flow.clickThumbnail(30);
+  assert.equal(flow.stageButtons().MASTRO_ANTENA.enabled, true);
+  const confirmed = flow.confirmStage("MASTRO_ANTENA");
+  assert.equal(confirmed.confirmed, true);
+  assert.equal(confirmed.state.currentStage, "CAMERAS_EXTERNAS");
+});
+
+test("FAST_TIMELINE editar marcador preserva os demais", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  for (const [stage, index] of [["MASTRO_ANTENA", 4], ["CAMERAS_EXTERNAS", 7], ["CAMERAS_INTERNAS", 10], ["TOMADAS", 15], ["RACK", 11], ["CAIXA_FUNDO_MADEIRA", 20]]) {
+    flow.clickThumbnail(index);
+    flow.confirmStage(stage);
+  }
+  const before = { ...flow.state.cuts };
+  const edit = flow.editCuts("RACK");
+  assert.equal(edit.state.currentStage, "RACK");
+  flow.clickThumbnail(18);
+  flow.confirmStage("RACK");
+  assert.equal(flow.state.cuts.RACK, 18);
+  assert.equal(flow.state.cuts.MASTRO_ANTENA, before.MASTRO_ANTENA);
+  assert.equal(flow.state.cuts.CAMERAS_EXTERNAS, before.CAMERAS_EXTERNAS);
+});
+
+test("FAST_TIMELINE preview e acao final usam payload real", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  for (const [stage, index] of [["MASTRO_ANTENA", 30], ["CAMERAS_EXTERNAS", 4], ["CAMERAS_INTERNAS", 12], ["TOMADAS", 25], ["RACK", 8], ["CAIXA_FUNDO_MADEIRA", 18]]) {
+    flow.clickThumbnail(index);
+    flow.confirmStage(stage);
+  }
+  const preview = flow.openPreview();
+  assert.equal(preview.enabled, true);
+  assert.deepEqual(preview.order, timelineOrder);
+  assert.equal(preview.payload.photos.cameras.every((photo) => photo.classification.source === "SGTO_FAST_TIMELINE"), true);
+  const action = flow.finalAction();
+  assert.equal(action.status, "COMPLETED");
 });

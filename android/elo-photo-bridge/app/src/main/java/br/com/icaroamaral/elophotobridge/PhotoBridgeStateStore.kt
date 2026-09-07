@@ -96,6 +96,12 @@ class PhotoBridgeStateStore(context: Context) {
       .put("payloadJson", state.payloadJson)
       .put("classificationMode", state.classificationMode)
       .put("timelinePhotoIds", timelinePhotoIds)
+      .put("fastTimelineSessionJson", state.fastTimelineSessionJson)
+      .put("fastTimelineSessionId", state.fastTimelineSessionId)
+      .put("fastTimelineCurrentStage", state.fastTimelineCurrentStage)
+      .put("fastTimelineSelectedPhotoIndex", state.fastTimelineSelectedPhotoIndex)
+      .put("fastTimelineStatus", state.fastTimelineStatus)
+      .put("fastTimelineCategoryMarkersJson", state.fastTimelineCategoryMarkersJson)
       .put("cameraStartIndex", state.cameraStartIndex)
       .put("tomadasStartIndex", state.tomadasStartIndex)
       .put("rackStartIndex", state.rackStartIndex)
@@ -160,6 +166,12 @@ class PhotoBridgeStateStore(context: Context) {
       payloadJson = json.optString("payloadJson"),
       classificationMode = json.optString("classificationMode", ClassificationMode.NONE.name),
       timelinePhotoIds = timelinePhotoIds,
+      fastTimelineSessionJson = json.optString("fastTimelineSessionJson"),
+      fastTimelineSessionId = json.optString("fastTimelineSessionId"),
+      fastTimelineCurrentStage = json.optString("fastTimelineCurrentStage"),
+      fastTimelineSelectedPhotoIndex = json.optInt("fastTimelineSelectedPhotoIndex", -1),
+      fastTimelineStatus = json.optString("fastTimelineStatus"),
+      fastTimelineCategoryMarkersJson = json.optString("fastTimelineCategoryMarkersJson"),
       cameraStartIndex = json.optInt("cameraStartIndex", 0),
       tomadasStartIndex = json.optInt("tomadasStartIndex", -1),
       rackStartIndex = json.optInt("rackStartIndex", -1),

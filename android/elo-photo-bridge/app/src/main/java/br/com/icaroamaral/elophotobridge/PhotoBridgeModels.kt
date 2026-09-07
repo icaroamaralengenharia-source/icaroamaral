@@ -9,6 +9,8 @@ enum class ReportType { SGTO, STELECOM, UNKNOWN }
 
 enum class PhotoCategory {
   CAMERAS,
+  CAMERAS_EXTERNAS,
+  CAMERAS_INTERNAS,
   TOMADAS,
   RACK,
   CAIXA_FUNDO_MADEIRA,
