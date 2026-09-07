@@ -15,6 +15,7 @@ import {
   selectIndependentSources,
   isIndependentSource,
   discoverSecondarySources,
+  duplicatePautaMatch,
   buildSecondaryQueries,
   topicAlignmentScore,
   enforceFactualGrounding,
@@ -654,6 +655,59 @@ test("technical_topic tenta secondary discovery antes de bloquear e chama LLM co
   await rm(dir, { recursive: true, force: true });
 });
 
+
+test("diagnostico de duplicidade identifica regra e post anterior", () => {
+  const match = duplicatePautaMatch(
+    { titulo: "CBIC promove Workshop de Negociacoes Coletivas na Construcao Civil", keywords: ["CBIC", "Workshop", "Negociacoes Coletivas"] },
+    [{ titulo: "CBIC realiza Workshop de Negociacoes Coletivas para o setor da Construcao Civil", slug: "workshop-cbic", tags: ["CBIC", "Workshop"] }],
+  );
+  assert.equal(match.duplicate, true);
+  assert.equal(match.rule, "duplicate_title_similarity");
+  assert.equal(match.post.slug, "workshop-cbic");
+});
+
+test("Workshop real gera draft valido quando nao ha post anterior duplicado", async () => {
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop de Negociacoes Coletivas da CBIC</title><link>https://cbic.example/workshop</link><description>Evento com inscricoes, carga horaria e vagas limitadas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop de Negociacoes Coletivas da CBIC</title><link rel="canonical" href="https://cbic.example/workshop"></head><body><article><h1>Workshop de Negociacoes Coletivas da CBIC</h1><p>O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro, com agenda voltada a representantes sindicais e equipes juridicas do setor.</p><p>A atividade tera carga horaria de 12 horas, vagas limitadas, conteudo sobre negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.</p><p>A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao e leitura de cenarios trabalhistas.</p><p>O texto apresenta informacoes de agenda, tema, local, formato da atividade, publico esperado e objetivos declarados da capacitacao, sem transformar a pauta em analise ampla do mercado.</p></article></body></html>`;
+  const eventArticle = validateLlmArticle(fakeArticle({
+    titulo: "Workshop de Negociacoes Coletivas da CBIC",
+    resumo: "A CBIC realizara um Workshop de Negociacoes Coletivas em Brasilia nos dias 10 e 11 de setembro, com carga horaria de 12 horas, vagas limitadas e atividades praticas para representantes do setor.",
+    conteudo: [
+      { subtitulo: "Agenda do encontro", paragrafos: ["O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro. A atividade tera carga horaria de 12 horas e vagas limitadas. A comunicacao da fonte delimita a pauta como uma atividade de capacitacao, com foco em participantes que atuam nas rotinas de negociacao coletiva do setor da construcao civil."] },
+      { subtitulo: "Conteudo previsto", paragrafos: ["A programacao aborda negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano. O recorte editorial permanece no que a fonte informa sobre o evento: carga horaria, vagas, publico de interesse e conteudo aplicado. Sem recorrer a conclusoes externas, o texto organiza os pontos essenciais para que o leitor entenda o formato e o objetivo anunciado."] },
+      { subtitulo: "Publico e foco", paragrafos: ["A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao. A materia evita transformar o Workshop em analise ampla de mercado e registra apenas os dados sustentados pela fonte original, preservando titulo, escopo, tema, publico e caracteristicas informadas da atividade."] },
+    ],
+    seoTitle: "Workshop de Negociacoes Coletivas da CBIC",
+    seoDescription: "CBIC realiza workshop em Brasilia com carga horaria de 12 horas, vagas limitadas e simulacao pratica de negociacoes coletivas.",
+    slug: "workshop-negociacoes-coletivas-cbic",
+    categoria: "Eventos",
+    tags: ["CBIC", "Workshop", "Negociacoes Coletivas"],
+    claims: [
+      { claim: "O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] },
+      { claim: "A atividade tera carga horaria de 12 horas e vagas limitadas.", sourceIds: ["source_1"] },
+      { claim: "A programacao aborda negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.", sourceIds: ["source_1"] },
+    ],
+  }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(eventArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-workshop-valid-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify({ ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] }), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "Workshop de Negociacoes Coletivas da CBIC", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.post, "PASS");
+  assert.equal(report.editorialValidation.ok, true);
+  assert.equal(report.antiCopy, "PASS");
+  assert.equal(report.factualVerifier, "PASS");
+  assert.equal(report.unsupportedClaimBlock, "PASS");
+  assert.equal(report.postPreview.fontes.length, 1);
+  await rm(dir, { recursive: true, force: true });
+});
 test("evento com uma fonte continua suficiente", async () => {
   const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop de Negociacoes Coletivas da CBIC</title><link>https://cbic.example/workshop</link><description>Evento com inscricoes, carga horaria e vagas limitadas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
   const eventHtml = `<!doctype html><html><head><title>Workshop de Negociacoes Coletivas da CBIC</title><link rel="canonical" href="https://cbic.example/workshop"></head><body><article><h1>Workshop de Negociacoes Coletivas da CBIC</h1><p>O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro, com agenda voltada a representantes sindicais e equipes juridicas do setor.</p><p>A atividade tera carga horaria de 12 horas, vagas limitadas, conteudo sobre negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.</p><p>A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao e leitura de cenarios trabalhistas.</p><p>O texto apresenta informacoes de agenda, tema, local, formato da atividade, publico esperado e objetivos declarados da capacitacao, sem transformar a pauta em analise ampla do mercado.</p></article></body></html>`;

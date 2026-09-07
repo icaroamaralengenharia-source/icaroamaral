@@ -354,10 +354,26 @@ export function groupPautas(candidates, config) {
   });
 }
 
-export function isDuplicatePauta(pauta, posts = []) {
-  return posts.some((post) => titleSimilarity(pauta.titulo, post.titulo) >= 0.5 || titleSimilarity(pauta.keywords?.join(" "), [...(post.tags || []), post.titulo].join(" ")) >= 0.55);
+export function duplicatePautaMatch(pauta, posts = []) {
+  for (const post of posts) {
+    const titleScore = titleSimilarity(pauta.titulo, post.titulo);
+    const keywordScore = titleSimilarity(pauta.keywords?.join(" "), [...(post.tags || []), post.titulo].join(" "));
+    if (titleScore >= 0.5 || keywordScore >= 0.55) {
+      return {
+        duplicate: true,
+        post: { titulo: post.titulo, slug: post.slug || "" },
+        titleScore: Number(titleScore.toFixed(3)),
+        keywordScore: Number(keywordScore.toFixed(3)),
+        rule: titleScore >= 0.5 ? "duplicate_title_similarity" : "duplicate_keyword_similarity",
+      };
+    }
+  }
+  return { duplicate: false, post: null, titleScore: 0, keywordScore: 0, rule: "" };
 }
 
+export function isDuplicatePauta(pauta, posts = []) {
+  return duplicatePautaMatch(pauta, posts).duplicate;
+}
 export function rankPautas(pautas, config, posts = [], now = new Date()) {
   const weights = config.weights || {};
   return pautas.map((pauta) => {
@@ -1186,6 +1202,7 @@ export async function runAutopilot({
     unsupportedClaimBlock: "FAIL",
     pautaType: "",
     sourcePolicy: null,
+    editorialValidation: null,
     claimStats: { total: 0, supported: 0, unsupported: 0 },
     unsupportedClaims: [],
     verifierUsage: null,
@@ -1341,8 +1358,24 @@ export async function runAutopilot({
     unsupported: grounding.verifier.unsupportedClaims.length,
   };
   report.verifierUsage = grounding.verifier.usage || { model: null, inputTokens: 0, outputTokens: 0, estimatedCost: null };
-  if (!copy.ok || !hallucination.ok || !grounding.ok || isDuplicatePauta({ titulo: generated.article.titulo, keywords: generated.article.tags }, previous.posts)) {
-    report.blockers.push(grounding.ok ? "Validacao editorial rejeitou o artigo." : "Claims sem suporte bloquearam a publicacao.");
+  const duplicateGenerated = duplicatePautaMatch({ titulo: generated.article.titulo, keywords: generated.article.tags }, previous.posts);
+  report.editorialValidation = {
+    ok: copy.ok && hallucination.ok && grounding.ok && !duplicateGenerated.duplicate,
+    duplicate: duplicateGenerated,
+    rules: {
+      antiCopy: copy.ok,
+      antiHallucination: hallucination.ok,
+      factualGrounding: grounding.ok,
+      novelty: !duplicateGenerated.duplicate,
+    },
+  };
+  if (!copy.ok || !hallucination.ok || !grounding.ok || duplicateGenerated.duplicate) {
+    const reason = !grounding.ok
+      ? "Claims sem suporte bloquearam a publicacao."
+      : duplicateGenerated.duplicate
+        ? `Pauta duplicada no historico: ${duplicateGenerated.post?.titulo || "post anterior"}.`
+        : "Validacao editorial rejeitou o artigo.";
+    report.blockers.push(reason);
     return report;
   }
   let image = null;
