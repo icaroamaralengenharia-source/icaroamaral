@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -214,6 +214,9 @@
   const dailyLogPdfButton = document.getElementById("dailyLogPdfButton");
   const dailyLogShareWhatsappButton = document.getElementById("dailyLogShareWhatsapp");
   const dailyLogShareEmailButton = document.getElementById("dailyLogShareEmail");
+  const diaryToolsToggle = document.getElementById("diaryToolsToggle");
+  const diaryToolsClose = document.getElementById("diaryToolsClose");
+  const diaryToolsBackdrop = document.getElementById("diaryToolsBackdrop");
   const compositionForm = document.getElementById("compositionForm");
   const compositionAddMaterialButton = document.getElementById("compositionAddMaterial");
   const compositionMaterialsList = document.getElementById("compositionMaterialsList");
@@ -4649,6 +4652,26 @@
       saveDailyLogFromForm_();
     });
 
+    bindDiaryToolsDrawer_();
+
+    if (dailyLogForm.elements.productionService) {
+      dailyLogForm.elements.productionService.addEventListener("change", function () {
+        syncDailyLogProductionUnit_();
+        clearDailyLogEstimate_();
+      });
+      syncDailyLogProductionUnit_();
+    }
+
+    if (dailyLogPhotosList) {
+      dailyLogPhotosList.addEventListener("input", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : null;
+        if (!target || !target.matches || !target.matches("[data-diary-photo-caption-id]")) {
+          return;
+        }
+        updateDailyLogPhotoCaption_(target.dataset.diaryPhotoCaptionId, target.value);
+      });
+    }
+
     dailyLogForm.addEventListener("click", function (event) {
       const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
       const actionButton = target && target.closest ? target.closest("[data-diary-action]") : null;
@@ -5318,9 +5341,9 @@
       const stockMatch = matchPredictedMaterialToStockItem(material, stock);
       const stockItem = stockMatch && stockMatch.item ? stockMatch.item : null;
       const requiredQuantity = roundQuantity_(parseNumber_(material.quantity || material.predictedQuantity || material.estimated));
-      const currentBalance = stockMatch ? roundQuantity_(parseNumber_(stockMatch.realBalance)) : 0;
-      const purchaseQuantity = roundQuantity_(Math.max(requiredQuantity - currentBalance, 0));
-      const status = getStockAiPurchasePlanStatus_(requiredQuantity, currentBalance, stockMatch);
+      const currentBalance = stockMatch ? roundQuantity_(parseNumber_(stockMatch.realBalance)) : null;
+      const purchaseQuantity = stockMatch ? roundQuantity_(Math.max(requiredQuantity - currentBalance, 0)) : null;
+      const status = getStockAiPurchasePlanStatus_(requiredQuantity, stockMatch ? currentBalance : 0, stockMatch);
 
       return {
         id: "purchase_plan_" + normalizeCompositionKey_(material.name) + "_" + normalizeUnitKey_(material.unit || "un"),
@@ -5732,8 +5755,8 @@
       lines.push("");
       lines.push("Planejamento de compra pelo saldo local:");
       purchaseItems.forEach(function (item) {
-        lines.push("- " + item.materialName + ": saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
-          ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit + " (" + item.status + ")");
+        lines.push("- " + item.materialName + ": saldo " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+          ", comprar " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") + " (" + formatPurchasePlanStatus_(item.status) + ")");
       });
     }
 
@@ -5755,7 +5778,7 @@
     }
     const executedQuantity = parseNumber_(input.quantity || input.executedQuantity);
     const service = clean(input.service || input.serviceName || (composition && composition.service));
-    const unit = clean(input.unit || (composition && composition.productionUnit)) || "un";
+    const unit = clean(composition && composition.productionUnit) || clean(input.unit) || "un";
     const result = {
       service: service,
       executedQuantity: roundQuantity_(executedQuantity),
@@ -5886,9 +5909,10 @@
       const predictedItem = predicted[key];
       const actualItem = actual[key];
       const estimated = roundQuantity_(predictedItem ? predictedItem.quantity : 0);
-      const registered = roundQuantity_(actualItem ? actualItem.quantity : 0);
-      const difference = roundQuantity_(registered - estimated);
-      const differencePercent = estimated > 0 ? roundQuantity_((difference / estimated) * 100) : 0;
+      const hasRegisteredConsumption = Boolean(actualItem);
+      const registered = hasRegisteredConsumption ? roundQuantity_(actualItem.quantity) : null;
+      const difference = hasRegisteredConsumption ? roundQuantity_(registered - estimated) : null;
+      const differencePercent = hasRegisteredConsumption && estimated > 0 ? roundQuantity_((difference / estimated) * 100) : null;
 
       return {
         name: (predictedItem && predictedItem.name) || (actualItem && actualItem.name) || "Material",
@@ -5898,16 +5922,21 @@
         predicted: estimated,
         registered: registered,
         actual: registered,
+        hasRegisteredConsumption: hasRegisteredConsumption,
         difference: difference,
         differencePercent: differencePercent,
-        status: classifyStockAiConsumptionStatus_(estimated, registered, differencePercent)
+        status: classifyStockAiConsumptionStatus_(estimated, registered, differencePercent, hasRegisteredConsumption)
       };
     }).sort(function (a, b) {
       return String(a.name || "").localeCompare(String(b.name || ""));
     });
   }
 
-  function classifyStockAiConsumptionStatus_(estimated, registered, differencePercent) {
+  function classifyStockAiConsumptionStatus_(estimated, registered, differencePercent, hasRegisteredConsumption) {
+    if (!hasRegisteredConsumption && estimated > 0) {
+      return "consumo real não informado";
+    }
+
     if (estimated <= 0 && registered > 0) {
       return "sem previsão";
     }
@@ -5985,7 +6014,7 @@
 
     const actions = document.createElement("div");
     actions.className = "button-row";
-    actions.appendChild(createEstimateActionButton_("Aplicar ao diário", "apply", "next-action compact"));
+    actions.appendChild(createEstimateActionButton_("Aplicar como sugestão", "apply", "next-action compact"));
     actions.appendChild(createEstimateActionButton_("Editar antes de aplicar", "edit", "secondary-action compact"));
     actions.appendChild(createEstimateActionButton_("Copiar lista de compras", "copy-purchase-plan", "secondary-action compact"));
     actions.appendChild(createEstimateActionButton_("Cancelar", "cancel", "mini-button danger"));
@@ -6050,7 +6079,7 @@
       list.appendChild(createDiaryListItem_(
         item.name,
         "Estimado: " + formatQuantity_(item.estimated) + " " + item.unit +
-          " · Registrado: " + formatQuantity_(item.registered) + " " + item.unit +
+          " · Registrado: " + formatAuditRegisteredQuantity_(item) +
           " · " + formatAuditDifference_(item) +
           " · Status: " + formatStockAiConsumptionStatus_(item.status),
         "",
@@ -6087,9 +6116,9 @@
       list.appendChild(createDiaryListItem_(
         item.materialName,
         "Previsto: " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
-          " · Saldo: " + formatQuantity_(item.currentBalance) + " " + item.unit +
-          " · Comprar: " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
-          " · Status: " + item.status,
+          " · Saldo: " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+          " · Comprar: " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") +
+          " · Status: " + formatPurchasePlanStatus_(item.status),
         item.note,
         []
       ));
@@ -6164,9 +6193,9 @@
 
     (purchasePlan.items || []).forEach(function (item) {
       lines.push("- " + item.materialName + ": previsto " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
-        ", saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
-        ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
-        " (" + item.status + ").");
+        ", saldo " + formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque") +
+        ", comprar " + formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque") +
+        " (" + formatPurchasePlanStatus_(item.status) + ").");
     });
 
     lines.push("");
@@ -6190,13 +6219,13 @@
         unit: item.unit || "un",
         unitValue: 0,
         totalValue: 0,
-        note: item.note || "Consumo calculado por composição estimada. Revise antes de aplicar."
+        note: item.note || "Sugestão de consumo estimado por composição. Confirme ou edite antes de salvar como consumo real."
       });
     });
 
     clearDailyLogEstimate_();
     renderDailyLogDraftLists_();
-    setDailyLogStatus_("Materiais estimados aplicados ao diário. Revise e salve o registro.", "success");
+    setDailyLogStatus_("Sugestões de materiais adicionadas ao diário. Confirme, edite ou remova antes de salvar.", "success");
   }
 
   function collectEstimatedItemsFromPanel_() {
@@ -6244,6 +6273,9 @@
   }
 
   function formatAuditDifference_(item) {
+    if (item && item.hasRegisteredConsumption === false) {
+      return "Consumo real não informado";
+    }
     const difference = Number(item && item.difference || 0);
     const unit = item && item.unit ? " " + item.unit : "";
     const percent = Number(item && item.differencePercent || 0);
@@ -6265,7 +6297,28 @@
     if (normalized === "critico") {
       return "crítico";
     }
-    return normalized || "dentro do previsto";
+    if (normalized === "consumo real nao informado" || normalized === "consumo real não informado") {
+      return "consumo real não informado";
+    }
+    return normalizeDisplayText_(normalized || "dentro do previsto");
+  }
+
+  function formatAuditRegisteredQuantity_(item) {
+    if (item && item.hasRegisteredConsumption === false) {
+      return "Não informado";
+    }
+    return formatQuantity_(item && item.registered) + " " + ((item && item.unit) || "un");
+  }
+
+  function formatPurchasePlanQuantity_(value, unit, unavailable) {
+    if (unavailable || value === null || value === undefined) {
+      return "Não consultável";
+    }
+    return formatQuantity_(value) + " " + (unit || "un");
+  }
+
+  function formatPurchasePlanStatus_(status) {
+    return normalizeDisplayText_(status || "pendente");
   }
 
   function renderDailyLogWorkOptions_(works) {
@@ -6310,6 +6363,10 @@
       return;
     }
 
+    if (dailyLogSaveButton && dailyLogSaveButton.disabled) {
+      return;
+    }
+
     const logItem = collectDailyLogForm_();
 
     if (!logItem.workId || !logItem.date || !logItem.responsible) {
@@ -6317,25 +6374,43 @@
       return;
     }
 
-    ensureLocalState_(appState);
-    const existingIndex = appState.dailyLogs.findIndex(function (item) {
-      return item.id === logItem.id;
-    });
-
-    if (existingIndex >= 0) {
-      logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
-      appState.dailyLogs[existingIndex] = logItem;
-    } else {
-      appState.dailyLogs.push(logItem);
+    if (dailyLogSaveButton) {
+      dailyLogSaveButton.disabled = true;
+      dailyLogSaveButton.textContent = "Salvando diário...";
     }
+    setDailyLogStatus_("Salvando diário e enviando para sincronização...", "info");
 
-    const work = findWork_(logItem.workId);
-    setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
-    saveLocalData({ syncCloud: true });
-    refreshExecutionStockAnalysisAfterRdoSave_(logItem);
-    renderSaasState_();
-    resetDailyLogForm_();
-    setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+    try {
+      ensureLocalState_(appState);
+      const existingIndex = appState.dailyLogs.findIndex(function (item) {
+        return item.id === logItem.id;
+      });
+
+      if (existingIndex >= 0) {
+        logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
+        appState.dailyLogs[existingIndex] = logItem;
+      } else {
+        appState.dailyLogs.push(logItem);
+      }
+
+      const work = findWork_(logItem.workId);
+      setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
+      saveLocalData({ syncCloud: true });
+      refreshExecutionStockAnalysisAfterRdoSave_(logItem);
+      renderSaasState_();
+      resetDailyLogForm_();
+      setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+    } catch (error) {
+      console.error(error);
+      setDailyLogStatus_(error.message || "Não foi possível salvar o diário.", "error");
+    } finally {
+      if (dailyLogSaveButton) {
+        window.setTimeout(function () {
+          dailyLogSaveButton.disabled = false;
+          dailyLogSaveButton.textContent = "Salvar diário";
+        }, 700);
+      }
+    }
   }
 
   function saveDailyLogPreviewFromElo_(preview) {
@@ -6610,6 +6685,62 @@
     }
   }
 
+  function bindDiaryToolsDrawer_() {
+    if (!diaryToolsToggle) {
+      return;
+    }
+
+    diaryToolsToggle.addEventListener("click", function () {
+      setDiaryToolsOpen_(!document.body.classList.contains("rdo-tools-open"));
+    });
+
+    if (diaryToolsClose) {
+      diaryToolsClose.addEventListener("click", function () {
+        setDiaryToolsOpen_(false);
+      });
+    }
+
+    if (diaryToolsBackdrop) {
+      diaryToolsBackdrop.addEventListener("click", function () {
+        setDiaryToolsOpen_(false);
+      });
+    }
+  }
+
+  function setDiaryToolsOpen_(isOpen) {
+    document.body.classList.toggle("rdo-tools-open", Boolean(isOpen));
+    if (diaryToolsToggle) {
+      diaryToolsToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+    const panel = document.getElementById("diarySidePanels");
+    if (panel) {
+      panel.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    }
+    if (diaryToolsBackdrop) {
+      diaryToolsBackdrop.hidden = !isOpen;
+    }
+  }
+
+  function getDailyLogProductionUnitForService_(service, fallback) {
+    const composition = findCompositionForProduction_({ service: service, quantity: 1, unit: "" });
+    return clean(composition && composition.productionUnit) || clean(fallback) || "m²";
+  }
+
+  function syncDailyLogProductionUnit_() {
+    if (!dailyLogForm || !dailyLogForm.elements.productionService || !dailyLogForm.elements.productionUnit) {
+      return;
+    }
+    const service = dailyLogForm.elements.productionService.value;
+    dailyLogForm.elements.productionUnit.value = getDailyLogProductionUnitForService_(service, dailyLogForm.elements.productionUnit.value);
+  }
+
+  function cleanDailyLogServicesText_(services) {
+    return String(services || "")
+      .replace(/(?:^|\n)\s*Produção executada:[^\n]*(?:\n|$)/gi, "\n")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+  }
+
   function syncProductionSummaryToServicesField_() {
     if (!dailyLogForm || !dailyLogForm.elements.services) {
       return;
@@ -6641,7 +6772,7 @@
 
     const service = clean(dailyLogForm.elements.productionService && dailyLogForm.elements.productionService.value) || "Outro";
     const quantity = parseNumber_(dailyLogForm.elements.productionQuantity && dailyLogForm.elements.productionQuantity.value);
-    const unit = clean(dailyLogForm.elements.productionUnit && dailyLogForm.elements.productionUnit.value) || "m²";
+    const unit = getDailyLogProductionUnitForService_(service, dailyLogForm.elements.productionUnit && dailyLogForm.elements.productionUnit.value);
     const note = clean(dailyLogForm.elements.productionNote && dailyLogForm.elements.productionNote.value);
 
     if (!service || quantity <= 0) {
@@ -6669,7 +6800,7 @@
     dailyLogDraft.editingProductionId = "";
     dailyLogForm.elements.productionService.value = "Alvenaria";
     dailyLogForm.elements.productionQuantity.value = "";
-    dailyLogForm.elements.productionUnit.value = "m²";
+    dailyLogForm.elements.productionUnit.value = getDailyLogProductionUnitForService_("Alvenaria", "m²");
     dailyLogForm.elements.productionNote.value = "";
     if (dailyLogAddProductionButton) {
       dailyLogAddProductionButton.textContent = "Adicionar produção";
@@ -7358,7 +7489,7 @@
         "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
         "Faltante: " + (request.missingQuantity === null || request.missingQuantity === undefined ? "-" : formatQuantity_(request.missingQuantity) + " " + (request.requestedUnit || "un")),
-        "Status: " + (request.decisionStatus || request.status),
+        "Status: " + normalizeDisplayText_(request.decisionStatus || request.status),
         getRdoMaterialRequestApprovalLabel_(request),
         getRdoMaterialRequestDeliveryLabel_(request)
       ].join(" - ");
@@ -7390,12 +7521,12 @@
     }
 
     const counts = requests.reduce(function (summary, request) {
-      const status = request.status || "pendente";
+      const status = normalizeDisplayText_(request.status || "pendente");
       summary[status] = (summary[status] || 0) + 1;
       return summary;
     }, {});
     const approvalCounts = requests.reduce(function (summary, request) {
-      const status = request.approvalStatus || "sem_decisao";
+      const status = normalizeDisplayText_(request.approvalStatus || "sem_decisao");
       summary[status] = (summary[status] || 0) + 1;
       return summary;
     }, {});
@@ -7404,8 +7535,8 @@
         request.requestedName || "Material",
         "solicitado " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
         "previsto " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
-        "saldo " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
-        "status tecnico " + (request.status || "pendente"),
+        "saldo " + (request.availableQuantity === null ? "não consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
+        "status técnico " + normalizeDisplayText_(request.status || "pendente"),
         buildRdoMaterialRequestApprovalSummary_(request),
         getRdoMaterialRequestDeliveryLabel_(request)
       ].join(", ");
@@ -7413,11 +7544,11 @@
 
     return "Solicitacoes de material do dia: " + requests.length + ". " +
       Object.keys(counts).map(function (status) {
-        return status + ": " + counts[status];
-      }).join("; ") + ". Aprovacoes: " +
+        return normalizeDisplayText_(status) + ": " + counts[status];
+      }).join("; ") + ". Aprovações: " +
       Object.keys(approvalCounts).map(function (status) {
-        return status + ": " + approvalCounts[status];
-      }).join("; ") + ". APROVACOES DE SOLICITACOES DE MATERIAL: " + requestLines.join(" | ") + ".";
+        return normalizeDisplayText_(status) + ": " + approvalCounts[status];
+      }).join("; ") + ". Aprovações de solicitações de material: " + requestLines.join(" | ") + ".";
   }
 
   function renderRdoMaterialRequestProductionOptions_() {
@@ -7441,7 +7572,7 @@
 
     const selected = dailyLogMaterialRequestAlmoxSelect.value;
     dailyLogMaterialRequestAlmoxSelect.innerHTML = "";
-    dailyLogMaterialRequestAlmoxSelect.appendChild(new Option("Consultar por nome", ""));
+    dailyLogMaterialRequestAlmoxSelect.appendChild(new Option("Sem item vinculado - conferir manualmente", ""));
 
     try {
       calculateAlmoxBalances_().forEach(function (balance) {
@@ -7455,7 +7586,7 @@
       console.warn("Nao foi possivel listar itens do almoxarifado para o RDO.", error);
     }
 
-    dailyLogMaterialRequestAlmoxSelect.value = selected;
+    dailyLogMaterialRequestAlmoxSelect.value = Array.from(dailyLogMaterialRequestAlmoxSelect.options).some(function (option) { return option.value === selected; }) ? selected : "";
   }
 
   // TODO Fase 2:
@@ -7787,18 +7918,36 @@
     dailyLogDraft.photos.forEach(function (item) {
       const card = document.createElement("article");
       const image = document.createElement("img");
-      const caption = document.createElement("span");
+      const caption = document.createElement("label");
+      const captionText = document.createElement("span");
+      const captionInput = document.createElement("input");
       const remove = createDiaryActionButton_("Remover", "remove-photo", item.id);
 
       card.className = "diary-photo-card";
       image.src = item.previewDataUrl || ("data:image/jpeg;base64," + (item.payload && item.payload.base64 || ""));
       image.alt = item.caption || "Foto do diário";
-      caption.textContent = item.caption || "Foto do dia";
+      caption.className = "diary-photo-caption-field";
+      captionText.textContent = "Legenda da foto";
+      captionInput.type = "text";
+      captionInput.value = item.caption || "";
+      captionInput.placeholder = "Descreva esta foto";
+      captionInput.dataset.diaryPhotoCaptionId = item.id;
+      caption.appendChild(captionText);
+      caption.appendChild(captionInput);
       card.appendChild(image);
       card.appendChild(caption);
       card.appendChild(remove);
       dailyLogPhotosList.appendChild(card);
     });
+  }
+
+  function updateDailyLogPhotoCaption_(photoId, value) {
+    const photo = (dailyLogDraft.photos || []).find(function (item) {
+      return item.id === photoId;
+    });
+    if (photo) {
+      photo.caption = clean(value);
+    }
   }
 
   function createDiaryListItem_(title, detail, note, actions) {
@@ -20072,16 +20221,18 @@
 
     parts.push(intro + ".");
 
-    if (logItem.services) {
-      parts.push("Serviços executados: " + logItem.services + ".");
+    const servicesText = cleanDailyLogServicesText_(logItem.services);
+    if (servicesText) {
+      parts.push("Serviços executados: " + servicesText + ".");
     }
 
     if (logItem.productions && logItem.productions.length) {
       parts.push("Produção executada: " + formatProductionCollection_(logItem.productions) + ".");
     }
 
-    if (logItem.employeeCount || logItem.teamPresent) {
-      parts.push("A equipe contou com " + [logItem.employeeCount && logItem.employeeCount + " funcionário(s)", logItem.teamPresent].filter(Boolean).join(" e ") + ".");
+    const teamLine = formatDailyLogTeamLine_(logItem);
+    if (teamLine !== "-") {
+      parts.push(teamLine + ".");
     }
 
     if (logItem.weather || logItem.impact) {
@@ -20093,7 +20244,7 @@
     }
 
     if (logItem.materialRequests && logItem.materialRequests.length) {
-      parts.push("SOLICITACOES DE MATERIAL DO DIA: " + buildDailyLogMaterialRequestsAuditText_(logItem));
+      parts.push(buildDailyLogMaterialRequestsAuditText_(logItem));
     }
 
     if (logItem.tools && logItem.tools.length) {
@@ -20119,7 +20270,8 @@
 
   function shareDailyLogSummary_(channel) {
     const snapshot = collectDailyLogSnapshot_();
-    const message = channel === "email" ? buildDailyLogEmailBody_(snapshot) : buildDailyLogWhatsappMessage_(snapshot);
+    setDailyLogStatus_(channel === "email" ? "Preparando e-mail do RDO..." : "Preparando mensagem do WhatsApp...", "info");
+    const message = normalizeDisplayText_(channel === "email" ? buildDailyLogEmailBody_(snapshot) : buildDailyLogWhatsappMessage_(snapshot));
     const subject = buildDailyLogShareSubject_(snapshot);
 
     if (channel === "whatsapp") {
@@ -20227,7 +20379,7 @@
         ["Observações da equipe", logItem.teamNotes]
       ]),
       buildDailyLogPdfTextSection_("Serviços executados", [
-        ["Serviços", logItem.services],
+        ["Serviços", cleanDailyLogServicesText_(logItem.services)],
         ["Avanço físico estimado", logItem.progress ? logItem.progress + "%" : ""],
         ["Interferências", logItem.interferences],
         ["Visitas recebidas", logItem.visits]
@@ -20245,7 +20397,7 @@
         return [
           item.name,
           formatQuantity_(item.estimated) + " " + item.unit,
-          formatQuantity_(item.registered) + " " + item.unit,
+          formatAuditRegisteredQuantity_(item),
           formatAuditDifference_(item),
           formatStockAiConsumptionStatus_(item.status)
         ];
@@ -20254,9 +20406,9 @@
         return [
           item.materialName,
           formatQuantity_(item.predictedQuantity) + " " + item.unit,
-          formatQuantity_(item.currentBalance) + " " + item.unit,
-          formatQuantity_(item.purchaseQuantity) + " " + item.unit,
-          item.status
+          formatPurchasePlanQuantity_(item.currentBalance, item.unit, item.status === "sem item no estoque"),
+          formatPurchasePlanQuantity_(item.purchaseQuantity, item.unit, item.status === "sem item no estoque"),
+          formatPurchasePlanStatus_(item.status)
         ];
       })),
       buildDailyLogPdfTableSection_("Ferramentas e equipamentos", ["Nome", "Situação", "Observação"], (logItem.tools || []).map(function (item) {
@@ -20273,10 +20425,7 @@
         ["Equipamentos parados ou com problema", logItem.stoppedEquipment],
         ["Observações gerais", logItem.generalNotes]
       ]),
-      buildDailyLogPdfPhotosSection_(logItem.photos || []),
-      buildDailyLogPdfTextSection_("Resumo executivo", [
-        ["Resumo do dia", logItem.summary || buildDailyLogSummary_(logItem)]
-      ])
+      buildDailyLogPdfPhotosSection_(logItem.photos || [])
     ];
 
     if (estimated.missing && estimated.missing.length) {
@@ -20341,7 +20490,7 @@
       "<section class=\"rdo-summary-panel\">",
       "<div>",
       "<span>Resumo executivo</span>",
-      "<strong>" + escapeHtml_(safePdfText_(logItem.summary || buildDailyLogSummary_(logItem))) + "</strong>",
+      "<strong>" + escapeHtml_(safePdfText_(buildDailyLogSummary_(logItem))) + "</strong>",
       "</div>",
       "<ul>",
       "<li><span>Produção</span><strong>" + productions.length + "</strong></li>",
@@ -20533,7 +20682,7 @@
       "Segurança: " + formatDailyLogSafetyLine_(logItem),
       "Fotos: " + formatDailyLogPhotosLine_(logItem),
       "",
-      logItem.summary ? "Resumo do dia: " + logItem.summary : buildDailyLogSummary_(logItem)
+      "Resumo do dia: " + buildDailyLogSummary_(logItem)
     ].filter(function (line) {
       return line !== "";
     });
@@ -20550,7 +20699,7 @@
   function buildDailyLogWhatsappMessage_(logItem) {
     const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
     const clientName = logItem.client ? logItem.client.name : "";
-    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+    const summary = buildDailyLogSummary_(logItem);
 
     return [
       "🏗️ *OBRAREPORT — RESUMO DA OBRA*",
@@ -20589,7 +20738,7 @@
     const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
     const clientName = logItem.client ? logItem.client.name : "";
     const responsible = logItem.responsible || (currentUser && currentUser.name) || "Responsável técnico";
-    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+    const summary = buildDailyLogSummary_(logItem);
 
     return [
       "Olá, " + (clientName || "cliente") + ".",
@@ -20657,11 +20806,28 @@
   }
 
   function formatDailyLogTeamLine_(logItem) {
-    return [
-      logItem.employeeCount ? logItem.employeeCount + " funcionário(s)" : "",
-      logItem.teamPresent || "",
-      logItem.teamNotes || ""
-    ].filter(Boolean).join(" · ") || "-";
+    const employeeCount = parseNumber_(logItem.employeeCount);
+    const teamPresent = clean(logItem.teamPresent).toLowerCase();
+    const parts = [];
+
+    if (teamPresent === "sim") {
+      parts.push(employeeCount > 0 ? "Equipe presente com " + formatEmployeeCountLabel_(employeeCount) : "Equipe presente");
+    } else if (teamPresent === "não" || teamPresent === "nao") {
+      parts.push("Equipe não presente");
+    } else if (employeeCount > 0) {
+      parts.push(formatEmployeeCountLabel_(employeeCount));
+    }
+
+    if (logItem.teamNotes) {
+      parts.push(logItem.teamNotes);
+    }
+
+    return parts.join(" · ") || "-";
+  }
+
+  function formatEmployeeCountLabel_(count) {
+    const value = Number(count || 0);
+    return formatQuantity_(value) + (value === 1 ? " funcionário" : " funcionários");
   }
 
   function formatDailyLogSafetyLine_(logItem) {
@@ -20704,6 +20870,17 @@
       .replace(/m\u00c2\u00b2/g, "m²")
       .replace(/m\u00c2\u00b3/g, "m³")
       .replace(/\u00c2\u00b7/g, "·")
+      .replace(/sem_decisao/g, "sem decisão")
+      .replace(/sem_item_almoxarifado/g, "sem item no almoxarifado")
+      .replace(/nao consultado/g, "não consultado")
+      .replace(/nao informado/g, "não informado")
+      .replace(/consumo real nao informado/g, "consumo real não informado")
+      .replace(/Solicitacoes/g, "Solicitações")
+      .replace(/solicitacao/g, "solicitação")
+      .replace(/Solicitacao/g, "Solicitação")
+      .replace(/Aprovacoes/g, "Aprovações")
+      .replace(/aprovacoes/g, "aprovações")
+      .replace(/status tecnico/g, "status técnico")
       .replace(/cer\u00c2mico/g, "cerâmico")
       .replace(/Cer\u00c2mico/g, "Cerâmico")
       .replace(/cer\u00c3\u00a2mico/g, "cerâmico")
@@ -21262,6 +21439,9 @@
   }
 
   function renderFotoUnidadeFields() {
+    if (!fotosUnidadeContainer) {
+      return;
+    }
     const fragment = document.createDocumentFragment();
 
     for (let index = 1; index <= maxFotosUnidade; index += 1) {
@@ -21281,6 +21461,9 @@
   }
 
   function renderInconformidadeFields() {
+    if (!inconformidadesContainer) {
+      return;
+    }
     const fragment = document.createDocumentFragment();
 
     for (let index = 1; index <= maxInconformidades; index += 1) {
