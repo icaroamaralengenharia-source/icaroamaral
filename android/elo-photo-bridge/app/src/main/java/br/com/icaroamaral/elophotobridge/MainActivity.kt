@@ -629,7 +629,13 @@ class MainActivity : ComponentActivity() {
       return
     }
     setStatus("Estado atualizado. Para buscar uma visita, use EXECUTAR.", screenModel.state.flowStatus)
-  }  private fun handleFastTimelineClick() {
+  }
+
+  private fun handleFastTimelineClick() {
+    if (hasActiveFastTimelineSession()) {
+      showFastTimelineResumeChoice()
+      return
+    }
     Log.d("EloPhotoBridge", "FAST_CLICK_RECEIVED")
     Log.d(
       "EloPhotoBridge",
@@ -654,6 +660,30 @@ class MainActivity : ComponentActivity() {
       return
     }
     prepareFastTimelineSearch()
+  }
+
+  private fun hasActiveFastTimelineSession(): Boolean {
+    val session = fastTimelineSession ?: return false
+    return session.status != FastTimelineSessionStatus.COMPLETED
+  }
+
+  private fun showFastTimelineResumeChoice() {
+    val session = fastTimelineSession ?: return
+    val stageLabel = session.stage?.let { categoryLabel(it) } ?: session.status.name
+    val date = session.group.date?.toString() ?: "AMBIGUOUS"
+    AlertDialog.Builder(this)
+      .setTitle("Continuar organização anterior")
+      .setMessage("${session.group.city ?: "UNKNOWN"} - $date - ${session.group.photos.size} fotos - etapa: $stageLabel")
+      .setPositiveButton("CONTINUAR ORGANIZAÇÃO") { _, _ ->
+        syncTimelineFieldsFromSession(session)
+        showTimelinePanel()
+        setStatus("Organização anterior restaurada.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+      }
+      .setNegativeButton("INICIAR NOVA") { _, _ ->
+        resetFastTimelineSession()
+        handleFastTimelineClick()
+      }
+      .show()
   }
 
   private fun selectedFastTimelineGroup(): Pair<ParsedCommand, VisitGroup>? {
