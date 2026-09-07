@@ -3498,3 +3498,35 @@ body[data-elo-product="chat"] .elo-empty-copy {
 .elo-inline-media-link:hover {
   text-decoration: underline;
 }
+
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button {
+  color: #744018;
+  border-color: rgba(180, 83, 9, 0.18);
+  background: rgba(255, 247, 237, 0.82);
+}
+
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button:hover,
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button:focus-visible {
+  color: #5f3414;
+  border-color: rgba(180, 83, 9, 0.34);
+  background: rgba(255, 237, 213, 0.92);
+}
+
+body[data-elo-product="chat"] .elo-utility-panel {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+body[data-elo-product="chat"] .elo-utility-title {
+  color: var(--elo-premium-ink);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+body[data-elo-product="chat"] .elo-utility-empty {
+  margin: 0;
+  color: rgba(39, 58, 82, 0.68);
+  font-size: 0.9rem;
+}

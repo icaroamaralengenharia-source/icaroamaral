@@ -84,6 +84,7 @@
       <button type="button" data-elo-new-chat>Nova conversa</button>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
+      <button type="button" class="elo-clear-conversation-button" data-elo-clear-chat>Limpar conversa</button>
     </nav>
     <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
       <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
@@ -340,7 +341,8 @@
           reportButton: "[data-elo-local-report]",
           newChatButton: "[data-elo-new-chat]",
           historyButton: "[data-elo-history]",
-          memoryButton: "[data-elo-memory]"
+          memoryButton: "[data-elo-memory]",
+          clearChatButton: "[data-elo-clear-chat]"
         });
         initEloRotatingPrompt();
       }
@@ -433,9 +435,16 @@
   <script>window.ELO_STOCK_BRIDGE_ONLY = false;</script>
   <script src="relatorio-qualidade-obras/elo-media-player.js?v=20260822-embed-validate-v1"></script>
   <script src="relatorio-qualidade-obras/elo-offline-media-library.js?v=20260826-classical-offline-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-router.js?v=20260902-offline-min-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-local-calculator.js?v=20260907-local-tools-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-local-conversions.js?v=20260907-local-tools-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-local-engineering.js?v=20260907-local-tools-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-local-tools.js?v=20260907-local-tools-v1"></script>
   <script src="relatorio-qualidade-obras/elo-music-catalog.js?v=20260825-catalog-100-v1"></script>
   <script src="relatorio-qualidade-obras/elo-music-resolver.js?v=20260825-catalog-first-v1"></script>
   <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260827-wake-continuous-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-pause-game.js?v=20260907-edu-rex-v20"></script>
+  <script src="./relatorio-qualidade-obras/elo-native-diagnostics.js?v=20260907-native-diagnostics-v1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
