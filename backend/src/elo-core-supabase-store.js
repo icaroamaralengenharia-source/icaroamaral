@@ -13,6 +13,15 @@ function now() {
   return new Date().toISOString();
 }
 
+function buildConversationTitleFromContent(content) {
+  return clean(content, 160).slice(0, 60);
+}
+
+function isDefaultConversationTitle(title) {
+  const value = clean(title, 160);
+  return !value || value === "Nova conversa";
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value || null));
 }
@@ -215,22 +224,34 @@ export function createEloCoreSupabaseStore(options = {}) {
     if (!content) throw safeError("message_content_required", 400);
     if (SENSITIVE_RE.test(content) && input.allowSensitive !== true) throw safeError("sensitive_message_blocked", 400);
     const payload = {
-      conversation_id: clean(conversationId, 140),
       owner_user_id: ownerUserId,
       anonymous_id: null,
       institution_id: input.institution_id || input.institutionId || null,
       company_id: input.company_id || input.companyId || null,
       project_id: input.project_id || input.projectId || null,
+      conversation_id: clean(conversationId, 160),
       role,
       content,
       attachments: normalizeAttachments(input.attachments)
     };
+    assertTable("elo_messages");
     const result = await client.from("elo_messages").insert(payload).select("*").single();
     rethrowSupabaseError(result.error);
-    await client.from("elo_conversations").update({ updated_at: now() }).eq("id", payload.conversation_id);
+
+    assertTable("elo_conversations");
+    const updatePayload = { updated_at: now() };
+    if (role === "user") {
+      const conversationResult = await client.from("elo_conversations").select("id,title").eq("id", payload.conversation_id).maybeSingle();
+      rethrowSupabaseError(conversationResult.error);
+      if (conversationResult.data && isDefaultConversationTitle(conversationResult.data.title)) {
+        const title = buildConversationTitleFromContent(content);
+        if (title) updatePayload.title = title;
+      }
+    }
+    const conversationUpdate = await client.from("elo_conversations").update(updatePayload).eq("id", payload.conversation_id);
+    rethrowSupabaseError(conversationUpdate.error);
     return clone(normalizeMessage(result.data));
   }
-
   async function listMemories(input = {}) {
     const client = clientFor(input);
     const includeInactive = input.includeInactive === true || input.includeInactive === "true";
