@@ -3,7 +3,7 @@
 <head>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ELO CORE | Pergunte ao ELO</title>
   <meta name="description" content="Converse com o ELO CORE.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,9 +46,14 @@
       display: none;
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
-      inset: 0 0 auto;
-      height: 62px;
-      min-height: 62px;
+      left: 50%;
+      right: auto;
+      top: calc(14px + env(safe-area-inset-top));
+      bottom: auto;
+      width: min(820px, calc(100vw - 16px));
+      height: auto;
+      transform: translateX(-50%);
+      min-height: 54px;
       overflow: visible;
       background: rgba(244, 247, 251, 0.92);
     }
