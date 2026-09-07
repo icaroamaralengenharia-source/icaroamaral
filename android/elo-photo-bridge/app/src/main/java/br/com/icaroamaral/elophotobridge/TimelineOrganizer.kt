@@ -22,12 +22,7 @@ object TimelineOrganizer {
     val indices = orderedCategories.map { cuts.getValue(it) }
     val outOfBounds = orderedCategories.zip(indices).firstOrNull { (_, index) -> index !in 0 until photoCount }
     if (outOfBounds != null) return TimelineValidationResult(false, "${label(outOfBounds.first)} aponta para uma foto fora da visita.")
-    for (index in 1 until indices.size) {
-      if (indices[index] <= indices[index - 1]) {
-        return TimelineValidationResult(false, "${label(orderedCategories[index])} deve começar depois de ${label(orderedCategories[index - 1])}.")
-      }
-    }
-    return TimelineValidationResult(true, "Cortes validos.")
+    return TimelineValidationResult(true, "Marcadores validos.")
   }
 
   fun distribute(
@@ -38,7 +33,9 @@ object TimelineOrganizer {
     val ordered = photos.sortedBy { it.bestInstant() ?: Instant.EPOCH }
     val validation = validateCuts(ordered.size, cuts)
     require(validation.ok) { validation.message }
-    val indexedCuts = orderedCategories.map { it to cuts.getValue(it) }
+    val indexedCuts = orderedCategories
+      .map { it to cuts.getValue(it) }
+      .sortedWith(compareBy<Pair<PhotoCategory, Int>> { it.second }.thenBy { orderedCategories.indexOf(it.first) })
     return ordered.mapIndexed { index, photo ->
       val automaticCategory = indexedCuts.last { (_, startIndex) -> index >= startIndex }.first
       val category = manualCategories[photo.uri.toString()] ?: automaticCategory

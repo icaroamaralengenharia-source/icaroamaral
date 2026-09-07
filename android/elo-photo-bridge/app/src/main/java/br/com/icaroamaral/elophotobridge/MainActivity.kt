@@ -1091,7 +1091,7 @@ class MainActivity : ComponentActivity() {
         updateTimelineControls()
         return
       }
-      val error = validateTimelineCut(currentStage, photoIndex, photos.size)
+      val error = validateTimelineMarker(currentStage, photoIndex, photos.size)
       if (error != null) {
         setStatus(error, PhotoBridgeFlowStatus.FAST_TIMELINE)
         updateTimelineControls()
@@ -1110,11 +1110,13 @@ class MainActivity : ComponentActivity() {
       syncTimelineFieldsFromSession(nextSession)
       persistTimelineState(photos.map { it.uri.toString() }, null)
       Log.d("EloPhotoBridge", "FAST_TIMELINE_STAGE_CONFIRMED: session=${session.sessionId} stage=${currentStage.name} index=$photoIndex next=${nextStage?.name ?: "REVIEW"}")
-      setStatus("${categoryLabel(currentStage)} começa em #${photoIndex + 1}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
-      updateTimelineControls()
       if (nextStatus == FastTimelineSessionStatus.REVIEW) {
-        setStatus("Organização concluída. Revise os blocos ou gere o relatório.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+        setStatus("Organização concluída. Revise as marcações ou gere o relatório.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+        updateTimelineControls()
         showFastTimelineBlocksReview()
+      } else {
+        setStatus("${categoryLabel(currentStage)} marcado em #${photoIndex + 1}. Próxima categoria: ${categoryLabel(nextStage!!)}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+        updateTimelineControls()
       }
     } finally {
       timelineTransitionInProgress = false
@@ -1122,14 +1124,8 @@ class MainActivity : ComponentActivity() {
     }
   }
 
-  private fun validateTimelineCut(category: PhotoCategory, photoIndex: Int, photoCount: Int): String? {
+  private fun validateTimelineMarker(category: PhotoCategory, photoIndex: Int, photoCount: Int): String? {
     if (photoIndex !in 0 until photoCount) return "${categoryLabel(category)} aponta para uma foto fora da visita."
-    val orderIndex = TimelineOrganizer.orderedCategories.indexOf(category)
-    val previous = TimelineOrganizer.orderedCategories.getOrNull(orderIndex - 1)
-    val next = TimelineOrganizer.orderedCategories.getOrNull(orderIndex + 1)
-    if (timelineCuts.any { it.key != category && it.value == photoIndex }) return "Dois blocos não podem começar na mesma foto."
-    if (previous != null && (timelineCuts[previous] ?: -1) >= photoIndex) return "${categoryLabel(category)} deve começar depois de ${categoryLabel(previous)}."
-    if (next != null && (timelineCuts[next] ?: Int.MAX_VALUE) <= photoIndex) return "${categoryLabel(category)} deve começar antes de ${categoryLabel(next)}."
     return null
   }
 
@@ -1178,7 +1174,7 @@ class MainActivity : ComponentActivity() {
       val step = TimelineOrganizer.orderedCategories.drop(1).indexOf(next) + 1
       "ETAPA $step DE 4\nEscolha a primeira foto de ${categoryLabel(next).uppercase()}.\n$selected"
     } else {
-      "ORGANIZAÇÃO CONCLUÍDA\nCortes completos. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
+      "ORGANIZAÇÃO CONCLUÍDA\nMarcações completas. Toque em REVISAR BLOCOS para conferir e confirmar.\n$selected"
     }
   }
   private fun restoreRetainedTimelineState() {
@@ -1214,7 +1210,7 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun selectedTimelinePhotoMessage(photoIndex: Int, photos: List<PhotoMetadata>, next: PhotoCategory?): String {
-    val action = next?.let { "Toque em INÍCIO ${categoryLabel(it).uppercase()} para confirmar." } ?: "Cortes completos. Toque em REVISAR BLOCOS para conferir."
+    val action = next?.let { "Toque em INÍCIO ${categoryLabel(it).uppercase()} para confirmar." } ?: "Marcações completas. Toque em REVISAR BLOCOS para conferir."
     return "${selectedTimelinePhotoSummary(photoIndex, photos)} $action"
   }
 
@@ -1237,7 +1233,7 @@ class MainActivity : ComponentActivity() {
       .setTitle("Organização concluída")
       .setItems(labels) { _, index -> showTimelineBlockPhotos(TimelineOrganizer.orderedCategories[index]) }
       .setPositiveButton("GERAR RELATÓRIO ${currentTimelineCommand?.reportType ?: ReportType.SGTO}") { _, _ -> confirmFastTimelinePayload() }
-      .setNeutralButton("EDITAR CORTES") { _, _ -> enterTimelineCutEditMode() }
+      .setNeutralButton("EDITAR MARCAÇÕES") { _, _ -> enterTimelineCutEditMode() }
       .setNegativeButton("FECHAR", null)
       .show()
   }
@@ -1253,10 +1249,17 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun timelineRangeFor(category: PhotoCategory, photoCount: Int): IntRange {
-    val index = TimelineOrganizer.orderedCategories.indexOf(category)
+    val markers = sortedTimelineMarkers()
+    val index = markers.indexOfFirst { it.first == category }
     val start = timelineCuts.getValue(category)
-    val end = TimelineOrganizer.orderedCategories.getOrNull(index + 1)?.let { timelineCuts.getValue(it) - 1 } ?: photoCount - 1
-    return start..end
+    val end = markers.getOrNull(index + 1)?.second?.minus(1) ?: photoCount - 1
+    return start..end.coerceAtLeast(start)
+  }
+
+  private fun sortedTimelineMarkers(): List<Pair<PhotoCategory, Int>> {
+    return TimelineOrganizer.orderedCategories
+      .mapNotNull { category -> timelineCuts[category]?.let { category to it } }
+      .sortedWith(compareBy<Pair<PhotoCategory, Int>> { it.second }.thenBy { TimelineOrganizer.orderedCategories.indexOf(it.first) })
   }
   private fun confirmFastTimelinePayload() {
     val parsedCommand = currentTimelineCommand ?: return
@@ -1333,7 +1336,7 @@ class MainActivity : ComponentActivity() {
     )
     fastTimelineSession = nextSession
     syncTimelineFieldsFromSession(nextSession)
-    setStatus("Selecione novamente o início de ${categoryLabel(editStage)}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
+    setStatus("Selecione novamente a foto inicial de ${categoryLabel(editStage)}.", PhotoBridgeFlowStatus.FAST_TIMELINE)
     showTimelinePanel()
   }
 
@@ -1381,7 +1384,7 @@ class MainActivity : ComponentActivity() {
       caixaStartIndex = -1,
       timelineManualCategoriesJson = "",
       statusMessage = "Organização limpa. Data, cidade e visita preservadas."
-    ).withEvent("Pontos de corte e ajustes manuais removidos."))
+    ).withEvent("Marcações e ajustes manuais removidos."))
     updateTimelineControls()
   }
 

@@ -453,9 +453,6 @@ function validateTimelineCuts(photoCount, cuts) {
     if (!Number.isInteger(cuts[category])) return { ok: false, message: `${category} missing` };
     if (cuts[category] < 0 || cuts[category] >= photoCount) return { ok: false, message: `${category} out_of_bounds` };
   }
-  for (let index = 1; index < timelineOrder.length; index += 1) {
-    if (cuts[timelineOrder[index]] <= cuts[timelineOrder[index - 1]]) return { ok: false, message: `${timelineOrder[index]} order` };
-  }
   return { ok: true };
 }
 
@@ -465,7 +462,8 @@ function distributeTimeline(photos, cuts, manual = {}) {
   const payload = { photos: Object.fromEntries(Object.values(timelineKeys).map((key) => [key, []])) };
   const ordered = [...photos].sort((a, b) => bestDate(a).localeCompare(bestDate(b)));
   for (let index = 0; index < ordered.length; index += 1) {
-    const category = manual[ordered[index].uri] || timelineOrder.filter((item) => index >= cuts[item]).at(-1);
+    const markers = timelineOrder.map((item) => [item, cuts[item]]).sort((a, b) => a[1] - b[1] || timelineOrder.indexOf(a[0]) - timelineOrder.indexOf(b[0]));
+    const category = manual[ordered[index].uri] || markers.filter(([, start]) => index >= start).at(-1)[0];
     const key = timelineKeys[category] || "unknown";
     payload.photos[key].push({ ...ordered[index], category, classification: { source: "SGTO_FAST_TIMELINE", confidence: 1, reason: manual[ordered[index].uri] ? "manual_category_adjustment" : "timeline_cut_points" } });
   }
@@ -477,9 +475,11 @@ function realFastTimelineCuts() {
 }
 
 function timelineRangeForHarness(category, photoCount, cuts) {
-  const index = timelineOrder.indexOf(category);
+  const markers = timelineOrder.map((item) => [item, cuts[item]]).sort((a, b) => a[1] - b[1] || timelineOrder.indexOf(a[0]) - timelineOrder.indexOf(b[0]));
+  const index = markers.findIndex(([item]) => item === category);
   const first = cuts[category];
-  const last = index === timelineOrder.length - 1 ? photoCount - 1 : cuts[timelineOrder[index + 1]] - 1;
+  const nextStart = markers[index + 1]?.[1];
+  const last = nextStart == null ? photoCount - 1 : Math.max(first, nextStart - 1);
   const rangeLabel = first === last ? `#${first + 1}` : `#${first + 1}-#${last + 1}`;
   return { category, first, last, rangeLabel, count: last - first + 1 };
 }
@@ -527,10 +527,11 @@ test("SGTO_FAST_TIMELINE distribui 51 fotos pelos cortes fisicos 1,13,27,34,42",
 });test("SGTO_FAST_TIMELINE distribui 100 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(100));
 test("SGTO_FAST_TIMELINE distribui 200 fotos pelos cortes 1,18,31,36,42", () => assertDefaultCuts(200));
 
-test("SGTO_FAST_TIMELINE bloqueia ordem invalida, corte duplicado e bloco vazio", () => {
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 16, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 }).ok, false);
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 17, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 }).ok, false);
-  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 35 }).ok, false);
+test("SGTO_FAST_TIMELINE aceita ordem livre e bloqueia apenas ausencia ou foto invalida", () => {
+  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 16, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 41 }).ok, true);
+  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 17, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 35 }).ok, true);
+  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35 }).ok, false);
+  assert.equal(validateTimelineCuts(50, { CAMERAS: 0, TOMADAS: 17, RACK: 30, MASTRO_ANTENA: 35, CAIXA_FUNDO_MADEIRA: 50 }).ok, false);
 });
 
 test("SGTO_FAST_TIMELINE preserva cortes quando ids das fotos nao mudam", () => {
@@ -875,6 +876,9 @@ function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sess
     selectedIndex: -1,
     status: "ORGANIZING",
     autoAssignCalls: 0,
+    confirmHandlerCount: 0,
+    saveCount: 0,
+    stageAdvanceCount: 0,
     transitionInProgress: false,
     logs: ["FAST_TIMELINE_SESSION_START: id=" + sessionId + " photos=" + selectedVisit.length + " stage=" + firstEditableStage]
   };
@@ -905,13 +909,16 @@ function fastTimelineSelectionHarness({ selectedVisit = timelinePhotos(17), sess
       return { confirmed: false, duplicate: true, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
     }
     state.transitionInProgress = true;
+    state.confirmHandlerCount += 1;
     try {
       if (state.selectedIndex < 0 || category !== state.currentStage || state.status !== "ORGANIZING") {
         return { confirmed: false, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
       }
       state.cuts[category] = state.selectedIndex;
+      state.saveCount += 1;
       state.selectedIndex = -1;
       state.currentStage = nextStageFromCuts();
+      state.stageAdvanceCount += 1;
       state.status = state.currentStage == null ? "REVIEW" : "ORGANIZING";
       state.logs.push("FAST_TIMELINE_STAGE_CONFIRMED: session=" + state.sessionId + " stage=" + category + " index=" + state.cuts[category] + " next=" + (state.currentStage || "REVIEW"));
       return { confirmed: true, state: snapshot(), stageButtons: stageButtons(), reviewButton: reviewButton() };
@@ -1063,6 +1070,46 @@ function fastTimelineRotationRestoreHarness({ photoCount = 17, selectedIndex = 7
 }
 
 
+
+test("FAST_TIMELINE marcadores fisicos fora de ordem aceitam 41 fotos", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  for (const [stage, index] of [["TOMADAS", 19], ["RACK", 4], ["MASTRO_ANTENA", 31], ["CAIXA_FUNDO_MADEIRA", 11]]) {
+    flow.clickThumbnail(index);
+    const confirmed = flow.confirmStage(stage);
+    assert.equal(confirmed.confirmed, true);
+    assert.equal(confirmed.state.cuts[stage], index);
+    assert.equal(confirmed.state.photos.length, 41);
+  }
+  assert.deepEqual(flow.state.cuts, { CAMERAS: 0, TOMADAS: 19, RACK: 4, MASTRO_ANTENA: 31, CAIXA_FUNDO_MADEIRA: 11 });
+  assert.equal(validateTimelineCuts(41, flow.state.cuts).ok, true);
+  assert.equal(flow.state.status, "REVIEW");
+  assert.equal(flow.state.logs.some((line) => line.includes("order") || line.includes("deve começar")), false);
+});
+
+test("FAST_TIMELINE um clique confirma salva e avanca exatamente uma etapa", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  flow.clickThumbnail(19);
+  const before = { handlers: flow.state.confirmHandlerCount, saves: flow.state.saveCount, advances: flow.state.stageAdvanceCount };
+  const confirmed = flow.confirmStage("TOMADAS");
+  assert.equal(confirmed.confirmed, true);
+  assert.equal(flow.state.confirmHandlerCount - before.handlers, 1);
+  assert.equal(flow.state.saveCount - before.saves, 1);
+  assert.equal(flow.state.stageAdvanceCount - before.advances, 1);
+  assert.equal(flow.state.currentStage, "RACK");
+  assert.equal(flow.state.selectedIndex, -1);
+});
+
+test("FAST_TIMELINE uma acao duplicada nao salva nem repete evento de UI", () => {
+  const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(41) });
+  flow.clickThumbnail(19);
+  const duplicate = flow.duplicateConfirmWhileBusy("TOMADAS");
+  const duplicateEvents = flow.state.logs.filter((line) => line === "FAST_TIMELINE_DUPLICATE_CONFIRM_IGNORED");
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicateEvents.length, 1);
+  assert.equal(flow.state.saveCount, 0);
+  assert.equal(flow.state.stageAdvanceCount, 0);
+  assert.deepEqual(flow.state.cuts, { CAMERAS: 0 });
+});
 test("FAST_TIMELINE novo comando inicia nova sessao e descarta cortes antigos", () => {
   const flow = fastTimelineSelectionHarness({ selectedVisit: timelinePhotos(17), sessionId: "session-10" });
   flow.clickThumbnail(3);
