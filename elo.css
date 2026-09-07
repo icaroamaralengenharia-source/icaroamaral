@@ -3742,3 +3742,57 @@ body[data-elo-product="chat"] .elo-scroll-to-bottom[hidden] {
     font-size: 19px;
   }
 }
+/* ELO controlled history and memory panels */
+body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-panel {
+  width: min(820px, 100%);
+  min-height: 0;
+  max-height: min(56vh, 430px);
+  margin: 0 auto;
+  padding: var(--elo-premium-v2-chat-safe-top, 34px) 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-panel[hidden] {
+  display: none !important;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-header h3 {
+  margin: 0;
+  color: #17263a;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-history-view .elo-input-row,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-history-view .elo-input-hint,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-memory-view .elo-input-row,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-memory-view .elo-input-hint {
+  display: none !important;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-history-view,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-memory-view {
+  height: auto;
+  min-height: min(300px, calc(100svh - 300px));
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-panel .elo-memory-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}

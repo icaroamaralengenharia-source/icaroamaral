@@ -235,3 +235,26 @@ test("ELO Supabase store nao apaga dados nem ativa fallback silencioso em falha 
 });
 
 
+
+
+test("ELO Supabase store atualiza titulo na primeira mensagem de usuario", async () => {
+  const factory = createFakeSupabaseFactory();
+  const store = createStore(factory);
+  const authA = { jwt: "jwt-a", userId: "user-a" };
+
+  const conversation = await store.createConversation({ ...authA });
+  await store.addMessage(conversation.id, { ...authA, role: "assistant", content: "Resposta inicial" });
+  assert.equal((await store.getConversation(conversation.id, authA)).conversation.title, "Nova conversa");
+
+  const firstUserMessage = "Preciso revisar o orcamento da cobertura com urgencia para segunda etapa";
+  await store.addMessage(conversation.id, { ...authA, role: "user", content: firstUserMessage });
+  const titled = await store.getConversation(conversation.id, authA);
+  assert.equal(titled.conversation.title, firstUserMessage.slice(0, 60));
+
+  await store.addMessage(conversation.id, { ...authA, role: "user", content: "Mensagem posterior nao deve sobrescrever" });
+  assert.equal((await store.getConversation(conversation.id, authA)).conversation.title, titled.conversation.title);
+
+  const manual = await store.createConversation({ ...authA, title: "Titulo manual" });
+  await store.addMessage(manual.id, { ...authA, role: "user", content: "Primeira mensagem do manual" });
+  assert.equal((await store.getConversation(manual.id, authA)).conversation.title, "Titulo manual");
+});
