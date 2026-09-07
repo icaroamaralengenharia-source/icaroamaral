@@ -77,4 +77,29 @@ class EloPhysicalOfflineContractTest {
         assertTrue(source.contains("mediaPlaybackRequiresUserGesture = false"))
         assertTrue(source.contains("addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))"))
     }
+    @Test
+    fun mainActivityPreservesWebViewAcrossRotationAndRestore() {
+        val manifest = java.io.File("src/main/AndroidManifest.xml").readText()
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+
+        assertTrue(manifest.contains("android:configChanges=\"keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize\""))
+        assertTrue(source.contains("override fun onSaveInstanceState(outState: Bundle)"))
+        assertTrue(source.contains("webView.saveState(outState)"))
+        assertTrue(source.contains("private fun restoreWebViewState(savedInstanceState: Bundle?): Boolean"))
+        assertTrue(source.contains("webView.restoreState(savedInstanceState)"))
+        assertTrue(source.contains("if (!restoreWebViewState(savedInstanceState))"))
+        assertTrue(source.contains("webView.loadUrl(ELO_WEB_URL)"))
+    }
+
+    @Test
+    fun orientationChangeRefreshesViewportWithoutDuplicatingBridge() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+
+        assertTrue(source.contains("override fun onConfigurationChanged(newConfig: Configuration)"))
+        assertTrue(source.contains("clampMusicPanel()"))
+        assertTrue(source.contains("notifyWebViewportChanged()"))
+        assertTrue(source.contains("window.dispatchEvent(new Event('resize'))"))
+        assertTrue(source.contains("window.visualViewport.dispatchEvent(new Event('resize'))"))
+        assertTrue(source.contains("if (window.__eloOfflineChatBridgeV1) return;"))
+    }
 }

@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -67,8 +68,26 @@ class MainActivity : Activity() {
             offlineController = offlineController
         )
         buildShell()
-        webView.loadUrl(ELO_WEB_URL)
+        if (!restoreWebViewState(savedInstanceState)) {
+            webView.loadUrl(ELO_WEB_URL)
+        }
         mainHandler.post(connectivityTicker)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::webView.isInitialized) {
+            webView.saveState(outState)
+            outState.putBoolean(KEY_WEBVIEW_STATE_SAVED, true)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        rootFrame.post {
+            clampMusicPanel()
+            notifyWebViewportChanged()
+        }
     }
 
     override fun onDestroy() {
@@ -147,6 +166,13 @@ class MainActivity : Activity() {
         settings.javaScriptCanOpenWindowsAutomatically = false
         if (Build.VERSION.SDK_INT >= 26) settings.safeBrowsingEnabled = true
         WebView.setWebContentsDebuggingEnabled(false)
+    }
+
+    private fun restoreWebViewState(savedInstanceState: Bundle?): Boolean {
+        if (savedInstanceState?.getBoolean(KEY_WEBVIEW_STATE_SAVED) != true) return false
+        val restoredHistory = webView.restoreState(savedInstanceState) ?: return false
+        if (restoredHistory.size <= 0) return false
+        return true
     }
 
     private fun secureClient(): WebViewClient {
@@ -340,6 +366,22 @@ class MainActivity : Activity() {
         moveMusicPanel(panel, panel.x, panel.y, persist = false)
     }
 
+    private fun notifyWebViewportChanged() {
+        if (!::webView.isInitialized || !originPolicy.isTrustedUrl(webView.url ?: return)) return
+        webView.evaluateJavascript(
+            """
+(function(){
+  window.dispatchEvent(new Event('resize'));
+  if (window.visualViewport) {
+    window.visualViewport.dispatchEvent(new Event('resize'));
+    window.visualViewport.dispatchEvent(new Event('scroll'));
+  }
+})();
+            """.trimIndent(),
+            null
+        )
+    }
+
     private fun persistMusicPanel(panel: View) {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_PLAYER_MOVED, true)
@@ -412,6 +454,7 @@ class MainActivity : Activity() {
         private const val KEY_PLAYER_MOVED = "player_moved"
         private const val KEY_PLAYER_X = "player_x"
         private const val KEY_PLAYER_Y = "player_y"
+        private const val KEY_WEBVIEW_STATE_SAVED = "webview_state_saved"
         private const val PLAYER_TITLE_TAG = "elo_player_title"
     }
 }
