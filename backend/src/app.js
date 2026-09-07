@@ -3547,9 +3547,12 @@ export function createApp(options = {}) {
   function getEloCoreIdentity_(request) {
     const trustedUserId = getTrustedEloCoreUserId_(request);
     const context = buildPublicEloAuthContext_(request.eloAuthContext || {});
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const payloadContext = body.context && typeof body.context === "object" ? body.context : {};
+    const query = request.query && typeof request.query === "object" ? request.query : {};
     return {
       userId: trustedUserId,
-      anonymousId: clean_(request.body && (request.body.anonymousId || request.body.anonymous_id) || request.query && (request.query.anonymousId || request.query.anonymous_id)),
+      anonymousId: clean_(body.anonymousId || body.anonymous_id || payloadContext.anonymousId || payloadContext.anonymous_id || query.anonymousId || query.anonymous_id),
       institutionId: context.institutionId,
       companyId: context.companyId,
       projectId: context.projectId
@@ -3577,6 +3580,20 @@ export function createApp(options = {}) {
       store: getEloCoreSupabaseStore_(),
       identity: Object.assign(getEloCoreIdentity_(request), { jwt })
     };
+  }
+  function getEloCoreMemoryTargetForChat_(request) {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      if (!target || !target.identity || (!target.identity.userId && !target.identity.anonymousId)) {
+        return null;
+      }
+      return target;
+    } catch (error) {
+      if (error && error.status === 401) {
+        return null;
+      }
+      throw error;
+    }
   }
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
@@ -3979,6 +3996,36 @@ export function createApp(options = {}) {
       context: validation.payload.context
     });
 
+    const explicitMemoryText = extractEloExplicitMemoryCommandText_(validation.payload.message);
+    if (explicitMemoryText) {
+      const target = getEloCoreMemoryTargetForChat_(request);
+      if (target) {
+        try {
+          const memory = await target.store.upsertMemory(Object.assign({}, target.identity, {
+            category: inferEloCanonicalMemoryCategory_(explicitMemoryText),
+            memory_key: buildEloCanonicalMemoryKey_(explicitMemoryText),
+            memory_value: explicitMemoryText,
+            confidence: 0.9
+          }));
+          setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
+          response.status(201).json({
+            ok: true,
+            mode: "memory_saved",
+            fallback: false,
+            answer: "Guardei essa informação na memória permanente do ELO.",
+            savePrompt: buildEloSavePromptMeta_({ show: false, reason: "explicit_memory_saved", suggestedTarget: "none" }),
+            memory,
+            interpretation: validation.payload.interpretation,
+            eloIntent: validation.payload.eloIntent
+          });
+          return;
+        } catch (error) {
+          sendEloCoreError_(response, error);
+          return;
+        }
+      }
+    }
+
     let municipalAnswer = null;
     try {
       const authContextStartedAt = nowMs_();
@@ -4097,9 +4144,12 @@ export function createApp(options = {}) {
 
     try {
       const premodelStartedAt = nowMs_();
+      const canonicalMemoryTarget = getEloCoreMemoryTargetForChat_(request);
       const relevantContext = await getEloRelevantContext_({
         payload: validation.payload,
         memoryStore: eloVectorMemoryStore,
+        canonicalMemoryStore: canonicalMemoryTarget && canonicalMemoryTarget.store,
+        canonicalMemoryIdentity: canonicalMemoryTarget && canonicalMemoryTarget.identity,
         documents: chatRequest.documents,
         attachmentErrors: chatRequest.attachmentErrors,
         metrics: latencyMetrics
@@ -6226,6 +6276,7 @@ function validateEloChatRequest_(body) {
         mode: clean_(context.mode || body.mode || ""),
         eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
+        anonymousId: clean_(context.anonymousId || context.anonymous_id || body.anonymousId || body.anonymous_id).slice(0, 180),
         memoriesSummary: cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
         librarySummary: cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
         productContext: clean_(context.productContext || "").slice(0, 80),
@@ -6281,7 +6332,76 @@ export function buildConversationSummary_(history = []) {
   return facts.length ? "Resumo atual:\n" + facts.slice(0, 8).map((fact) => "- " + fact).join("\n") : "";
 }
 
-export async function getEloRelevantContext_({ payload, memoryStore, documents = [], attachmentErrors = [], metrics = null } = {}) {
+function extractEloExplicitMemoryCommandText_(message) {
+  const raw = clean_(message).replace(/^elo[,\s]+/i, "");
+  const match = raw.match(/^(?:memorize\s*:|memorize\s+que\s+|lembre\s+que\s+|guarde\s+que\s+|guarde\s+isso\s*:?)\s*(.+)$/i);
+  return match && match[1] ? clean_(match[1]).slice(0, 1200) : "";
+}
+
+function inferEloCanonicalMemoryCategory_(text) {
+  const normalized = normalizeEloSearchText_(text);
+  if (/\b(projeto|produto|saas|cadista|stock|obrareport|elo)\b/.test(normalized)) return "project";
+  if (/\b(decisao|decidimos|combinado|regra)\b/.test(normalized)) return "decision";
+  if (/\b(pendente|fazer|tarefa|prioridade|proximo passo|objetivo)\b/.test(normalized)) return "pending_task";
+  if (/\b(prefiro|preferencia|gosto|tom|estilo)\b/.test(normalized)) return "preference";
+  if (/\b(obra|canteiro|relatorio|rdo|laudo|vistoria|engenharia|tecnico|tecnica)\b/.test(normalized)) return "technical_context";
+  if (/\b(meu|minha|sou|trabalho|formacao|perfil)\b/.test(normalized)) return "profile";
+  return "preference";
+}
+
+function buildEloCanonicalMemoryKey_(text) {
+  const normalized = normalizeEloSearchText_(text)
+    .replace(/^(na verdade|corrigindo|correcao|correção)\s+/, "")
+    .trim();
+  const tokens = normalized
+    .split(/\s+/)
+    .filter((token) => token && !ELO_VECTOR_STOPWORDS_.has(token))
+    .slice(0, 8)
+    .join("_")
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return tokens ? "explicit_" + tokens.slice(0, 140) : "explicit_" + positiveHash_(text).toString(36);
+}
+async function buildCanonicalPermanentUserMemorySummary_(store, identity, query, options = {}) {
+  if (!store || typeof store.listMemories !== "function" || !identity || (!identity.userId && !identity.anonymousId)) {
+    return "";
+  }
+  try {
+    const limit = Math.max(1, Math.min(Number(options.limit || 6), 8));
+    const memories = await store.listMemories(Object.assign({}, identity, { includeInactive: false }));
+    const active = Array.isArray(memories) ? memories.filter((item) => item && item.is_active !== false && item.memory_value) : [];
+    if (!active.length) {
+      return "";
+    }
+    const categories = options.categories || [];
+    const keywords = options.keywords || extractContextKeywords_(query);
+    const historyText = options.historyText || "";
+    const queryTokens = new Set(tokenizeSemanticText_([query].concat(categories).concat(keywords).join(" ")));
+    const broadMemoryQuestion = /\b(lembra|memoria|memória|sobre mim|me conhece)\b/i.test(normalizeEloSearchText_(query));
+    const scored = active.map((item) => {
+      const text = [item.category, item.memory_key, item.memory_value].map(clean_).filter(Boolean).join(" ");
+      const tokens = tokenizeSemanticText_(text);
+      const lexicalScore = tokens.reduce((total, token) => total + (queryTokens.has(token) ? 1 : 0), 0);
+      const contextScore = scoreEloContextText_(text, { query, categories, keywords, historyText });
+      const recencyScore = item.updated_at || item.updatedAt || item.created_at || item.createdAt ? 0.05 : 0;
+      const broadScore = broadMemoryQuestion ? 1 : 0;
+      const relevanceScore = lexicalScore + contextScore + broadScore;
+      return { item, score: relevanceScore + recencyScore, relevanceScore };
+    }).filter((entry) => entry.relevanceScore > 0)
+      .sort((first, second) => second.score - first.score)
+      .slice(0, limit);
+    if (!scored.length) {
+      return "";
+    }
+    return scored.map((entry) => {
+      const item = entry.item;
+      return "- [" + clean_(item.category || "memory") + "; key " + clean_(item.memory_key || "geral") + "] " + clean_(item.memory_value).slice(0, 420);
+    }).join("\n").slice(0, 1800);
+  } catch (error) {
+    return "";
+  }
+}
+export async function getEloRelevantContext_({ payload, memoryStore, canonicalMemoryStore = null, canonicalMemoryIdentity = null, documents = [], attachmentErrors = [], metrics = null } = {}) {
   const safePayload = payload || {};
   const context = safePayload.context || {};
   const intent = safePayload.eloIntent || detectEloIntent_(safePayload.message, context, safePayload.history, {
@@ -6293,6 +6413,12 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   const conversationSummary = buildConversationSummary_(safePayload.history);
   const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
   const vectorStartedAt = nowMs_();
+  const canonicalPermanentUserMemorySummary = await buildCanonicalPermanentUserMemorySummary_(canonicalMemoryStore, canonicalMemoryIdentity, query, {
+    categories: intent.categories,
+    keywords: contextKeywords,
+    historyText: recentHistoryText,
+    limit: 6
+  });
   const relevantMemoriesSummary = await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
     categories: intent.categories,
     keywords: contextKeywords,
@@ -6325,6 +6451,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   const resultContext = {
     eloIntentSummary: formatEloIntentSummary_(intent),
     conversationSummary,
+    permanentUserMemorySummary: canonicalPermanentUserMemorySummary,
     relevantMemoriesSummary: [relevantMemoriesSummary, filteredLocalMemories].filter(Boolean).join("\n").slice(0, 2200),
     libraryRelevantSummary,
     productContextSummary,
@@ -7028,7 +7155,7 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
           historyText: options.historyText || ""
         })
       }))
-      .filter((item) => Number(item.score || 0) > 0.08 || item.contextScore > 0)
+      .filter((item) => item.contextScore > 0 || Number(item.score || 0) >= 0.3)
       .sort((first, second) => {
         const firstScore = first.contextScore + Number(first.score || 0);
         const secondScore = second.contextScore + Number(second.score || 0);
@@ -7561,6 +7688,7 @@ async function callOpenAiElo_(payload, env, metrics = null) {
 
 export function buildEloSystemPrompt_(context = {}) {
   const eloContext = normalizeEloContext_(context.eloContext);
+  const permanentUserMemorySummary = clean_(context.permanentUserMemorySummary || "").slice(0, 1800);
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
@@ -7606,48 +7734,57 @@ export function buildEloSystemPrompt_(context = {}) {
     prompt.push("Classificacao de intencao do pedido:\n" + eloIntentSummary);
   }
 
-  if (operationalSummary) {
-    prompt.push("Resumo operacional deterministico:\n" + operationalSummary);
+  const permanentUserMemoryParts = [];
+  if (permanentUserMemorySummary) {
+    permanentUserMemoryParts.push("Memoria canonica relevante do usuario:\n" + permanentUserMemorySummary);
   }
-
-  if (productContextSummary) {
-    prompt.push("Contexto de produto relevante:\n" + productContextSummary);
-  }
-
-  if (conversationSummary) {
-    prompt.push("Historico inteligente resumido:\n" + conversationSummary);
-  }
-
-  if (workingMemorySummary) {
-    prompt.push("Memoria de trabalho da conversa atual:\n" + workingMemorySummary);
-  }
-
   if (memoriesSummary) {
-    prompt.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
-    prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo.");
+    permanentUserMemoryParts.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
   }
-
   if (relevantMemoriesSummary) {
-    prompt.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
-    prompt.push("Use o contexto relevante recuperado quando ele se conectar ao pedido atual, mesmo que a pessoa use palavras diferentes das memÃ³rias originais.");
+    permanentUserMemoryParts.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
+  }
+  if (permanentUserMemoryParts.length) {
+    prompt.push("PERMANENT USER MEMORY\n" + permanentUserMemoryParts.join("\n\n"));
+    prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo. Use somente memorias relacionadas ao pedido atual.");
   }
 
+  const workingContextParts = [];
+  if (operationalSummary) {
+    workingContextParts.push("Resumo operacional deterministico:\n" + operationalSummary);
+  }
+  if (productContextSummary) {
+    workingContextParts.push("Contexto de produto relevante:\n" + productContextSummary);
+  }
   if (libraryRelevantSummary) {
-    prompt.push("Biblioteca relevante recuperada:\n" + libraryRelevantSummary);
-    prompt.push("Use a biblioteca somente quando ela ajudar a responder o pedido atual. Nao diga que a biblioteca esta vazia se houver contexto recuperado.");
+    workingContextParts.push("Biblioteca relevante recuperada:\n" + libraryRelevantSummary);
   }
-
   if (documentsSummary) {
-    prompt.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
+    workingContextParts.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
   }
-
   if (constructionQuantitySafetyContext) {
-    prompt.push("[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA]\n" + constructionQuantitySafetyContext);
+    workingContextParts.push("[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA]\n" + constructionQuantitySafetyContext);
+  }
+  if (obraComposicaoContext) {
+    workingContextParts.push(obraComposicaoContext);
+    workingContextParts.push("Ao usar a base tecnica demonstrativa de obras, liste insumos principais, explique que e uma previsao inicial, nao invente preco, norma ou coeficiente oficial e pergunte se a pessoa deseja lancar essa previsao de consumo no Stock IA futuramente.");
+  }
+  if (workingContextParts.length) {
+    prompt.push("CURRENT WORKING CONTEXT / OBRA\n" + workingContextParts.join("\n\n"));
+    if (libraryRelevantSummary) {
+      prompt.push("Use a biblioteca somente quando ela ajudar a responder o pedido atual. Nao diga que a biblioteca esta vazia se houver contexto recuperado.");
+    }
   }
 
-  if (obraComposicaoContext) {
-    prompt.push(obraComposicaoContext);
-    prompt.push("Ao usar a base tecnica demonstrativa de obras, liste insumos principais, explique que e uma previsao inicial, nao invente preco, norma ou coeficiente oficial e pergunte se a pessoa deseja lancar essa previsao de consumo no Stock IA futuramente.");
+  const conversationParts = [];
+  if (conversationSummary) {
+    conversationParts.push("Historico inteligente resumido:\n" + conversationSummary);
+  }
+  if (workingMemorySummary) {
+    conversationParts.push("Memoria de trabalho da conversa atual:\n" + workingMemorySummary);
+  }
+  if (conversationParts.length) {
+    prompt.push("CONVERSATION HISTORY\n" + conversationParts.join("\n\n"));
   }
 
   if (attachmentErrors) {
