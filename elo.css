@@ -3796,3 +3796,17 @@ body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-panel .elo-mem
   align-items: stretch;
   gap: 8px;
 }
+
+
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button {
+  color: #744018;
+  border-color: rgba(180, 83, 9, 0.18);
+  background: rgba(255, 247, 237, 0.82);
+}
+
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button:hover,
+body[data-elo-product="chat"] .elo-core-actions .elo-clear-conversation-button:focus-visible {
+  color: #5f3414;
+  border-color: rgba(180, 83, 9, 0.34);
+  background: rgba(255, 237, 213, 0.92);
+}

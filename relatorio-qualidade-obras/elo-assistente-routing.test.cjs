@@ -25,9 +25,11 @@ function createElement(tag) {
   const classes = new Set();
   const element = {
     tagName: String(tag || '').toUpperCase(),
+    _className: '',
     dataset: {},
     style: {},
     children: [],
+    parentNode: null,
     scrollTop: 0,
     scrollHeight: 0,
     clientHeight: 0,
@@ -41,9 +43,10 @@ function createElement(tag) {
         else classes.delete(key);
         return active;
       },
-      contains(name) { return classes.has(String(name)); }
+      contains(name) { String(element._className || "").split(/\s+/).filter(Boolean).forEach((item) => classes.add(item)); return classes.has(String(name)); }
     },
-    appendChild(child) { this.children.push(child); this.firstChild = this.children[0] || null; this.scrollHeight = Math.max(this.scrollHeight, this.children.length * 120); return child; },
+    appendChild(child) { if (child && child.parentNode && child.parentNode.children) { child.parentNode.children = child.parentNode.children.filter((item) => item !== child); child.parentNode.firstChild = child.parentNode.children[0] || null; } if (child) child.parentNode = this; this.children.push(child); this.firstChild = this.children[0] || null; this.scrollHeight = Math.max(this.scrollHeight, this.children.length * 120); return child; },
+    remove() { if (this.parentNode && this.parentNode.children) { this.parentNode.children = this.parentNode.children.filter((item) => item !== this); this.parentNode.firstChild = this.parentNode.children[0] || null; } this.parentNode = null; },
     addEventListener() {},
     setAttribute(name, value) { this[String(name)] = String(value); },
     getAttribute(name) { return this[String(name)] || ''; },
@@ -53,6 +56,10 @@ function createElement(tag) {
     options: [],
     selectedIndex: -1
   };
+  Object.defineProperty(element, 'className', {
+    get() { return this._className || ''; },
+    set(value) { this._className = String(value || ''); classes.clear(); this._className.split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); }
+  });
   Object.defineProperty(element, 'textContent', {
     get() { return this._textContent || ''; },
     set(value) { this._textContent = String(value || ''); if (this._textContent === '') { this.children = []; this.firstChild = null; this.scrollHeight = 0; } }
@@ -94,6 +101,7 @@ function loadEloContext(options = {}) {
       readyState: 'complete',
       body: createElement('body'),
       createElement,
+      createDocumentFragment() { return createElement('fragment'); },
       addEventListener() {},
       querySelector() { return null; },
       querySelectorAll() { return []; },
@@ -2034,7 +2042,9 @@ test('ELO token ELO: usa somente fonte do ELO Core', async () => {
   }).elo;
   const answer = await noEloToken.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
   assert.equal(calls.length, 0);
-  assert.match(answer, /sem autenticacao|Entre no ELO/i);
+  // Contrato atual: Observador da Obra pode responder por fast-path local
+  // deterministico sem promover token Stock/generico para sessao ELO Core.
+  assert.match(answer, /Hoje na obra|Prioridades|dados locais/i);
 });
 
 test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conversa ou tecnico', async () => {
@@ -3504,3 +3514,213 @@ async function flushAutopilotAsync() {
   await Promise.resolve();
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+
+async function flushEloHotfixPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function createEloHotfixToken() {
+  return createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+}
+
+function createEloHotfixAuthFetch(calls, options = {}) {
+  return function fetch(url, requestOptions = {}) {
+    const href = String(url);
+    calls.push({ url: href, options: requestOptions });
+    if (href === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: options.userId || 'user-a', email: 'a@b.com' }) });
+    }
+    if (href.includes('/api/elo/identity/merge')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: options.userId || 'user-a' } }) });
+    }
+    if (href.includes('/api/elo/memories')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, memories: options.memories || [{ id: 'mem-1', category: 'profile', memory_key: 'nome', memory_value: 'Nome permanente' }] }) });
+    }
+    if (href.includes('/api/elo/conversations/conv-ok')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, messages: [{ role: 'user', content: 'mensagem antiga valida' }, { role: 'assistant', content: 'resposta valida' }] }) });
+    }
+    if (href.includes('/api/elo/conversations/conv-stale')) {
+      throw new Error('stale_conversation_should_not_restore');
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, conversations: options.conversations || [] }) });
+  };
+}
+
+test('ELO Web bootstrap: restaura conversa normal, mas nao ressuscita conversa limpa/stale no reload', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const normalCalls = [];
+  const normalMessages = createElement('div');
+  const normal = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-ok' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(normalCalls)
+  });
+  normal.elo.setCoreMessagesElementForTest(normalMessages);
+  await normal.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(normal.elo.getCurrentConversationIdForTest(), 'conv-ok');
+  assert.equal(normalMessages.children.length, 2);
+  assert.ok(normalCalls.some((call) => call.url.includes('/api/elo/conversations/conv-ok')));
+
+  const clearMessages = createElement('div');
+  const cleared = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-stale' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch([])
+  });
+  cleared.elo.setCoreMessagesElementForTest(clearMessages);
+  cleared.localStorage.setItem('elo_work_memory_v1', JSON.stringify({ projects: { obra_atual: { nome: 'temporaria' } } }));
+  cleared.localStorage.setItem('elo_long_term_memory_v1', JSON.stringify([{ text: 'memoria permanente' }]));
+  assert.equal(cleared.elo.clearCurrentConversationForTest(), true);
+  assert.equal(cleared.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(cleared.elo.isConversationClearedForTest('conv-stale'), true);
+  assert.notEqual(cleared.localStorage.getItem('elo_long_term_memory_v1'), null);
+
+  const reloadCalls = [];
+  const reloadMessages = createElement('div');
+  const reloaded = loadEloContext({
+    localStorage: cleared.localStorage.dump(),
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(reloadCalls)
+  });
+  reloaded.elo.setCoreMessagesElementForTest(reloadMessages);
+  await reloaded.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(reloaded.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(reloadMessages.children.length, 0);
+  assert.equal(reloadCalls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
+});
+
+test('ELO Web Nova conversa continua abrindo chat vazio sem marcar historico como limpo', () => {
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-prev' } });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.appendMessageForLayoutTest('user', 'oi');
+  elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+
+  assert.equal(messages.children.length, 0);
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(elo.isConversationClearedForTest('conv-prev'), false);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO Web Limpar conversa zera mensagens, draft e ponteiro ativo, preservando memoria e historico', () => {
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, sessionStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-clear' } });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+  elo.appendMessageForLayoutTest('user', 'pergunta');
+  input.value = 'rascunho';
+  localStorage.setItem('elo_core_current_draft_v1', 'rascunho');
+  sessionStorage.setItem('elo_core_reopen_conversation_id_v1', 'conv-clear');
+  localStorage.setItem('elo_long_term_memory_v1', JSON.stringify([{ text: 'memoria permanente' }]));
+  localStorage.setItem('obrareport_elo_assistente_v1', JSON.stringify({ conversations: [{ question: 'outra', answer: 'conversa' }] }));
+
+  assert.equal(elo.clearCurrentConversationForTest(), true);
+
+  assert.equal(messages.children.length, 0);
+  assert.equal(input.value, '');
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(localStorage.getItem('elo_core_current_draft_v1'), null);
+  assert.equal(sessionStorage.getItem('elo_core_reopen_conversation_id_v1'), null);
+  assert.notEqual(localStorage.getItem('elo_long_term_memory_v1'), null);
+  assert.notEqual(localStorage.getItem('obrareport_elo_assistente_v1'), null);
+});
+
+test('ELO Web UI actions Historico e Memoria nao viram mensagens do chat', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch([], { conversations: [{ id: 'conv-ok', title: 'Conversa valida', summary: 'Resumo' }] })
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.appendMessageForLayoutTest('user', 'oi');
+  const originalTranscriptCount = messages.children.filter((child) => /elo-message/.test(child.className || '')).length;
+
+  elo.showCoreHistoryForTest({ preventDefault() {}, stopPropagation() {} });
+  await flushEloHotfixPromises();
+  assert.equal(messages.children.filter((child) => /elo-message/.test(child.className || '')).length, originalTranscriptCount);
+
+  elo.showCoreMemoryPanelForTest({ preventDefault() {}, stopPropagation() {} });
+  await flushEloHotfixPromises();
+  assert.equal(messages.children.filter((child) => /elo-message/.test(child.className || '')).length, originalTranscriptCount);
+  assert.equal(originalTranscriptCount, 1);
+});
+
+test('ELO Web TTS para em limpar, nova conversa, logout e pagehide sem callback antigo religar', async () => {
+  const handlers = {};
+  const audios = [];
+  let ttsCount = 0;
+  function Audio(url) {
+    this.src = url;
+    this.currentTime = 13;
+    this.pause = () => { this.paused = true; };
+    this.play = () => Promise.resolve(true);
+    audios.push(this);
+  }
+  const token = createEloHotfixToken();
+  const { elo, localStorage } = loadEloContext({
+    localStorage: { elo_core_current_conversation_id_v1: 'conv-voice' },
+    window: {
+      ELO_AUTH_TOKEN: token,
+      ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
+      Audio,
+      addEventListener(type, handler) { handlers[type] = handler; }
+    },
+    fetch(url) {
+      if (String(url) === 'https://tts.test/api/elo/tts') {
+        ttsCount += 1;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-' + ttsCount, provider: 'openai-tts' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  assert.equal(elo.speakTextForTest('fala longa para limpar'), true);
+  await flushEloHotfixPromises();
+  const firstAudio = audios[0];
+  assert.equal(elo.clearCurrentConversationForTest(), true);
+  assert.equal(firstAudio.paused, true);
+  assert.equal(firstAudio.currentTime, 0);
+  assert.equal(firstAudio.src, '');
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+
+  assert.equal(elo.speakTextForTest('fala A'), true);
+  await flushEloHotfixPromises();
+  const staleAudio = audios[audios.length - 1];
+  assert.equal(elo.speakTextForTest('fala B'), true);
+  await flushEloHotfixPromises();
+  assert.equal(staleAudio.onended, null);
+  if (typeof staleAudio.onended === 'function') staleAudio.onended();
+  assert.notEqual(elo.getSpeechStateForTest().shutdown, true);
+
+  elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  assert.equal(elo.speakTextForTest('fala antes logout'), true);
+  await flushEloHotfixPromises();
+  await elo.logoutSupabaseForTest();
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  assert.equal(elo.speakTextForTest('fala antes pagehide'), true);
+  await flushEloHotfixPromises();
+  assert.equal(typeof handlers.pagehide, 'function');
+  handlers.pagehide();
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+  assert.equal(!!elo.getSpeechStateForTest().wakeRestartScheduled, false);
+});
