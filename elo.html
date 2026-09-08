@@ -89,6 +89,7 @@
       <button type="button" data-elo-new-chat>Nova conversa</button>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
+      <button type="button" class="elo-clear-conversation-button" data-elo-clear-chat>Limpar conversa</button>
     </nav>
     <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
       <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
@@ -345,7 +346,8 @@
           reportButton: "[data-elo-local-report]",
           newChatButton: "[data-elo-new-chat]",
           historyButton: "[data-elo-history]",
-          memoryButton: "[data-elo-memory]"
+          memoryButton: "[data-elo-memory]",
+          clearChatButton: "[data-elo-clear-chat]"
         });
         initEloRotatingPrompt();
       }
