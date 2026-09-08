@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v5-20260906-p0-offline-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v8-20260908-public-auth-v1";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
@@ -47,6 +47,10 @@ self.addEventListener("fetch", function (event) {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== "GET") return;
+  if (url.pathname.endsWith("/assets/elo-public-config.js")) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
   if (url.pathname.indexOf("/api/elo/") === 0 || url.hostname.indexOf("youtube") >= 0 || url.hostname.indexOf("googlevideo") >= 0) return;
 
   if (url.pathname.endsWith("/elo.html") || url.pathname === "/" || request.mode === "navigate") {
