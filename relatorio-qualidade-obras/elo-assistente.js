@@ -34,7 +34,7 @@
   const ELO_CORE_SURFACE_STATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
   const ELO_CORE_AUTH_CONTEXT_STORAGE_KEY = "elo_core_auth_context_v1";
   const ELO_CORE_SUPABASE_AUTH_STORAGE_KEY = "sb-elo-core-auth-token";
-  const ELO_CORE_SUPABASE_ISSUER = "https://lidueokjpzxdybtongbk.supabase.co/auth/v1";
+  const ELO_CORE_LEGACY_SUPABASE_ISSUER = "https://lidueokjpzxdybtongbk.supabase.co/auth/v1";
   const ELO_CORE_MEMORY_DISABLED_KEY = "elo_core_memory_disabled_v1";
   const ELO_CORE_NAME_MEMORY_CATEGORY = "profile";
   const ELO_CORE_NAME_MEMORY_KEY = "nome";
@@ -2450,7 +2450,8 @@
   function decodeEloCoreBase64Url_(value) { const raw = sanitizeEloCoreAuthToken_(value); if (!raw) return ""; try { const padded = raw.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((raw.length + 3) % 4); return window.atob ? window.atob(padded) : ""; } catch (error) { return ""; } }
   function decodeEloCoreJwtPayload_(token) { const safeToken = sanitizeEloCoreAuthToken_(token); const parts = safeToken.split("."); if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null; const payloadText = decodeEloCoreBase64Url_(parts[1]); if (!payloadText) return null; try { const payload = JSON.parse(payloadText); return payload && typeof payload === "object" ? payload : null; } catch (error) { return null; } }
   function isEloCoreJwtExpired_(token) { const payload = decodeEloCoreJwtPayload_(token); if (!payload) return true; const exp = Number(payload.exp); return !(Number.isFinite(exp) && exp > Math.floor(Date.now() / 1000)); }
-  function isEloCoreJwtIssuerValid_(token) { const payload = decodeEloCoreJwtPayload_(token); return Boolean(payload && sanitizeUserText(payload.iss) === ELO_CORE_SUPABASE_ISSUER); }
+  function getEloCoreExpectedSupabaseIssuer_() { const config = getEloCoreSupabaseConfig_(); if (config.url) return config.url.replace(/\/+$/g, "") + "/auth/v1"; return ELO_CORE_LEGACY_SUPABASE_ISSUER; }
+  function isEloCoreJwtIssuerValid_(token) { const payload = decodeEloCoreJwtPayload_(token); const expectedIssuer = getEloCoreExpectedSupabaseIssuer_(); return Boolean(payload && expectedIssuer && sanitizeUserText(payload.iss) === expectedIssuer); }
   function normalizeEloCoreUsableAuthToken_(token) { const safeToken = sanitizeEloCoreAuthToken_(token); return safeToken && !isEloCoreJwtExpired_(safeToken) && isEloCoreJwtIssuerValid_(safeToken) ? safeToken : ""; }
   function readEloCoreAuthTokenFromStorage_() { const stores = [window.localStorage, window.sessionStorage].filter(Boolean); for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) { try { const found = normalizeEloCoreUsableAuthToken_(findEloCoreAccessTokenInValue_(stores[storeIndex].getItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY), 0)); if (found) return found; } catch (error) {} } return ""; }
   function getEloCoreAuthToken_() { const windowToken = normalizeEloCoreUsableAuthToken_(window.ELO_AUTH_TOKEN); if (windowToken) return windowToken; if (window.ELO_AUTH_TOKEN && isEloCoreJwtExpired_(window.ELO_AUTH_TOKEN)) window.ELO_AUTH_TOKEN = ""; const storageToken = readEloCoreAuthTokenFromStorage_(); if (storageToken) window.ELO_AUTH_TOKEN = storageToken; return storageToken; }

@@ -22,7 +22,7 @@ function encodeBase64Url(value) {
 function createSupabaseJwt(overrides = {}) {
   const now = Math.floor(Date.now() / 1000);
   const payload = Object.assign({
-    iss: "https://lidueokjpzxdybtongbk.supabase.co/auth/v1",
+    iss: "https://project.supabase.co/auth/v1",
     sub: "auth-user-a",
     aud: "authenticated",
     exp: now + 3600,
