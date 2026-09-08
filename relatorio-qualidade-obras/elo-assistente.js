@@ -797,6 +797,13 @@
     };
   }
 
+  function isEloExplicitStockProductCreateRequest_(text) {
+    const hasCreateVerb = /\b(?:cadastre|cadastrar|crie|criar|adicione|adicionar|inclua|incluir)\b/.test(text);
+    const hasNewProduct = /\b(?:novo\s+produto|novo\s+item|produto\s+novo|item\s+novo)\b/.test(text);
+    const hasProductTerm = /\b(?:produto|produtos|item|itens|material|materiais)\b/.test(text);
+    const hasStockContext = /\b(?:estoque|stock|stock\s+full|almoxarifado|unidade|un\.?|kg|saco|sacos|m2|m3|m²|m³|metro|metros)\b/.test(text);
+    return Boolean(hasProductTerm && hasStockContext && (hasCreateVerb || hasNewProduct));
+  }
   function detectEloCommandBridgeRequest_(message) {
     const raw = sanitizeUserText(message || "");
     const text = canonicalizeEloSemanticText_(raw);
@@ -826,6 +833,9 @@
     if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|codigo\s+sinapi|stock\s+obras)\b/.test(text)) {
       return { module: "stock_obras", action: /exporte|csv|xlsx/.test(text) ? "preview_export" : "search_composition", payload: payload };
     }
+    if (isEloExplicitStockProductCreateRequest_(text)) {
+      return { module: "stock_full", action: "create_product", payload: payload };
+    }
     if (/\b(?:vistoria|vistorias|apartamento|apto|unidade|nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text)) {
       const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
       return { module: "inspection", action: action, payload: payload };
@@ -849,7 +859,7 @@
     const wantsStockBalance = /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text);
     const stockFullQuestion = /\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo|baixo\s+estoque|acabando|transfira|transferir|chegaram|chegou|recebemos|retirar|retire)\b/.test(text) || /\bquanto\b[\s\S]{0,60}\btemos\b/.test(text);
     if (hasStockFullPending || stockFullQuestion) {
-      const stockFullAction = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) ? "stock_history" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : wantsStockProductList ? "list_products" : wantsStockBalance ? "get_balance" : "stock_query";
+      const stockFullAction = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) ? "stock_history" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : isEloExplicitStockProductCreateRequest_(text) ? "create_product" : wantsStockProductList ? "list_products" : wantsStockBalance ? "get_balance" : "stock_query";
       return { module: "stock_full", action: stockFullAction, payload: payload };
     }
     if (/\b(?:orcamento|orcamentos|bdi|padrao|escopo|eap|estimativa|custo|pdf\s+profissional\s+desse\s+orcamento|pendencias\s+do\s+orcamento|dados\s+ainda\s+estao\s+faltando)\b/.test(text)) {
