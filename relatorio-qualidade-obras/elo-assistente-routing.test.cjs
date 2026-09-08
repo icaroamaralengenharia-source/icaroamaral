@@ -1272,6 +1272,37 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
 });
 
+test('ELO Action Bus Stock Full: cadastro de produto vence colisao com Vistoria', () => {
+  const { elo } = loadEloContext();
+
+  const original = elo.detectCommandBridgeRequestForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg');
+  assert.equal(original.module, 'stock_full');
+  assert.equal(original.action, 'create_product');
+
+  const cimento = elo.detectCommandBridgeRequestForTest('crie um produto chamado Cimento CP II com unidade saco');
+  assert.equal(cimento.module, 'stock_full');
+  assert.equal(cimento.action, 'create_product');
+
+  const novoProduto = elo.detectCommandBridgeRequestForTest('adicione um novo produto ao estoque');
+  assert.equal(novoProduto.module, 'stock_full');
+  assert.equal(novoProduto.action, 'create_product');
+});
+
+test('ELO Action Bus Vistoria: hotfix nao rouba intents legitimos', () => {
+  const { elo } = loadEloContext();
+
+  const novaVistoria = elo.detectCommandBridgeRequestForTest('cadastre uma vistoria para o apartamento 101');
+  assert.equal(novaVistoria.module, 'inspection');
+  assert.match(novaVistoria.action, /^inspection\./);
+
+  const pdfVistoria = elo.detectCommandBridgeRequestForTest('gere o PDF da vistoria');
+  assert.equal(pdfVistoria.module, 'inspection');
+  assert.equal(pdfVistoria.action, 'inspection.generatePdf');
+
+  const ncVistoria = elo.detectCommandBridgeRequestForTest('registre uma não conformidade na vistoria');
+  assert.equal(ncVistoria.module, 'inspection');
+  assert.equal(ncVistoria.action, 'inspection.openNCs');
+});
 test('ELO Action Bus Stock Full: historico usa CommandBridge antes do chat generico', async () => {
   const calls = [];
   const messages = createElement('div');
@@ -1334,6 +1365,43 @@ test('ELO Action Bus Stock Full: ask usa CommandBridge antes do chat generico', 
   assert.match(elementText(messages), /Aco: 420 kg/);
 });
 
+test('ELO Action Bus Stock Full: preview de cadastro via CommandBridge nao executa escrita nem chat', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method });
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && method === 'GET') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [] }) });
+      }
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && method === 'POST') throw new Error('stock_product_create_should_wait_for_confirm');
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock_create');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  const response = await elo.buildCommandBridgeResponseForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg', {
+    context: { role: 'gestor', identity: { companyId: 'inst_auth', userId: 'profile_auth', role: 'gestor' } }
+  });
+
+  assert.equal(response.commandBridge.module, 'stock_full');
+  assert.equal(response.commandBridge.action, 'stock.create_product');
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.equal(calls.filter((call) => call.href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && call.method === 'GET').length, 1);
+  assert.equal(calls.some((call) => call.href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && call.method === 'POST'), false);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
+  assert.match(response.fullAnswer, /Preview de cadastro no Stock Full/);
+  assert.match(response.fullAnswer, /ACTION: stock\.create_product/);
+  assert.match(response.fullAnswer, /NAME: TESTE ELO E2E/);
+  assert.match(response.fullAnswer, /UNIT: kg/);
+  assert.match(response.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(response.fullAnswer, /WRITE EXECUTED: 0/);
+});
 test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita', async () => {
   const calls = [];
   const messages = createElement('div');
