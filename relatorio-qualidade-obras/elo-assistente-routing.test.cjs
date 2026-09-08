@@ -1259,13 +1259,77 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
 
   const stockQuery = elo.detectCommandBridgeRequestForTest('ELO, quanto cimento temos?');
   assert.equal(stockQuery.module, 'stock_full');
-  assert.equal(stockQuery.action, 'stock_query');
+  assert.equal(stockQuery.action, 'get_balance');
   assert.deepEqual({ message: stockQuery.payload.message }, { message: 'ELO, quanto cimento temos?' });
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, o que está acabando?').action, 'stock_low_stock');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, transfira 5 sacos de cimento para o almoxarifado B.').action, 'stock_transfer');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quais produtos existem no estoque?').action, 'list_products');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('liste os produtos do estoque').action, 'list_products');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('qual o saldo de Aco?').action, 'get_balance');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quanto tem de Aco no estoque?').action, 'get_balance');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('registre entrada de 10 kg de Aco').action, 'stock_entry');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
 });
 
+test('ELO Action Bus Stock Full: ask usa CommandBridge antes do chat generico', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 }] }) });
+      }
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('quais produtos existem no estoque?', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Produtos no Stock Full/);
+  assert.match(elementText(messages), /Aco: 420 kg/);
+});
+
+test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 }] }) });
+      }
+      if (href.includes('/api/stock-full/sync')) throw new Error('stock_write_should_not_run_without_confirm');
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('registre entrada de 10 kg de Aco', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/stock-full/sync')), false);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Preview de entrada/);
+  assert.match(elementText(messages), /10 kg de Aco/);
+});
 test('ELO Action Bus Stock Full: sim sem pendencia nao sequestra conversa', () => {
   const { elo } = loadEloContext({
     window: {

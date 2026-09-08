@@ -845,9 +845,12 @@
       return { module: "elo_autopilot", action: "publish_editorial_content", payload: Object.assign({}, payload, { topic: detectEloAutopilotPublicationIntent_(raw) && detectEloAutopilotPublicationIntent_(raw).topic || raw }) };
     }
     const hasStockFullPending = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo|nao|cancelar|cancela|abortar)$/.test(text) && window.EloActionBusStockFull && typeof window.EloActionBusStockFull.readPending === "function" && window.EloActionBusStockFull.readPending();
+    const wantsStockProductList = /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:estoque|stock|almoxarifado)\b/.test(text) || /\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:do|no|na)?\s*(?:estoque|stock|almoxarifado)\b/.test(text) && !/\b(?:saldo|quanto|quantos|quantas|entrada|saida|retire|retirar|chegaram|chegou|recebemos)\b/.test(text);
+    const wantsStockBalance = /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text);
     const stockFullQuestion = /\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo|baixo\s+estoque|acabando|transfira|transferir|chegaram|chegou|recebemos|retirar|retire)\b/.test(text) || /\bquanto\b[\s\S]{0,60}\btemos\b/.test(text);
     if (hasStockFullPending || stockFullQuestion) {
-      return { module: "stock_full", action: /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : "stock_query", payload: payload };
+      const stockFullAction = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : wantsStockProductList ? "list_products" : wantsStockBalance ? "get_balance" : "stock_query";
+      return { module: "stock_full", action: stockFullAction, payload: payload };
     }
     if (/\b(?:orcamento|orcamentos|bdi|padrao|escopo|eap|estimativa|custo|pdf\s+profissional\s+desse\s+orcamento|pendencias\s+do\s+orcamento|dados\s+ainda\s+estao\s+faltando)\b/.test(text)) {
       return { module: "budget", action: /bdi|padrao|escopo|retire|inclua|acrescente|atualize/.test(text) ? "preview_change" : /pdf/.test(text) ? "generate_pdf" : /listar|ultimos/.test(text) ? "list" : /pendencia|faltando/.test(text) ? "pending" : "current_budget", payload: payload };
@@ -864,7 +867,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|preview_|close_|create_|stock_|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;
@@ -900,7 +903,7 @@
         identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
         municipal: getEloMunicipalContext_()
       }, options && options.context || {}),
-      dryRun: true
+      dryRun: request.module !== "stock_full"
     }));
     if (isEloAsyncResponse_(result)) return result.then(buildEloCommandBridgeAnswer_);
     return buildEloCommandBridgeAnswer_(result);
@@ -29409,6 +29412,25 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function handleEloStockCommandBridgeFastPath_(cleanQuestion) {
+    const request = detectEloCommandBridgeRequest_(cleanQuestion);
+    if (!request || request.module !== "stock_full") return false;
+    const response = buildEloCommandBridgeResponse_(cleanQuestion, {});
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    if (isEloAsyncResponse_(response)) {
+      appendTypingIndicator();
+      resolveEloAsyncResponseForChat_(cleanQuestion, response).finally(function () { removeTypingIndicator(); });
+      return true;
+    }
+    const answer = formatResponse(response);
+    appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
+    saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
+    recordEloCoreReliabilityEvent_("stock_full_command_bridge_fast_path", { action: request.action, backendCalls: 1, openAiCalls: 0 });
+    clearProductAttachmentPreview();
+    return true;
+  }
   function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -29477,6 +29499,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (!attachedFiles.length && handleEloLocalToolFastPath_(routeQuestion)) {
+      return;
+    }
+    if (!attachedFiles.length && handleEloStockCommandBridgeFastPath_(routeQuestion)) {
       return;
     }
     if (handleEloStockProductCreate_(cleanQuestion, attachedFiles)) {
@@ -34186,6 +34211,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildCoreUserNameMemoryAnswerForTest: buildEloCoreUserNameMemoryAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
+    handleStockCommandBridgeFastPathForTest: handleEloStockCommandBridgeFastPath_,
     detectAutopilotPublicationIntentForTest: detectEloAutopilotPublicationIntent_,
     buildAutopilotAnswerForTest: buildEloAutopilotAnswer_,
     getPendingAutopilotPublicationForTest: getEloPendingAutopilotPublication_,

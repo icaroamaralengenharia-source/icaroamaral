@@ -154,7 +154,7 @@
   function stripProductText(value) {
     return clean(normalize(value)
       .replace(/[^a-z0-9\s_-]/g, " ")
-      .replace(/\b(?:elo|no|na|nos|nas|do|da|dos|das|de|para|ao|a|o|os|as|temos|tem|quanto|quantos|quantas|estoque|saldo|produto|produtos)\b/g, " ")
+      .replace(/\b(?:elo|no|na|nos|nas|do|da|dos|das|de|para|ao|a|o|os|as|qual|quais|temos|tem|quanto|quantos|quantas|existe|existem|estoque|stock|full|almoxarifado|saldo|produto|produtos|item|itens|material|materiais)\b/g, " ")
       .replace(/\s+/g, " "));
   }
 
@@ -165,13 +165,14 @@
     if (/^(sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text)) return { action: "stock.confirm", raw };
     if (/^(nao|cancelar|cancela|abortar)$/.test(text)) return { action: "stock.cancel", raw };
     if (/\b(?:o que esta acabando|o que esta em falta|estoque baixo|baixo estoque|acabando|repor)\b/.test(text)) return { action: "stock.lowStock", raw };
+    if (input && input.action === "list_products" || /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:estoque|stock|almoxarifado)\b/.test(text) || /\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:do|no|na)?\s*(?:estoque|stock|almoxarifado)\b/.test(text) && !/\b(?:saldo|quanto|quantos|quantas|entrada|saida|retire|retirar|chegaram|chegou|recebemos)\b/.test(text)) return { action: "stock.listProducts", raw };
     let match = text.match(new RegExp("\\b(?:transfira|transferir|mande|envie)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+?)\\s+para\\s+(.+)$"));
     if (match) return { action: "stock.transfer.preview", raw, quantity: numberFromText(match[1]), unit: normalizeUnit(match[2]), productQuery: stripProductText(match[3]), destinationQuery: stripProductText(match[4]) };
-    match = text.match(new RegExp("\\b(?:chegaram|chegou|recebemos|recebi|entrada\\s+de|de\\s+entrada\\s+em|dar\\s+entrada\\s+em)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+)$"));
+    match = text.match(new RegExp("\\b(?:chegaram|chegou|recebemos|recebi|registre\\s+entrada\\s+de|registrar\\s+entrada\\s+de|lance\\s+entrada\\s+de|lancar\\s+entrada\\s+de|entrada\\s+de|de\\s+entrada\\s+em|dar\\s+entrada\\s+em)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+)$"));
     if (match) return { action: "stock.entry.preview", raw, quantity: numberFromText(match[1]), unit: normalizeUnit(match[2]), productQuery: stripProductText(match[3]) };
     match = text.match(new RegExp("\\b(?:de\\s+saida\\s+de|saida\\s+de|retire|retirar|baixar|baixa\\s+de|dar\\s+saida\\s+de)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+)$"));
     if (match) return { action: "stock.exit.preview", raw, quantity: numberFromText(match[1]), unit: normalizeUnit(match[2]), productQuery: stripProductText(match[3]) };
-    if (/\b(?:quanto|quantos|quantas|saldo|temos|tem|existe|existem)\b/.test(text)) return { action: "stock.query", raw, productQuery: stripProductText(text) };
+    if (input && input.action === "get_balance" || /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text)) return { action: "stock.query", raw, productQuery: stripProductText(text) };
     return null;
   }
 
@@ -232,16 +233,29 @@
   function stockResult(input, values) { return result(input, Object.assign({ module: "stock_full" }, values || {})); }
   function loadItems(input) { return fetchStockJson(input, "/api/stock-full/items").then(function (data) { return Array.isArray(data.items) ? data.items : []; }); }
 
+  function executeListProducts(input) {
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para listar o estoque real do Stock Full."));
+    return loadItems(input).then(function (items) {
+      if (!items.length) return stockResult(input, { action: "list_products", mode: "read", humanAnswer: "Consultei o Stock Full autenticado e não encontrei produtos cadastrados." });
+      const lines = ["Produtos no Stock Full:"].concat(items.map(function (item) {
+        return "- " + getItemName(item) + ": " + formatQuantity(getItemQuantity(item), item.unit) + ".";
+      }));
+      return stockResult(input, { action: "list_products", mode: "read", humanAnswer: lines.join("\n"), data: { items } });
+    }).catch(function (error) {
+      return stockResult(input, { ok: false, action: "list_products", mode: "error", humanAnswer: "Não consegui listar o Stock Full agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
+
   function executeStockQuery(input, intent) {
     if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para consultar o estoque real do Stock Full."));
     return loadItems(input).then(function (items) {
       const resolution = resolveItem(items, intent.productQuery);
-      if (resolution.status === "ambiguous") return stockResult(input, { ok: false, action: "stock.query", mode: "blocked", humanAnswer: "Encontrei mais de um produto possível: " + resolution.matches.map(getItemName).join(", ") + ". Informe o produto exato." });
-      if (!resolution.item) return stockResult(input, { ok: false, action: "stock.query", mode: "blocked", humanAnswer: "Não encontrei esse produto no Stock Full autenticado. Nenhum número foi inventado." });
+      if (resolution.status === "ambiguous") return stockResult(input, { ok: false, action: "get_balance", mode: "blocked", humanAnswer: "Encontrei mais de um produto possível: " + resolution.matches.map(getItemName).join(", ") + ". Informe o produto exato." });
+      if (!resolution.item) return stockResult(input, { ok: false, action: "get_balance", mode: "blocked", humanAnswer: "Não encontrei esse produto no Stock Full autenticado. Nenhum número foi inventado." });
       const item = resolution.item;
-      return stockResult(input, { action: "stock.query", mode: "read", humanAnswer: getItemName(item) + ": saldo atual " + formatQuantity(getItemQuantity(item), item.unit) + ".", data: { item } });
+      return stockResult(input, { action: "get_balance", mode: "read", humanAnswer: getItemName(item) + ": saldo atual " + formatQuantity(getItemQuantity(item), item.unit) + ".", data: { item } });
     }).catch(function (error) {
-      return stockResult(input, { ok: false, action: "stock.query", mode: "error", humanAnswer: "Não consegui consultar o Stock Full agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+      return stockResult(input, { ok: false, action: "get_balance", mode: "error", humanAnswer: "Não consegui consultar o Stock Full agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
     });
   }
 
@@ -926,6 +940,7 @@
       clearPending();
       return result(input, { module: "stock_full", action: "stock.cancel", mode: "blocked", humanAnswer: "Movimento pendente cancelado. Nenhum estoque foi movimentado." });
     }
+    if (intent.action === "stock.listProducts") return executeListProducts(input);
     if (intent.action === "stock.query") return executeStockQuery(input, intent);
     if (intent.action === "stock.lowStock") return executeLowStock(input);
     if (/^stock\.(?:entry|exit|transfer)\.preview$/.test(intent.action)) return executeMovementPreview(input, intent);
