@@ -3229,6 +3229,46 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
   assert.equal(audit.generationId, 1);
 });
 
+test('ELO local tools: respostas deterministicas nao chamam chat conversas TTS ou OpenAI', async () => {
+  const fetchCalls = [];
+  let audioInstances = 0;
+  function Audio() {
+    audioInstances += 1;
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url: String(url), options });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:should-not-run', provider: 'openai-tts' }) });
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  const cases = [
+    { prompt: '17% de 850', expected: /144,5/ },
+    { prompt: '3,5 metros em centímetros', expected: /350/ },
+    { prompt: 'laje 8 por 12 com 12 cm', expected: /96[\s\S]*11,52/ }
+  ];
+
+  for (const item of cases) {
+    const before = fetchCalls.length;
+    elo.ask(item.prompt, [], 'manual');
+    await flushEloHotfixPromises();
+    const urls = fetchCalls.slice(before).map((call) => call.url);
+    const answer = elementText(messages.children[messages.children.length - 1]);
+
+    assert.match(answer, item.expected);
+    assert.equal(urls.some((url) => /\/api\/elo\/chat/i.test(url)), false);
+    assert.equal(urls.some((url) => /\/api\/elo\/conversations/i.test(url)), false);
+    assert.equal(urls.some((url) => /\/api\/elo\/tts/i.test(url)), false);
+    assert.equal(urls.some((url) => /openai/i.test(url)), false);
+    assert.equal(urls.length, 0);
+  }
+
+  assert.equal(audioInstances, 0);
+});
 test('ELO auto-TTS: render, historico e rerender sem nova responseId nao falam', async () => {
   let fetchCalls = 0;
   const events = [];

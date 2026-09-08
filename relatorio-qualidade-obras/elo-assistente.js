@@ -28572,10 +28572,20 @@ function isEloResidentialNewPipelineEnabled_() {
     return { alias: "", rest: text, matched: false };
   }
 
-  function stripEloWakePrefixForRouting_(message) {
-    return readEloWakeAliasForRouting_(message).rest
+  function normalizeEloRouteQuestionText_(value) {
+    return sanitizeUserText(value || "")
+      .replace(/(^|[^0-9])[,.!?;:]+/g, "$1 ")
+      .replace(/[,.!?;:]+($|[^0-9])/g, " $1")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function stripEloWakePrefixForRouting_(message) {
+    const clean = sanitizeUserText(message || "").replace(/\s+/g, " ").trim();
+    const wake = readEloWakeAliasForRouting_(clean);
+    if (!wake.matched) return normalizeEloRouteQuestionText_(clean);
+    const match = clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);
+    return normalizeEloRouteQuestionText_(match ? match[1] : wake.rest);
   }
 
   function normalizeEloRoutingLogText_(message) {
@@ -29390,7 +29400,12 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildEloLocalToolFastPathResponse_(message) {
     const intents = classifyEloCoreIntent_(message, {});
     if (!intents.some(function (intent) { return intent.type === "math"; })) return null;
-    return routeEloCoreIntents_(message, {});
+    const response = routeEloCoreIntents_(message, {});
+    if (!response) return null;
+    response.responseOrigin = response.responseOrigin || "local_tool";
+    response.skipAutoTts = true;
+    response.skipRemoteTts = true;
+    return response;
   }
 
   function handleEloLocalToolFastPath_(cleanQuestion) {
@@ -30334,6 +30349,34 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function shouldSkipEloAutomaticRemoteTts_(metadata) {
+    const data = metadata || {};
+    if (data.skipAutoTts === true || data.skipRemoteTts === true || data.skipTts === true) return true;
+    const origin = normalizeText([
+      data.responseOrigin,
+      data.origin,
+      data.route,
+      data.fastPath,
+      data.sessionIntent,
+      data.sessionTheme
+    ].filter(Boolean).join(" "));
+    return /\b(?:local_tool|local_calculator|local_conversion|local_engineering)\b/.test(origin);
+  }
+
+  function buildEloSpeechMetadataFromResponse_(response) {
+    if (!response) return {};
+    return {
+      responseOrigin: response.responseOrigin || response.origin || "",
+      route: response.route || "",
+      fastPath: response.fastPath || "",
+      sessionIntent: response.sessionIntent || "",
+      sessionTheme: response.sessionTheme || "",
+      skipAutoTts: response.skipAutoTts === true,
+      skipRemoteTts: response.skipRemoteTts === true,
+      skipTts: response.skipTts === true
+    };
+  }
+
   function submitEloVoiceModeTranscript_() {
     if (!ELO_UI.voiceModeEnabled || ELO_UI.voiceModeSubmitting || ELO_UI.voiceModeRecognitionSubmitted || !ELO_UI.form || !ELO_UI.input) return false;
     const text = sanitizeUserText(ELO_UI.input.value || "");
@@ -30353,6 +30396,12 @@ function isEloResidentialNewPipelineEnabled_() {
   function maybeSpeakEloVoiceModeResponse_(message, text, options) {
     const metadata = options || {};
     if (!ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
+    if (shouldSkipEloAutomaticRemoteTts_(metadata)) {
+      ELO_UI.voiceModeAwaitingResponse = false;
+      setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
+      logEloTtsLifecycle_("TTS_LOCAL_TOOL_SKIPPED", { responseId: metadata.responseId || "", generationId: ELO_UI.activeSpeechGenerationId, sessionIntent: metadata.sessionIntent || "", route: metadata.route || "" });
+      return false;
+    }
     if (metadata.responseLifecycle !== "new") {
       logEloTtsLifecycle_("TTS_BACKGROUND_EVENT_SKIPPED", { responseId: metadata.responseId || "", generationId: ELO_UI.activeSpeechGenerationId, lifecycle: metadata.responseLifecycle || "unknown" });
       return false;
@@ -30373,6 +30422,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const lifecycle = metadata.historical || ELO_UI.replayingCoreHistory ? "historical" : sanitizeUserText(metadata.responseLifecycle || "background");
     const responseId = sanitizeUserText(metadata.responseId || message && message.dataset && message.dataset.eloResponseId || "");
     if (!message || !isEloAutoTtsSpeakableResponse_(text)) return false;
+    if (shouldSkipEloAutomaticRemoteTts_(metadata)) {
+      logEloTtsLifecycle_("TTS_LOCAL_TOOL_SKIPPED", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId, sessionIntent: metadata.sessionIntent || "", route: metadata.route || "" });
+      return false;
+    }
     if (lifecycle === "historical") {
       logEloTtsLifecycle_("TTS_HISTORICAL_SKIPPED", { responseId: responseId, generationId: ELO_UI.activeSpeechGenerationId });
       return false;
@@ -31687,7 +31740,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
     rememberEloActiveAnalysisContext_(question, response, cleanAnswer);
     const responseId = createEloAssistantResponseId_(question, cleanAnswer, response);
-    const message = appendMessage("assistant", cleanAnswer, { responseLifecycle: "new", responseId: responseId });
+    const message = appendMessage("assistant", cleanAnswer, Object.assign({ responseLifecycle: "new", responseId: responseId }, buildEloSpeechMetadataFromResponse_(response)));
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {
