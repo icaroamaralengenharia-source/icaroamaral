@@ -3597,6 +3597,28 @@ test('ELO Web bootstrap: restaura conversa normal, mas nao ressuscita conversa l
   assert.equal(reloadCalls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
 });
 
+test('ELO Web bootstrap bloqueia request stale com tombstone legado antes do fetch', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const calls = [];
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      elo_core_current_conversation_id_v1: 'conv-stale',
+      elo_core_cleared_conversations_v1: JSON.stringify({ 'conv-stale': Date.now() })
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(calls)
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  await elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+  assert.equal(calls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
+});
 test('ELO Web Nova conversa continua abrindo chat vazio sem marcar historico como limpo', () => {
   const messages = createElement('div');
   const { elo, localStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-prev' } });
@@ -3723,4 +3745,67 @@ test('ELO Web TTS para em limpar, nova conversa, logout e pagehide sem callback 
   assert.equal(elo.getSpeechStateForTest().state, 'idle');
   assert.equal(elo.getSpeechStateForTest().shutdown, true);
   assert.equal(!!elo.getSpeechStateForTest().wakeRestartScheduled, false);
+});
+
+test('ELO Web TTS nao reinicia quando callbacks antigos chegam depois do stop', async () => {
+  let resolveTts;
+  let playCount = 0;
+  const audios = [];
+  function Audio(url) {
+    this.src = url;
+    this.currentTime = 9;
+    this.pause = () => { this.paused = true; };
+    this.play = () => { playCount += 1; return Promise.resolve(true); };
+    audios.push(this);
+  }
+  const { elo } = loadEloContext({
+    window: { ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', Audio },
+    fetch(url) {
+      if (String(url) === 'https://tts.test/api/elo/tts') {
+        return new Promise((resolve) => {
+          resolveTts = () => resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late-tts', provider: 'openai-tts' }) });
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  assert.equal(elo.speakTextForTest('fala neural pendente', null, { responseId: 'late-neural' }), true);
+  assert.equal(elo.stopAllSpeechForTest({ shutdown: true }), true);
+  resolveTts();
+  await flushEloHotfixPromises();
+
+  assert.equal(audios.length, 0);
+  assert.equal(playCount, 0);
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  let cancelCount = 0;
+  let speakCount = 0;
+  let staleUtterance = null;
+  function SpeechSynthesisUtterance(text) { this.text = text; this.onend = null; this.onerror = null; }
+  const fallback = loadEloContext({
+    window: {
+      Audio: null,
+      SpeechSynthesisUtterance,
+      speechSynthesis: {
+        getVoices() { return []; },
+        speak(utterance) { speakCount += 1; staleUtterance = utterance; },
+        cancel() { cancelCount += 1; }
+      }
+    },
+    fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false }) }); }
+  });
+
+  assert.equal(fallback.elo.speakTextForTest('fala fallback', null, { responseId: 'late-fallback' }), true);
+  await flushEloHotfixPromises();
+  assert.equal(speakCount, 1);
+  assert.equal(fallback.elo.stopAllSpeechForTest({ shutdown: true }), true);
+  assert.equal(cancelCount >= 1, true);
+  assert.equal(staleUtterance.onend, null);
+  assert.equal(staleUtterance.onerror, null);
+  if (typeof staleUtterance.onend === 'function') staleUtterance.onend();
+  if (typeof staleUtterance.onerror === 'function') staleUtterance.onerror();
+  assert.equal(speakCount, 1);
+  assert.equal(fallback.elo.getSpeechStateForTest().state, 'idle');
 });
