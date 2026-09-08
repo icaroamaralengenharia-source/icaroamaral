@@ -164,6 +164,7 @@
     const qtyWord = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|vinte|trinta|quarenta|cinquenta|cem";
     if (/^(sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text)) return { action: "stock.confirm", raw };
     if (/^(nao|cancelar|cancela|abortar)$/.test(text)) return { action: "stock.cancel", raw };
+    if (input && input.action === "stock_history" || /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) && /\b(?:estoque|stock|almoxarifado|entradas?|saidas?|movimentacao|movimentacoes|movimentos?)\b/.test(text)) return { action: "stock.history", raw };
     if (/\b(?:o que esta acabando|o que esta em falta|estoque baixo|baixo estoque|acabando|repor)\b/.test(text)) return { action: "stock.lowStock", raw };
     if (input && input.action === "list_products" || /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:estoque|stock|almoxarifado)\b/.test(text) || /\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:do|no|na)?\s*(?:estoque|stock|almoxarifado)\b/.test(text) && !/\b(?:saldo|quanto|quantos|quantas|entrada|saida|retire|retirar|chegaram|chegou|recebemos)\b/.test(text)) return { action: "stock.listProducts", raw };
     let match = text.match(new RegExp("\\b(?:transfira|transferir|mande|envie)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+?)\\s+para\\s+(.+)$"));
@@ -267,6 +268,88 @@
       return stockResult(input, { action: "stock.lowStock", mode: "read", humanAnswer: "Itens acabando no Stock Full: " + low.map(function (item) { return getItemName(item) + " (" + formatQuantity(getItemQuantity(item), item.unit) + ", mínimo " + formatQuantity(getItemMinimum(item), item.unit) + ")"; }).join("; ") + ".", data: { items: low } });
     }).catch(function (error) {
       return stockResult(input, { ok: false, action: "stock.lowStock", mode: "error", humanAnswer: "Não consegui consultar o estoque baixo agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
+
+  function getMovementQuantity(movement) {
+    return Number(movement && (movement.quantity ?? movement.qty ?? movement.amount ?? movement.currentQuantity ?? 0)) || 0;
+  }
+
+  function getMovementItemName(movement) {
+    return clean(movement && (movement.itemName || movement.productName || movement.material || movement.name || movement.item && movement.item.name || movement.product && movement.product.name)) || "Produto";
+  }
+
+  function getMovementUnit(movement) {
+    return clean(movement && (movement.unit || movement.itemUnit || movement.productUnit || movement.item && movement.item.unit || movement.product && movement.product.unit)) || "un";
+  }
+
+  function getMovementType(movement) {
+    const text = normalize(movement && (movement.type || movement.movementType || movement.kind || movement.direction || movement.action));
+    if (/entrada|entry|inbound|in/.test(text)) return "entrada";
+    if (/saida|exit|outbound|out/.test(text)) return "saída";
+    if (/transfer/.test(text)) return "transferência";
+    return clean(movement && (movement.type || movement.movementType || movement.kind)) || "movimentação";
+  }
+
+  function getMovementDate(movement) {
+    return clean(movement && (movement.createdAt || movement.created_at || movement.syncedAt || movement.synced_at || movement.date || movement.timestamp));
+  }
+
+  function getMovementActor(movement) {
+    return clean(movement && (movement.actorName || movement.userName || movement.createdByName || movement.responsible || movement.userEmail || movement.createdBy || movement.created_by));
+  }
+
+  function formatMovementLine(movement) {
+    const parts = [
+      getMovementType(movement),
+      getMovementItemName(movement) + ": " + formatQuantity(getMovementQuantity(movement), getMovementUnit(movement))
+    ];
+    const date = getMovementDate(movement);
+    const actor = getMovementActor(movement);
+    if (date) parts.push(date);
+    if (actor) parts.push("por " + actor);
+    return "- " + parts.join(" · ") + ".";
+  }
+
+  function movementFromEntry(entry) {
+    return Object.assign({}, entry || {}, { type: "entrada" });
+  }
+
+  function movementFromExit(exit) {
+    return Object.assign({}, exit || {}, { type: "saida" });
+  }
+
+  function sortMovements(movements) {
+    return (movements || []).slice().sort(function (a, b) {
+      return String(getMovementDate(b)).localeCompare(String(getMovementDate(a)));
+    });
+  }
+
+  function executeMovementHistory(input) {
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para consultar o histórico real do Stock Full."));
+    return fetchStockJson(input, "/api/stock-full/live").then(function (data) {
+      let movements = Array.isArray(data.lastMovements) ? data.lastMovements : Array.isArray(data.movements) ? data.movements : [];
+      if (!movements.length) {
+        const entries = Array.isArray(data.entries) ? data.entries.map(movementFromEntry) : [];
+        const exits = Array.isArray(data.exits) ? data.exits.map(movementFromExit) : [];
+        movements = entries.concat(exits);
+      }
+      movements = sortMovements(movements).slice(0, 10);
+      if (!movements.length) return stockResult(input, { action: "stock.history", mode: "read", humanAnswer: "Consultei o histórico real do Stock Full e não encontrei movimentações registradas." });
+      const lines = ["Últimas movimentações do Stock Full:"].concat(movements.map(formatMovementLine));
+      return stockResult(input, { action: "stock.history", mode: "read", humanAnswer: lines.join("\n"), data: { movements } });
+    }).catch(function () {
+      return Promise.all([
+        fetchStockJson(input, "/api/stock-full/entries").catch(function () { return { entries: [] }; }),
+        fetchStockJson(input, "/api/stock-full/exits").catch(function () { return { exits: [] }; })
+      ]).then(function (results) {
+        const entries = Array.isArray(results[0].entries) ? results[0].entries.map(movementFromEntry) : [];
+        const exits = Array.isArray(results[1].exits) ? results[1].exits.map(movementFromExit) : [];
+        const movements = sortMovements(entries.concat(exits)).slice(0, 10);
+        if (!movements.length) return stockResult(input, { action: "stock.history", mode: "read", humanAnswer: "Consultei entradas e saídas reais do Stock Full e não encontrei movimentações registradas." });
+        const lines = ["Últimas movimentações do Stock Full:"].concat(movements.map(formatMovementLine));
+        return stockResult(input, { action: "stock.history", mode: "read", humanAnswer: lines.join("\n"), data: { movements } });
+      });
     });
   }
 
@@ -943,6 +1026,7 @@
     if (intent.action === "stock.listProducts") return executeListProducts(input);
     if (intent.action === "stock.query") return executeStockQuery(input, intent);
     if (intent.action === "stock.lowStock") return executeLowStock(input);
+    if (intent.action === "stock.history") return executeMovementHistory(input);
     if (/^stock\.(?:entry|exit|transfer)\.preview$/.test(intent.action)) return executeMovementPreview(input, intent);
     return unsupported(input, "Esse comando de Stock Full ainda não está liberado no Action Bus.");
   }

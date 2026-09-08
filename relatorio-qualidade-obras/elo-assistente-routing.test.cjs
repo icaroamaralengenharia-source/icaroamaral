@@ -1262,6 +1262,7 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.equal(stockQuery.action, 'get_balance');
   assert.deepEqual({ message: stockQuery.payload.message }, { message: 'ELO, quanto cimento temos?' });
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, o que está acabando?').action, 'stock_low_stock');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quais foram as últimas movimentações do estoque?').action, 'stock_history');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, transfira 5 sacos de cimento para o almoxarifado B.').action, 'stock_transfer');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('quais produtos existem no estoque?').action, 'list_products');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('liste os produtos do estoque').action, 'list_products');
@@ -1269,6 +1270,39 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('quanto tem de Aco no estoque?').action, 'get_balance');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('registre entrada de 10 kg de Aco').action, 'stock_entry');
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
+});
+
+test('ELO Action Bus Stock Full: historico usa CommandBridge antes do chat generico', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/live') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, lastMovements: [
+          { type: 'entrada', itemName: 'Aco', quantity: 10, unit: 'kg', createdAt: '2026-09-08T10:00:00.000Z' },
+          { type: 'saida', itemName: 'Aco', quantity: 5, unit: 'kg', createdAt: '2026-09-08T10:05:00.000Z' }
+        ] }) });
+      }
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock_history');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('quais foram as últimas movimentações do estoque?', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/live').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Últimas movimentações do Stock Full/);
+  assert.match(elementText(messages), /entrada.*Aco: 10 kg/i);
+  assert.match(elementText(messages), /saída.*Aco: 5 kg/i);
 });
 
 test('ELO Action Bus Stock Full: ask usa CommandBridge antes do chat generico', async () => {

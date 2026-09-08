@@ -70,6 +70,7 @@ test("ELO Action Bus Stock Full parseia frases principais", () => {
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, quanto cimento temos?")).action, "stock.query");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("quais produtos existem no estoque?")).action, "stock.listProducts");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, o que está acabando?")).action, "stock.lowStock");
+  assert.equal(win.EloActionBusStockFull.parseIntent(request("quais foram as últimas movimentações do estoque?")).action, "stock.history");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, chegaram 20 sacos de cimento.")).action, "stock.entry.preview");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, dê saída de 4 sacos de cimento.")).action, "stock.exit.preview");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, transfira 5 sacos de cimento para o almoxarifado B.")).action, "stock.transfer.preview");
@@ -106,6 +107,28 @@ test("ELO Action Bus Stock Full lista produtos reais", async () => {
   assert.match(result.humanAnswer, /Cimento CP II: 30 saco/);
   assert.equal(calls.filter((url) => /\/api\/stock-full\/items$/.test(url)).length, 1);
 });
+test("ELO Action Bus Stock Full lista historico real sem chamar chat", async () => {
+  const calls = [];
+  const win = loadBridge((url) => {
+    calls.push(String(url));
+    if (url.endsWith("/api/stock-full/live")) {
+      return Promise.resolve(createResponse({ ok: true, lastMovements: [
+        { type: "entrada", itemName: "Aco", quantity: 10, unit: "kg", createdAt: "2026-09-08T10:00:00.000Z", userName: "Admin E2E" },
+        { type: "saida", itemName: "Aco", quantity: 5, unit: "kg", createdAt: "2026-09-08T10:05:00.000Z", userName: "Admin E2E" }
+      ] }));
+    }
+    return Promise.resolve(createResponse({ ok: false, error: "unexpected" }, 404));
+  });
+
+  const result = await win.EloCommandBridge.execute(request("quais foram as últimas movimentações do estoque?"));
+  assert.equal(result.action, "stock.history");
+  assert.match(result.humanAnswer, /Últimas movimentações do Stock Full/);
+  assert.match(result.humanAnswer, /entrada.*Aco: 10 kg/i);
+  assert.match(result.humanAnswer, /saída.*Aco: 5 kg/i);
+  assert.equal(calls.filter((url) => /\/api\/stock-full\/live$/.test(url)).length, 1);
+  assert.equal(calls.some((url) => /\/api\/elo\/chat/.test(url)), false);
+});
+
 test("ELO Action Bus Stock Full entrada exige preview e confirma uma vez", async () => {
   const calls = [];
   const win = loadBridge((url, options = {}) => {
