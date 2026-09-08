@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 const repo = path.resolve(__dirname, "..", "..");
 
-function loadBridge() {
+function loadBridge(options = {}) {
   const source = readFileSync(path.join(repo, "relatorio-qualidade-obras", "elo-command-bridge.js"), "utf8");
   const storage = new Map();
   const sandbox = {
@@ -23,11 +23,18 @@ function loadBridge() {
         },
         setItem(key, value) {
           storage.set(key, String(value));
+        },
+        removeItem(key) {
+          storage.delete(key);
         }
-      }
+      },
+      fetch: options.fetch,
+      location: options.location || { hostname: "localhost", protocol: "http:" }
     }
   };
   sandbox.window.window = sandbox.window;
+  sandbox.window.sessionStorage = sandbox.window.localStorage;
+  if (options.authToken) sandbox.window.localStorage.setItem("stock_full_access_token", options.authToken);
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox);
   return sandbox.window;
@@ -101,4 +108,116 @@ test("EloCommandBridge está carregado nas superfícies ELO sem tocar CADISTA", 
   assert.match(stockObras, /elo-command-bridge\.js/);
   assert.match(obraReport, /elo-command-bridge\.js/);
   assert.doesNotMatch(cadista, /elo-command-bridge\.js/);
+});
+
+function createStockBridgeHarness(options = {}) {
+  const requests = [];
+  const items = (options.items || []).slice();
+  const window = loadBridge({
+    authToken: options.authToken === false ? "" : "token.test",
+    fetch(url, config = {}) {
+      const method = config.method || "GET";
+      requests.push({ url, method, body: config.body ? JSON.parse(config.body) : null });
+      if (url.endsWith("/api/stock-full/items") && method === "GET") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, items: items.slice() }) });
+      }
+      if (url.endsWith("/api/stock-full/items") && method === "POST") {
+        const body = config.body ? JSON.parse(config.body) : {};
+        if (!body.name) return Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ ok: false, error: "name_required" }) });
+        const item = { id: "created_" + (items.length + 1), name: body.name, unit: body.unit || "un", category: body.category || "Geral", minQuantity: body.minQuantity || 0, currentQuantity: body.currentQuantity || 0 };
+        items.push(item);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, mode: "remote", item }) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ ok: false, error: "unexpected_request" }) });
+    }
+  });
+  const context = {
+    authToken: options.authToken === false ? "" : "token.test",
+    identity: {
+      companyId: options.companyId === false ? "" : "inst_auth",
+      userId: "profile_auth",
+      role: options.role || "gestor"
+    }
+  };
+  return { window, requests, items, context };
+}
+
+test("EloActionBusStockFull gera preview de cadastro sem POST", async () => {
+  const harness = createStockBridgeHarness();
+  const response = await harness.window.EloCommandBridge.execute({
+    module: "stock_full",
+    action: "create_product",
+    payload: { message: "cadastre um produto chamado TESTE ELO E2E com unidade kg" },
+    context: harness.context
+  });
+  assert.equal(response.handled, true);
+  assert.equal(response.module, "stock_full");
+  assert.equal(response.action, "stock.create_product");
+  assert.equal(response.mode, "preview");
+  assert.equal(response.requiresConfirmation, true);
+  assert.match(response.humanAnswer, /NAME: TESTE ELO E2E/);
+  assert.match(response.humanAnswer, /UNIT: kg/);
+  assert.match(response.humanAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(harness.requests.filter((request) => request.method === "POST" && request.url.endsWith("/api/stock-full/items")).length, 0);
+});
+
+test("EloActionBusStockFull confirma cadastro com um POST real controlado", async () => {
+  const harness = createStockBridgeHarness();
+  await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "cadastre um produto chamado TESTE ELO E2E com unidade kg" }, context: harness.context });
+  const response = await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "stock_confirm", payload: { message: "confirmar" }, context: harness.context });
+  const posts = harness.requests.filter((request) => request.method === "POST" && request.url.endsWith("/api/stock-full/items"));
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.name, "TESTE ELO E2E");
+  assert.equal(posts[0].body.unit, "kg");
+  assert.equal(posts[0].body.category, "Geral");
+  assert.equal(posts[0].body.currentQuantity, 0);
+  assert.match(posts[0].body.notes, /operationId=/);
+  assert.equal(response.mode, "execute");
+  assert.match(response.humanAnswer, /Produto cadastrado/);
+});
+
+test("EloActionBusStockFull sem confirmação não executa POST", async () => {
+  const harness = createStockBridgeHarness();
+  await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "adicione um novo produto ao estoque chamado Produto Sem Confirmacao com unidade un" }, context: harness.context });
+  assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
+});
+
+test("EloActionBusStockFull confirmação repetida não duplica cadastro", async () => {
+  const harness = createStockBridgeHarness();
+  await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "crie um produto no estoque chamado Produto Idempotente com unidade kg" }, context: harness.context });
+  await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "stock_confirm", payload: { message: "sim" }, context: harness.context });
+  await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "stock_confirm", payload: { message: "sim" }, context: harness.context });
+  assert.equal(harness.requests.filter((request) => request.method === "POST" && request.url.endsWith("/api/stock-full/items")).length, 1);
+});
+
+test("EloActionBusStockFull bloqueia payload inválido antes de POST", async () => {
+  const harness = createStockBridgeHarness();
+  const response = await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "cadastre um produto chamado com unidade kg" }, context: harness.context });
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "name_required");
+  assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
+});
+
+test("EloActionBusStockFull bloqueia cadastro fora de tenant antes de POST", async () => {
+  const harness = createStockBridgeHarness({ companyId: false });
+  const response = await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "cadastre um produto chamado Produto Tenant com unidade kg" }, context: harness.context });
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "institution_required");
+  assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
+});
+
+test("EloActionBusStockFull bloqueia usuário sem permissão antes de POST", async () => {
+  const harness = createStockBridgeHarness({ role: "leitura" });
+  const response = await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "cadastre um produto chamado Produto Leitura com unidade kg" }, context: harness.context });
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "permission_denied");
+  assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
+});
+
+test("EloActionBusStockFull bloqueia duplicidade exata no tenant antes de POST", async () => {
+  const harness = createStockBridgeHarness({ items: [{ id: "item_1", name: "TESTE ELO E2E", unit: "kg", currentQuantity: 0, minQuantity: 0 }] });
+  const response = await harness.window.EloCommandBridge.execute({ module: "stock_full", action: "create_product", payload: { message: "cadastre um produto chamado TESTE ELO E2E com unidade kg" }, context: harness.context });
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "stock_full_product_duplicate");
+  assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
 });
