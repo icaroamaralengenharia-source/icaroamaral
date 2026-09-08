@@ -158,12 +158,64 @@
       .replace(/\s+/g, " "));
   }
 
+  function hasStockFullPermission(input, permission) {
+    const context = input && input.context || {};
+    const identity = context.identity || {};
+    const role = normalize(context.role || identity.role || identity.profileRole || identity.profile_role || identity.userRole || identity.user_role);
+    const permissions = {
+      admin: ["products:create", "products:update", "products:delete"],
+      administrador: ["products:create", "products:update", "products:delete"],
+      gestor: ["products:create", "products:update", "products:delete"],
+      patrao: ["products:create", "products:update", "products:delete"]
+    };
+    return Boolean(permission && permissions[role] && permissions[role].indexOf(permission) >= 0);
+  }
+
+  function stripCreateProductName(value) {
+    return clean(String(value || "")
+      .replace(/^com\s+(?:unidade|unidade\s+de\s+medida|un\.?|medida)\s+[\w./-]+[\s\S]*$/i, "")
+      .replace(/\s+com\s+(?:unidade|unidade\s+de\s+medida|un\.?|medida)\s+[\w./-]+[\s\S]*$/i, "")
+      .replace(/\s+(?:na|no|para\s+o|ao)\s+(?:estoque|stock\s+full|almoxarifado)[\s\S]*$/i, "")
+      .replace(/\s+categoria\s+[\s\S]*$/i, "")
+      .replace(/\s+min(?:imo|ima|\.?)\s+[\s\S]*$/i, "")
+      .replace(/[.;!?]+$/g, ""));
+  }
+
+  function parseStockCreateIntent(input, raw, text) {
+    const action = clean(input && input.action);
+    const isExplicitAction = action === "create_product" || action === "stock.create_product" || action === "stock.create_product.preview";
+    const isCreateText = /\b(?:cadastre|cadastrar|crie|criar|adicione|adicionar|inclua|incluir|novo\s+produto|novo\s+item)\b/.test(text) && /\b(?:produto|produtos|item|itens|material|materiais|estoque|stock|almoxarifado)\b/.test(text);
+    if (!isExplicitAction && !isCreateText) return null;
+    const unitMatch = raw.match(/\b(?:unidade|unidade\s+de\s+medida|un\.?|medida)\s+([a-zA-Z0-9./_-]+)/i);
+    const categoryMatch = raw.match(/\bcategoria\s+(.+?)(?:\s+com\s+|\s+min(?:imo|ima|\.?)|$)/i);
+    const minMatch = text.match(/\bmin(?:imo|ima|\.?)\s+(\d+(?:[,.]\d+)?)/);
+    const initialMatch = text.match(/\b(?:saldo|quantidade)\s+inicial\s+(\d+(?:[,.]\d+)?)/);
+    let name = "";
+    const named = raw.match(/\b(?:chamado|chamada|nomeado|nomeada|nome)\s+(.+)$/i);
+    if (named) name = stripCreateProductName(named[1]);
+    if (!name && !named) {
+      name = stripCreateProductName(raw
+        .replace(/^\s*(?:cadastre|cadastrar|crie|criar|adicione|adicionar|inclua|incluir)\s+(?:um|uma|novo|nova)?\s*(?:produto|item|material)?\s*/i, ""));
+    }
+    return {
+      action: "stock.create_product.preview",
+      raw,
+      name: clean(name),
+      unit: normalizeUnit(unitMatch && unitMatch[1] || ""),
+      category: clean(categoryMatch && categoryMatch[1]) || "Geral",
+      minQuantity: minMatch ? numberFromText(minMatch[1]) : 0,
+      initialQuantity: initialMatch ? numberFromText(initialMatch[1]) : 0
+    };
+  }
+
   function parseStockIntent(input) {
     const raw = clean(input && input.payload && input.payload.message);
     const text = normalize(raw);
     const qtyWord = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|vinte|trinta|quarenta|cinquenta|cem";
     if (/^(sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text)) return { action: "stock.confirm", raw };
     if (/^(nao|cancelar|cancela|abortar)$/.test(text)) return { action: "stock.cancel", raw };
+    const createIntent = parseStockCreateIntent(input, raw, text);
+    if (createIntent) return createIntent;
     if (input && input.action === "stock_history" || /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) && /\b(?:estoque|stock|almoxarifado|entradas?|saidas?|movimentacao|movimentacoes|movimentos?)\b/.test(text)) return { action: "stock.history", raw };
     if (/\b(?:o que esta acabando|o que esta em falta|estoque baixo|baixo estoque|acabando|repor)\b/.test(text)) return { action: "stock.lowStock", raw };
     if (input && input.action === "list_products" || /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:estoque|stock|almoxarifado)\b/.test(text) || /\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:do|no|na)?\s*(?:estoque|stock|almoxarifado)\b/.test(text) && !/\b(?:saldo|quanto|quantos|quantas|entrada|saida|retire|retirar|chegaram|chegou|recebemos)\b/.test(text)) return { action: "stock.listProducts", raw };
@@ -221,18 +273,63 @@
   }
 
   function makeOperationId(intent, item, identity) {
-    return ["elo", intent.action, getItemId(item), intent.quantity, identity.companyId || "company", identity.userId || "user", checksum(intent.raw)].join(":");
+    return ["elo", intent.action, getItemId(item) || checksum(intent.name || ""), intent.quantity || intent.initialQuantity || 0, identity.companyId || "company", identity.userId || "user", checksum(intent.raw)].join(":");
   }
 
   function makePending(input, intent, item, destinationItem) {
     const identity = getIdentity(input);
     const operationId = makeOperationId(intent, item, identity);
-    const token = checksum([intent.action, getItemId(item), getItemId(destinationItem), intent.quantity, identity.companyId, identity.userId, operationId].join("|"));
-    return { action: intent.action.replace(".preview", ".execute"), createdAt: Date.now(), operationId, offlineUuid: operationId, token, item, destinationItem: destinationItem || null, quantity: intent.quantity, unit: intent.unit, destinationQuery: clean(intent.destinationQuery), identity, raw: intent.raw };
+    const token = checksum([intent.action, getItemId(item) || intent.name, getItemId(destinationItem), intent.quantity || intent.initialQuantity, identity.companyId, identity.userId, operationId].join("|"));
+    return { action: intent.action.replace(".preview", ".execute"), createdAt: Date.now(), operationId, offlineUuid: operationId, token, item: item || null, destinationItem: destinationItem || null, name: clean(intent.name), category: clean(intent.category) || "Geral", minQuantity: Number(intent.minQuantity || 0) || 0, initialQuantity: Number(intent.initialQuantity || 0) || 0, quantity: intent.quantity, unit: intent.unit, destinationQuery: clean(intent.destinationQuery), identity, raw: intent.raw, status: "pending" };
   }
 
   function stockResult(input, values) { return result(input, Object.assign({ module: "stock_full" }, values || {})); }
   function loadItems(input) { return fetchStockJson(input, "/api/stock-full/items").then(function (data) { return Array.isArray(data.items) ? data.items : []; }); }
+
+  function findExistingProduct(items, pendingOrIntent) {
+    const name = normalize(pendingOrIntent && pendingOrIntent.name);
+    const unit = normalizeUnit(pendingOrIntent && pendingOrIntent.unit);
+    if (!name) return null;
+    return (items || []).find(function (item) {
+      return normalize(getItemName(item)) === name && normalizeUnit(item && item.unit) === unit;
+    }) || null;
+  }
+
+  function executeCreateProductPreview(input, intent) {
+    if (!intent.name) return Promise.resolve(stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não consegui identificar o nome do produto com segurança. Nenhum cadastro foi criado.", error: "name_required" }));
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para cadastrar produto real no Stock Full."));
+    if (!getIdentity(input).companyId) return Promise.resolve(stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Preciso do tenant/empresa ativo para cadastrar produto. Não aceito tenant vindo do texto.", error: "institution_required" }));
+    if (!hasStockFullPermission(input, "products:create")) return Promise.resolve(stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Usuário sem permissão para cadastrar produto no Stock Full. Nenhum POST foi executado.", error: "permission_denied" }));
+    return loadItems(input).then(function (items) {
+      const existing = findExistingProduct(items, intent);
+      if (existing) return stockResult(input, { ok: false, action: "stock.create_product", mode: "blocked", humanAnswer: "Já existe produto ativo com esse nome e unidade no tenant atual: " + getItemName(existing) + " (" + existing.unit + "). Nenhum duplicado foi criado.", error: "stock_full_product_duplicate", data: { item: existing } });
+      const pending = makePending(input, intent, null, null);
+      savePending(pending);
+      return stockResult(input, {
+        action: "stock.create_product",
+        mode: "preview",
+        requiresConfirmation: true,
+        preview: [
+          "Preview de cadastro no Stock Full:",
+          "MODULE: stock_full",
+          "ACTION: stock.create_product",
+          "NAME: " + pending.name,
+          "UNIT: " + pending.unit,
+          "CATEGORY: " + pending.category,
+          "MINIMUM STOCK: " + pending.minQuantity,
+          "INITIAL QUANTITY: " + pending.initialQuantity,
+          "TENANT: " + (pending.identity.companyId || "tenant atual"),
+          "CONFIRMATION REQUIRED: SIM",
+          "WRITE EXECUTED: 0",
+          "/api/stock-full/items POST: 0",
+          "Token: " + pending.token + ". Responda sim para executar."
+        ].join("\n"),
+        data: { pending }
+      });
+    }).catch(function (error) {
+      return stockResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui preparar o cadastro no Stock Full. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
 
   function executeListProducts(input) {
     if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para listar o estoque real do Stock Full."));
@@ -393,6 +490,9 @@
   }
 
   function postConfirmedMovement(input, pending) {
+    if (pending.action === "stock.create_product.execute") {
+      return fetchStockJson(input, "/api/stock-full/items", { method: "POST", body: JSON.stringify({ name: pending.name, unit: pending.unit, category: pending.category, minQuantity: pending.minQuantity, currentQuantity: pending.initialQuantity, notes: "Cadastro confirmado pelo ELO. operationId=" + pending.operationId }) });
+    }
     if (pending.action === "stock.transfer.execute") {
       return fetchStockJson(input, "/api/stock-full/transfers", { method: "POST", body: JSON.stringify({ sourceItemId: getItemId(pending.item), destinationItemId: getItemId(pending.destinationItem), quantity: pending.quantity, destination: pending.destinationQuery || getItemName(pending.destinationItem), operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }) });
     }
@@ -403,16 +503,32 @@
   function executePendingStock(input) {
     const pending = readPending();
     if (!pending) return Promise.resolve(stockResult(input, { ok: false, action: "stock.confirm", mode: "blocked", humanAnswer: "Não há movimento pendente para confirmar. Nenhum estoque foi movimentado." }));
-    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para confirmar o movimento real no Stock Full."));
-    return postConfirmedMovement(input, pending).then(function (data) {
+    if (pending.status === "saving" || pending.status === "saved") return Promise.resolve(stockResult(input, { action: pending.action, mode: pending.status === "saved" ? "execute" : "blocked", humanAnswer: pending.status === "saved" ? "Essa ação já foi confirmada. Não criei duplicado." : "Essa ação já está em confirmação. Não vou enviar outro POST.", data: { pending } }));
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para confirmar a ação real no Stock Full."));
+    if (pending.action === "stock.create_product.execute" && !hasStockFullPermission(input, "products:create")) return Promise.resolve(stockResult(input, { ok: false, action: pending.action, mode: "blocked", humanAnswer: "Usuário sem permissão para cadastrar produto no Stock Full. Nenhum POST foi executado.", error: "permission_denied" }));
+    const execute = function () {
+      pending.status = "saving";
+      savePending(pending);
+      return postConfirmedMovement(input, pending);
+    };
+    const execution = pending.action === "stock.create_product.execute"
+      ? loadItems(input).then(function (items) {
+        const existing = findExistingProduct(items, pending);
+        if (existing) return { ok: true, duplicate: true, item: existing };
+        return execute();
+      })
+      : execute();
+    return execution.then(function (data) {
+      pending.status = "saved";
       clearPending();
       const duplicate = data && (data.duplicate || (data.results || []).some(function (item) { return item.status === "duplicate"; }));
       const rejected = data && (data.results || []).find(function (item) { return item.status === "rejected"; });
       if (rejected) return stockResult(input, { ok: false, action: pending.action, mode: "blocked", humanAnswer: "O Stock Full bloqueou o movimento: " + (clean(rejected.message) || "movimento rejeitado") + ". Nenhuma confirmação duplicada foi criada.", error: clean(rejected.message) });
+      if (pending.action === "stock.create_product.execute") return stockResult(input, { action: pending.action, mode: "execute", humanAnswer: (duplicate ? "Esse produto já estava cadastrado. " : "Produto cadastrado no Stock Full: ") + pending.name + " (" + pending.unit + ").", data: { pending, response: data, item: data && data.item } });
       const label = pending.action === "stock.entry.execute" ? "Entrada registrada" : pending.action === "stock.exit.execute" ? "Saída registrada" : "Transferência registrada";
       return stockResult(input, { action: pending.action, mode: "execute", humanAnswer: (duplicate ? "Esse movimento já estava confirmado. " : "") + label + " no Stock Full: " + formatQuantity(pending.quantity, pending.unit || pending.item && pending.item.unit) + " de " + getItemName(pending.item) + ".", data: { pending, response: data } });
     }).catch(function (error) {
-      return stockResult(input, { ok: false, action: pending.action, mode: "error", humanAnswer: "Não confirmei o movimento porque o backend do Stock Full retornou: " + (clean(error.message) || "erro ao confirmar") + ".", error: clean(error.message) });
+      return stockResult(input, { ok: false, action: pending.action, mode: "error", humanAnswer: "Não confirmei a ação porque o backend do Stock Full retornou: " + (clean(error.message) || "erro ao confirmar") + ".", error: clean(error.message) });
     });
   }
 
@@ -1027,6 +1143,7 @@
     if (intent.action === "stock.query") return executeStockQuery(input, intent);
     if (intent.action === "stock.lowStock") return executeLowStock(input);
     if (intent.action === "stock.history") return executeMovementHistory(input);
+    if (intent.action === "stock.create_product.preview") return executeCreateProductPreview(input, intent);
     if (/^stock\.(?:entry|exit|transfer)\.preview$/.test(intent.action)) return executeMovementPreview(input, intent);
     return unsupported(input, "Esse comando de Stock Full ainda não está liberado no Action Bus.");
   }
