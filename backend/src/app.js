@@ -1983,12 +1983,15 @@ export function createApp(options = {}) {
       if (error) {
         throw error;
       }
+      const items = (data || []).map(mapStockFullItemFromDatabase_);
+      logStockFullItemsDiag_(env, database, session, { data, responseCount: items.length });
       response.json({
         ok: true,
         mode: "remote",
-        items: (data || []).map(mapStockFullItemFromDatabase_)
+        items
       });
     } catch (error) {
+      logStockFullItemsDiag_(env, database, session, { error, responseCount: 0 });
       response.status(500).json({ ok: false, error: "stock_full_items_query_failed" });
     }
   });
@@ -4387,6 +4390,54 @@ function requireStockFullDatabase_(env, response, databaseOverride = null) {
     return null;
   }
   return database;
+}
+
+function maskStockFullDiagValue_(value) {
+  const text = clean_(value);
+  if (!text) return "";
+  if (text.length <= 12) return "***";
+  return text.slice(0, 8) + "..." + text.slice(-4);
+}
+
+function getSupabaseProjectRefFromUrl_(url) {
+  try {
+    const hostname = new URL(clean_(url)).hostname || "";
+    return hostname.split(".")[0] || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function getStockFullQueryClientType_(env, database) {
+  if (database && database.__obrareportClientType) return clean_(database.__obrareportClientType);
+  if (clean_(env.SUPABASE_SERVICE_ROLE_KEY)) return "service_role";
+  if (clean_(env.SUPABASE_ANON_KEY)) return "anon";
+  return "unknown";
+}
+
+function logStockFullItemsDiag_(env, database, session, result = {}) {
+  try {
+    const data = Array.isArray(result.data) ? result.data : null;
+    const queryError = result.error || null;
+    console.info("STOCK_ITEMS_DIAG " + JSON.stringify({
+      projectRef: getSupabaseProjectRefFromUrl_(env.SUPABASE_URL),
+      userIdMasked: maskStockFullDiagValue_(session && session.user && session.user.id),
+      profileIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.id),
+      institutionIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.institution_id),
+      table: "stock_full_items",
+      filters: {
+        institution_id: "masked",
+        is_active: true
+      },
+      serviceRoleConfigured: Boolean(clean_(env.SUPABASE_SERVICE_ROLE_KEY)),
+      queryClientType: getStockFullQueryClientType_(env, database),
+      queryCount: data ? data.length : null,
+      queryErrorCode: clean_(queryError && (queryError.code || queryError.message), 120),
+      responseCount: Number.isFinite(Number(result.responseCount)) ? Number(result.responseCount) : 0
+    }));
+  } catch (error) {
+    console.info("STOCK_ITEMS_DIAG_FAILED");
+  }
 }
 
 async function getSupabaseUserFromRequest_(request, supabase) {

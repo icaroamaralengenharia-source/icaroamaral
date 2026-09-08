@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createEloCoreSupabaseStore } from "../src/elo-core-supabase-store.js";
 
@@ -257,4 +257,22 @@ test("ELO Supabase store atualiza titulo na primeira mensagem de usuario", async
   const manual = await store.createConversation({ ...authA, title: "Titulo manual" });
   await store.addMessage(manual.id, { ...authA, role: "user", content: "Primeira mensagem do manual" });
   assert.equal((await store.getConversation(manual.id, authA)).conversation.title, "Titulo manual");
+});
+
+test("ELO Supabase store prefere anon key publica especifica do ELO", async () => {
+  let usedKey = "";
+  const store = createEloCoreSupabaseStore({
+    env: {
+      SUPABASE_URL: "https://example.supabase.co",
+      ELO_SUPABASE_ANON_KEY: "elo-anon-key",
+      SUPABASE_ANON_KEY: "generic-anon-key"
+    },
+    createClient(_url, key) {
+      usedKey = key;
+      return { from() { throw new Error("not used"); } };
+    }
+  });
+
+  await assert.rejects(() => store.listConversations({ userId: "user-a", jwt: "jwt-a" }), /not used/);
+  assert.equal(usedKey, "elo-anon-key");
 });

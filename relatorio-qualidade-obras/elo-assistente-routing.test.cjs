@@ -1359,6 +1359,21 @@ test('ELO CORE intent: classifica data clima opiniao e multi-intent', () => {
   assert.equal(multi.map((item) => item.type).join(','), 'date_time,weather,research_or_opinion');
 });
 
+test('ELO CORE local tool: calcula percentual conversao e volume de laje sem fallback remoto', () => {
+  const elo = loadElo();
+
+  assert.equal(elo.classifyIntentForTest('17% de 850')[0].type, 'math');
+  assert.match(elo.routeCoreIntentsForTest('17% de 850', {}).fullAnswer, /144,5/);
+
+  assert.equal(elo.classifyIntentForTest('3,5 metros em centímetros')[0].type, 'math');
+  assert.match(elo.routeCoreIntentsForTest('3,5 metros em centímetros', {}).fullAnswer, /350/);
+
+  const slab = elo.routeCoreIntentsForTest('laje 8 por 12 com 12 cm', {});
+  assert.match(slab.fullAnswer, /96/);
+  assert.match(slab.fullAnswer, /11,52/);
+  assert.equal(elo.buildLocalToolFastPathResponseForTest('17% de 850').sessionIntent, 'math');
+});
+
 test('ELO CORE intent: responde pergunta composta sem fallback generico', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Qual dia e hoje? Quantos graus faz em Vitoria da Conquista e quem vai ganhar a Copa?');
