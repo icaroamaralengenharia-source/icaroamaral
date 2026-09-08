@@ -263,7 +263,10 @@
     }
     const operationalReleaseMath = /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text) && /material|materiais|liberar|saida|sa.da|almoxarifado/.test(text);
     const constructionGeometryMath = /\b(?:parede|viga|pilar|laje|sapata|baldrame|concreto|volume|area|área)\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por|com)\s*\d+(?:[,.]\d+)?/.test(text);
-    if (!operationalReleaseMath && !constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))) add({ type: "math" });
+    const percentageMath = /\d+(?:[,.]\d+)?\s*%\s*(?:de|do|da)\s*\d+(?:[,.]\d+)?/.test(text);
+    const meterConversionMath = /\d+(?:[,.]\d+)?\s*(?:m|metro|metros)\b/.test(text) && /\b(?:em|para)\s+(?:cm|centimetro|centimetros|centímetro|centímetros)\b/.test(text);
+    const slabVolumeMath = /\blaje\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) && /\bcom\s+\d+(?:[,.]\d+)?\s*cm\b/.test(text);
+    if (!operationalReleaseMath && (percentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
     if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
@@ -294,6 +297,34 @@
 
   function calculateSimpleEloCoreMath_(message) {
     const raw = sanitizeUserText(message).replace(/,/g, ".");
+    const normalized = normalizeText(raw);
+    function format(value) {
+      return String(Number(value.toFixed(6))).replace(".", ",");
+    }
+    const percentage = raw.match(/(-?\d+(?:\.\d+)?)\s*%\s*(?:de|do|da)\s*(-?\d+(?:\.\d+)?)/i);
+    if (percentage) {
+      const rate = Number(percentage[1]);
+      const base = Number(percentage[2]);
+      if (Number.isFinite(rate) && Number.isFinite(base)) return format(rate) + "% de " + format(base) + " é " + format((rate / 100) * base) + ".";
+    }
+    const meterValue = raw.match(/(-?\d+(?:\.\d+)?)\s*(?:m|metro|metros)\b/i);
+    if (meterValue && /\b(?:em|para)\s+(?:cm|centimetro|centimetros)\b/.test(normalized)) {
+      const meters = Number(meterValue[1]);
+      if (Number.isFinite(meters)) return format(meters) + " metros equivalem a " + format(meters * 100) + " centímetros.";
+    }
+    if (/\blaje\b/.test(normalized)) {
+      const slab = raw.match(/(-?\d+(?:\.\d+)?)\s*(?:x|por)\s*(-?\d+(?:\.\d+)?)[\s\S]*?\bcom\s+(-?\d+(?:\.\d+)?)\s*cm\b/i);
+      if (slab) {
+        const width = Number(slab[1]);
+        const length = Number(slab[2]);
+        const thicknessCm = Number(slab[3]);
+        if (Number.isFinite(width) && Number.isFinite(length) && Number.isFinite(thicknessCm)) {
+          const area = width * length;
+          const volume = area * (thicknessCm / 100);
+          return "A laje " + format(width) + " x " + format(length) + " m com " + format(thicknessCm) + " cm tem área de " + format(area) + " m² e volume de concreto de " + format(volume) + " m³.";
+        }
+      }
+    }
     const match = raw.match(/(-?\d+(?:\.\d+)?)\s*([+*x×/÷-])\s*(-?\d+(?:\.\d+)?)/);
     if (!match) return "Consigo calcular, mas preciso de uma conta objetiva, por exemplo: 25 * 4.";
     const left = Number(match[1]);
@@ -305,7 +336,7 @@
     if (op === "*" || op === "x" || op === "×") result = left * right;
     if (op === "/" || op === "÷") result = right === 0 ? null : left / right;
     if (result === null || !Number.isFinite(result)) return "Não consigo dividir por zero.";
-    return "O resultado é " + String(Number(result.toFixed(6))).replace(".", ",") + ".";
+    return "O resultado é " + format(result) + ".";
   }
 
   function routeEloCoreIntent_(intent, context) {
@@ -29353,6 +29384,31 @@ function isEloResidentialNewPipelineEnabled_() {
     logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: true, state: result.state, handler: result.handler });
     return { handled: true, action: action, state: result.state, handler: result.handler };
   }
+  function buildEloLocalToolFastPathResponse_(message) {
+    const intents = classifyEloCoreIntent_(message, {});
+    if (!intents.some(function (intent) { return intent.type === "math"; })) return null;
+    return routeEloCoreIntents_(message, {});
+  }
+
+  function handleEloLocalToolFastPath_(cleanQuestion) {
+    const response = buildEloLocalToolFastPathResponse_(cleanQuestion);
+    if (!response) return false;
+    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+    ELO_UI.suppressRemotePersistence = true;
+    try {
+      appendMessage("user", cleanQuestion);
+      const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      recordEloCoreReliabilityEvent_("local_tool_fast_path", { sessionIntent: response.sessionIntent || "", backendCalls: 0, openAiCalls: 0 });
+      clearProductAttachmentPreview();
+    } finally {
+      ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+    }
+    return true;
+  }
+
   function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -29418,6 +29474,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
+      return;
+    }
+    if (!attachedFiles.length && handleEloLocalToolFastPath_(routeQuestion)) {
       return;
     }
     if (handleEloStockProductCreate_(cleanQuestion, attachedFiles)) {
@@ -34096,6 +34155,9 @@ function isEloResidentialNewPipelineEnabled_() {
     getCoreIdentityForTest: getEloCoreIdentity_,
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
+    routeCoreIntentsForTest: routeEloCoreIntents_,
+    calculateSimpleMathForTest: calculateSimpleEloCoreMath_,
+    buildLocalToolFastPathResponseForTest: buildEloLocalToolFastPathResponse_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
     parseStockProductCreateCommandForTest: parseEloStockProductCreateCommand_,
     parseStockEntryCommandForTest: parseEloStockEntryCommand_,

@@ -147,7 +147,7 @@ function normalizeMemoryInput(input = {}, ownerUserId) {
 export function createEloCoreSupabaseStore(options = {}) {
   const env = options.env || process.env;
   const supabaseUrl = clean(options.supabaseUrl || env.SUPABASE_URL, 500);
-  const supabaseAnonKey = clean(options.supabaseAnonKey || env.SUPABASE_ANON_KEY, 2000);
+  const supabaseAnonKey = clean(options.supabaseAnonKey || env.ELO_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY, 2000);
   const createClientFn = options.createClient || createClient;
 
   if (!supabaseUrl) throw safeError("supabase_url_required", 500);
