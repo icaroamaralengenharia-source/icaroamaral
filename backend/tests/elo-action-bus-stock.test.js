@@ -68,6 +68,7 @@ function request(message, context = {}) {
 test("ELO Action Bus Stock Full parseia frases principais", () => {
   const win = loadBridge();
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, quanto cimento temos?")).action, "stock.query");
+  assert.equal(win.EloActionBusStockFull.parseIntent(request("quais produtos existem no estoque?")).action, "stock.listProducts");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, o que está acabando?")).action, "stock.lowStock");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, chegaram 20 sacos de cimento.")).action, "stock.entry.preview");
   assert.equal(win.EloActionBusStockFull.parseIntent(request("ELO, dê saída de 4 sacos de cimento.")).action, "stock.exit.preview");
@@ -80,7 +81,7 @@ test("ELO Action Bus Stock Full consulta saldo real sem inventar numero", async 
     return Promise.resolve(createResponse({ ok: true, items: [items[0]] }));
   });
   const result = await win.EloCommandBridge.execute(request("ELO, quanto cimento temos?"));
-  assert.equal(result.action, "stock.query");
+  assert.equal(result.action, "get_balance");
   assert.match(result.humanAnswer, /30 saco/);
   assert.match(result.humanAnswer, /Cimento/);
 });
@@ -93,6 +94,18 @@ test("ELO Action Bus Stock Full lista estoque baixo real", async () => {
   assert.match(result.humanAnswer, /Areia media/);
 });
 
+test("ELO Action Bus Stock Full lista produtos reais", async () => {
+  const calls = [];
+  const win = loadBridge((url) => {
+    calls.push(String(url));
+    return Promise.resolve(createResponse({ ok: true, items }));
+  });
+  const result = await win.EloCommandBridge.execute(request("quais produtos existem no estoque?"));
+  assert.equal(result.action, "list_products");
+  assert.match(result.humanAnswer, /Produtos no Stock Full/);
+  assert.match(result.humanAnswer, /Cimento CP II: 30 saco/);
+  assert.equal(calls.filter((url) => /\/api\/stock-full\/items$/.test(url)).length, 1);
+});
 test("ELO Action Bus Stock Full entrada exige preview e confirma uma vez", async () => {
   const calls = [];
   const win = loadBridge((url, options = {}) => {
@@ -116,6 +129,20 @@ test("ELO Action Bus Stock Full entrada exige preview e confirma uma vez", async
   assert.equal(calls.filter((call) => call.url.endsWith("/api/stock-full/sync")).length, 1);
 });
 
+test("ELO Action Bus Stock Full preview de entrada resolve produto real sem executar", async () => {
+  const calls = [];
+  const win = loadBridge((url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).endsWith("/api/stock-full/items")) return Promise.resolve(createResponse({ ok: true, items: [{ id: "aco", name: "Aco", unit: "kg", currentQuantity: 420, minQuantity: 10 }] }));
+    return Promise.resolve(createResponse({ ok: false, error: "unexpected_write" }, 500));
+  });
+  const preview = await win.EloCommandBridge.execute(request("registre entrada de 10 kg de Aco"));
+  assert.equal(preview.requiresConfirmation, true);
+  assert.equal(preview.action, "stock.entry.preview");
+  assert.match(preview.preview, /10 kg de Aco/);
+  assert.equal(calls.filter((call) => call.url.endsWith("/api/stock-full/items")).length, 1);
+  assert.equal(calls.filter((call) => call.url.endsWith("/api/stock-full/sync")).length, 0);
+});
 test("ELO Action Bus Stock Full bloqueia saida com saldo insuficiente", async () => {
   const win = loadBridge(() => Promise.resolve(createResponse({ ok: true, items: [items[1]] })));
   const result = await win.EloCommandBridge.execute(request("ELO, dê saída de 4 sacos de cimento."));
