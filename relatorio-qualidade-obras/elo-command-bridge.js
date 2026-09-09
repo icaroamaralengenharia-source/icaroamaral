@@ -17,6 +17,8 @@
     "create_company"
   ]);
   const STOCK_PENDING_KEY = "elo_action_bus_stock_full_pending_v1";
+  const RDO_PENDING_KEY = "elo_action_bus_rdo_pending_v1";
+  const OBRAREPORT_STATE_KEY = "obrareport-saas-v1";
   const STOCK_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
   const NUMBER_WORDS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
 
@@ -903,6 +905,7 @@
       raw,
       rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
       projectId: clean(payload.projectId || payload.project_id),
+      workName: clean(payload.workName || payload.work_name || payload.obraName || payload.obra_name),
       clientId: clean(payload.clientId || payload.client_id),
       startDate: parseIsoDateOnly(payload.startDate || payload.start_date),
       endDate: parseIsoDateOnly(payload.endDate || payload.end_date),
@@ -1097,21 +1100,121 @@
     });
   }
 
-  function executeRdoCreatePreview(input, intent) {
+  function readObraReportState_() {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem(OBRAREPORT_STATE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && parsed.version === 1 && typeof parsed === "object" ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function resolveExistingObraReportWorks_() {
+    const state = readObraReportState_();
+    const works = state && Array.isArray(state.works) ? state.works : [];
+    return works.map(function (work) {
+      return work && typeof work === "object" ? {
+        id: clean(work.id),
+        name: clean(work.name || work.nome),
+        clientId: clean(work.clientId || work.client_id),
+        address: clean(work.address || work.endereco),
+        type: clean(work.type || work.tipo),
+        status: clean(work.status)
+      } : null;
+    }).filter(function (work) { return !!(work && work.id && work.name); });
+  }
+
+  function rdoPendingExpired_(pending) {
+    return !pending || !pending.createdAt || Date.now() - Number(pending.createdAt) > STOCK_CONFIRMATION_TTL_MS;
+  }
+
+  function readRdoPending() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(RDO_PENDING_KEY) || "null");
+      if (rdoPendingExpired_(parsed)) {
+        window.localStorage.removeItem(RDO_PENDING_KEY);
+        return null;
+      }
+      return parsed;
+    } catch (error) { return null; }
+  }
+
+  function saveRdoPending(pending) { window.localStorage.setItem(RDO_PENDING_KEY, JSON.stringify(pending)); }
+  function clearRdoPending() { try { window.localStorage.removeItem(RDO_PENDING_KEY); } catch (error) {} }
+
+  function makeRdoPending(input, intent) {
+    return {
+      action: "rdo.create.preview",
+      status: "awaiting_work",
+      createdAt: Date.now(),
+      identity: getRdoIdentity(input),
+      targetDate: intent.targetDate || "",
+      raw: intent.raw || ""
+    };
+  }
+
+  function resolveRdoWorkSelection_(input, intent) {
     const identity = getRdoIdentity(input);
+    const works = resolveExistingObraReportWorks_();
+    if (identity.projectId) {
+      const contextWork = works.find(function (work) { return work.id === identity.projectId; }) || null;
+      return { ok: true, source: "authenticated_context", works, work: contextWork || { id: identity.projectId, name: identity.projectName || identity.projectId } };
+    }
+    const requestedName = clean(intent.workName || input && input.payload && (input.payload.workName || input.payload.work_name));
+    if (requestedName) {
+      const normalized = normalize(requestedName);
+      const matches = works.filter(function (work) {
+        const name = normalize(work.name);
+        return name === normalized || name.indexOf(normalized) >= 0 || normalized.indexOf(name) >= 0;
+      });
+      if (matches.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: matches[0] };
+      return { ok: false, reason: matches.length > 1 ? "ambiguous_work" : "work_not_found", works, requestedName };
+    }
+    if (works.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: works[0] };
+    if (works.length > 1) return { ok: false, reason: "work_selection_required", works };
+    return { ok: false, reason: "no_works", works };
+  }
+  function executeRdoCreatePreview(input, intent) {
+    const pending = readRdoPending();
+    if (pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work") {
+      intent.targetDate = intent.targetDate || pending.targetDate;
+    }
     const missing = [];
-    if (!identity.projectId && !intent.projectId) missing.push("obra/projeto real");
     if (!intent.targetDate) missing.push("data do RDO");
+    const workResolution = resolveRdoWorkSelection_(input, intent);
     if (missing.length) {
+      saveRdoPending(makeRdoPending(input, intent));
       return Promise.resolve(rdoResult(input, {
         ok: false,
         action: "rdo.create.preview",
         mode: "blocked",
         humanAnswer: "Para preparar o RDO sem inventar dados, informe: " + missing.join(", ") + ". Nenhum RDO foi criado.",
         error: "rdo_create_required_fields",
-        data: { missing }
+        data: { missing, works: workResolution.works || [] }
       }));
     }
+    if (!workResolution.ok) {
+      const pendingDraft = makeRdoPending(input, intent);
+      if (workResolution.reason === "work_selection_required" || workResolution.reason === "work_not_found" || workResolution.reason === "ambiguous_work") saveRdoPending(pendingDraft);
+      else clearRdoPending();
+      const names = (workResolution.works || []).map(function (work) { return "- " + work.name; }).join("\n");
+      const answer = workResolution.reason === "no_works"
+        ? "Não encontrei nenhuma obra cadastrada. Cadastre ou selecione uma obra primeiro. Nenhum RDO foi criado."
+        : workResolution.reason === "work_not_found"
+          ? "Não encontrei essa obra entre as obras cadastradas. Escolha uma obra real da lista:\n" + names + "\nNenhum RDO foi criado."
+          : "Para qual obra? Escolha uma obra real cadastrada:\n" + names + "\nNenhum RDO foi criado.";
+      return Promise.resolve(rdoResult(input, {
+        ok: false,
+        action: "rdo.create.preview",
+        mode: "blocked",
+        humanAnswer: answer,
+        error: workResolution.reason,
+        data: { works: workResolution.works || [], pending: pendingDraft }
+      }));
+    }
+    clearRdoPending();
+    const work = workResolution.work;
     return Promise.resolve(rdoResult(input, {
       action: "rdo.create.preview",
       mode: "preview",
@@ -1120,13 +1223,14 @@
         "Preview de criação de RDO:",
         "MODULE: obrareport_rdo",
         "ACTION: rdo.create",
-        "PROJECT: " + (intent.projectId || identity.projectId),
+        "PROJECT: " + work.name,
+        "PROJECT ID: " + work.id,
         "DATE: " + intent.targetDate,
         "CONFIRMATION REQUIRED: SIM",
         "WRITE EXECUTED: 0",
         "/api/obrareport/rdos POST: 0"
       ].join("\n"),
-      data: { draft: { projectId: intent.projectId || identity.projectId, rdoDate: intent.targetDate } }
+      data: { draft: { projectId: work.id, workId: work.id, projectName: work.name, rdoDate: intent.targetDate, source: workResolution.source } }
     }));
   }
   function executeRdo(input) {
@@ -1302,6 +1406,9 @@
   window.EloActionBusRdo = Object.assign({}, window.EloActionBusRdo || {}, {
     execute: executeRdo,
     parseIntent: parseRdoIntent,
+    readPending: readRdoPending,
+    clearPending: clearRdoPending,
+    resolveExistingWorks: resolveExistingObraReportWorks_,
     aggregateRecurringProblems,
     normalizeProblemKey,
     version: "elo-action-bus-rdo-v1"

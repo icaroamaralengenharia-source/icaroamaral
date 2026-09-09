@@ -810,6 +810,10 @@
     if (!text) return null;
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
+    const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
+    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !/^(?:sim|confirmo|confirmar|pode confirmar|ok|certo|nao|não|cancelar|cancela|abortar)$/.test(text)) {
+      return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, { workName: raw }) };
+    }
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
