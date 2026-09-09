@@ -1272,6 +1272,24 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
 });
 
+test('ELO Action Bus RDO: exige intencao valida e nao inventa listagem', () => {
+  const { elo } = loadEloContext();
+
+  const quais = elo.detectCommandBridgeRequestForTest('quais RDOs existem?');
+  assert.equal(quais.module, 'obrareport_rdo');
+  assert.equal(quais.action, 'rdo.list');
+
+  const liste = elo.detectCommandBridgeRequestForTest('liste os RDOs');
+  assert.equal(liste.module, 'obrareport_rdo');
+  assert.equal(liste.action, 'rdo.list');
+
+  assert.equal(elo.detectCommandBridgeRequestForTest('rota invalida rdo step04'), null);
+  assert.equal(elo.detectCommandBridgeRequestForTest('rdo banana xyz'), null);
+
+  const create = elo.detectCommandBridgeRequestForTest('crie um RDO para hoje');
+  assert.equal(create.module, 'obrareport_rdo');
+  assert.equal(create.action, 'preview_new_rdo');
+});
 test('ELO Action Bus Stock Full: cadastro de produto vence colisao com Vistoria', () => {
   const { elo } = loadEloContext();
 
