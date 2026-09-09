@@ -1370,7 +1370,7 @@ test('ELO Action Bus Stock Full: preview de cadastro via CommandBridge nao execu
   const token = createEloHotfixToken();
   const { elo } = loadEloContext({
     preloadScripts: ['elo-command-bridge.js'],
-    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), elo_core_auth_context_v1: JSON.stringify({ userId: 'auth-user-a', permissions: ['products:create'], profile: { id: 'profile-auth', institution_id: 'inst_auth', company_id: '', role: 'gestor', email: 'gestor@example.com' } }) },
     window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
     fetch(url, config = {}) {
       const href = String(url);
@@ -1385,9 +1385,11 @@ test('ELO Action Bus Stock Full: preview de cadastro via CommandBridge nao execu
     }
   });
 
-  const response = await elo.buildCommandBridgeResponseForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg', {
-    context: { role: 'gestor', identity: { companyId: 'inst_auth', userId: 'profile_auth', role: 'gestor' } }
-  });
+  const identity = elo.getCoreIdentityForTest();
+  assert.equal(identity.institutionId, 'inst_auth');
+  assert.equal(identity.companyId, 'inst_auth');
+
+  const response = await elo.buildCommandBridgeResponseForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg');
 
   assert.equal(response.commandBridge.module, 'stock_full');
   assert.equal(response.commandBridge.action, 'stock.create_product');
