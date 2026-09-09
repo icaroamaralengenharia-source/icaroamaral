@@ -74,6 +74,8 @@ test("EloActionBusRdo parseia intents list/get/problemsByPeriod", () => {
   assert.equal(window.EloActionBusRdo.parseIntent({ payload: { message: "liste os RDOs desta obra" } }).action, "rdo.list");
   assert.equal(window.EloActionBusRdo.parseIntent({ payload: { message: "abra o RDO de ontem", now: "2026-09-04T12:00:00.000Z" } }).action, "rdo.get");
   assert.equal(window.EloActionBusRdo.parseIntent({ payload: { message: "quais problemas se repetiram nos ultimos 30 dias?" } }).action, "rdo.problemsByPeriod");
+  assert.equal(window.EloActionBusRdo.parseIntent({ action: "preview_new_rdo", payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } }).action, "rdo.create.preview");
+  assert.equal(window.EloActionBusRdo.parseIntent({ action: "preview_new_rdo", payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } }).targetDate, "2026-09-04");
 });
 
 test("rdo.list consulta backend real com auth, tenant, obra e periodo", async () => {
@@ -132,6 +134,25 @@ test("rdo.problemsByPeriod respeita periodo, obra e nenhum recorrente", async ()
   const wrongProject = await window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.problemsByPeriod", context: Object.assign({}, contextA, { projectId: "obra_b" }), payload: { startDate: "2026-09-01", endDate: "2026-09-03" } });
   assert.equal(wrongProject.data.rdos.length, 1);
   assert.equal(wrongProject.data.problems.length, 0);
+});
+
+test("rdo.create.preview exige obra real e nao chama backend antes da confirmacao", async () => {
+  const ready = loadBridge({ rdos: fixtures });
+  const preview = await ready.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: contextA, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.action, "rdo.create.preview");
+  assert.equal(preview.requiresConfirmation, true);
+  assert.match(preview.humanAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(preview.humanAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(ready.calls.length, 0);
+
+  const blocked = loadBridge({ rdos: fixtures });
+  const missingProject = await blocked.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(missingProject.ok, false);
+  assert.equal(missingProject.requiresConfirmation, false);
+  assert.equal(missingProject.error, "rdo_create_required_fields");
+  assert.match(missingProject.humanAnswer, /obra\/projeto real/);
+  assert.equal(blocked.calls.length, 0);
 });
 
 test("rdo bloqueia sem auth, sem tenant, periodo invalido e falha de backend", async () => {

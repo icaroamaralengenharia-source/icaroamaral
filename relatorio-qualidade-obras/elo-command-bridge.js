@@ -899,7 +899,7 @@
     const text = normalize(raw);
     const nowDate = payload.now ? new Date(payload.now) : new Date();
     const parsed = {
-      action: /^rdo\./.test(action) ? action : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : "",
+      action: /^rdo\./.test(action) ? action : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : "",
       raw,
       rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
       projectId: clean(payload.projectId || payload.project_id),
@@ -911,6 +911,7 @@
     };
     const idMatch = raw.match(/\b(?:rdo|id)\s+([a-z0-9_-]{6,})\b/i);
     if (!parsed.rdoId && idMatch) parsed.rdoId = clean(idMatch[1]);
+    if (!parsed.targetDate && /\bhoje\b/.test(text)) parsed.targetDate = isoDate(nowDate);
     if (!parsed.targetDate && /\bontem\b/.test(text)) parsed.targetDate = isoDate(addDays(nowDate, -1));
     if (!parsed.targetDate) parsed.targetDate = parseIsoDateOnly(raw);
     const lastDays = text.match(/\b(?:ultimos|ultimas)\s+(\d{1,3})\s+dias\b/);
@@ -1096,12 +1097,44 @@
     });
   }
 
+  function executeRdoCreatePreview(input, intent) {
+    const identity = getRdoIdentity(input);
+    const missing = [];
+    if (!identity.projectId && !intent.projectId) missing.push("obra/projeto real");
+    if (!intent.targetDate) missing.push("data do RDO");
+    if (missing.length) {
+      return Promise.resolve(rdoResult(input, {
+        ok: false,
+        action: "rdo.create.preview",
+        mode: "blocked",
+        humanAnswer: "Para preparar o RDO sem inventar dados, informe: " + missing.join(", ") + ". Nenhum RDO foi criado.",
+        error: "rdo_create_required_fields",
+        data: { missing }
+      }));
+    }
+    return Promise.resolve(rdoResult(input, {
+      action: "rdo.create.preview",
+      mode: "preview",
+      requiresConfirmation: true,
+      preview: [
+        "Preview de criação de RDO:",
+        "MODULE: obrareport_rdo",
+        "ACTION: rdo.create",
+        "PROJECT: " + (intent.projectId || identity.projectId),
+        "DATE: " + intent.targetDate,
+        "CONFIRMATION REQUIRED: SIM",
+        "WRITE EXECUTED: 0",
+        "/api/obrareport/rdos POST: 0"
+      ].join("\n"),
+      data: { draft: { projectId: intent.projectId || identity.projectId, rdoDate: intent.targetDate } }
+    }));
+  }
   function executeRdo(input) {
     const auth = requireRdoAccess(input);
     if (!auth.ok) return Promise.resolve(rdoAuthBlocked(input, auth));
     const intent = parseRdoIntent(input);
     if (intent.invalidPeriod) return Promise.resolve(rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" }));
-    const run = intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : executeRdoList;
+    const run = intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : executeRdoList;
     return run(input, intent).catch(function (error) {
       const code = clean(error && error.message) || "rdo_error";
       if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
