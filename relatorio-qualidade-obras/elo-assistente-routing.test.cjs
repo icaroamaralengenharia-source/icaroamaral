@@ -1525,6 +1525,52 @@ test('ELO Action Bus RDO: pending create preserva data e resolve follow-up por n
   assert.equal(calls.some((call) => call.href.includes('/api/obrareport/rdos') && call.method !== 'GET'), false);
   assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
 });
+test('ELO Action Bus RDO: confirmacao executa create uma vez e bloqueia duplicata', async () => {
+  const calls = [];
+  const createdRdos = [];
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'work-test-id', name: 'Residencia Teste', clientId: 'cli-a', address: '', type: '', status: 'Em andamento' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method, body: config.body || '' });
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_rdo_confirmation');
+      if (href.includes('/api/obrareport/rdos') && method === 'POST') {
+        const body = JSON.parse(config.body || '{}');
+        const rdo = { id: 'rdo-created-1', institution_id: config.headers['x-institution-id'], project_id: body.projectId, rdo_date: body.rdoDate, rdo_data_json: body.rdoData || {} };
+        createdRdos.push(rdo);
+        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: createdRdos }) });
+    }
+  });
+  const context = { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } };
+
+  const preview = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context });
+  assert.equal(preview.commandBridge.action, 'rdo.create.preview');
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
+
+  const confirmRequest = elo.detectCommandBridgeRequestForTest('sim');
+  assert.equal(confirmRequest.module, 'obrareport_rdo');
+  assert.equal(confirmRequest.action, 'rdo_confirm');
+
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(createdRdos.length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 1);
+
+  const again = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(again.commandBridge.action, 'rdo.create.execute');
+  assert.equal(createdRdos.length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 1);
+});
 test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita', async () => {
   const calls = [];
   const messages = createElement('div');
