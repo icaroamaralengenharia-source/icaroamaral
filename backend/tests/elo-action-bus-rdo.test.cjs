@@ -136,25 +136,58 @@ test("rdo.problemsByPeriod respeita periodo, obra e nenhum recorrente", async ()
   assert.equal(wrongProject.data.problems.length, 0);
 });
 
-test("rdo.create.preview exige obra real e nao chama backend antes da confirmacao", async () => {
-  const ready = loadBridge({ rdos: fixtures });
-  const preview = await ready.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: contextA, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+function obraReportState(works) {
+  return JSON.stringify({ version: 1, works, clients: [], reports: [], dailyLogs: [] });
+}
+
+const workA = { id: "work-test-id", name: "Residencia Teste", clientId: "cli-a", address: "Rua A", type: "Residencial", status: "Em andamento" };
+const workB = { id: "work-b-id", name: "Edificio B", clientId: "cli-b", address: "Rua B", type: "Predial", status: "Em andamento" };
+
+test("rdo.create.preview resolve obras reais do ObraReport sem chamar backend", async () => {
+  const zero = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([]) } });
+  const noWork = await zero.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(noWork.ok, false);
+  assert.equal(noWork.error, "no_works");
+  assert.match(noWork.humanAnswer, /Não encontrei nenhuma obra cadastrada/i);
+  assert.equal(zero.calls.length, 0);
+
+  const one = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA]) } });
+  const preview = await one.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(preview.ok, true);
-  assert.equal(preview.action, "rdo.create.preview");
   assert.equal(preview.requiresConfirmation, true);
-  assert.match(preview.humanAnswer, /CONFIRMATION REQUIRED: SIM/);
-  assert.match(preview.humanAnswer, /WRITE EXECUTED: 0/);
-  assert.equal(ready.calls.length, 0);
+  assert.match(preview.humanAnswer, /PROJECT: Residencia Teste/);
+  assert.match(preview.humanAnswer, /PROJECT ID: work-test-id/);
+  assert.equal(preview.data.draft.projectId, "work-test-id");
+  assert.equal(preview.data.draft.workId, "work-test-id");
+  assert.equal(one.calls.length, 0);
 
-  const blocked = loadBridge({ rdos: fixtures });
-  const missingProject = await blocked.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
-  assert.equal(missingProject.ok, false);
-  assert.equal(missingProject.requiresConfirmation, false);
-  assert.equal(missingProject.error, "rdo_create_required_fields");
-  assert.match(missingProject.humanAnswer, /obra\/projeto real/);
-  assert.equal(blocked.calls.length, 0);
+  const many = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  const choose = await many.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(choose.ok, false);
+  assert.equal(choose.error, "work_selection_required");
+  assert.match(choose.humanAnswer, /Para qual obra/i);
+  assert.match(choose.humanAnswer, /Residencia Teste/);
+  assert.equal(many.calls.length, 0);
+
+  const followUp = await many.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "Residencia Teste", workName: "Residencia Teste" } });
+  assert.equal(followUp.ok, true);
+  assert.equal(followUp.requiresConfirmation, true);
+  assert.equal(followUp.data.draft.rdoDate, "2026-09-04");
+  assert.equal(followUp.data.draft.projectId, "work-test-id");
+  assert.equal(many.calls.length, 0);
+
+  const missingFlow = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  await missingFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  const missing = await missingFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "Obra Inexistente", workName: "Obra Inexistente" } });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.error, "work_not_found");
+
+  const arbitraryFlow = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  await arbitraryFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  const arbitraryId = await arbitraryFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "work-b-id", workName: "work-b-id" } });
+  assert.equal(arbitraryId.ok, false);
+  assert.equal(arbitraryId.error, "work_not_found");
 });
-
 test("rdo bloqueia sem auth, sem tenant, periodo invalido e falha de backend", async () => {
   const noAuth = loadBridge({ rdos: fixtures }).window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.list", context: {}, payload: {} });
   assert.equal((await noAuth).requiresAuth, true);
