@@ -811,6 +811,9 @@
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
+    if (pendingRdo && /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|ok|certo)$/.test(text) && /^rdo\.(?:create|update)\.execute$/.test(pendingRdo.action)) {
+      return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
+    }
     if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !/^(?:sim|confirmo|confirmar|pode confirmar|ok|certo|nao|não|cancelar|cancela|abortar)$/.test(text)) {
       return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, { workName: raw }) };
     }
@@ -845,7 +848,8 @@
       return { module: "inspection", action: action, payload: payload };
     }
     const hasRdoTerm = /\b(?:rdo|rdos|diario\s+de\s+obra|diário\s+de\s+obra|diarios\s+de\s+obra|diários\s+de\s+obra)\b/.test(text);
-    const wantsRdoCreate = hasRdoTerm && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
+    const wantsRdoUpdate = hasRdoTerm && /\b(?:atualize|atualizar|adicione|adicionar|inclua|incluir|registre|registrar)\b/.test(text);
+    const wantsRdoCreate = hasRdoTerm && !wantsRdoUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
     const wantsRdoList = hasRdoTerm && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|últimos|recentes|existem|cadastrados|registrados)\b/.test(text));
     const wantsRdoGet = hasRdoTerm && /\b(?:abra|abrir|mostre|mostrar|ultimo|último|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text) && !wantsRdoList && !wantsRdoCreate;
     const wantsRdoProblems = /\b(?:problemas?|ocorrencias?|ocorrências?|pendencias?|pendências?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);

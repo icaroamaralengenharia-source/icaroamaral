@@ -32,9 +32,39 @@ function loadBridge(options = {}) {
         calls.push({ url: String(url), init });
         if (options.fetchError) return { ok: false, status: options.fetchError.status || 500, json: async () => ({ error: options.fetchError.error || "backend_down" }) };
         const target = new URL(String(url));
+        const method = init.method || "GET";
         const projectId = target.searchParams.get("projectId") || "";
         const tenant = init.headers && init.headers["x-institution-id"];
-        const rdos = (options.rdos || []).filter((rdo) => rdo.institution_id === tenant).filter((rdo) => !projectId || rdo.project_id === projectId);
+        if (target.pathname === "/api/obrareport/rdos" && method === "POST") {
+          const body = JSON.parse(init.body || "{}");
+          const created = Object.assign(rdo("rdo_created_" + ((options.createdRdos || []).length + 1), tenant, body.projectId || body.project_id || "", body.rdoDate || body.rdo_date || body.rdoData && body.rdoData.date || "", ""), {
+            title: body.title || "RDO criado",
+            status: body.status || "draft",
+            client_id: body.clientId || body.client_id || "",
+            rdo_data_json: body.rdoData || body.rdo_data || {}
+          });
+          options.createdRdos = options.createdRdos || [];
+          options.createdRdos.push(created);
+          return { ok: true, status: 201, json: async () => ({ ok: true, rdo: created }) };
+        }
+        if (target.pathname.startsWith("/api/obrareport/rdos/") && method === "PUT") {
+          const id = decodeURIComponent(target.pathname.split("/").pop() || "");
+          const allRdos = (options.rdos || []).concat(options.createdRdos || []);
+          const index = allRdos.findIndex((rdo) => rdo.id === id && rdo.institution_id === tenant);
+          if (index < 0) return { ok: false, status: 404, json: async () => ({ ok: false, error: "rdo_not_found" }) };
+          const body = JSON.parse(init.body || "{}");
+          const updated = Object.assign({}, allRdos[index], {
+            status: body.status || allRdos[index].status,
+            rdo_data_json: body.rdoData || body.rdo_data || allRdos[index].rdo_data_json,
+            updated_at: "2026-09-04T13:00:00.000Z"
+          });
+          options.updatedRdos = options.updatedRdos || [];
+          options.updatedRdos.push(updated);
+          if (index < (options.rdos || []).length) options.rdos[index] = updated;
+          else options.createdRdos[index - (options.rdos || []).length] = updated;
+          return { ok: true, status: 200, json: async () => ({ ok: true, rdo: updated }) };
+        }
+        const rdos = (options.rdos || []).concat(options.createdRdos || []).filter((rdo) => rdo.institution_id === tenant).filter((rdo) => !projectId || rdo.project_id === projectId);
         return { ok: true, status: 200, json: async () => ({ ok: true, rdos }) };
       }
     }
@@ -58,7 +88,7 @@ function rdo(id, institutionId, projectId, date, occurrence, extra = {}) {
   }, extra);
 }
 
-const contextA = { authToken: "token-a", institutionId: "inst_a", userId: "user_a", projectId: "obra_a" };
+const contextA = { authToken: "token-a", institutionId: "inst_a", companyId: "company_a", userId: "user_a", projectId: "obra_a" };
 
 const fixtures = [
   rdo("rdo_a_1", "inst_a", "obra_a", "2026-09-01", "Falta de concreto"),
@@ -87,6 +117,7 @@ test("rdo.list consulta backend real com auth, tenant, obra e periodo", async ()
   assert.match(calls[0].url, /\/api\/obrareport\/rdos\?projectId=obra_a/);
   assert.equal(calls[0].init.headers.Authorization, "Bearer token-a");
   assert.equal(calls[0].init.headers["x-institution-id"], "inst_a");
+  assert.equal(calls[0].init.headers["x-company-id"], "company_a");
   assert.equal(calls[0].init.method, "GET");
 });
 
@@ -187,6 +218,96 @@ test("rdo.create.preview resolve obras reais do ObraReport sem chamar backend", 
   const arbitraryId = await arbitraryFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "work-b-id", workName: "work-b-id" } });
   assert.equal(arbitraryId.ok, false);
   assert.equal(arbitraryId.error, "work_not_found");
+});
+test("rdo.create.execute confirma uma vez e preserva idempotencia em reload", async () => {
+  const state = obraReportState([workA]);
+  const createdRdos = [];
+  const env = loadBridge({ localStorage: { "obrareport-saas-v1": state }, createdRdos });
+  const context = { authToken: "token-a", institutionId: "inst_a", companyId: "company_a", userId: "user_a" };
+
+  const preview = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.requiresConfirmation, true);
+  assert.equal(env.calls.filter((call) => call.init.method === "POST").length, 0);
+  assert.equal(preview.data.pending.action, "rdo.create.execute");
+  assert.equal(preview.data.pending.status, "pending");
+
+  const confirmed = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.action, "rdo.create.execute");
+  assert.equal(createdRdos.length, 1);
+  assert.equal(env.calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/api/obrareport/rdos")).length, 1);
+  assert.equal(confirmed.data.rdo.project_id, "work-test-id");
+  assert.equal(confirmed.data.rdo.rdo_date, "2026-09-04");
+
+  const again = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(again.ok, true);
+  assert.match(again.humanAnswer, /Não criei duplicado/i);
+  assert.equal(createdRdos.length, 1);
+  assert.equal(env.calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/api/obrareport/rdos")).length, 1);
+
+  const persisted = env.window.localStorage.getItem("elo_action_bus_rdo_pending_v1");
+  const reloaded = loadBridge({ localStorage: { "obrareport-saas-v1": state, "elo_action_bus_rdo_pending_v1": persisted }, createdRdos });
+  const afterReload = await reloaded.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(afterReload.ok, true);
+  assert.equal(createdRdos.length, 1);
+  assert.equal(reloaded.calls.filter((call) => call.init.method === "POST").length, 0);
+});
+
+test("rdo.create.execute bloqueia sem tenant e sem projeto real", async () => {
+  const noTenant = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([workA]) } });
+  const preview = await noTenant.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(preview.ok, false);
+  assert.equal(preview.error, "institution_required");
+
+  const noWork = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([]) } });
+  const missing = await noWork.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.error, "no_works");
+
+  const arbitrary = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  await arbitrary.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
+  const arbitraryId = await arbitrary.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "work-b-id", workName: "work-b-id" } });
+  assert.equal(arbitraryId.ok, false);
+  assert.equal(arbitraryId.error, "work_not_found");
+  assert.equal(arbitrary.calls.filter((call) => call.init.method === "POST").length, 0);
+});
+test("rdo.get salva contexto e rdo.update confirma uma vez com pending persistente", async () => {
+  const rdos = [rdo("rdo_update_1", "inst_a", "obra_a", "2026-09-04", "Inicial", { rdo_data_json: { date: "2026-09-04", observations: ["Inicial"] } })];
+  const updatedRdos = [];
+  const env = loadBridge({ rdos, updatedRdos });
+  const context = { authToken: "token-a", institutionId: "inst_a", companyId: "company_a", userId: "user_a", projectId: "obra_a" };
+
+  const detail = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.get", context, payload: { rdoId: "rdo_update_1" } });
+  assert.equal(detail.ok, true);
+  assert.equal(detail.data.rdo.id, "rdo_update_1");
+  assert.ok(env.window.localStorage.getItem("elo_action_bus_rdo_context_v1"));
+
+  const preview = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_update_rdo", context, payload: { message: "adicione observação atualizacao controlada nesse RDO", note: "atualizacao controlada" } });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.requiresConfirmation, true);
+  assert.equal(preview.action, "rdo.update.preview");
+  assert.equal(env.calls.filter((call) => call.init.method === "PUT").length, 0);
+
+  const confirmed = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.action, "rdo.update.execute");
+  assert.equal(updatedRdos.length, 1);
+  assert.deepEqual(updatedRdos[0].rdo_data_json.observations, ["Inicial", "atualizacao controlada"]);
+  assert.equal(env.calls.filter((call) => call.init.method === "PUT").length, 1);
+
+  const again = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(again.ok, true);
+  assert.match(again.humanAnswer, /PUT duplicado/i);
+  assert.equal(updatedRdos.length, 1);
+  assert.equal(env.calls.filter((call) => call.init.method === "PUT").length, 1);
+
+  const persisted = env.window.localStorage.getItem("elo_action_bus_rdo_pending_v1");
+  const reloaded = loadBridge({ localStorage: { "elo_action_bus_rdo_pending_v1": persisted }, rdos, updatedRdos });
+  const afterReload = await reloaded.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
+  assert.equal(afterReload.ok, true);
+  assert.equal(updatedRdos.length, 1);
+  assert.equal(reloaded.calls.filter((call) => call.init.method === "PUT").length, 0);
 });
 test("rdo bloqueia sem auth, sem tenant, periodo invalido e falha de backend", async () => {
   const noAuth = loadBridge({ rdos: fixtures }).window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.list", context: {}, payload: {} });
