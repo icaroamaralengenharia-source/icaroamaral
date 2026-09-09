@@ -42,4 +42,8 @@ test("ELO roteia frases de RDO para actions reais do Action Bus", () => {
   assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("liste os RDOs desta obra")), JSON.stringify({ module: "obrareport_rdo", action: "rdo.list", payload: { message: "liste os RDOs desta obra" } }));
   assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("abra o RDO de ontem")), JSON.stringify({ module: "obrareport_rdo", action: "rdo.get", payload: { message: "abra o RDO de ontem" } }));
   assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("quais problemas se repetiram nos ultimos 30 dias?")), JSON.stringify({ module: "obrareport_rdo", action: "rdo.problemsByPeriod", payload: { message: "quais problemas se repetiram nos ultimos 30 dias?" } }));
+  assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("quais RDOs existem?")), JSON.stringify({ module: "obrareport_rdo", action: "rdo.list", payload: { message: "quais RDOs existem?" } }));
+  assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("crie um RDO para hoje")), JSON.stringify({ module: "obrareport_rdo", action: "preview_new_rdo", payload: { message: "crie um RDO para hoje" } }));
+  assert.equal(assistant.detectCommandBridgeRequestForTest("rota invalida rdo step04"), null);
+  assert.equal(assistant.detectCommandBridgeRequestForTest("rdo banana xyz"), null);
 });

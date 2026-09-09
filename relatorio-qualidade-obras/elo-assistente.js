@@ -840,12 +840,14 @@
       const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
       return { module: "inspection", action: action, payload: payload };
     }
-    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|problema|problemas|ocorrencia|ocorrencias|pendencia|pendencias|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
-      let action = "rdo.list";
-      if (/\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text)) action = "rdo.problemsByPeriod";
-      else if (/\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text)) action = "rdo.get";
-      else if (/crie|novo/.test(text)) action = "preview_new_rdo";
-      else if (/feche|gere\s+o\s+pdf/.test(text)) action = "close_rdo";
+    const hasRdoTerm = /\b(?:rdo|rdos|diario\s+de\s+obra|diário\s+de\s+obra|diarios\s+de\s+obra|diários\s+de\s+obra)\b/.test(text);
+    const wantsRdoCreate = hasRdoTerm && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
+    const wantsRdoList = hasRdoTerm && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|últimos|recentes|existem|cadastrados|registrados)\b/.test(text));
+    const wantsRdoGet = hasRdoTerm && /\b(?:abra|abrir|mostre|mostrar|ultimo|último|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text) && !wantsRdoList && !wantsRdoCreate;
+    const wantsRdoProblems = /\b(?:problemas?|ocorrencias?|ocorrências?|pendencias?|pendências?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);
+    const wantsRdoClose = hasRdoTerm && /\b(?:feche|fechar|gere\s+o\s+pdf|gerar\s+pdf|exporte\s+pdf|exportar\s+pdf)\b/.test(text);
+    if (wantsRdoProblems || wantsRdoGet || wantsRdoCreate || wantsRdoClose || wantsRdoList) {
+      const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
       return { module: "obrareport_rdo", action: action, payload: payload };
     }
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
