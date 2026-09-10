@@ -321,12 +321,23 @@
     }
     return text;
   }
+  function isConversationClosing(message) {
+    return /^(valeu|obrigado|obrigada|show|perfeito|beleza|ok|certo|ate mais|até mais|tchau)[.!?]*$/i.test(normalize(message));
+  }
+
+  function resolveConversationIntent(message, previousState) {
+    const text = normalize(message);
+    const continuation = /^(sim|s|nao|não|ok|pode|continue|continuar|continua|e depois|e isso|por que|por quê|e se)\b/.test(text);
+    if (continuation && previousState && previousState.intent && previousState.intent !== "generica") return previousState.intent;
+    return detectIntent(message);
+  }
+
   function enhanceResponse(payload) {
     const userMessage = payload && payload.userMessage;
     const assistantResponse = payload && payload.assistantResponse;
     const previousState = loadState();
 
-    const intent = detectIntent(userMessage);
+    const intent = resolveConversationIntent(userMessage, previousState);
     const mode = detectResponseMode(userMessage, intent);
     const stage = detectStage(userMessage, previousState);
     const nextState = extractLightMemory(userMessage, previousState);
@@ -353,6 +364,10 @@
 
     const policy = global.EloCommunicationPolicy;
     const policyResponse = policy && typeof policy.applyPolicy === "function" ? policy.applyPolicy(baseResponse, mode) : baseResponse;
+
+    if (isConversationClosing(userMessage) || /^(?:quanto é|quanto e)\s*\d+\s*[+\-x*/]\s*\d+\??$/i.test(normalize(userMessage))) {
+      return policyResponse;
+    }
 
     if (!nextAction || !shouldAppendAction(policyResponse)) {
       return policyResponse;

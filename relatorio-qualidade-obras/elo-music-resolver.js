@@ -252,6 +252,15 @@
     return [];
   }
 
+  function scoreProviderCandidate(query, candidate) {
+    const queryTokens = normalize(query).split(/\s+/).filter(Boolean);
+    const titleTokens = normalize(candidate && candidate.title).split(/\s+/).filter(Boolean);
+    const artistTokens = normalize(candidate && candidate.artist).split(/\s+/).filter(Boolean);
+    if (!queryTokens.length) return 0;
+    const overlap = function (tokens) { return queryTokens.filter(function (token) { return tokens.indexOf(token) >= 0; }).length / Math.max(1, tokens.length); };
+    return overlap(titleTokens) * 0.68 + overlap(artistTokens) * 0.32;
+  }
+
   function normalizeProviderResult(data, query, requestUrl, httpStatus, catalogItem) {
     const rawCandidates = collectRawCandidates(data);
     const playableCandidates = rawCandidates.map(normalizeCandidate).filter(Boolean);
@@ -271,6 +280,11 @@
         catalogMatch: catalogItem || null
       };
     }
+    playableCandidates.sort(function (a, b) {
+      const scoreDiff = scoreProviderCandidate(query, b) - scoreProviderCandidate(query, a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return Number(Boolean(b.official)) - Number(Boolean(a.official));
+    });
     const best = Object.assign({}, playableCandidates[0], {
       found: true,
       query: query,
