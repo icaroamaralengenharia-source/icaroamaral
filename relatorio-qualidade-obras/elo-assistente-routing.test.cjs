@@ -192,7 +192,7 @@ test('ELO gate: wildcard generico nao abre o ELO', () => {
 });
 
 test('ELO gate: token ELO nao validado nao abre por presenca no storage', () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const gate = loadEloHtmlGateContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
@@ -1597,8 +1597,8 @@ test('ELO CORE confiabilidade: falha ao abrir ferramenta registra evento seguro'
 });
 
 test('ELO token ELO: window expirado usa storage valido e sincroniza janela', () => {
-  const expiredToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const { elo, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
@@ -1609,7 +1609,7 @@ test('ELO token ELO: window expirado usa storage valido e sincroniza janela', ()
 });
 
 test('ELO token ELO: token expirado sozinho vira ausencia de sessao', () => {
-  const expiredToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
   const windowOnly = loadEloContext({ window: { ELO_AUTH_TOKEN: expiredToken } });
   assert.equal(windowOnly.elo.getCoreAuthTokenForTest(), '');
   assert.equal(windowOnly.context.window.ELO_AUTH_TOKEN, '');
@@ -1629,7 +1629,7 @@ test('ELO JWT: string comum e JWT quebrado sao rejeitados', () => {
 
 test('ELO issuer: JWT de outro projeto e exp ausente sao rejeitados', () => {
   const wrongIssuer = createJwt({ iss: 'https://outro-projeto.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
-  const missingExp = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1' });
+  const missingExp = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1' });
 
   const wrong = loadEloContext({ window: { ELO_AUTH_TOKEN: wrongIssuer } });
   assert.equal(wrong.elo.getCoreAuthTokenForTest(), '');
@@ -1639,7 +1639,7 @@ test('ELO issuer: JWT de outro projeto e exp ausente sao rejeitados', () => {
 });
 
 test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo, context } = loadEloContext({ window: { ELO_AUTH_TOKEN: validToken } });
   assert.equal(elo.getCoreAuthTokenForTest(), validToken);
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
@@ -1647,14 +1647,14 @@ test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
 test('ELO auth/v1/user: token invalido e config ausente rejeitam sem fetch', async () => {
   const calls = [];
   const invalid = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
   }).elo;
 
   await assert.rejects(invalid.validateSupabaseTokenForTest('token-solto'), /sessao_invalida/);
   assert.equal(calls.length, 0);
 
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const missingConfig = loadEloContext({
     fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
   }).elo;
@@ -1664,9 +1664,9 @@ test('ELO auth/v1/user: token invalido e config ausente rejeitam sem fetch', asy
 });
 
 test('ELO auth/v1/user: 401 rejeita com erro seguro sem vazar token', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch() { return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) }); }
   });
 
@@ -1679,10 +1679,10 @@ test('ELO auth/v1/user: 401 rejeita com erro seguro sem vazar token', async () =
 });
 
 test('ELO auth/v1/user: 200 retorna usuario e envia headers corretos', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
@@ -1692,27 +1692,27 @@ test('ELO auth/v1/user: 200 retorna usuario e envia headers corretos', async () 
   const user = await elo.validateSupabaseTokenForTest(validToken);
   assert.deepEqual(user, { id: 'user-a', email: 'a@b.com' });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user');
+  assert.equal(calls[0].url, 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user');
   assert.equal(calls[0].options.method, 'GET');
   assert.equal(calls[0].options.headers.apikey, 'anon-key');
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
 });
 
 test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes', async () => {
-  const oldToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const oldToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const oldPayload = JSON.stringify({ currentSession: { access_token: oldToken } });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': oldPayload },
     sessionStorage: { 'sb-elo-core-auth-token': oldPayload },
-    window: { ELO_AUTH_TOKEN: oldToken, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_AUTH_TOKEN: oldToken, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         assert.equal(localStorage.getItem('sb-elo-core-auth-token'), oldPayload);
         assert.equal(options.method, 'GET');
         assert.equal(options.headers.apikey, 'anon-key');
@@ -1730,8 +1730,8 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
   await elo.loginSupabaseForTest('a@b.com', 'secret');
 
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
@@ -1741,16 +1741,16 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
 });
 
 test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) {
       calls.push(String(url));
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) });
       }
       throw new Error('fetch_should_not_run');
@@ -1760,8 +1760,8 @@ test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
   await assert.rejects(elo.loginSupabaseForTest('a@b.com', 'secret'), /sessao_invalida/);
 
   assert.deepEqual(calls, [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user'
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
   assert.equal(context.window.ELO_AUTH_TOKEN, '');
@@ -1769,17 +1769,17 @@ test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
   assert.equal(sessionStorage.getItem('sb-elo-core-auth-token'), null);
 });
 test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const status = createElement('p');
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_AUTH_CONTEXT: { institutionId: 'inst-old', projectId: 'proj-old' } },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_AUTH_CONTEXT: { institutionId: 'inst-old', projectId: 'proj-old' } },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
@@ -1799,8 +1799,8 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
   await elo.loginSupabaseForTest('a@b.com', 'secret');
 
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
@@ -1815,17 +1815,17 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
 });
 
 test('ELO login com merge false mantem gate aberto e token no Bearer', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const status = createElement('p');
   const calls = [];
   const { elo, localStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
@@ -1861,15 +1861,15 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
 });
 
 test('ELO restaura sessao somente apos validar token salvo', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const calls = [];
   const { elo, localStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
-    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
       }
@@ -1892,24 +1892,24 @@ test('ELO restaura sessao somente apos validar token salvo', async () => {
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).currentSession.access_token, validToken);
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge',
     'http://localhost:3000/api/elo/memories?userId=user-a&anonymousId=elo_anon_test-id'
   ]);
 });
 
 test('ELO restaura sessao invalida limpa somente fontes ELO', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const eloPayload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockPayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': eloPayload, 'sb-stock-full-auth-token': stockPayload },
     sessionStorage: { 'sb-elo-core-auth-token': eloPayload, 'sb-stock-full-auth-token': stockPayload },
-    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) {
       calls.push(String(url));
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) });
       }
       throw new Error('fetch_should_not_run');
@@ -1929,7 +1929,7 @@ test('ELO restaura sessao invalida limpa somente fontes ELO', async () => {
 });
 
 test('ELO logout limpa token nas tres fontes', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockPayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
@@ -1949,7 +1949,7 @@ test('ELO logout limpa token nas tres fontes', async () => {
 });
 
 test('ELO token ELO valido continua enviado no Bearer', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
     window: { ELO_AUTH_TOKEN: validToken },
@@ -1965,7 +1965,7 @@ test('ELO token ELO valido continua enviado no Bearer', async () => {
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
 });
 test('ELO token ELO: usa somente fonte do ELO Core', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const eloStoragePayload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockStoragePayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const genericStoragePayload = JSON.stringify({ currentSession: { access_token: 'generic-token' } });
@@ -1994,7 +1994,7 @@ test('ELO token ELO: usa somente fonte do ELO Core', async () => {
 
 test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conversa ou tecnico', async () => {
   const calls = [];
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo } = loadEloContext({
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
@@ -2044,7 +2044,7 @@ test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conver
 
 test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', async () => {
   const exactQuestion = 'O que precisa da minha aten\u00e7\u00e3o hoje?';
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
     fetch(url, options = {}) {
@@ -2090,7 +2090,7 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
 });
 
 test('ELO Observador da Obra: mostra erros seguros da rota', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   async function answerFor(error) {
     const { elo } = loadEloContext({
       fetch() {
@@ -2121,7 +2121,7 @@ test('ELO Observador da Obra: data e hora reais continuam no roteador correto', 
   assert.match([timeAnswer.shortAnswer, timeAnswer.fullAnswer].join(' '), /Agora são|Agora sao/i);
 });
 test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); }, window: { ELO_AUTH_TOKEN: validToken } }).elo;
   const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha aten��o hoje?');
   assert.match(weakAnswer, /Qualidade dos dados: baixa/i);

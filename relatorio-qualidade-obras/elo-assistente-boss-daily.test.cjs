@@ -17,7 +17,7 @@ function createStorage(initial = {}) {
 function createJwt(payload = {}) {
   function encode(value) { return Buffer.from(JSON.stringify(value)).toString("base64url"); }
   return encode({ alg: "none", typ: "JWT" }) + "." + encode(Object.assign({
-    iss: "https://lidueokjpzxdybtongbk.supabase.co/auth/v1",
+    iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1",
     exp: Math.floor(Date.now() / 1000) + 3600
   }, payload)) + ".sig";
 }

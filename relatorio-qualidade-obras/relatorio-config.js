@@ -10,7 +10,7 @@
     jpegQuality: 0.72,
     aiAssistantUrl: apiBaseUrl + "/api/ai/improve-text",
     aiImageAnalysisUrl: apiBaseUrl + "/api/ai/analyze-image",
-    eloSupabaseUrl: String(window.ELO_SUPABASE_URL || "https://lidueokjpzxdybtongbk.supabase.co").trim(),
+    eloSupabaseUrl: String(window.ELO_SUPABASE_URL || "https://mplpzyalcxhhinuvjthx.supabase.co").trim(),
     eloSupabaseAnonKey: String(window.ELO_SUPABASE_ANON_KEY || "").trim(),
     stockFullSupabaseUrl: String(window.STOCK_FULL_SUPABASE_URL || "").trim(),
     stockFullSupabaseAnonKey: String(window.STOCK_FULL_SUPABASE_ANON_KEY || "").trim(),
