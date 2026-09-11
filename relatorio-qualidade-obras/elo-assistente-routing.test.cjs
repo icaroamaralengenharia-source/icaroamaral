@@ -4152,6 +4152,123 @@ test('ELO Web bootstrap bloqueia request stale com tombstone legado antes do fet
   assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
   assert.equal(calls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
 });
+
+test('ELO P0 auth invalida esconde surface e ponteiro antigo antes de qualquer restore', async () => {
+  const oldSurface = JSON.stringify({
+    version: 1,
+    identityScope: 'anon_elo_anon_test-id',
+    savedAt: Date.now(),
+    expiresAt: Date.now() + 3600000,
+    conversationId: 'conv-old',
+    draft: 'rascunho antigo',
+    messages: [{ kind: 'user', text: 'conversa antiga' }, { kind: 'assistant', text: 'resposta antiga' }]
+  });
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, context } = loadEloContext({
+    localStorage: {
+      elo_core_current_conversation_id_v1: 'conv-old',
+      elo_core_surface_state_v1: oldSurface
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+
+  assert.equal(await elo.initCorePersistenceForTest(), false);
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(messages.children.some((child) => /conversa antiga|resposta antiga/.test(child.textContent || '')), false);
+  assert.equal(input.value, '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO P0 auth valida e restaura somente ponteiro escopado da identidade atual', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const calls = [];
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      elo_core_current_conversation_id_v1: 'conv-old',
+      'elo_core_current_conversation_id_v1::user_user-a': 'conv-ok'
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(calls)
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  await elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(elo.getCurrentConversationIdForTest(), 'conv-ok');
+  assert.equal(messages.children.length, 2);
+  assert.equal(calls.some((call) => call.url.includes('/api/elo/conversations/conv-old')), false);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO P0 Nova conversa nao volta para conversa anterior no reload autenticado', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const firstMessages = createElement('div');
+  const firstCalls = [];
+  const first = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-ok' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(firstCalls)
+  });
+  first.elo.setCoreMessagesElementForTest(firstMessages);
+  await first.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+  first.elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+
+  const reloadMessages = createElement('div');
+  const reloadCalls = [];
+  const reloaded = loadEloContext({
+    localStorage: first.localStorage.dump(),
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(reloadCalls)
+  });
+  reloaded.elo.setCoreMessagesElementForTest(reloadMessages);
+  await reloaded.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(reloaded.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(reloadMessages.children.length, 0);
+  assert.equal(reloadCalls.some((call) => call.url.includes('/api/elo/conversations/conv-ok')), false);
+});
+
+test('ELO P0 logout invalida restore pendente e limpa somente surface ativa', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, context } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      'elo_core_auth_context_v1': JSON.stringify({ userId: 'user-a' }),
+      'elo_core_current_conversation_id_v1::user_user-a': 'conv-logout',
+      elo_long_term_memory_v1: JSON.stringify([{ text: 'memoria permanente' }]),
+      obraport_elo_assistente_v1: JSON.stringify({ conversations: [{ question: 'historico' }] })
+    },
+    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_SESSION_VALIDATED: true },
+    fetch: createEloHotfixAuthFetch([])
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+  elo.appendMessageForLayoutTest('user', 'mensagem ativa');
+  input.value = 'draft ativo';
+
+  await elo.logoutSupabaseForTest();
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
+  assert.equal(messages.children.length, 0);
+  assert.equal(input.value, '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1::user_user-a'), null);
+  assert.notEqual(localStorage.getItem('elo_long_term_memory_v1'), null);
+  assert.notEqual(localStorage.getItem('obraport_elo_assistente_v1'), null);
+});
+
 test('ELO Web Nova conversa continua abrindo chat vazio sem marcar historico como limpo', () => {
   const messages = createElement('div');
   const { elo, localStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-prev' } });
