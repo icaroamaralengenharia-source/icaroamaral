@@ -7,7 +7,7 @@ import vm from "node:vm";
 import { createApp } from "../src/app.js";
 import { createEloCoreStore } from "../src/elo-core-store.js";
 
-const TEST_SUPABASE_ISSUER = "https://lidueokjpzxdybtongbk.supabase.co/auth/v1";
+const TEST_SUPABASE_ISSUER = "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1";
 const TEST_JWT_EXP = 4102444800;
 
 function createTestJwt(payload) {
