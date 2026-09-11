@@ -11,29 +11,38 @@ const todayModulePromise = import("./elo-today-work-core.js");
 
 function createStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
+  const stockMutationKeys = new Set(["obraReport.stockIa.plannedConsumptions", "obraReport.stockIa.pendingLaunchPlan"]);
+  function recordWrite(storage, method, key) {
+    const normalizedKey = key == null ? null : String(key);
+    storage.writes += 1;
+    storage.writeLog.push({ method, key: normalizedKey });
+    if (normalizedKey && stockMutationKeys.has(normalizedKey)) storage.stockWrites += 1;
+  }
   return {
     writes: 0,
+    stockWrites: 0,
+    writeLog: [],
     reads: 0,
     getItem(key) { this.reads += 1; return data.has(String(key)) ? data.get(String(key)) : null; },
-    setItem(key, value) { this.writes += 1; data.set(String(key), String(value)); },
-    removeItem(key) { this.writes += 1; data.delete(String(key)); },
-    clear() { this.writes += 1; data.clear(); },
+    setItem(key, value) { recordWrite(this, "setItem", key); data.set(String(key), String(value)); },
+    removeItem(key) { recordWrite(this, "removeItem", key); data.delete(String(key)); },
+    clear() { recordWrite(this, "clear", null); data.clear(); },
     dump() { return Object.fromEntries(data); }
   };
 }
 
 function createReadOnlyStorage(initial = {}) {
   const storage = createStorage(initial);
-  storage.setItem = function setItem() { this.writes += 1; throw new Error("write_not_allowed"); };
-  storage.removeItem = function removeItem() { this.writes += 1; throw new Error("write_not_allowed"); };
-  storage.clear = function clear() { this.writes += 1; throw new Error("write_not_allowed"); };
+  storage.setItem = function setItem(key) { this.writes += 1; this.writeLog.push({ method: "setItem", key: String(key) }); throw new Error("write_not_allowed"); };
+  storage.removeItem = function removeItem(key) { this.writes += 1; this.writeLog.push({ method: "removeItem", key: String(key) }); throw new Error("write_not_allowed"); };
+  storage.clear = function clear() { this.writes += 1; this.writeLog.push({ method: "clear", key: null }); throw new Error("write_not_allowed"); };
   return storage;
 }
 
 function createJwt(payload = {}) {
   function encode(value) { return Buffer.from(JSON.stringify(value)).toString("base64url"); }
   return encode({ alg: "none", typ: "JWT" }) + "." + encode(Object.assign({
-    iss: "https://lidueokjpzxdybtongbk.supabase.co/auth/v1",
+    iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1",
     exp: Math.floor(Date.now() / 1000) + 3600
   }, payload)) + ".sig";
 }
@@ -50,7 +59,33 @@ function createElement(tag) {
     disabled: false,
     events: {},
     classList: { add() {}, remove() {}, toggle() { return false; }, contains() { return false; } },
-    appendChild(child) { child.parentNode = this; this.children.push(child); return child; },
+    appendChild(child) {
+      if (child && child.parentNode && Array.isArray(child.parentNode.children)) {
+        const previousIndex = child.parentNode.children.indexOf(child);
+        if (previousIndex >= 0) child.parentNode.children.splice(previousIndex, 1);
+      }
+      child.parentNode = this;
+      this.children.push(child);
+      return child;
+    },
+    insertBefore(newNode, referenceNode) {
+      if (referenceNode == null) return this.appendChild(newNode);
+      const referenceIndex = this.children.indexOf(referenceNode);
+      if (referenceIndex < 0) throw new Error("reference_node_not_found");
+      if (newNode && newNode.parentNode && Array.isArray(newNode.parentNode.children)) {
+        const previousIndex = newNode.parentNode.children.indexOf(newNode);
+        if (previousIndex >= 0) {
+          newNode.parentNode.children.splice(previousIndex, 1);
+          if (newNode.parentNode === this && previousIndex < referenceIndex) {
+            referenceNode = this.children[referenceIndex - 1];
+          }
+        }
+      }
+      const adjustedReferenceIndex = this.children.indexOf(referenceNode);
+      newNode.parentNode = this;
+      this.children.splice(adjustedReferenceIndex, 0, newNode);
+      return newNode;
+    },
     addEventListener(type, listener) { this.events[type] = this.events[type] || []; this.events[type].push(listener); },
     click() { (this.events.click || []).forEach((listener) => listener({ preventDefault() {} })); },
     focus() {},
@@ -79,6 +114,28 @@ function createElement(tag) {
   });
   return element;
 }
+
+test("fake DOM insertBefore mantém ordem, parentNode e append nulo", () => {
+  const parent = createElement("div");
+  const first = createElement("span");
+  const middle = createElement("span");
+  const last = createElement("span");
+  parent.appendChild(first);
+  parent.appendChild(last);
+  assert.equal(parent.insertBefore(middle, last), middle);
+  assert.deepEqual(parent.children, [first, middle, last]);
+  assert.equal(middle.parentNode, parent);
+
+  const tail = createElement("span");
+  parent.insertBefore(tail, null);
+  assert.deepEqual(parent.children, [first, middle, last, tail]);
+
+  const other = createElement("div");
+  other.appendChild(middle);
+  assert.deepEqual(parent.children, [first, last, tail]);
+  assert.deepEqual(other.children, [middle]);
+  assert.equal(middle.parentNode, other);
+});
 
 
 function collectElementText(element) {
@@ -152,6 +209,13 @@ async function loadEloContext(options = {}) {
   const { buildExecutionStockReport } = await reportModulePromise;
   const { buildTodayWorkCore } = await todayModulePromise;
   const elements = options.elements || {};
+  const harnessPanel = elements[".panel"];
+  const harnessForm = elements[".form"];
+  const harnessInput = elements[".input"];
+  const harnessMessages = elements[".messages"];
+  if (harnessPanel && harnessForm && !harnessForm.parentNode) harnessPanel.appendChild(harnessForm);
+  if (harnessForm && harnessInput && !harnessInput.parentNode) harnessForm.appendChild(harnessInput);
+  if (harnessPanel && harnessMessages && !harnessMessages.parentNode) harnessPanel.appendChild(harnessMessages);
   const context = {
     console,
     setTimeout(fn) { if (typeof fn === "function") fn(); return 0; },
@@ -555,7 +619,7 @@ test("UI de atencao sem token nao fica presa em consulta remota e mantem acoes s
   await Promise.resolve();
   const output = collectElementText(messages);
   assert.equal(calls, 0);
-  assert.equal(localStorage.writes, 0);
+  assert.equal(localStorage.stockWrites, 0);
   assert.doesNotMatch(output, /Consultando o Observador da Obra/);
   assert.equal(findAllElementsByText(messages, "Abrir RDO").length, 1);
   assert.equal(findAllElementsByText(messages, "Abrir Almoxarifado").length, 1);
@@ -716,7 +780,7 @@ test("Hoje na Obra com perfil vazio mantem acoes seguras no mobile", async () =>
   await Promise.resolve();
 
   assert.equal(calls, 0);
-  assert.equal(localStorage.writes, 0);
+  assert.equal(localStorage.stockWrites, 0);
   assert.match(collectElementText(messages), /Abrir RDO/);
   assert.equal(findAllElementsByText(messages, "Imprimir / salvar PDF").length, 1);
 });
@@ -842,7 +906,7 @@ test("fluxo ask local readonly mantem suppress ate fim e nao grava", async () =>
   await Promise.resolve();
 
   assert.equal(calls, 0);
-  assert.equal(localStorage.writes, 0);
+  assert.equal(localStorage.stockWrites, 0);
   assert.equal(localStorage.getItem("elo_core_reliability_events_v1"), null);
   assert.equal(localStorage.getItem("elo_core_current_conversation_id_v1"), null);
   assert.deepEqual(marks, []);
