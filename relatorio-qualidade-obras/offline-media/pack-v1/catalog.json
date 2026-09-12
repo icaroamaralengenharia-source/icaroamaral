@@ -644,5 +644,817 @@
     "origin": "Wikimedia Commons",
     "legalStatus": "CLEAR",
     "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso",
+    "title": "Klaviersonate Nr. 2 Op. 2.2 - IV.Rondo (Grazioso)",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/22-wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso.ogg",
+        "format": "ogg",
+        "sizeBytes": 12595970,
+        "sha256": "8b44eac12b1f36bb9cdaf7a6e0d5fdb1d4c0b517f5e9853d0c92bed7236206bb"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 2 Op. 2.2 - IV.Rondo (Grazioso)",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_IV.Rondo_(Grazioso).ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio",
+    "title": "Klaviersonate Nr. 3 Op. 2.3 C-Dur - II.Adagio",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/23-wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio.ogg",
+        "format": "ogg",
+        "sizeBytes": 16923865,
+        "sha256": "2374aa15b440bf431a899f8268e10a16d0b84e1feb6da31244e24e0f9111a057"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 3 Op. 2.3 C-Dur - II.Adagio",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_II.Adagio.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai",
+    "title": "Klaviersonate Nr. 3 Op. 2.3 C-Dur - IV.Allegro assai",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/24-wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai.ogg",
+        "format": "ogg",
+        "sizeBytes": 11649421,
+        "sha256": "45277c8321f57738de9c3214c2caf9fb29e147cc6107a7c2c50c0e52498f09d1"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 3 Op. 2.3 C-Dur - IV.Allegro assai",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_IV.Allegro_assai.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro",
+    "title": "Klaviersonate Nr. 3 Op. 2.3 C-Dur - III.Allegro",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/25-wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro.ogg",
+        "format": "ogg",
+        "sizeBytes": 6425245,
+        "sha256": "e6d3b5fe93654d69041febaf18bd5077c494efe89edb868f00fdb2160eab8b1d"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 3 Op. 2.3 C-Dur - III.Allegro",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_III.Allegro.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio",
+    "title": "Klaviersonate Nr. 4 Op. 7 E-Dur - I. Allegro molto e con brio",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/26-wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio.ogg",
+        "format": "ogg",
+        "sizeBytes": 16326140,
+        "sha256": "7ea830b533dbb8630e4a7cf429d1d0f953a139a075f85410decfb7ffa3a839eb"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 4 Op. 7 E-Dur - I. Allegro molto e con brio",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_I._Allegro_molto_e_con_brio.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio",
+    "title": "Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/27-wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio.ogg",
+        "format": "ogg",
+        "sizeBytes": 21921992,
+        "sha256": "01e04a6b8594fe4f1578f63a041c38a0253f3caa6bccdad7effe9c6a40559d72"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_I.Allegro_con_brio.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro",
+    "title": "Klaviersonate Nr. 4 Op. 7 E-Dur - III.Allegro",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/28-wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro.ogg",
+        "format": "ogg",
+        "sizeBytes": 10738578,
+        "sha256": "03f9f08280577c9cb4a9891e738b7b29ce902dc15ab20cda8ec8492239ac7d4a"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 4 Op. 7 E-Dur - III.Allegro",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_III.Allegro.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso",
+    "title": "Klaviersonate Nr. 4 Op. 7 E-Dur - IV.Rondo - Poco allegfretto e gracioso",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/29-wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso.ogg",
+        "format": "ogg",
+        "sizeBytes": 13276273,
+        "sha256": "b3d62a378d9784812b6e0b6b6ab4aa7ecff14f77322cb6a7f60132d9472c236a"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 4 Op. 7 E-Dur - IV.Rondo - Poco allegfretto e gracioso",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_IV.Rondo_-_Poco_allegfretto_e_gracioso.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto",
+    "title": "Klaviersonate Nr. 5 Op. 10.1 - II. Adagio molto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/30-wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto.ogg",
+        "format": "ogg",
+        "sizeBytes": 17520928,
+        "sha256": "1bdaacc89628f1bd8c6e7f62664326d8b0c41126766dda902ebd93712b77354a"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 5 Op. 10.1 - II. Adagio molto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._5_Op._10.1_-_II._Adagio_molto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo",
+    "title": "Klaviersonate Nr. 5 Op. 10.1 - III. Finale - Prestissimo",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/31-wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo.ogg",
+        "format": "ogg",
+        "sizeBytes": 8309507,
+        "sha256": "2c8a10f80cad2fa9474915da19c62bdb8fa3941665fb7368553e13edb5ee3bc0"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 5 Op. 10.1 - III. Finale - Prestissimo",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._5_Op._10.1_-_III._Finale_-_Prestissimo.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto",
+    "title": "Klaviersonate Nr. 6 f-moll op. 10.2 - II. Allegretto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/32-wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto.ogg",
+        "format": "ogg",
+        "sizeBytes": 8760035,
+        "sha256": "419fed939e3c742c419d63c435cdc121508844bc9b87715f4c9ee43b0e74e55f"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 6 f-moll op. 10.2 - II. Allegretto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._6_f-moll_op._10.2_-_II._Allegretto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto",
+    "title": "Klaviersonate Nr. 6 f-moll op. 10.2 - III. Presto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/33-wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto.ogg",
+        "format": "ogg",
+        "sizeBytes": 4617312,
+        "sha256": "005f4ea95fcb24eba49d36613a099a13f8217585ade6d7435c9aea2fce16d7f4"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 6 f-moll op. 10.2 - III. Presto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._6_f-moll_op._10.2_-_III._Presto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto",
+    "title": "Klaviersonate Nr. 7 D-Dur op. 10.3 - II. Largo e mesto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/34-wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto.ogg",
+        "format": "ogg",
+        "sizeBytes": 24704513,
+        "sha256": "e5d7a92643ac4d1bbacf410f1831e86d20f75cb7911cad7a1e263aa19f43a9f5"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 7 D-Dur op. 10.3 - II. Largo e mesto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_II._Largo_e_mesto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto",
+    "title": "Klaviersonate Nr. 7 D-Dur op. 10.3 - I. Presto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/35-wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto.ogg",
+        "format": "ogg",
+        "sizeBytes": 14139038,
+        "sha256": "af29ee9ea84b193e1a080805e82195db6564ce53183cb8a87a6f3907ca58fdeb"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 7 D-Dur op. 10.3 - I. Presto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_I._Presto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio",
+    "title": "Klaviersonate Nr. 7 D-Dur op. 10.3 - III. Menuetto & Trio",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/36-wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio.ogg",
+        "format": "ogg",
+        "sizeBytes": 5348773,
+        "sha256": "5e378ce80e19242e265c6092ebe199426846504f7e5977e8dbafc0dd5334d7c9"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 7 D-Dur op. 10.3 - III. Menuetto & Trio",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_III._Menuetto_%26_Trio.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro",
+    "title": "Klaviersonate Nr. 9 E-Dur, op. 14.1 - I. Allegro",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/37-wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro.ogg",
+        "format": "ogg",
+        "sizeBytes": 14563894,
+        "sha256": "8c339f03e36d5c8ce3171ed80534f1ef3d733cf50f035bc9e59405c04fb3f443"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 9 E-Dur, op. 14.1 - I. Allegro",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_I._Allegro.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto",
+    "title": "Klaviersonate Nr. 9 E-Dur, op. 14.1 - II. Allegretto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/38-wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto.ogg",
+        "format": "ogg",
+        "sizeBytes": 9017005,
+        "sha256": "3dc11c8fc1839c39951dcd06a64bfb143bdc5355c801d7af4b095ef1506d44d2"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 9 E-Dur, op. 14.1 - II. Allegretto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_II._Allegretto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo",
+    "title": "Klaviersonate Nr. 9 E-Dur, op. 14.1 - III. Rondo - Allegro commodo",
+    "artist": "Artur SCHNABEl, Ludwig van Beethoven",
+    "composer": "Artur SCHNABEl, Ludwig van Beethoven",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/39-wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo.ogg",
+        "format": "ogg",
+        "sizeBytes": 6874858,
+        "sha256": "9f57ec8f2684b6f7476db1b9ea37579fae4feab3565abe433ef7df7186b579ca"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 9 E-Dur, op. 14.1 - III. Rondo - Allegro commodo",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_III._Rondo_-_Allegro_commodo.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro",
+    "title": "Klaviersonate Nr. 10 G-Dur, op. 14.2 - I. Allegro",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/40-wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro.ogg",
+        "format": "ogg",
+        "sizeBytes": 12279079,
+        "sha256": "e53f12883d9320a5d816603bc82e860c4682919489aa4ea04c40d3416cce8e51"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 10 G-Dur, op. 14.2 - I. Allegro",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_I._Allegro.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante",
+    "title": "Klaviersonate Nr. 10 G-Dur, op. 14.2 - II. Andante",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/41-wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante.ogg",
+        "format": "ogg",
+        "sizeBytes": 15148248,
+        "sha256": "f9d44465c83d6d53f7433c1cc4c4c446f22d28e1b45d489551e8c1a91ec82fc8"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 10 G-Dur, op. 14.2 - II. Andante",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_II._Andante.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai",
+    "title": "Klaviersonate Nr. 10 G-Dur, op. 14.2 - III. Allegro assai",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/42-wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai.ogg",
+        "format": "ogg",
+        "sizeBytes": 7638860,
+        "sha256": "213ae4544777ea1428dfc99c43243128df60db7ba65f81f016a38f4d89960c5c"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 10 G-Dur, op. 14.2 - III. Allegro assai",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_III._Allegro_assai.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op",
+    "title": "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Part 1) - Allegro con brio - Hmv-db2211-32-3698-2b6616",
+    "artist": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "composer": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/43-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op.oga",
+        "format": "oga",
+        "sizeBytes": 31227686,
+        "sha256": "bd3b96d6a7461c20a47ffd51b1ebfa9869e56bb59d0c2706cba3df9657e9b78e"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Part 1) - Allegro con brio - Hmv-db2211-32-3698-2b6616",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_1st_Movement_(Part_1)_-_Allegro_con_brio_-_Hmv-db2211-32-3698-2b6616.oga",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2",
+    "title": "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Conclusion)- Adagio con molto espressione - Hmv-db2212-32-3701-2b6619",
+    "artist": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "composer": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/44-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2.oga",
+        "format": "oga",
+        "sizeBytes": 52105936,
+        "sha256": "97c2787fed64fbf49826dd5e20998c01005ab705488c91414593d77342bb3125"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Conclusion)- Adagio con molto espressione - Hmv-db2212-32-3701-2b6619",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_2nd_Movement_(Conclusion)-_Adagio_con_molto_espressione_-_Hmv-db2212-32-3701-2b6619.oga",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3",
+    "title": "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Part 1)- Adagio con molto espressione - Hmv-db2212-32-3700-2b6618",
+    "artist": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "composer": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/45-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3.oga",
+        "format": "oga",
+        "sizeBytes": 33103290,
+        "sha256": "7d90daf426935f52c1c0eca638844fe834d2401547f4e492c40db0644b348f31"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Part 1)- Adagio con molto espressione - Hmv-db2212-32-3700-2b6618",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_2nd_Movement_(Part_1)-_Adagio_con_molto_espressione_-_Hmv-db2212-32-3700-2b6618.oga",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4",
+    "title": "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 3rd Movement- Menuetto - Hmv-db2213-32-3702-2b6620",
+    "artist": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "composer": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/46-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4.oga",
+        "format": "oga",
+        "sizeBytes": 30063734,
+        "sha256": "aa106530f7b4f0e92ec19f26b4db82b556c411fefccbccb01ae939115a0c885b"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 3rd Movement- Menuetto - Hmv-db2213-32-3702-2b6620",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_3rd_Movement-_Menuetto_-_Hmv-db2213-32-3702-2b6620.oga",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5",
+    "title": "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 4th Movement- Rondo - Allegretto - Hmv-db2213-32-3703-2b6621",
+    "artist": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "composer": "a href=\"//commons.wikimedia.org/wiki/User:Pdproject\" title=\"User:Pdproject\"Carl Flisch/a",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/47-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5.oga",
+        "format": "oga",
+        "sizeBytes": 47385598,
+        "sha256": "6b96311c578fbe4cffbac119469df1d640dae7ec10088a1c276d1e3f35f111e2"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 4th Movement- Rondo - Allegretto - Hmv-db2213-32-3703-2b6621",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_4th_Movement-_Rondo_-_Allegretto_-_Hmv-db2213-32-3703-2b6621.oga",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio",
+    "title": "Klaviersonate Nr. 11 B-Dur, op. 22 - I. Allegro Con Brio",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/48-wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio.ogg",
+        "format": "ogg",
+        "sizeBytes": 9976771,
+        "sha256": "2896b73780953ef3fdfc501c3f7de284ff8467c23ff12bb67e85565892a10696"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 11 B-Dur, op. 22 - I. Allegro Con Brio",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_I._Allegro_Con_Brio.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto",
+    "title": "Klaviersonate Nr. 11 B-Dur, op. 22 - III. Minuetto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/49-wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto.ogg",
+        "format": "ogg",
+        "sizeBytes": 4948363,
+        "sha256": "d8a7d159199cac35174cbc7a0dac5fd29be6e44dbd33fce7d9baad5a8c90a240"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 11 B-Dur, op. 22 - III. Minuetto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_III._Minuetto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
+  },
+  {
+    "id": "wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto",
+    "title": "Klaviersonate Nr. 11 B-Dur, op. 22 - IV. Rondo - Allegretto",
+    "artist": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "composer": "bdia href=\"https://en.wikipedia.org/wiki/en:Ludwig_van_Beethoven\" class=\"extiw\" title=\"w:en:Ludwig van Beethoven\"span title=\"German composer (1770-1827)\"Ludwig van Beethoven/span/a/bdi",
+    "genre": "instrumental / classical",
+    "files": [
+      {
+        "path": "offline-media/pack-v1/50-wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto.ogg",
+        "format": "ogg",
+        "sizeBytes": 7705847,
+        "sha256": "de0f4cb0bee29d531c9b1cc9646f7fc6e333aa580a55902742bbece7d292bc02"
+      }
+    ],
+    "duration": null,
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "on-demand",
+    "aliases": [
+      "Klaviersonate Nr. 11 B-Dur, op. 22 - IV. Rondo - Allegretto",
+      "Beethoven's Piano Sonatas Played by Artur Schnabel"
+    ],
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_IV._Rondo_-_Allegretto.ogg",
+    "origin": "Wikimedia Commons",
+    "legalStatus": "CLEAR",
+    "offlineStoragePermitted": true
   }
 ]

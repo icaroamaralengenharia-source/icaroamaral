@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-12T16:55:40.339Z",
+  "generatedAt": "2026-09-12T18:46:05.431Z",
   "target": 50,
-  "imported": 21,
+  "imported": 50,
   "candidatesAnalyzed": 1266,
   "permanentRejected": 291,
-  "temporary429": 11,
+  "temporary429": 38,
   "rejectionCounts": {
     "license_not_allowed:Copyrighted free use": 1,
     "size_out_of_bounds": 41,
@@ -14,7 +14,7 @@
     "license_not_allowed:PDM-owner": 34,
     "license_not_allowed:BSD": 1
   },
-  "phase": "DOWNLOAD",
+  "phase": "COMPLETE",
   "pagination": {
     "categorymembers": true,
     "subcategories": true,
@@ -25,4 +25,4 @@
     "ffmpeg": false,
     "reason": "ffmpeg_not_available"
   }
-}\n
+}

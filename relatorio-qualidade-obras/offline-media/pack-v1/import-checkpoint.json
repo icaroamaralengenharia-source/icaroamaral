@@ -1,5 +1,5 @@
 {
-  "phase": "DOWNLOAD",
+  "phase": "COMPLETE",
   "categories": [
     "Audio files of Beethoven's Piano Sonatas Played by Artur Schnabel",
     "Audio files of 16 Waltzes (Brahms)",
@@ -10732,7 +10732,36 @@
     "https://commons.wikimedia.org/wiki/File%3APiano_Sonata_N%C2%B0_1_-_4._Prestissimo_(Beethoven%2C_Schnabel).ogg",
     "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_I.Allegro_vivace.ogg",
     "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_II.Largo_appassionato.ogg",
-    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_III.Scherzo_and_Trio_(Allegretto).ogg"
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_III.Scherzo_and_Trio_(Allegretto).ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._2_Op._2.2_-_IV.Rondo_(Grazioso).ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_II.Adagio.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_IV.Allegro_assai.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_III.Allegro.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_I._Allegro_molto_e_con_brio.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._3_Op._2.3_C-Dur_-_I.Allegro_con_brio.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_III.Allegro.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._4_Op._7_E-Dur_-_IV.Rondo_-_Poco_allegfretto_e_gracioso.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._5_Op._10.1_-_II._Adagio_molto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._5_Op._10.1_-_III._Finale_-_Prestissimo.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._6_f-moll_op._10.2_-_II._Allegretto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._6_f-moll_op._10.2_-_III._Presto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_II._Largo_e_mesto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_I._Presto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._7_D-Dur_op._10.3_-_III._Menuetto_%26_Trio.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_I._Allegro.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_II._Allegretto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._9_E-Dur%2C_op._14.1_-_III._Rondo_-_Allegro_commodo.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_I._Allegro.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_II._Andante.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._10_G-Dur%2C_op._14.2_-_III._Allegro_assai.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_1st_Movement_(Part_1)_-_Allegro_con_brio_-_Hmv-db2211-32-3698-2b6616.oga",
+    "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_2nd_Movement_(Conclusion)-_Adagio_con_molto_espressione_-_Hmv-db2212-32-3701-2b6619.oga",
+    "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_2nd_Movement_(Part_1)-_Adagio_con_molto_espressione_-_Hmv-db2212-32-3700-2b6618.oga",
+    "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_3rd_Movement-_Menuetto_-_Hmv-db2213-32-3702-2b6620.oga",
+    "https://commons.wikimedia.org/wiki/File%3AArtur_Schnabel_Plays_Beethoven's_Piano_Sonata_No._11_in_B-flat_major%2C_Op._22_-_4th_Movement-_Rondo_-_Allegretto_-_Hmv-db2213-32-3703-2b6621.oga",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_I._Allegro_Con_Brio.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_III._Minuetto.ogg",
+    "https://commons.wikimedia.org/wiki/File%3AKlaviersonate_Nr._11_B-Dur%2C_op._22_-_IV._Rondo_-_Allegretto.ogg"
   ],
   "permanentRejects": [
     {
@@ -11973,6 +12002,195 @@
       "attempt": 1,
       "delayMs": 3317,
       "at": "2026-09-12T16:50:02.740Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - IV.Allegro assai.ogg",
+      "attempt": 1,
+      "delayMs": 3391,
+      "at": "2026-09-12T17:50:22.072Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio.ogg",
+      "attempt": 1,
+      "delayMs": 2116,
+      "at": "2026-09-12T17:50:27.553Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio.ogg",
+      "attempt": 2,
+      "delayMs": 4567,
+      "at": "2026-09-12T17:50:29.816Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - I. Allegro molto e con brio.ogg",
+      "attempt": 1,
+      "delayMs": 3372,
+      "at": "2026-09-12T17:50:36.066Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio.ogg",
+      "attempt": 1,
+      "delayMs": 600000,
+      "at": "2026-09-12T17:53:49.814Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - II.Largo con gran espressione.ogg",
+      "attempt": 1,
+      "delayMs": 2238,
+      "at": "2026-09-12T18:03:54.650Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - II.Largo con gran espressione.ogg",
+      "attempt": 2,
+      "delayMs": 4148,
+      "at": "2026-09-12T18:03:57.011Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 5 Op. 10.1 - I. Allegro molto e con brio.ogg",
+      "attempt": 1,
+      "delayMs": 2507,
+      "at": "2026-09-12T18:04:03.383Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 5 Op. 10.1 - I. Allegro molto e con brio.ogg",
+      "attempt": 2,
+      "delayMs": 5120,
+      "at": "2026-09-12T18:04:06.027Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 6 f-moll op. 10.2 - I.Allegro.ogg",
+      "attempt": 1,
+      "delayMs": 3377,
+      "at": "2026-09-12T18:04:15.332Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 6 f-moll op. 10.2 - I.Allegro.ogg",
+      "attempt": 2,
+      "delayMs": 600000,
+      "at": "2026-09-12T18:04:18.875Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - II. Largo e mesto.ogg",
+      "attempt": 1,
+      "delayMs": 3148,
+      "at": "2026-09-12T18:14:22.991Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - I. Presto.ogg",
+      "attempt": 1,
+      "delayMs": 2125,
+      "at": "2026-09-12T18:14:30.863Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - III. Menuetto & Trio.ogg",
+      "attempt": 1,
+      "delayMs": 2224,
+      "at": "2026-09-12T18:14:36.107Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - IV. Rondo - Allegro.ogg",
+      "attempt": 1,
+      "delayMs": 2047,
+      "at": "2026-09-12T18:14:40.631Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - IV. Rondo - Allegro.ogg",
+      "attempt": 2,
+      "delayMs": 4042,
+      "at": "2026-09-12T18:14:43.141Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 9 E-Dur, op. 14.1 - I. Allegro.ogg",
+      "attempt": 1,
+      "delayMs": 600000,
+      "at": "2026-09-12T18:14:48.095Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 9 E-Dur, op. 14.1 - III. Rondo - Allegro commodo.ogg",
+      "attempt": 1,
+      "delayMs": 2996,
+      "at": "2026-09-12T18:24:53.851Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 10 G-Dur, op. 14.2 - I. Allegro.ogg",
+      "attempt": 1,
+      "delayMs": 2408,
+      "at": "2026-09-12T18:25:01.652Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 10 G-Dur, op. 14.2 - II. Andante.ogg",
+      "attempt": 1,
+      "delayMs": 3097,
+      "at": "2026-09-12T18:25:07.417Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Conclusion)- Allegro con brio - Hmv-db2211-32-3699-2b6617.oga",
+      "attempt": 1,
+      "delayMs": 2566,
+      "at": "2026-09-12T18:25:21.912Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Conclusion)- Allegro con brio - Hmv-db2211-32-3699-2b6617.oga",
+      "attempt": 2,
+      "delayMs": 600000,
+      "at": "2026-09-12T18:25:25.001Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 3rd Movement- Menuetto - Hmv-db2213-32-3702-2b6620.oga",
+      "attempt": 1,
+      "delayMs": 2587,
+      "at": "2026-09-12T18:35:38.025Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 4th Movement- Rondo - Allegretto - Hmv-db2213-32-3703-2b6621.oga",
+      "attempt": 1,
+      "delayMs": 3071,
+      "at": "2026-09-12T18:35:44.555Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - II. Adagio con molt'espressione.ogg",
+      "attempt": 1,
+      "delayMs": 2232,
+      "at": "2026-09-12T18:35:55.190Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - II. Adagio con molt'espressione.ogg",
+      "attempt": 2,
+      "delayMs": 5112,
+      "at": "2026-09-12T18:35:57.579Z"
+    },
+    {
+      "phase": "DOWNLOAD",
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - III. Minuetto.ogg",
+      "attempt": 1,
+      "delayMs": 600000,
+      "at": "2026-09-12T18:36:02.867Z"
     }
   ],
   "candidatesAnalyzed": 1266
