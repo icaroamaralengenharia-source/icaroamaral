@@ -21,15 +21,25 @@ class MainActivity : Activity() {
     private var currentIndex = -1
     private var currentFileIndex = 0
     private var player: MediaPlayer? = null
+    private lateinit var musicStore: OfflineMusicStore
+    private var musicReady = false
     private lateinit var command: EditText
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        musicStore = OfflineMusicStore(this)
         loadCatalog()
         currentIndex = tracks.indexOfFirst { it.id == getPreferences(0).getString("track", "") }
         buildUi()
-        status.text = "Offline Core Android pronto: ${tracks.size}/50 faixas locais\nRede: não utilizada"
+        status.text = "Instalando pacote musical local..."
+        Thread {
+            val installed = musicStore.installBundledCatalog()
+            runOnUiThread {
+                musicReady = installed == tracks.sumOf { it.files.size }
+                status.text = "Offline Core Android pronto: $installed/${tracks.sumOf { it.files.size }} arquivos locais\nRede: não utilizada"
+            }
+        }.start()
     }
 
     override fun onDestroy() { player?.release(); player = null; super.onDestroy() }
@@ -87,14 +97,15 @@ class MainActivity : Activity() {
     }
 
     private fun playCurrentFile() {
+        if (!musicReady) { show("Pacote musical ainda está sendo validado"); return }
         val track = tracks.getOrNull(currentIndex) ?: return
         val path = track.files.getOrNull(currentFileIndex) ?: return
         player?.release()
         player = runCatching {
-            val descriptor = assets.openFd(path)
+            val localFile = musicStore.resolve(path)
+                ?: error("faixa não instalada: $path")
             MediaPlayer().apply {
-                setDataSource(descriptor.fileDescriptor, descriptor.startOffset, descriptor.length)
-                descriptor.close()
+                setDataSource(localFile.absolutePath)
                 setOnCompletionListener {
                     if (currentFileIndex + 1 < track.files.size) { currentFileIndex++; playCurrentFile() } else step(1)
                 }
