@@ -16,6 +16,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+        manifestPlaceholders["appLabel"] = "ELO Offline Core V2"
+    }
+
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".offlinev2test"
+            manifestPlaceholders["appLabel"] = "ELO Offline V2 Teste"
+        }
     }
 
     androidResources {
