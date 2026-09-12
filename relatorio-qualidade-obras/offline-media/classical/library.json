@@ -5,6 +5,11 @@
     "composer": "Ludwig van Beethoven",
     "performer": "V Gao / Gaodifan",
     "recordingYear": "2006",
+    "genre": "piano classical",
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "essential",
+    "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
         "path": "offline-media/classical/beethoven/fur-elise.ogg",
@@ -39,6 +44,11 @@
     "composer": "Claude Debussy",
     "performer": "Laurens Goedhart",
     "recordingYear": "2011",
+    "genre": "piano classical",
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "essential",
+    "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
         "path": "offline-media/classical/debussy/clair-de-lune.ogg",
@@ -71,6 +81,11 @@
     "composer": "Antonio Vivaldi",
     "performer": "John Harrison, Robert Turizziani, Wichita State University Chamber Players",
     "recordingYear": "2000",
+    "genre": "classical instrumental",
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "essential",
+    "origin": "Wikimedia Commons / CC BY-SA 4.0 recording",
     "files": [
       {
         "path": "offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
@@ -119,6 +134,11 @@
     "composer": "Johann Pachelbel",
     "performer": "Kevin MacLeod",
     "recordingYear": "2006",
+    "genre": "classical instrumental",
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "essential",
+    "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
         "path": "offline-media/classical/pachelbel/canon-in-d.mp3",
@@ -151,6 +171,11 @@
     "composer": "Frédéric Chopin",
     "performer": "Membeth",
     "recordingYear": "2013",
+    "genre": "piano classical",
+    "offlineAvailable": true,
+    "downloaded": true,
+    "storageTier": "essential",
+    "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
         "path": "offline-media/classical/chopin/nocturne-op-9-no-2.ogg",
