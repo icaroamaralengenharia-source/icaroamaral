@@ -1,2 +1,2 @@
 window.ELO_SUPABASE_URL = window.ELO_SUPABASE_URL || "https://mplpzyalcxhhinuvjthx.supabase.co";
-window.ELO_SUPABASE_ANON_KEY = window.ELO_SUPABASE_ANON_KEY || "sb_publishable_EYNnSQR84n4hVsfgnoF0kg_xrEAx3_v";
+window.ELO_SUPABASE_ANON_KEY = window.ELO_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wbHB6eWFsY3hoaGludXZqdGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNzkyMzYsImV4cCI6MjEwMDc1NTIzNn0.rpZu6fMPh1azVFt5Ifl2JT_bBd2mVRMr19aknHTT9qo";

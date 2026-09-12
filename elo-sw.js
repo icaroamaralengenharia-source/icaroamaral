@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v9-20260911-p0-config-v2";
+const ELO_CACHE_NAME = "elo-web-offline-v9-20260912-auth-key-v1";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
