@@ -8158,6 +8158,24 @@
     }).slice(-ELO_CONFIG.maxHistory);
   }
 
+  function getEloTechnicalContinuationHistory_(question, topic) {
+    const normalizedTopic = normalizeText(topic || "");
+    const topicTerms = {
+      laje: ["laje", "trelicada", "treliçada", "impermeabilizacao", "impermeabilização", "manta"],
+      fundacao: ["fundacao", "fundação", "sapata", "baldrame", "radier"],
+      estrutura: ["estrutura", "laje", "pilar", "viga", "trelicada", "treliçada"],
+      parede: ["parede", "alvenaria", "bloco", "tijolo", "reboco", "chapisco"],
+      parede_completa: ["parede", "alvenaria", "bloco", "tijolo", "reboco", "chapisco"],
+      portao: ["portao", "portão", "caminhonete", "vao livre", "vão livre"]
+    }[normalizedTopic] || [normalizedTopic];
+    const terms = topicTerms.map(normalizeText).filter(Boolean);
+    if (!terms.length) return [];
+    return getEloOnlineHistory(question).filter(function (item) {
+      const content = normalizeText(item && item.content || "");
+      return terms.some(function (term) { return content.indexOf(term) >= 0; });
+    }).slice(-ELO_CONFIG.maxHistory);
+  }
+
   function isEloPdfAttachment_(file) {
     const type = String(file && file.type || "").toLowerCase();
     const name = String(file && file.name || "").toLowerCase();
@@ -8429,7 +8447,9 @@
       message: sanitizeUserText(question),
       anonymousId: getEloCoreAnonymousId_(),
       eloContext: eloContext,
-      history: isTechnicalContinuation ? [] : getEloOnlineHistory(question),
+      history: isTechnicalContinuation
+        ? getEloTechnicalContinuationHistory_(question, requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "")
+        : getEloOnlineHistory(question),
       context: {
         memoriesSummary: buildEloMemorySummary(),
         workingMemorySummary: isTechnicalContinuation

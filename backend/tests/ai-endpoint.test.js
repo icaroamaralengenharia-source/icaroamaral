@@ -7043,6 +7043,67 @@ test("endpoint do Elo preserva workingMemorySummary da request ate o system prom
   }
 });
 
+test("endpoint do Elo fixa o contexto tecnico remoto atual e exclui historico concorrente", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      openAiPayload = JSON.parse(options.body || "{}");
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta sobre laje trelicada." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({
+          message: "e se a laje for trelicada?",
+          history: [
+            { role: "user", content: "qual largura de portao para caminhonete?" },
+            { role: "assistant", content: "O portao precisa de vao livre." },
+            { role: "user", content: "estou fazendo uma laje" }
+          ],
+          context: {
+            source: "elo",
+            workingMemorySummary: "activeTopic: laje\nresolvedReferent: a laje",
+            technicalContinuation: {
+              activeTopic: "laje",
+              referent: "a laje",
+              finalQuery: "e se a laje for trelicada?"
+            }
+          }
+        })
+      });
+      const data = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.ok(openAiPayload);
+      const serializedInput = JSON.stringify(openAiPayload.input);
+      assert.match(serializedInput, /CURRENT TECHNICAL CONTEXT|CONTEXTO T.CNICO ATUAL/i);
+      assert.match(serializedInput, /laje/i);
+      assert.match(serializedInput, /e se a laje for trelicada/i);
+      assert.doesNotMatch(serializedInput, /portao|portão/i);
+      const historyInput = openAiPayload.input.filter((item) => item.role === "user").slice(0, -1);
+      assert.equal(historyInput.length, 1);
+      assert.match(JSON.stringify(historyInput), /laje/i);
+      assert.doesNotMatch(JSON.stringify(historyInput), /portao|portão/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("endpoint do Elo sanitiza workingMemorySummary antes do system prompt", async () => {
   const originalFetch = globalThis.fetch;
   const prompts = [];

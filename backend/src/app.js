@@ -6282,8 +6282,18 @@ function validateEloChatRequest_(body) {
   const workingMemorySummary = typeof context.workingMemorySummary === "string"
     ? cleanMultiline_(context.workingMemorySummary).slice(0, 1200)
     : "";
+  const rawTechnicalContinuation = context.technicalContinuation && typeof context.technicalContinuation === "object"
+    ? context.technicalContinuation
+    : null;
+  const technicalContinuation = rawTechnicalContinuation
+    ? {
+      activeTopic: clean_(rawTechnicalContinuation.activeTopic).slice(0, 120),
+      referent: clean_(rawTechnicalContinuation.referent).slice(0, 160),
+      finalQuery: clean_(rawTechnicalContinuation.finalQuery).slice(0, MAX_ELO_MESSAGE_LENGTH)
+    }
+    : null;
   const rawHistory = Array.isArray(body.history) ? body.history : [];
-  const history = rawHistory
+  const normalizedHistory = rawHistory
     .filter((item) => item && (item.role === "user" || item.role === "assistant"))
     .map((item) => ({
       role: item.role,
@@ -6291,6 +6301,9 @@ function validateEloChatRequest_(body) {
     }))
     .filter((item) => item.content)
     .slice(-20);
+  const history = technicalContinuation
+    ? filterEloTechnicalContinuationHistory_(normalizedHistory, technicalContinuation)
+    : normalizedHistory;
   const contextSize = JSON.stringify(context).length;
 
   if (!message) {
@@ -6334,11 +6347,39 @@ function validateEloChatRequest_(body) {
         screenContext: clean_(context.screenContext || "").slice(0, 1200),
         productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
         workingMemorySummary,
+        technicalContinuation,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
         projectContext
       }
     }
   };
+}
+
+function filterEloTechnicalContinuationHistory_(history, technicalContinuation) {
+  const continuation = technicalContinuation && typeof technicalContinuation === "object" ? technicalContinuation : {};
+  const normalized = normalizeEloSearchText_([
+    continuation.activeTopic,
+    continuation.referent,
+    continuation.finalQuery
+  ].filter(Boolean).join(" "));
+  const topic = normalizeEloSearchText_(continuation.activeTopic || "");
+  const topicTerms = topic === "laje" || topic === "estrutura"
+    ? ["laje", "trelicada", "impermeabilizacao", "manta", "estrutura", "pilar", "viga"]
+    : topic === "fundacao" || topic === "fundacao rasa"
+      ? ["fundacao", "sapata", "baldrame", "radier"]
+      : topic === "parede" || topic === "parede completa"
+        ? ["parede", "alvenaria", "bloco", "tijolo", "reboco", "chapisco"]
+        : topic === "portao"
+          ? ["portao", "caminhonete", "vao livre"]
+          : normalized.split(/\s+/).filter((term) => term.length >= 4);
+  const terms = Array.from(new Set(topicTerms.map(normalizeEloSearchText_).filter(Boolean)));
+  if (!terms.length) return [];
+  return (Array.isArray(history) ? history : [])
+    .filter((item) => {
+      const content = normalizeEloSearchText_(item && item.content);
+      return terms.some((term) => content.includes(term));
+    })
+    .slice(-12);
 }
 
 export function buildConversationSummary_(history = []) {
@@ -7670,19 +7711,29 @@ async function callOpenAiElo_(payload, env, metrics = null) {
     });
   });
 
-  input.push({
-    role: "user",
-    content: [
-      "Mensagem original do usuário:",
-      interpretation.originalMessage,
-      "",
-      "Mensagem interpretada:",
-      interpretation.normalizedMessage,
-      "",
-      "Responda considerando a intenção detectada:",
-      interpretation.detectedIntent
-    ].join("\n")
-  });
+  const userPromptParts = [];
+  if (payload.context && payload.context.technicalContinuation) {
+    const continuation = payload.context.technicalContinuation;
+    userPromptParts.push(
+      "CONTEXTO TÉCNICO ATUAL OBRIGATÓRIO:",
+      "Tópico atual: " + clean_(continuation.activeTopic),
+      "Referente atual: " + clean_(continuation.referent),
+      "Consulta final: " + clean_(continuation.finalQuery),
+      "Responda sobre o referente atual, nunca sobre um tópico técnico antigo.",
+      ""
+    );
+  }
+  userPromptParts.push(
+    "Mensagem original do usuário:",
+    interpretation.originalMessage,
+    "",
+    "Mensagem interpretada:",
+    interpretation.normalizedMessage,
+    "",
+    "Responda considerando a intenção detectada:",
+    interpretation.detectedIntent
+  );
+  input.push({ role: "user", content: userPromptParts.join("\n") });
 
   const requestBody = {
     model,
@@ -7746,6 +7797,13 @@ export function buildEloSystemPrompt_(context = {}) {
   const operationalSummary = clean_(context.operationalSummary || "").slice(0, 2500);
   const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
   const workingMemorySummary = clean_(context.workingMemorySummary || "").slice(0, 1200);
+  const technicalContinuation = context.technicalContinuation && typeof context.technicalContinuation === "object"
+    ? {
+      activeTopic: clean_(context.technicalContinuation.activeTopic).slice(0, 120),
+      referent: clean_(context.technicalContinuation.referent).slice(0, 160),
+      finalQuery: clean_(context.technicalContinuation.finalQuery).slice(0, MAX_ELO_MESSAGE_LENGTH)
+    }
+    : null;
   const libraryRelevantSummary = clean_(context.libraryRelevantSummary || "").slice(0, 1800);
   const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
@@ -7783,6 +7841,17 @@ export function buildEloSystemPrompt_(context = {}) {
 
   if (eloIntentSummary) {
     prompt.push("Classificacao de intencao do pedido:\n" + eloIntentSummary);
+  }
+
+  if (technicalContinuation && (technicalContinuation.activeTopic || technicalContinuation.referent || technicalContinuation.finalQuery)) {
+    prompt.push([
+      "CURRENT TECHNICAL CONTEXT (HIGHEST PRIORITY)",
+      "CURRENT TECHNICAL TOPIC: " + technicalContinuation.activeTopic,
+      "RESOLVED REFERENT: " + technicalContinuation.referent,
+      "CURRENT USER QUESTION: " + technicalContinuation.finalQuery,
+      "PREVIOUS TECHNICAL TOPICS: background only",
+      "INSTRUCTION: responda sobre o topico/referent tecnico atual. Nao substitua o assunto atual por um topico antigo do historico."
+    ].join("\n"));
   }
 
   const permanentUserMemoryParts = [];
