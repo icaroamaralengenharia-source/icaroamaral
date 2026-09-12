@@ -650,6 +650,7 @@
 
   function isEloSemanticShortContinuation_(text) {
     return isEloPendingContextContinuation_(text) ||
+      /^e\s+se\b/.test(text) ||
       /^e\b[\s\S]{0,60}(?:\d|%|bdi|padrao|padrao|perda|m2|m3|reboco|chapisco|portas?|janelas?|pdf|materiais)/.test(text) ||
       /^inclui\b[\s\S]{0,60}(?:reboco|chapisco|revestimento|pintura|material|materiais)/.test(text) ||
       /^(?:lista de materiais|gerar pdf(?:\s+agora)?|materiais dessa|materiais da)\s*$/.test(text);
@@ -7661,7 +7662,9 @@
     if (/proposta|preparar\s+para\s+cliente|gerar\s+documento|documento\s+para\s+cliente/.test(text)) return "proposta_tecnica";
     if (/orcamento\s+residencial|orçamento\s+residencial|orcamento\s+preliminar|orçamento\s+preliminar|casa\s+terrea|casa\s+térrea|resid[eê]ncia/.test(text)) return "orcamento_residencial";
     if (/fundacao|fundação|sapata|baldrame|bloco\s+de\s+fundacao|bloco\s+de\s+fundação|radier/.test(text)) return "fundacao";
-    if (/estrutura|estrutural|pilar|viga|laje/.test(text)) return "estrutura";
+    if (/portao|portão|portoes|portões/.test(text)) return "portao";
+    if (/laje/.test(text)) return "laje";
+    if (/estrutura|estrutural|pilar|viga/.test(text)) return "estrutura";
     if (/parede\s+completa|alvenaria\s+completa|parede\s+pronta/.test(text)) return "parede_completa";
     if (/parede|alvenaria|bloco|tijolo|baiano|reboco|chapisco|embo[cç]o/.test(text)) return "parede";
     if (/relatorio|relatório|rdo|diario|diário/.test(text)) return "relatorio";
@@ -7671,6 +7674,7 @@
   function isEloPendingContextContinuation_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
+    if (/^e\s+se\b/.test(text)) return true;
     if (/^(?:op[cç][aã]o\s*)?\d{1,2}$/.test(text)) return true;
     if (/^\d{1,2}\s*%$/.test(text)) return true;
     if (/^\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}$/.test(text)) return true;
@@ -7693,7 +7697,7 @@
   }
 
   function isEloTechnicalTopic_(topic) {
-    return ["cadista", "stock", "proposta_tecnica", "orcamento_residencial", "fundacao", "estrutura", "parede_completa", "parede", "relatorio"].indexOf(topic) >= 0;
+    return ["cadista", "stock", "proposta_tecnica", "orcamento_residencial", "fundacao", "estrutura", "laje", "portao", "parede_completa", "parede", "relatorio"].indexOf(topic) >= 0;
   }
 
   function isEloGeneralSubjectAfterTechnical_(message) {
@@ -34365,6 +34369,15 @@ function isEloResidentialNewPipelineEnabled_() {
     formatExecutionStockCrossForTest: formatEloObraExecutionStockCrossAnswer_,
 
     ensureAuthMergeForTest: ensureEloCoreAuthMerge_,
+    detectConversationTopicForTest: detectEloConversationTopic_,
+    resolveTopicSwitchForTest: clearEloPendingContextIfTopicChanged_,
+    getActiveTopicStateForTest: function () {
+      return {
+        activeTopic: ELO_SESSION_MEMORY.activeTopic,
+        activeConversationTopic: ELO_SESSION_MEMORY.activeConversationTopic,
+        lastQuestion: ELO_SESSION_MEMORY.lastQuestion
+      };
+    },
     getCoreIdentityForTest: getEloCoreIdentity_,
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,

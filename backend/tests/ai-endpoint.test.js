@@ -6744,6 +6744,40 @@ test("frontend Elo separa conversa, busca atual e continuacao tecnica por intenc
   assert.equal(classify("e com 10%?", { active: false, topic: "" }).intent, "conversa_geral");
 });
 
+test("frontend Elo prioriza topico explicito recente nas continuacoes curtas", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  assert.equal(elo.detectConversationTopicForTest("qual largura de portao para caminhonete?"), "portao");
+  elo.resolveTopicSwitchForTest("qual largura de portao para caminhonete?");
+  elo.resolveTopicSwitchForTest("estou fazendo uma laje");
+  const topicState = elo.getActiveTopicStateForTest();
+  assert.equal(topicState.activeTopic, "laje");
+  assert.equal(topicState.activeConversationTopic, "laje");
+  assert.equal(topicState.lastQuestion, "");
+  assert.equal(elo.classifySemanticRouteForTest("e se for trelicada?", { active: true, topic: "laje" }).intent, "continuacao_contexto_tecnico");
+  elo.resolveTopicSwitchForTest("e se for trelicada?");
+  assert.equal(elo.getActiveTopicStateForTest().activeConversationTopic, "laje");
+
+  const cases = [
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede"],
+    ["estou tratando a fundacao", "e se for radier?", "fundacao"]
+  ];
+  for (const [first, followUp, expectedTopic] of cases) {
+    const isolated = await loadEloOperationalSandbox_([]);
+    const isolatedElo = isolated.window.EloAssistente;
+    isolatedElo.resolveTopicSwitchForTest(first);
+    assert.equal(isolatedElo.getActiveTopicStateForTest().activeConversationTopic, expectedTopic, first);
+    assert.equal(isolatedElo.classifySemanticRouteForTest(followUp, { active: true, topic: expectedTopic }).intent, "continuacao_contexto_tecnico", followUp);
+    isolatedElo.resolveTopicSwitchForTest(followUp);
+    assert.equal(isolatedElo.getActiveTopicStateForTest().activeConversationTopic, expectedTopic, followUp);
+  }
+
+  const fresh = await loadEloOperationalSandbox_([]);
+  assert.equal(fresh.window.EloAssistente.getActiveTopicStateForTest().activeConversationTopic, "");
+});
+
 test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const elo = sandbox.window.EloAssistente;
