@@ -6812,6 +6812,21 @@ test("frontend Elo despacha continuacao tecnica antes do fallback generico de se
   assert.equal(genericResponse.sessionIntent, "continuidade");
 });
 
+test("frontend Elo contextualiza continuacoes tecnicas para o motor online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.resolveTopicSwitchForTest("estou fazendo uma laje");
+  const route = elo.classifySemanticRouteForTest("e se for trelicada?", { active: true, topic: "laje" });
+  const prompt = elo.buildTechnicalContinuationPromptForTest("e se for trelicada?", route);
+  assert.match(prompt, /Contexto .*cnico ativo: laje/i);
+  assert.match(prompt, /e se for trelicada/i);
+  assert.match(prompt, /vantagens|limita..es|dados faltantes/i);
+
+  const genericPrompt = elo.buildTechnicalContinuationPromptForTest("e depois?", { intent: "conversa_geral" });
+  assert.equal(genericPrompt, "");
+});
+
 test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const elo = sandbox.window.EloAssistente;

@@ -707,6 +707,14 @@
     return ["tecnico_obra", "orcamento_quantitativo", "cadista", "continuacao_contexto_tecnico"].indexOf(intent || "") >= 0;
   }
 
+  function buildEloTechnicalContinuationPrompt_(message, semanticRoute) {
+    if (!semanticRoute || semanticRoute.intent !== "continuacao_contexto_tecnico") return "";
+    const topic = ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "";
+    if (!isEloTechnicalTopic_(topic)) return "";
+    const referent = topic === "parede_completa" ? "parede/alvenaria" : topic;
+    return "Contexto técnico ativo: " + referent + ". Trate a pergunta atual como continuação técnica desse elemento e responda diretamente, explicando critérios, vantagens, limitações e dados faltantes sem inventar números ou normas. Pergunta atual: " + sanitizeUserText(message);
+  }
+
   function hasEloLatentTechnicalContinuationContext_(message) {
     const text = canonicalizeEloSemanticText_(message);
     if (!isEloSemanticShortContinuation_(text)) return false;
@@ -29726,6 +29734,36 @@ function isEloResidentialNewPipelineEnabled_() {
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const technicalContinuationPrompt = buildEloTechnicalContinuationPrompt_(cleanQuestion, effectiveSemanticRoute);
+    if (technicalContinuationPrompt && !attachedFiles.length) {
+      requestEloOnlineAnswer(technicalContinuationPrompt, []).then(function (onlineAnswer) {
+        if (onlineAnswer) {
+          const technicalResponse = {
+            shortAnswer: onlineAnswer,
+            fullAnswer: onlineAnswer,
+            nextAction: "Continue a análise técnica ou informe os dados faltantes.",
+            canSave: false,
+            sessionTheme: "elo_technical_continuation",
+            sessionIntent: "technical_continuation_online",
+            technicalEngine: { mode: "technical_continuation", route: effectiveSemanticRoute }
+          };
+          appendAssistantMessage(cleanQuestion, onlineAnswer, false, technicalResponse);
+          saveConversation(cleanQuestion, onlineAnswer);
+          rememberSessionTurn(cleanQuestion, technicalResponse, onlineAnswer);
+          return;
+        }
+        const localTechnicalResponse = buildEloSemanticTechnicalDispatchResponse_(technicalContinuationPrompt, effectiveSemanticRoute);
+        const localTechnicalAnswer = formatResponse(localTechnicalResponse);
+        appendAssistantMessage(cleanQuestion, localTechnicalAnswer, false, localTechnicalResponse);
+        saveConversation(cleanQuestion, localTechnicalAnswer);
+        rememberSessionTurn(cleanQuestion, localTechnicalResponse, localTechnicalAnswer);
+      }).finally(function () {
+        removeTypingIndicator();
+        clearProductAttachmentPreview();
+      });
+      return;
+    }
+
 
     const longTermMemoryCandidate = detectEloLongTermMemoryCommand(cleanQuestion);
     if (longTermMemoryCandidate) {
@@ -34339,6 +34377,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    buildTechnicalContinuationPromptForTest: buildEloTechnicalContinuationPrompt_,
     buildSocialFastPathForTest: buildEloSocialFastPathAnswer_,
     detectVisualMediaIntentForTest: detectEloVisualMediaIntent_,
     buildVisualMediaResponseForTest: buildEloVisualMediaResponse_,
