@@ -97,6 +97,18 @@
     return text;
   }
 
+  function extractMusicEntities(query) {
+    var raw = normalize(query);
+    var artist = "";
+    var title = raw;
+    var explicitArtist = raw.match(/\b(?:do|da|de|by|com|por)\s+(.+)$/i);
+    if (explicitArtist) {
+      artist = explicitArtist[1].trim();
+      title = raw.slice(0, explicitArtist.index).trim();
+    }
+    return { raw: raw, title: title, artist: artist, explicitArtist: Boolean(artist) };
+  }
+
   function bigrams(value) {
     var text = normalizeLoose(value).replace(/\s+/g, "");
     if (text.length < 2) return text ? [text] : [];
@@ -180,11 +192,17 @@
   }
 
   function scoreTrack(query, track) {
-    var targets = [track.title, track.artist, track.canonicalQuery].concat(track.aliases || []);
-    var best = 0;
-    targets.forEach(function (target) { best = Math.max(best, scoreText(query, target)); });
-    if (normalize(track.artist) === normalize(query)) best = Math.max(best, 0.88);
-    return best;
+    var entities = typeof query === "string" ? extractMusicEntities(query) : query;
+    var targets = [track.title, track.canonicalQuery].concat(track.aliases || []);
+    var titleScore = 0;
+    targets.forEach(function (target) { titleScore = Math.max(titleScore, scoreText(entities.title || entities.raw, target)); });
+    if (entities.explicitArtist) {
+      var artistScore = scoreText(entities.artist, track.artist);
+      if (artistScore < 0.45) return Math.max(0, titleScore * 0.22);
+      return Math.min(1, titleScore * 0.62 + artistScore * 0.38 + 0.12);
+    }
+    var artistMentionScore = scoreText(entities.raw, track.artist);
+    return Math.min(1, Math.max(titleScore, artistMentionScore * 0.88));
   }
 
   function resolveLocal(query) {
@@ -204,9 +222,13 @@
   }
 
   function rankSearchResults(query, results) {
+    var entities = typeof query === "string" ? extractMusicEntities(query) : query;
     return (Array.isArray(results) ? results : []).map(normalizeTrack).filter(Boolean).map(function (track) {
       var haystack = [track.title, track.artist, track.canonicalQuery].join(" ");
-      var confidence = scoreText(query, haystack);
+      var titleScore = scoreText(entities.title || entities.raw, [track.title, track.canonicalQuery].join(" "));
+      var artistScore = entities.explicitArtist ? scoreText(entities.artist, track.artist) : 0;
+      var confidence = entities.explicitArtist ? titleScore * 0.62 + artistScore * 0.38 : scoreText(entities.raw, haystack);
+      if (entities.explicitArtist && artistScore < 0.45) confidence *= 0.22;
       var clean = normalize(haystack);
       if (/official|oficial|vevo/.test(clean)) confidence += 0.08;
       if (/cover|reaction|karaoke|aula|lesson|lyrics?/.test(clean)) confidence -= 0.16;

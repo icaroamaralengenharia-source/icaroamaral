@@ -379,6 +379,14 @@
     };
   }
 
+  function classifyTechnicalDepth(message) {
+    const text = normalize(message);
+    if (/^(quanto é|quanto e)\s*\d+\s*[+\-x*/]\s*\d+\??$/.test(text)) return "SIMPLE";
+    if (/\b(analise|análise|dimensione|dimensionar|compare|comparar|diagnostique|diagnosticar|fissura|trinca|fundacao|fundação|impermeabilizacao|impermeabilização|compatibiliz|patologia|memoria de calculo|memória de cálculo|analise tecnica|análise técnica)\b/.test(text)) return "TECHNICAL_DEEP";
+    if (TECHNICAL_TERMS.some(function (term) { return text.indexOf(normalize(term)) >= 0; }) || /\b(porta|caminhonete|acessibilidade|circulacao|ergonomia|ventilacao|iluminacao|fachada|implantacao|layout|alvenaria|estrutura)\b/.test(text)) return "TECHNICAL_STANDARD";
+    return "SIMPLE";
+  }
+
   function callTechnicalBrain(message, context, serviceId) {
     if (isBudgetIntent(message, context)) {
       const budgetResponse = callBudgetBrain(message, context);
@@ -386,7 +394,9 @@
     }
     const engine = root.EloTechnicalEngine || null;
     const prefix = buildContextPrefix(context, serviceId);
-    const enriched = clean([prefix, message].filter(Boolean).join("; "));
+    const depth = classifyTechnicalDepth(message);
+    const depthInstruction = depth === "TECHNICAL_DEEP" ? "Responda com conclusao principal, dados disponiveis, premissas, criterios tecnicos, riscos, limitacoes e proxima acao; nao invente numeros ou normas." : "";
+    const enriched = clean([prefix, depthInstruction, message].filter(Boolean).join("; "));
     if (/resumo\s+tecnico|resumo\s+t[eÃƒÂ©]cnico/i.test(message)) {
       return {
         shortAnswer: "Resumo tecnico preparado.",
@@ -395,14 +405,18 @@
         canSave: false,
         sessionTheme: "elo_technical_brain",
         sessionIntent: "technical_summary",
-        technicalEngine: { mode: "technical_summary", facts: context.technical.facts, context: context.technical }
+        technicalEngine: { mode: "technical_summary", depth: classifyTechnicalDepth(message), facts: context.technical.facts, context: context.technical }
       };
     }
     if (!engine || typeof engine.buildResponse !== "function") {
       return null;
     }
     const response = engine.buildResponse(enriched, { facts: context.technical.facts });
-    if (response && response.technicalEngine) response.technicalEngine.routerMessage = enriched;
+    if (response) {
+      response.technicalEngine = response.technicalEngine || { mode: "technical_engine" };
+      response.technicalEngine.depth = depth;
+      response.technicalEngine.routerMessage = enriched;
+    }
     const responseMode = response && response.technicalEngine && response.technicalEngine.mode;
     if (response && response.fullAnswer && !(serviceId && responseMode === "project_facts")) return response;
     const search = root.CompositionSearchEngine || null;
@@ -415,7 +429,7 @@
       lines.push("", "BUSCA NA BASE OFICIAL", "- Procurei por: " + enriched, "- Nao encontrei composicao suficiente para calcular automaticamente.");
     }
     lines.push("", "OBSERVACAO", "- Nenhum coeficiente foi inventado.");
-    return { shortAnswer: "Analise tecnica registrada.", fullAnswer: lines.join("\n"), nextAction: "Informe o servico, quantitativo ou codigo oficial se quiser calcular.", canSave: false, sessionTheme: "elo_technical_brain", sessionIntent: "technical_router_fallback", technicalEngine: { mode: "technical_router_fallback", compositionSearch: searchResult, routerMessage: enriched } };
+    return { shortAnswer: "Analise tecnica registrada.", fullAnswer: lines.join("\n"), nextAction: "Informe o servico, quantitativo ou codigo oficial se quiser calcular.", canSave: false, sessionTheme: "elo_technical_brain", sessionIntent: "technical_router_fallback", technicalEngine: { mode: "technical_router_fallback", depth: depth, compositionSearch: searchResult, routerMessage: enriched } };
   }
   function callConversationalBrain(message, context) {
     const text = normalize(message);
@@ -454,6 +468,8 @@
     }
     const parametricResponse = callParametricBrain(text, ctx);
     if (parametricResponse) {
+      parametricResponse.technicalEngine = parametricResponse.technicalEngine || { mode: "parametric" };
+      parametricResponse.technicalEngine.depth = classifyTechnicalDepth(text);
       ctx.technical.lastMessage = text;
       return { brain: "technical", reason: "intencao de composicao parametrica", confidence: 0.9, result: parametricResponse, context: ctx };
     }
@@ -482,6 +498,10 @@
       if (activeService) resetServiceContextIfChanged(ctx, activeService);
       if (activeService) rememberServiceData(text, ctx, activeService);
       const result = callTechnicalBrain(text, ctx, activeService);
+      if (result) {
+        result.technicalEngine = result.technicalEngine || { mode: "technical_router" };
+        result.technicalEngine.depth = classifyTechnicalDepth(text);
+      }
       return { brain: "technical", reason: technical.reasons[0] || (activeService ? "servico tecnico detectado: " + activeService : "termo tecnico detectado"), confidence: Math.max(0.6, technical.score || 0.55), result: result, context: ctx };
     }
     return { brain: "conversational", reason: "sem indicador tecnico forte", confidence: 0.55, result: callConversationalBrain(text, ctx), context: ctx };
@@ -494,7 +514,8 @@
     detectService: detectService,
     explicitServiceFromText: explicitServiceFromText,
     normalize: normalize,
-    ensureContext: ensureContext
+    ensureContext: ensureContext,
+    classifyTechnicalDepth: classifyTechnicalDepth
   };
 })(typeof window !== "undefined" ? window : globalThis);
 
