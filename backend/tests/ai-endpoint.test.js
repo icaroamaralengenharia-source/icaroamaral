@@ -6778,6 +6778,40 @@ test("frontend Elo prioriza topico explicito recente nas continuacoes curtas", a
   assert.equal(fresh.window.EloAssistente.getActiveTopicStateForTest().activeConversationTopic, "");
 });
 
+test("frontend Elo despacha continuacao tecnica antes do fallback generico de sessao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  const cases = [
+    ["estou fazendo uma laje", "e se for trelicada?", "laje"],
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede"],
+    ["estou analisando uma fundacao", "e se for radier?", "fundacao"]
+  ];
+  for (const [first, followUp, topic] of cases) {
+    const isolated = await loadEloOperationalSandbox_([]);
+    const isolatedElo = isolated.window.EloAssistente;
+    isolatedElo.resolveTopicSwitchForTest(first);
+    const technicalRoute = isolatedElo.classifySemanticRouteForTest(followUp, {
+      active: true,
+      topic
+    });
+    const technicalResponse = isolatedElo.buildResponseForTest(followUp, {
+      skipLocalCommunicationFallback: true,
+      semanticRoute: technicalRoute
+    });
+    assert.equal(technicalRoute.intent, "continuacao_contexto_tecnico", followUp);
+    assert.equal(technicalResponse, null, followUp);
+  }
+
+  const genericSandbox = await loadEloOperationalSandbox_([]);
+  const genericResponse = genericSandbox.window.EloAssistente.buildResponseForTest("e depois?", {
+    skipLocalCommunicationFallback: true,
+    semanticRoute: { intent: "conversa_geral" }
+  });
+  assert.equal(genericResponse.sessionIntent, "continuidade");
+});
+
 test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const elo = sandbox.window.EloAssistente;

@@ -25448,7 +25448,11 @@ function isEloResidentialNewPipelineEnabled_() {
       return operational;
     }
 
-    const sessionContinuation = getSessionContinuationResponse(normalizedQuestion);
+    const semanticRoute = routeOptions.semanticRoute && typeof routeOptions.semanticRoute === "object"
+      ? routeOptions.semanticRoute
+      : null;
+    const technicalDispatchSelected = semanticRoute && isEloSemanticTechnicalDispatchIntent_(semanticRoute.intent);
+    const sessionContinuation = technicalDispatchSelected ? null : getSessionContinuationResponse(normalizedQuestion);
     if (sessionContinuation) {
       return sessionContinuation;
     }
@@ -29869,7 +29873,8 @@ function isEloResidentialNewPipelineEnabled_() {
       const response = technicalServiceResponse || buildResponse(cleanQuestion, {
         surface: "relatorio-qualidade-obras",
         useSession: true,
-        skipLocalCommunicationFallback: true
+        skipLocalCommunicationFallback: true,
+        semanticRoute: effectiveSemanticRoute
       });
       if (!response) {
         if (isEloSemanticTechnicalDispatchIntent_(effectiveSemanticRoute.intent)) {
