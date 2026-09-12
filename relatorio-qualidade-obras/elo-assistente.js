@@ -707,12 +707,49 @@
     return ["tecnico_obra", "orcamento_quantitativo", "cadista", "continuacao_contexto_tecnico"].indexOf(intent || "") >= 0;
   }
 
+  function getEloTechnicalReferentDescriptor_(topic) {
+    const descriptors = {
+      laje: { subject: "a laje", inSubject: "na laje", ofSubject: "da laje" },
+      fundacao: { subject: "a fundação", inSubject: "na fundação", ofSubject: "da fundação" },
+      portao: { subject: "o portão", inSubject: "no portão", ofSubject: "do portão" },
+      estrutura: { subject: "a estrutura", inSubject: "na estrutura", ofSubject: "da estrutura" },
+      parede: { subject: "a alvenaria", inSubject: "na alvenaria", ofSubject: "da alvenaria" },
+      parede_completa: { subject: "a alvenaria", inSubject: "na alvenaria", ofSubject: "da alvenaria" }
+    };
+    return descriptors[topic] || null;
+  }
+
+  function buildEloTechnicalContinuationQuery_(message, semanticRoute) {
+    if (!semanticRoute || semanticRoute.intent !== "continuacao_contexto_tecnico") return "";
+    const topic = ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "";
+    const descriptor = getEloTechnicalReferentDescriptor_(topic);
+    if (!descriptor) return "";
+    const text = sanitizeUserText(message).trim();
+    if (!text) return "";
+    const questionMark = /[?？]$/.test(text) ? "?" : "";
+    const body = text.replace(/[?？]+$/, "").trim();
+    let query = body;
+    let match = body.match(/^e\s+se\s+for\s+(.+)$/i);
+    if (match) query = "e se " + descriptor.subject + " for " + match[1].trim();
+    else {
+      match = body.match(/^e\s+se\s+usar\s+(.+)$/i);
+      if (match) query = "e se usar " + match[1].trim() + " " + descriptor.inSubject;
+      else {
+        match = body.match(/^e\s+se\s+aumentar\s+(.+)$/i);
+        if (match) query = "e se aumentar " + match[1].trim() + " " + descriptor.ofSubject;
+        else if (/^e\s+se\b/i.test(body)) query = body + " " + descriptor.inSubject;
+      }
+    }
+    return query + questionMark;
+  }
+
   function buildEloTechnicalContinuationPrompt_(message, semanticRoute) {
     if (!semanticRoute || semanticRoute.intent !== "continuacao_contexto_tecnico") return "";
     const topic = ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "";
-    if (!isEloTechnicalTopic_(topic)) return "";
-    const referent = topic === "parede_completa" ? "parede/alvenaria" : topic;
-    return "Contexto técnico ativo: " + referent + ". Trate a pergunta atual como continuação técnica desse elemento e responda diretamente, explicando critérios, vantagens, limitações e dados faltantes sem inventar números ou normas. Pergunta atual: " + sanitizeUserText(message);
+    const descriptor = getEloTechnicalReferentDescriptor_(topic);
+    const query = buildEloTechnicalContinuationQuery_(message, semanticRoute);
+    if (!descriptor || !query) return "";
+    return "Referente técnico resolvido: " + descriptor.subject + ". Tópico técnico ativo: " + topic + ". Consulta técnica final: " + query + ". Responda diretamente sobre esse referente, explicando critérios, vantagens, limitações e dados faltantes sem inventar números ou normas.";
   }
 
   function hasEloLatentTechnicalContinuationContext_(message) {
@@ -8374,7 +8411,9 @@
       reason: sanitizeUserText(error && (error.name || error.message) || "network_error").slice(0, 80)
     });
   }
-  function requestEloOnlineAnswer(question, attachments) {
+  function requestEloOnlineAnswer(question, attachments, options) {
+    const requestOptions = options && typeof options === "object" ? options : {};
+    const isTechnicalContinuation = requestOptions.technicalContinuation === true;
     if (!isEloOnline_()) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
       return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
@@ -8390,15 +8429,26 @@
       message: sanitizeUserText(question),
       anonymousId: getEloCoreAnonymousId_(),
       eloContext: eloContext,
-      history: getEloOnlineHistory(question),
+      history: isTechnicalContinuation ? [] : getEloOnlineHistory(question),
       context: {
         memoriesSummary: buildEloMemorySummary(),
-        workingMemorySummary: buildEloWorkingMemorySummary_(question),
+        workingMemorySummary: isTechnicalContinuation
+          ? [
+            "activeTopic: " + sanitizeUserText(requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || ""),
+            "resolvedReferent: " + sanitizeUserText(requestOptions.referent || ""),
+            "instruction: trate a consulta final como continuação do referent recente; não use tópicos históricos como assunto principal."
+          ].filter(Boolean).join("\n")
+          : buildEloWorkingMemorySummary_(question),
         deviceId: getEloDeviceId(),
         anonymousId: getEloCoreAnonymousId_(),
         source: "elo",
         mode: isStandaloneMode() ? "standalone" : "obrareport",
-        eloContext: eloContext
+        eloContext: eloContext,
+        technicalContinuation: isTechnicalContinuation ? {
+          activeTopic: sanitizeUserText(requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || ""),
+          referent: sanitizeUserText(requestOptions.referent || ""),
+          finalQuery: sanitizeUserText(question)
+        } : undefined
       }
     };
     logEloMemorySummaryEvent_("MEMORY_CONTEXT_SENT", { hasExplicit: Boolean(payload.context.memoriesSummary) });
@@ -29734,9 +29784,16 @@ function isEloResidentialNewPipelineEnabled_() {
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const technicalContinuationQuery = buildEloTechnicalContinuationQuery_(cleanQuestion, effectiveSemanticRoute);
     const technicalContinuationPrompt = buildEloTechnicalContinuationPrompt_(cleanQuestion, effectiveSemanticRoute);
-    if (technicalContinuationPrompt && !attachedFiles.length) {
-      requestEloOnlineAnswer(technicalContinuationPrompt, []).then(function (onlineAnswer) {
+    if (technicalContinuationQuery && technicalContinuationPrompt && !attachedFiles.length) {
+      const continuationTopic = ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "";
+      const continuationReferent = getEloTechnicalReferentDescriptor_(continuationTopic);
+      requestEloOnlineAnswer(technicalContinuationQuery, [], {
+        technicalContinuation: true,
+        activeTopic: continuationTopic,
+        referent: continuationReferent && continuationReferent.subject
+      }).then(function (onlineAnswer) {
         if (onlineAnswer) {
           const technicalResponse = {
             shortAnswer: onlineAnswer,
@@ -29752,7 +29809,7 @@ function isEloResidentialNewPipelineEnabled_() {
           rememberSessionTurn(cleanQuestion, technicalResponse, onlineAnswer);
           return;
         }
-        const localTechnicalResponse = buildEloSemanticTechnicalDispatchResponse_(technicalContinuationPrompt, effectiveSemanticRoute);
+        const localTechnicalResponse = buildEloSemanticTechnicalDispatchResponse_(technicalContinuationQuery, effectiveSemanticRoute);
         const localTechnicalAnswer = formatResponse(localTechnicalResponse);
         appendAssistantMessage(cleanQuestion, localTechnicalAnswer, false, localTechnicalResponse);
         saveConversation(cleanQuestion, localTechnicalAnswer);
@@ -34378,6 +34435,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     buildTechnicalContinuationPromptForTest: buildEloTechnicalContinuationPrompt_,
+    buildTechnicalContinuationQueryForTest: buildEloTechnicalContinuationQuery_,
     buildSocialFastPathForTest: buildEloSocialFastPathAnswer_,
     detectVisualMediaIntentForTest: detectEloVisualMediaIntent_,
     buildVisualMediaResponseForTest: buildEloVisualMediaResponse_,
