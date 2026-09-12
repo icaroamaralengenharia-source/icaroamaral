@@ -6818,13 +6818,57 @@ test("frontend Elo contextualiza continuacoes tecnicas para o motor online", asy
 
   elo.resolveTopicSwitchForTest("estou fazendo uma laje");
   const route = elo.classifySemanticRouteForTest("e se for trelicada?", { active: true, topic: "laje" });
+  const query = elo.buildTechnicalContinuationQueryForTest("e se for trelicada?", route);
   const prompt = elo.buildTechnicalContinuationPromptForTest("e se for trelicada?", route);
-  assert.match(prompt, /Contexto .*cnico ativo: laje/i);
-  assert.match(prompt, /e se for trelicada/i);
+  assert.equal(query, "e se a laje for trelicada?");
+  assert.match(prompt, /Referente .*resolvido: a laje/i);
+  assert.match(prompt, /Consulta .*final: e se a laje for trelicada/i);
   assert.match(prompt, /vantagens|limita..es|dados faltantes/i);
 
   const genericPrompt = elo.buildTechnicalContinuationPromptForTest("e depois?", { intent: "conversa_geral" });
   assert.equal(genericPrompt, "");
+});
+
+test("frontend Elo fixa o referent recente na query final e remove historico concorrente", async () => {
+  const cases = [
+    ["estou fazendo uma laje", "e se for trelicada?", "laje", "e se a laje for trelicada?"],
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje", "e se usar manta na laje?"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede", "e se aumentar a altura da alvenaria?"],
+    ["estou analisando uma fundacao", "e se for radier?", "fundacao", "e se a fundação for radier?"]
+  ];
+
+  for (const [first, followUp, topic, expectedQuery] of cases) {
+    const sandbox = await loadEloOperationalSandbox_([]);
+    const elo = sandbox.window.EloAssistente;
+    let payload = null;
+    sandbox.fetch = async (url, options = {}) => {
+      if (String(url).indexOf("/api/elo/chat") >= 0) {
+        payload = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ ok: true, answer: "resposta tecnica" }) };
+      }
+      return { ok: true, json: async () => ({ ok: true }) };
+    };
+    sandbox.window.fetch = sandbox.fetch;
+    elo.resolveTopicSwitchForTest(first);
+    const route = elo.classifySemanticRouteForTest(followUp, { active: true, topic });
+    assert.equal(elo.buildTechnicalContinuationQueryForTest(followUp, route), expectedQuery, followUp);
+    await elo.requestOnlineAnswerForTest(expectedQuery, [], {
+      technicalContinuation: true,
+      activeTopic: topic,
+      referent: topic === "parede" ? "a alvenaria" : topic === "fundacao" ? "a fundação" : "a laje"
+    });
+    assert.ok(payload, followUp);
+    assert.equal(payload.message, expectedQuery);
+    assert.deepEqual(payload.history, []);
+    assert.match(payload.context.workingMemorySummary, new RegExp("activeTopic: " + topic));
+    assert.doesNotMatch(payload.message, /port.o/i);
+    assert.doesNotMatch(JSON.stringify(payload.history), /port.o/i);
+  }
+
+  const generic = await loadEloOperationalSandbox_([]);
+  const genericElo = generic.window.EloAssistente;
+  genericElo.resolveTopicSwitchForTest("conversa comum");
+  assert.equal(genericElo.buildTechnicalContinuationQueryForTest("e depois?", { intent: "conversa_geral" }), "");
 });
 
 test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
