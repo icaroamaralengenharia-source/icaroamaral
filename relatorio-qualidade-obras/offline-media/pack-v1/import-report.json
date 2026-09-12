@@ -1,0 +1,452 @@
+{
+  "generatedAt": "2026-09-12T15:40:14.946Z",
+  "target": 50,
+  "imported": 7,
+  "rejected": [
+    {
+      "title": "File:Piano Sonata N° 1 - 2. Adagio (Beethoven, Schnabel).ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Part 1) - Allegro con brio - Hmv-db2211-32-3698-2b6616.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement (Conclusion)- Allegro con brio - Hmv-db2211-32-3699-2b6617.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Part 1)- Adagio con molto espressione - Hmv-db2212-32-3700-2b6618.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 2nd Movement (Conclusion)- Adagio con molto espressione - Hmv-db2212-32-3701-2b6619.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 3rd Movement- Menuetto - Hmv-db2213-32-3702-2b6620.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 4th Movement- Rondo - Allegretto - Hmv-db2213-32-3703-2b6621.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - II. Largo e mesto.ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - I.Allegro con brio.ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Piano Sonata N° 21 - I. Allegro con brio (Beethoven, Schnabel).ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 20 in G major, Op. 49, No. 2 - 1st Movement- Allegro ma non troppo - Hmv-db2214-32-3704-2b6622.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 20 in G major, Op. 49, No. 2 - 2nd Movement- Tempo di Menuetto - Hmv-db2214-32-3705-2b6623.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 1st movement- Allegro assai - Hmv-db2215-32-3686-2b6605.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 1st Movement (Conclusion)- Allegro assai - Piu allegro - Hmv-db2215-32-3687-2b6606.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 2nd Movement (Part 1)- Andante con moto - Hmv-db2216-32-3688-2b6607.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 2nd Movement (Conclusion)- Andante con moto - Hmv-db2216-32-3689-2b6608.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 3rd Movement (Part 1)- Allegro ma non troppo - Hmv-db2217-32-3690-2b6609.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Artur Schnabel Plays Beethoven's Piano Sonata No. 23 in F minor, Op. 57 - 3rd Movement (Conclusion)- Allegro ma non troppo - Presto - Hmv-db2217-32-3691-2b6610.oga",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 29 B-Dur op. 106 Hammerklavier - III. Adagio sostenuto.ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 32 c-mollr op. 111 - II. Arietta Adagio molto, semplice e cantabile.ogg",
+      "reason": "size_out_of_bounds"
+    },
+    {
+      "title": "File:Piano Sonata N° 1 - 1. Allegro (Beethoven, Schnabel).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Piano Sonata N° 1 - 3. Menuetto and Trio (Beethoven, Schnabel).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Piano Sonata N° 1 - 4. Prestissimo (Beethoven, Schnabel).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 5 Op. 10.1 - III. Finale - Prestissimo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 5 Op. 10.1 - II. Adagio molto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 6 f-moll op. 10.2 - I.Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 5 Op. 10.1 - I. Allegro molto e con brio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 6 f-moll op. 10.2 - II. Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 6 f-moll op. 10.2 - III. Presto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - I. Presto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - III. Menuetto & Trio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 7 D-Dur op. 10.3 - IV. Rondo - Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 9 E-Dur, op. 14.1 - I. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 9 E-Dur, op. 14.1 - II. Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 9 E-Dur, op. 14.1 - III. Rondo - Allegro commodo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 10 G-Dur, op. 14.2 - I. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 10 G-Dur, op. 14.2 - II. Andante.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 10 G-Dur, op. 14.2 - III. Allegro assai.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 1 Op. 2.1 - I.Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 1 Op. 2.1 - II.Adagio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 1 Op. 2.1 - III.Menuetto and Trio (Allegretto).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 1 Op. 2.1 - IV.Prestissimo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 2 Op. 2.2 - I.Allegro vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 2 Op. 2.2 - II.Largo appassionato.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 2 Op. 2.2 - III.Scherzo and Trio (Allegretto).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 2 Op. 2.2 - IV.Rondo (Grazioso).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - III.Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - II.Adagio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 3 Op. 2.3 C-Dur - IV.Allegro assai.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - I. Allegro molto e con brio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - II.Largo con gran espressione.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - III.Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 4 Op. 7 E-Dur - IV.Rondo - Poco allegfretto e gracioso.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - I. Allegro Con Brio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - II. Adagio con molt'espressione.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - III. Minuetto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 11 B-Dur, op. 22 - IV. Rondo - Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 12 B-Dur, op. 26 - I.Andante Con Variazioni.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 12 B-Dur, op. 26 - II.Scherzo - Trio - Allegro molto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 12 B-Dur, op. 26 - IV.Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 12 B-Dur, op. 26 - III.Marcia Funebre - Andante maestoso.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 13 Es-Dur op. 27.1 Quasi una Fantasia - I. Andante - Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 13 Es-Dur op. 27.1 Quasi una Fantasia - II. Allegro molto e vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 13 Es-Dur op. 27.1 Quasi una Fantasia - III. Adagio con espressione.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 13 Es-Dur op. 27.1 Quasi una Fantasia - IV. Allegro vivace - Presto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 15 D-Dur op.28 Pastorale - III. Scherzo (Allegro vivace).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 15 D-Dur op.28 Pastorale - I. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 15 D-Dur op.28 Pastorale - II. Andante.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 15 D-Dur op.28 Pastorale IV. Rondo -Allegro ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 16 G-Dur op. 31.1 - I. Allegro vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 16 G-Dur op. 31.1 - II. Adagio grazioso.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 16 G-Dur op. 31.1 -III. Rondo (Allegretto).ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 17 d-moll op. 31.2 Der Sturm - I. Largo. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 17 d-moll op. 31.2 Der Sturm - II. Adagio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 17 d-moll op. 31.2 Der Sturm - III. Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 18 Es-Dur op. 31.3 Die Jagd - I. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 18 Es-Dur op. 31.3 Die Jagd - II. Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 18 Es-Dur op. 31.3 Die Jagd - III. Menuetto & Trio- Moderato e grazioso.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 18 Es-Dur op. 31.3 Die Jagd - IV. Presto com fuoco.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 19 g-moll op. 49.1 - I. Andante.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 19 g-moll op. 49.1 - II. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 20 G-Dur op. 49.2 - I. Allegro ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 20 G-Dur op. 49.2 - II. Tempo di menuetto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 21 C-Dur op. 53 Waldstein - I. Allegro con brio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 21 C-Dur op. 53 Waldstein - III. Rondo - Allegretto moderato - Prestissimo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 22 F-Dur op. 54 - I. In tempo d'un menuetto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 21 C-Dur op. 53 Waldstein - II. Introduzione - Molto adagio.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 22 F-Dur op. 54 - II. Allegretto.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 24 Fis-Dur A Therese - Adagio cantabile - Allegro ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 24 Fis-Dur A Therese - Allegro vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 25 G-Dur op. 79 - I. Presto alla tedesca.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 25 G-Dur op 79 - II. Andante.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 25 G-Dur op 79 - III. Vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 26 Les Adieux Es-Dur op. 81a - II. Andante espressivo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 26 Les Adieux op. 81a - I. Adagio, Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 26 Les Adieux Es-Dur op. 81a - III.Vivacissamente.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 27 e-moll op. 90 - I. Mit Lebhaftigkeit.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 27 e-moll op. 90 - II. Nicht zu geschwind.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 28 A-Dur op. 101 - I. Etwas lebhaft und mit innigster Empfindung.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 28 A-Dur op. 101 - II. Lebhaft. Marschmäßig.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 28 A-Dur op. 101 - III. Langsam und sehnsuchtsvoll.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 29 B-Dur op. 106 Hammerklavier - I. Allegro.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 29 B-Dur op. 106 Hammerklavier - II. Scherzo Assai vivace.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 29 B-Dur op. 106 Hammerklavier - IV. Largo. Allegro risoluto.oga",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 30 E-Dur op. 109 - II. Prestissimo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 30 E-Dur op. 109 - I. Vivace, ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 30 E-Dur op. 109 - III. Andante.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 31 As-Dur op. 110 - I. Moderato cantabile, molto espressivo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 31 As-Dur op. 110 - III. Adagio, ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 31 As-Dur op. 110 - IV. Fuga Allegro, ma non troppo.ogg",
+      "reason": "asset HTTP 429"
+    },
+    {
+      "title": "File:Klaviersonate Nr. 32 c-mollr op. 111 - I. Maestoso, Allegro con brio ed appassionato.ogg",
+      "reason": "asset HTTP 429"
+    }
+  ],
+  "categoriesScanned": 250
+}

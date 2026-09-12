@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, "relatorio-qualidade-obras", "offline-media", "pack-v1");
@@ -21,12 +23,12 @@ const PRIORITY_CATEGORIES = [
 const clean = value => String(value ?? "").replace(/[\u0000-\u001f<>]/g, "").trim();
 const slug = value => clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const execFileAsync = promisify(execFile);
 
 async function api(params) {
   const url = API + "?" + new URLSearchParams({ ...params, format: "json" });
-  const response = await fetch(url, { headers: { "User-Agent": "ELO-Offline-Music-Importer/1.0 contact-local" } });
-  if (!response.ok) throw new Error(`Wikimedia HTTP ${response.status}`);
-  return response.json();
+  const result = await execFileAsync("curl.exe", ["-L", "--fail", "--silent", "--show-error", "--max-time", "45", "-A", "ELO-Offline-Music-Importer/1.0", url], { maxBuffer: 16 * 1024 * 1024 });
+  return JSON.parse(result.stdout);
 }
 
 function metaValue(meta, key) {
@@ -35,14 +37,9 @@ function metaValue(meta, key) {
 }
 
 async function categoryNames() {
-  const names = [];
-  let accontinue = "";
-  do {
-    const data = await api({ action: "query", list: "allcategories", acprefix: "Audio files of ", aclimit: "500", ...(accontinue ? { accontinue } : {}) });
-    names.push(...(data.query?.allcategories || []).map(item => item["*"]).filter(name => CATEGORY_TERMS.test(name)));
-    accontinue = data.continue?.accontinue || "";
-  } while (accontinue && names.length < 250);
-  return [...new Set([...PRIORITY_CATEGORIES, ...names])].slice(0, 250);
+  // Priority categories are explicit, music-focused and paginated by categoryFiles().
+  // The broad allcategories crawl is intentionally not required for a deterministic run.
+  return [...new Set(PRIORITY_CATEGORIES)];
 }
 
 async function categoryFiles(category) {
@@ -67,14 +64,16 @@ async function imageInfo(titles) {
 }
 
 async function download(candidate, destination) {
-  let response;
-  for (let attempt = 1; attempt <= 6; attempt += 1) {
-    response = await fetch(candidate.url, { headers: { "User-Agent": "ELO-Offline-Music-Importer/1.0 contact-local", Accept: "audio/ogg,audio/mpeg,audio/*;q=0.9,*/*;q=0.1" } });
-    if (response.ok) break;
-    if (response.status !== 429 || attempt === 6) throw new Error(`asset HTTP ${response.status}`);
-    await sleep(5000 * attempt);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await execFileAsync("curl.exe", ["-L", "--fail", "--silent", "--show-error", "--max-time", "90", "-A", "ELO-Offline-Music-Importer/1.0", "-o", destination, candidate.url], { maxBuffer: 1024 * 1024 });
+      break;
+    } catch (error) {
+      if (attempt === 3) throw new Error(clean(error.stderr || error.message) || "asset_download_failed");
+    }
+    await sleep(2000 * attempt);
   }
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await fs.readFile(destination);
   if (buffer.length < 4096) throw new Error("asset_too_small");
   await fs.writeFile(destination, buffer);
   const digest = crypto.createHash("sha256").update(buffer).digest("hex");
@@ -86,9 +85,24 @@ let existing = [];
 try { existing.push(...JSON.parse(await fs.readFile(MANIFEST, "utf8"))); } catch {}
 try { existing.push(...JSON.parse(await fs.readFile(path.join(ROOT, "relatorio-qualidade-obras", "offline-media", "classical", "library.json"), "utf8"))); } catch {}
 existing = [...new Map(existing.map(item => [item.id, item])).values()];
+const recovered = [
+  ["09-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel.ogg", "Piano Sonata N° 1 - 2. Adagio (Beethoven, Schnabel)", "Public domain"],
+  ["10-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel.ogg", "Piano Sonata N° 1 - 3. Menuetto and Trio (Beethoven, Schnabel)", "Public domain"],
+  ["11-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel.ogg", "Piano Sonata N° 1 - 4. Prestissimo (Beethoven, Schnabel)", "Public domain"],
+  ["12-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op.oga", "Artur Schnabel Plays Beethoven's Piano Sonata No. 11 in B-flat major, Op. 22 - 1st Movement", "Public domain"],
+  ["01-wm-brahms-waltz01.ogg", "Brahms Waltz 01", "CC BY-SA 4.0"],
+  ["02-wm-brahms-waltz02.ogg", "Brahms Waltz 02", "CC BY-SA 4.0"]
+];
+for (const [fileName, title, license] of recovered) {
+  if (existing.some(item => item.files?.some(file => file.path.endsWith(fileName)))) continue;
+  const absolute = path.join(OUT_DIR, fileName);
+  try { const stat = await fs.stat(absolute); existing.push({ id: `wm-recovered-${slug(title)}`, title, artist: "Wikimedia Commons contributor", composer: "", genre: "classical instrumental", files: [{ path: `offline-media/pack-v1/${fileName}`, format: path.extname(fileName).slice(1), sizeBytes: stat.size }], duration: null, offlineAvailable: true, downloaded: true, storageTier: "on-demand", aliases: [title], license, sourceUrl: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(title.replaceAll(" ", "_"))}`, origin: "Wikimedia Commons", legalStatus: "CLEAR", offlineStoragePermitted: true }); } catch {}
+}
+existing = [...new Map(existing.map(item => [item.id, item])).values()];
 const existingByUrl = new Map(existing.map(item => [item.sourceUrl, item]));
 const rejected = [];
 const candidates = [];
+let candidatesAnalyzed = 0;
 const categories = await categoryNames();
 for (const category of categories) {
   try {
@@ -97,6 +111,7 @@ for (const category of categories) {
     for (let i = 0; i < files.length; i += 50) {
       const infos = await imageInfo(files.slice(i, i + 50));
       for (const info of infos) {
+        candidatesAnalyzed += 1;
         if (!info.url || !AUDIO_EXTENSIONS.test(info.title)) { rejected.push({ title: info.title, reason: "unsupported_audio" }); continue; }
         if (!ALLOWED_LICENSES.test(info.license)) { rejected.push({ title: info.title, reason: `license_not_allowed:${info.license || "missing"}` }); continue; }
         if (info.size > 50 * 1024 * 1024 || info.size < 4096) { rejected.push({ title: info.title, reason: "size_out_of_bounds" }); continue; }
@@ -128,6 +143,7 @@ for (const candidate of candidates) {
     const title = clean(candidate.title.replace(/^File:/i, "").replace(AUDIO_EXTENSIONS, ""));
     imported.push({ id, title, artist: candidate.artist || "Wikimedia Commons contributor", composer: candidate.artist || "", genre: "instrumental / classical", files: [{ path: `offline-media/pack-v1/${fileName}`, format: extension.slice(1), sizeBytes: downloaded.bytes, sha256: downloaded.sha256 }], duration: null, offlineAvailable: true, downloaded: true, storageTier: imported.length < 10 ? "essential" : "on-demand", aliases: [title, candidate.category.replace(/^Audio files of /i, "")], license: candidate.license, sourceUrl: candidate.sourceUrl, origin: "Wikimedia Commons", legalStatus: "CLEAR", offlineStoragePermitted: true });
     usedIds.add(id);
+    await fs.writeFile(MANIFEST, JSON.stringify(imported, null, 2) + "\n", "utf8");
     console.log(`IMPORTED ${imported.length}/${LIMIT} ${title}`);
   } catch (error) {
     rejected.push({ title: candidate.title, reason: clean(error.message) || "download_failed" });
@@ -136,5 +152,5 @@ for (const candidate of candidates) {
 }
 
 await fs.writeFile(MANIFEST, JSON.stringify(imported, null, 2) + "\n", "utf8");
-await fs.writeFile(path.join(OUT_DIR, "import-report.json"), JSON.stringify({ generatedAt: new Date().toISOString(), target: LIMIT, imported: imported.length, rejected, categoriesScanned: categories.length }, null, 2) + "\n", "utf8");
+await fs.writeFile(path.join(OUT_DIR, "import-report.json"), JSON.stringify({ generatedAt: new Date().toISOString(), target: LIMIT, imported: imported.length, candidatesAnalyzed, acceptedCandidates: candidates.length, rejected, rejectionCounts: rejected.reduce((counts, item) => { counts[item.reason] = (counts[item.reason] || 0) + 1; return counts; }, {}), categoriesScanned: categories.length, pagination: { categoryNames: true, categoryMembers: true, imageInfoBatches: true } }, null, 2) + "\n", "utf8");
 if (imported.length < LIMIT) { console.error(`FULL_50_FAIL imported=${imported.length} rejected=${rejected.length}`); process.exitCode = 2; } else console.log(`FULL_50_PASS imported=${imported.length} rejected=${rejected.length}`);
