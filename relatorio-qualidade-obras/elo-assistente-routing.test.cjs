@@ -3294,6 +3294,45 @@ test('ELO music execute: autocorrect vindo do resolver re-resolve titulo corrigi
     ['play', 'galinha-video']
   ]);
 });
+
+test('ELO music implicit query sends fuzzy and phonetic candidates through the player finalizer', async () => {
+  const calls = [];
+  const resolver = {
+    resolve(query) {
+      calls.push(['resolve', query]);
+      if (/rape mi nirvana|rape me/i.test(query)) return { id: 'rape-me-video', title: 'Rape Me', artist: 'Nirvana', videoId: 'rape-me-1', playable: true, embeddable: true };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id]); return true; }
+  };
+  const { elo } = loadEloContext({ window: { EloMusicResolver: resolver, navigator: { onLine: true } } });
+
+  const result = await elo.handleMusicQueryForTest('rape mi nirvana');
+
+  assert.equal(result.handled, true);
+  assert.match(result.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/);
+  assert.equal(result.candidate.title, 'Rape Me');
+  assert.deepEqual(calls, [['resolve', 'rape mi nirvana'], ['resolve', 'Rape Me'], ['play', 'rape-me-video']]);
+});
+
+test('ELO active topic recency lets an explicit laje topic outrank stale context', () => {
+  const { elo } = loadEloContext();
+  const first = elo.buildResponseForTest('estou fazendo uma laje');
+  elo.rememberSessionTurnForTest('estou fazendo uma laje', first, first.fullAnswer || first.shortAnswer || '');
+  elo.buildResponseForTest('e se for treliçada?');
+
+  const summary = elo.buildWorkingMemorySummaryForTest('e se for treliçada?');
+  assert.match(summary, /activeTopic: estrutura/);
+});
+
+test('ELO music implicit unknown faixa resolves to a terminal not-found decision', async () => {
+  const { elo } = loadEloContext({ window: { EloMusicResolver: { resolve() { return null; } }, navigator: { onLine: true } } });
+  const result = await elo.handleMusicQueryForTest('faixa inexistente');
+
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'NO_MATCH');
+});
+
 test('ELO music fuzzy: candidato duplicado do resolver nao reduz gap do autocorrect', async () => {
   const calls = [];
   const resolver = {

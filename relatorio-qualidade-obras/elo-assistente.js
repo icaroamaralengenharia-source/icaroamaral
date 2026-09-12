@@ -7753,6 +7753,7 @@
     }
     if (nextTopic && nextTopic !== "conversa_geral") {
       ELO_SESSION_MEMORY.activeConversationTopic = nextTopic;
+      ELO_SESSION_MEMORY.activeTopic = nextTopic;
     }
     return switchState;
   }
@@ -28671,6 +28672,15 @@ function isEloResidentialNewPipelineEnabled_() {
 
   const ELO_WAKE_ALIASES_ = ["elo", "ello", "ellen", "hello", "e lo"];
   const ELO_MUSIC_VERB_ALIASES_ = ["toque", "toca", "tocar", "talk", "truque", "troque"];
+  const ELO_MUSIC_ARTIST_HINTS_ = ["nirvana", "djavan", "roberto carlos", "pink floyd", "pink floid"];
+
+  function isLikelyEloImplicitMusicQuery_(text) {
+    const normalized = normalizeText(text || "");
+    const tokens = normalized.split(/\s+/).filter(Boolean);
+    if (tokens.length < 2) return false;
+    if (/\b(?:oi|ola|olá|estou|tenho|quero|como|qual|quanto|porque|por que|compare|analise|análise|crie|gere|faca|faça|continue|valeu|obrigado|obrigada|e se)\b/i.test(normalized)) return false;
+    return ELO_MUSIC_ARTIST_HINTS_.some(function (hint) { return normalized.indexOf(hint) >= 0; }) || /\b(?:do|da|de|by)\b/i.test(normalized) || /^(?:faixa|musica|música)\b/i.test(normalized);
+  }
 
   function readEloWakeAliasForRouting_(message) {
     const text = normalizeEloSubmittedTextForRouting_(message);
@@ -28765,6 +28775,11 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!loose) {
       logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "no_music_verb" });
       return null;
+    }
+    if (isLikelyEloImplicitMusicQuery_(routeText)) {
+      const implicitQuery = normalizeEloMusicQueryText_(routeText);
+      logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: true, implicit: true, query: implicitQuery });
+      return { intent: "PLAY", rawQuery: routeText, query: implicitQuery, routeText: routeText, verbScore: 0, recovered: true, implicit: true };
     }
     const verbScore = scoreEloMusicVerb_(loose[1]);
     logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: sanitizeUserText(loose[1]), score: verbScore, exact: false });
