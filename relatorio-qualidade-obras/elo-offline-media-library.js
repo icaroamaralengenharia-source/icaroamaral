@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const LIBRARY_URL = "./relatorio-qualidade-obras/offline-media/classical/library.json";
+  const LIBRARY_URL = "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json";
   const ASSET_BASE_URL = "./relatorio-qualidade-obras/";
   let library = [];
   let initPromise = null;

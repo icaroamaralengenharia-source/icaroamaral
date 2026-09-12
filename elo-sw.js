@@ -17,6 +17,9 @@ const ELO_SHELL_ASSETS = [
   "./relatorio-qualidade-obras/offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
   "./relatorio-qualidade-obras/offline-media/classical/pachelbel/canon-in-d.mp3",
   "./relatorio-qualidade-obras/offline-media/classical/chopin/nocturne-op-9-no-2.ogg"
+  ,"./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json"
+  ,"./relatorio-qualidade-obras/offline-media/pack-v1/01-wm-brahms-waltz01.ogg"
+  ,"./relatorio-qualidade-obras/offline-media/pack-v1/02-wm-brahms-waltz02.ogg"
 ];
 
 self.addEventListener("install", function (event) {
