@@ -27729,6 +27729,8 @@ function isEloResidentialNewPipelineEnabled_() {
     try {
     const autopilotBuildResponse = buildEloAutopilotAnswer_(stripEloWakePrefixForRouting_(question));
     if (autopilotBuildResponse) return autopilotBuildResponse;
+    const offlineCoreResponse = typeof window !== "undefined" && window.EloOfflineCoreV2 && typeof window.EloOfflineCoreV2.resolve === "function" ? window.EloOfflineCoreV2.resolve(question) : null;
+    if (offlineCoreResponse) return offlineCoreResponse;
     const socialFastPathResponse = buildEloSocialFastPathAnswer_(question);
     if (socialFastPathResponse) return socialFastPathResponse;
     const visualMediaResponse = buildEloVisualMediaResponse_(question);
