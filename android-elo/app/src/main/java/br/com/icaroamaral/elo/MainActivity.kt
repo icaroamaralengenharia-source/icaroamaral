@@ -36,7 +36,7 @@ class MainActivity : Activity() {
         Thread {
             val installed = musicStore.installBundledCatalog()
             runOnUiThread {
-                musicReady = installed == tracks.sumOf { it.files.size }
+                musicReady = installed > 0
                 status.text = "Offline Core Android pronto: $installed/${tracks.sumOf { it.files.size }} arquivos locais\nRede: não utilizada"
             }
         }.start()

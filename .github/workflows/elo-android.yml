@@ -1,0 +1,57 @@
+name: ELO Android Offline Core
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/elo-android-offline-core-v2
+    paths:
+      - "android-elo/**"
+      - ".github/workflows/elo-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        working-directory: android-elo
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Android tests when present
+        working-directory: android-elo
+        shell: bash
+        run: |
+          if [[ -d app/src/test ]]; then
+            ./gradlew test --no-daemon --stacktrace
+          else
+            echo "No Android unit-test source set present."
+          fi
+
+      - name: SHA256
+        working-directory: android-elo
+        shell: bash
+        run: sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: elo-android-debug
+          path: |
+            android-elo/app/build/outputs/apk/debug/app-debug.apk
+            android-elo/app/build/outputs/apk/debug/app-debug.apk.sha256
