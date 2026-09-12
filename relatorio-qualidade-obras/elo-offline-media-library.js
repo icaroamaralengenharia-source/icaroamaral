@@ -1,10 +1,19 @@
 (function () {
   "use strict";
 
-  const LIBRARY_URL = "./relatorio-qualidade-obras/offline-media/classical/library.json";
+  const LIBRARY_URL = "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json";
   const ASSET_BASE_URL = "./relatorio-qualidade-obras/";
   let library = [];
   let initPromise = null;
+  let queue = [];
+  let queueIndex = -1;
+  let shuffle = false;
+  const STORAGE_POLICY = {
+    maxBytes: 64 * 1024 * 1024,
+    essentialBytes: 0,
+    neverDeleteFavorites: true,
+    cleanupRequiresConsent: true
+  };
 
   function log(name, payload) {
     try {
@@ -56,6 +65,10 @@
       embeddable: true,
       offline: true,
       local: true,
+      offlineAvailable: item.offlineAvailable !== false,
+      downloaded: item.downloaded !== false,
+      storageTier: clean(item.storageTier || "on-demand"),
+      genre: clean(item.genre || "instrumental"),
       files: files,
       aliases: aliases,
       normalizedTitle: normalize(title),
@@ -86,6 +99,11 @@
       items: library.length,
       files: library.reduce(function (total, item) { return total + item.files.length; }, 0)
     });
+    STORAGE_POLICY.essentialBytes = library.filter(function (item) { return item.storageTier === "essential"; }).reduce(function (total, item) {
+      return total + item.files.reduce(function (sum, file) { return sum + (Number(file.sizeBytes) || 0); }, 0);
+    }, 0);
+    queue = library.slice();
+    queueIndex = -1;
     return list();
   }
 
@@ -130,11 +148,45 @@
     return item ? clone(item) : null;
   }
 
+  function setShuffle(enabled) {
+    shuffle = enabled === true;
+    return shuffle;
+  }
+
+  function next(query, direction) {
+    if (!library.length) return null;
+    if (query) {
+      var match = find(query);
+      if (match) {
+        queueIndex = library.findIndex(function (item) { return item.id === match.id; });
+      }
+    }
+    if (shuffle) {
+      var candidates = library.filter(function (item) { return item.id !== (queue[queueIndex] && queue[queueIndex].id); });
+      if (candidates.length) queueIndex = library.findIndex(function (item) { return item.id === candidates[Math.floor(Math.random() * candidates.length)].id; });
+    } else {
+      queueIndex = (queueIndex + (direction === "back" ? -1 : 1) + library.length) % library.length;
+    }
+    queue = library.slice();
+    return clone(queue[queueIndex]);
+  }
+
+  function policy() {
+    return Object.assign({}, STORAGE_POLICY, {
+      availableTracks: library.filter(function (item) { return item.offlineAvailable && item.downloaded; }).length,
+      catalogTracks: library.length,
+      usedBytes: library.reduce(function (total, item) { return total + item.files.reduce(function (sum, file) { return sum + (Number(file.sizeBytes) || 0); }, 0); }, 0)
+    });
+  }
+
   window.EloOfflineMediaLibrary = {
     init: init,
     list: list,
     find: find,
     get: get,
+    next: next,
+    setShuffle: setShuffle,
+    policy: policy,
     normalize: normalize,
     loadFromJsonForTest: loadFromJson
   };

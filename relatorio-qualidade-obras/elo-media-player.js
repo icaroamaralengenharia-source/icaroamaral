@@ -636,12 +636,18 @@
     return true;
   }
 
+  function next(media) {
+    if (!media || !isLocalClassicalMedia(media)) return Promise.resolve(false);
+    return playLocalMedia(media);
+  }
+
   window.EloMediaPlayer = {
     provider: "youtube_iframe_api",
     play: play,
     pause: pause,
     resume: resume,
     stop: stop,
+    next: next,
     getState: function () { return state; },
     getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
     getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },

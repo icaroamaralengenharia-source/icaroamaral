@@ -437,7 +437,7 @@ test('ELO service worker: cache v5 inclui router, adapter, library.json e 7 audi
     'chopin/nocturne-op-9-no-2.ogg'
   ];
 
-  assert.match(sw, /elo-web-offline-v5-20260906-p0-offline-v1/);
+  assert.match(sw, /elo-web-offline-v9-20260911-p0-config-v2/);
   assert.match(sw, /elo-offline-media-library\.js/);
   assert.match(sw, /elo-offline-memory-adapter\.js/);
   assert.match(sw, /elo-offline-router\.js/);

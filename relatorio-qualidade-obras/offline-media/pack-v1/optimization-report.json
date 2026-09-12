@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-09-12T19:22:56.306Z",
+  "tracks": 50,
+  "audioFiles": 52,
+  "optimizedFiles": 52,
+  "exceptions": 0,
+  "targetCodec": "opus",
+  "targetBitrate": 96000,
+  "validation": {
+    "sourcePreserved": true,
+    "licensesPreserved": true,
+    "durationChecked": true,
+    "hashesChecked": true
+  }
+}
