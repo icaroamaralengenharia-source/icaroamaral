@@ -7,10 +7,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/01-wm-brahms-waltz01.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-brahms-waltz01-1.opus",
+        "format": "opus",
         "sizeBytes": 1164752,
-        "sha256": "d3333e031c0f380725bc1f46dc44a163d54a801f4fe3a31fa2dad4a42627da29"
+        "sha256": "d3333e031c0f380725bc1f46dc44a163d54a801f4fe3a31fa2dad4a42627da29",
+        "sourcePath": "offline-media/pack-v1/01-wm-brahms-waltz01.ogg",
+        "sourceBytes": 1164752,
+        "sourceHash": "d3333e031c0f380725bc1f46dc44a163d54a801f4fe3a31fa2dad4a42627da29",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-brahms-waltz01-1.opus",
+        "optimizedBytes": 835920,
+        "optimizedHash": "eac2d2c6adc5e97d5bfa02006cd4c557e98b96fbde382c32f85e8660e508a257",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 62.249796,
+        "durationSeconds": 62.256313,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -35,10 +48,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/02-wm-brahms-waltz02.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-brahms-waltz02-1.opus",
+        "format": "opus",
         "sizeBytes": 1701964,
-        "sha256": "57a577de8582a8f37921d15ea3663d4f1965af599d43e6c0c7d3ea5b21309979"
+        "sha256": "57a577de8582a8f37921d15ea3663d4f1965af599d43e6c0c7d3ea5b21309979",
+        "sourcePath": "offline-media/pack-v1/02-wm-brahms-waltz02.ogg",
+        "sourceBytes": 1701964,
+        "sourceHash": "57a577de8582a8f37921d15ea3663d4f1965af599d43e6c0c7d3ea5b21309979",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-brahms-waltz02-1.opus",
+        "optimizedBytes": 1261524,
+        "optimizedHash": "11dad88cbadb80200a41b43f7ebac2b9dd332ca801f5f603d4bde63e648b415a",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 91.637551,
+        "durationSeconds": 91.644063,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -68,11 +94,24 @@
     "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
-        "path": "offline-media/classical/beethoven/fur-elise.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/beethoven-fur-elise-1.opus",
+        "format": "opus",
         "duration": "2:57",
         "bitrate": "~97 kbps",
-        "sizeBytes": 2144088
+        "sizeBytes": 2144088,
+        "sourcePath": "offline-media/classical/beethoven/fur-elise.ogg",
+        "sourceBytes": 2144088,
+        "sourceHash": "8deefb57df989a2b53a6bdd3e59813b6c34d61dca666caa39e53fa9597b378e3",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/beethoven-fur-elise-1.opus",
+        "optimizedBytes": 2285165,
+        "optimizedHash": "0432a921d579437ed7181c6496c257f435675fc1d54db0f6fcbe28ef2dbf4c3b",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 176.586757,
+        "durationSeconds": 176.593271,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "aliases": [
@@ -107,11 +146,24 @@
     "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
-        "path": "offline-media/classical/debussy/clair-de-lune.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/debussy-clair-de-lune-1.opus",
+        "format": "opus",
         "duration": "5:04",
         "bitrate": "414 kbps",
-        "sizeBytes": 15740765
+        "sizeBytes": 15740765,
+        "sourcePath": "offline-media/classical/debussy/clair-de-lune.ogg",
+        "sourceBytes": 15740765,
+        "sourceHash": "2f7a1e833f4e2408d9d1b893131863d790ba75cd5fbcf81292dc5ed6f25918fe",
+        "sourceFormat": "ogg",
+        "optimizedPath": "offline-media/optimized/debussy-clair-de-lune-1.opus",
+        "optimizedBytes": 4407236,
+        "optimizedHash": "a3cfa7c8ac100fd07f719f42b0473d4f023db131279479ab4f91e46e350b668e",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 304.088526,
+        "durationSeconds": 304.095042,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "aliases": [
@@ -144,25 +196,64 @@
     "origin": "Wikimedia Commons / CC BY-SA 4.0 recording",
     "files": [
       {
-        "path": "offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/vivaldi-four-seasons-spring-1.opus",
+        "format": "opus",
         "duration": "3:35",
         "bitrate": "160 kbps",
-        "sizeBytes": 4299414
+        "sizeBytes": 4299414,
+        "sourcePath": "offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
+        "sourceBytes": 4299414,
+        "sourceHash": "67ada06f97697196d67ce26c06e5c61700e7b79b0321b7f04571a4eb7435d4d3",
+        "sourceFormat": "oga",
+        "optimizedPath": "offline-media/optimized/vivaldi-four-seasons-spring-1.opus",
+        "optimizedBytes": 2905735,
+        "optimizedHash": "e57b361589249762c4af27ec03baaee2fcd4d3537e87b8c55d8deb2902956e8d",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 215.28,
+        "durationSeconds": 215.2865,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       },
       {
-        "path": "offline-media/classical/vivaldi/spring-mvt-2-largo.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/vivaldi-four-seasons-spring-2.opus",
+        "format": "opus",
         "duration": "2:52",
         "bitrate": "153 kbps",
-        "sizeBytes": 3288210
+        "sizeBytes": 3288210,
+        "sourcePath": "offline-media/classical/vivaldi/spring-mvt-2-largo.oga",
+        "sourceBytes": 3288210,
+        "sourceHash": "6cbca92e88c875f5ad1fa49480d83dac44138538a2c1f565462609f0cc071bc7",
+        "sourceFormat": "oga",
+        "optimizedPath": "offline-media/optimized/vivaldi-four-seasons-spring-2.opus",
+        "optimizedBytes": 2486884,
+        "optimizedHash": "3ef0aefcc8f133340c86e94e9788ce7a08ff4b341e5f3aa9fd9a0f1d962a79b7",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 171.64,
+        "durationSeconds": 171.6465,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       },
       {
-        "path": "offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/vivaldi-four-seasons-spring-3.opus",
+        "format": "opus",
         "duration": "4:04",
         "bitrate": "162 kbps",
-        "sizeBytes": 4944578
+        "sizeBytes": 4944578,
+        "sourcePath": "offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
+        "sourceBytes": 4944578,
+        "sourceHash": "052ea1a965f08db0e15f6dfdd147bcef35aa7b14fedf3b23c7968b7ad0d2bbd9",
+        "sourceFormat": "oga",
+        "optimizedPath": "offline-media/optimized/vivaldi-four-seasons-spring-3.opus",
+        "optimizedBytes": 3366458,
+        "optimizedHash": "7bf1a004a173630d07c92e13cd9483ec1f80b545f71eecf07e1bd004f7651be7",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 244,
+        "durationSeconds": 244.0065,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "aliases": [
@@ -197,11 +288,24 @@
     "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
-        "path": "offline-media/classical/pachelbel/canon-in-d.mp3",
-        "format": "mp3",
+        "path": "offline-media/optimized/pachelbel-canon-in-d-1.opus",
+        "format": "opus",
         "duration": "4:25",
         "bitrate": "158 kbps",
-        "sizeBytes": 5226209
+        "sizeBytes": 5226209,
+        "sourcePath": "offline-media/classical/pachelbel/canon-in-d.mp3",
+        "sourceBytes": 5226209,
+        "sourceHash": "9df89dce8ad078b94a76eb79802394fb1bca9f9bd2ed32e5b301c77042e88853",
+        "sourceFormat": "mp3",
+        "optimizedPath": "offline-media/optimized/pachelbel-canon-in-d-1.opus",
+        "optimizedBytes": 3395952,
+        "optimizedHash": "82010abb075047de8734675aa79f197750c236753cc4440afe67b0115a179143",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 264.698776,
+        "durationSeconds": 264.660188,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "aliases": [
@@ -234,11 +338,24 @@
     "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
-        "path": "offline-media/classical/chopin/nocturne-op-9-no-2.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/chopin-nocturne-op-9-no-2-1.opus",
+        "format": "opus",
         "duration": "4:00",
         "bitrate": "142 kbps",
-        "sizeBytes": 4260399
+        "sizeBytes": 4260399,
+        "sourcePath": "offline-media/classical/chopin/nocturne-op-9-no-2.ogg",
+        "sourceBytes": 4260399,
+        "sourceHash": "2bf1cc26c83609b16235ccf4b0bb769ef5b5d8f577ee4accb23f619bdd587f66",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/chopin-nocturne-op-9-no-2-1.opus",
+        "optimizedBytes": 3494580,
+        "optimizedHash": "73f870619e35cc462a9050d51751c86a4b8c27ad3436fef96b581b9258534ccb",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 239.518549,
+        "durationSeconds": 239.525063,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "aliases": [
@@ -267,9 +384,22 @@
     "genre": "classical instrumental",
     "files": [
       {
-        "path": "offline-media/pack-v1/09-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel.ogg",
-        "format": "ogg",
-        "sizeBytes": 21414273
+        "path": "offline-media/optimized/wm-recovered-09-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel-ogg-1.opus",
+        "format": "opus",
+        "sizeBytes": 21414273,
+        "sourcePath": "offline-media/pack-v1/09-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel.ogg",
+        "sourceBytes": 21414273,
+        "sourceHash": "beff30d98fd9f4668794e6e572cca0c032f1bada707b0a342daa8a2bbd8db373",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-recovered-09-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel-ogg-1.opus",
+        "optimizedBytes": 4752426,
+        "optimizedHash": "42bb5d3d1a495b2cd638b3d54afdd4c22b50ec94fe71d1af939e3f44b5d099ca",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 361.093333,
+        "durationSeconds": 361.099833,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -293,9 +423,22 @@
     "genre": "classical instrumental",
     "files": [
       {
-        "path": "offline-media/pack-v1/10-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel.ogg",
-        "format": "ogg",
-        "sizeBytes": 12171498
+        "path": "offline-media/optimized/wm-recovered-10-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel-ogg-1.opus",
+        "format": "opus",
+        "sizeBytes": 12171498,
+        "sourcePath": "offline-media/pack-v1/10-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel.ogg",
+        "sourceBytes": 12171498,
+        "sourceHash": "8102ad5fd3de1ba434b46cffd9e6399a4d7a93b9d5c8a80c2031c40f538678da",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-recovered-10-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel-ogg-1.opus",
+        "optimizedBytes": 2754913,
+        "optimizedHash": "ff94595732ff16b4e6577092028b9f40160e653c7786e27f1ccf74bd471c19fc",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 206,
+        "durationSeconds": 206.0065,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -319,9 +462,22 @@
     "genre": "classical instrumental",
     "files": [
       {
-        "path": "offline-media/pack-v1/11-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel.ogg",
-        "format": "ogg",
-        "sizeBytes": 16578378
+        "path": "offline-media/optimized/wm-recovered-11-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel-ogg-1.opus",
+        "format": "opus",
+        "sizeBytes": 16578378,
+        "sourcePath": "offline-media/pack-v1/11-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel.ogg",
+        "sourceBytes": 16578378,
+        "sourceHash": "c71fd4de394e4aa2b849a150b1f66e9f8c93fbeb955a871f1c6a531665c32660",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-recovered-11-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel-ogg-1.opus",
+        "optimizedBytes": 3870967,
+        "optimizedHash": "e65a2a589571c2452f0224e1873d3d2ace41d9a856a7b6a4246edc3cce8e68f9",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 283.653333,
+        "durationSeconds": 283.659833,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -345,10 +501,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/11-wm-klaviersonate-nr-1-op-2-1-i-allegro.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-i-allegro-1.opus",
+        "format": "opus",
         "sizeBytes": 7322445,
-        "sha256": "25572a987e5e6ec3551c634f86dac594fe1ddfa7c33aa8d6542281fe39d91e5c"
+        "sha256": "25572a987e5e6ec3551c634f86dac594fe1ddfa7c33aa8d6542281fe39d91e5c",
+        "sourcePath": "offline-media/pack-v1/11-wm-klaviersonate-nr-1-op-2-1-i-allegro.ogg",
+        "sourceBytes": 7322445,
+        "sourceHash": "25572a987e5e6ec3551c634f86dac594fe1ddfa7c33aa8d6542281fe39d91e5c",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-i-allegro-1.opus",
+        "optimizedBytes": 2640121,
+        "optimizedHash": "e5e735c6dfb753575055862088e251df8bd81a2b53408e1d33870055e7ae073b",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 202.004898,
+        "durationSeconds": 202.011417,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -373,10 +542,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/12-wm-klaviersonate-nr-1-op-2-1-ii-adagio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-ii-adagio-1.opus",
+        "format": "opus",
         "sizeBytes": 13008532,
-        "sha256": "1b51674c3d1dba8b7e02df9f38ed5225964cb7dbddf0839dcf690dca7e2e1dcc"
+        "sha256": "1b51674c3d1dba8b7e02df9f38ed5225964cb7dbddf0839dcf690dca7e2e1dcc",
+        "sourcePath": "offline-media/pack-v1/12-wm-klaviersonate-nr-1-op-2-1-ii-adagio.ogg",
+        "sourceBytes": 13008532,
+        "sourceHash": "1b51674c3d1dba8b7e02df9f38ed5225964cb7dbddf0839dcf690dca7e2e1dcc",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-ii-adagio-1.opus",
+        "optimizedBytes": 4670004,
+        "optimizedHash": "41b42f710f716b5e50a366f57a5d9515f05ec737b3e38dc1735910c0de455905",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 363.180408,
+        "durationSeconds": 363.186917,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -401,10 +583,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/13-wm-klaviersonate-nr-1-op-2-1-iii-menuetto-and-trio-allegretto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-iii-menuetto-and-trio-allegretto-1.opus",
+        "format": "opus",
         "sizeBytes": 7538663,
-        "sha256": "c2ce5fa24eaba87a0aabf48e3c803ba8415ebdaf4f755648bc3bd8718b7755c1"
+        "sha256": "c2ce5fa24eaba87a0aabf48e3c803ba8415ebdaf4f755648bc3bd8718b7755c1",
+        "sourcePath": "offline-media/pack-v1/13-wm-klaviersonate-nr-1-op-2-1-iii-menuetto-and-trio-allegretto.ogg",
+        "sourceBytes": 7538663,
+        "sourceHash": "c2ce5fa24eaba87a0aabf48e3c803ba8415ebdaf4f755648bc3bd8718b7755c1",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-iii-menuetto-and-trio-allegretto-1.opus",
+        "optimizedBytes": 2704216,
+        "optimizedHash": "6ca683ab803bc34f295f515ff3734422f906839bdcc66417826480bc6bc3f841",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 207.882449,
+        "durationSeconds": 207.888958,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -429,10 +624,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/14-wm-klaviersonate-nr-1-op-2-1-iv-prestissimo.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-iv-prestissimo-1.opus",
+        "format": "opus",
         "sizeBytes": 10285953,
-        "sha256": "edd8fa15ad94759d52288bc6e40a6295f19eda109a9526927b06c61ac2e31e49"
+        "sha256": "edd8fa15ad94759d52288bc6e40a6295f19eda109a9526927b06c61ac2e31e49",
+        "sourcePath": "offline-media/pack-v1/14-wm-klaviersonate-nr-1-op-2-1-iv-prestissimo.ogg",
+        "sourceBytes": 10285953,
+        "sourceHash": "edd8fa15ad94759d52288bc6e40a6295f19eda109a9526927b06c61ac2e31e49",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-1-op-2-1-iv-prestissimo-1.opus",
+        "optimizedBytes": 3767240,
+        "optimizedHash": "887424728a9b45a1c5bc7b5711cbab47d9f8efbae5cc34916e5c01e75d584158",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 285.64898,
+        "durationSeconds": 285.6555,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -457,10 +665,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/15-wm-piano-sonata-n-1-1-allegro-beethoven-schnabel.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-piano-sonata-n-1-1-allegro-beethoven-schnabel-1.opus",
+        "format": "opus",
         "sizeBytes": 11763798,
-        "sha256": "17b9d6b310d80c80c85840ea8c0d15e6d84670c1e719769ab9e54e8891ec4aed"
+        "sha256": "17b9d6b310d80c80c85840ea8c0d15e6d84670c1e719769ab9e54e8891ec4aed",
+        "sourcePath": "offline-media/pack-v1/15-wm-piano-sonata-n-1-1-allegro-beethoven-schnabel.ogg",
+        "sourceBytes": 11763798,
+        "sourceHash": "17b9d6b310d80c80c85840ea8c0d15e6d84670c1e719769ab9e54e8891ec4aed",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-piano-sonata-n-1-1-allegro-beethoven-schnabel-1.opus",
+        "optimizedBytes": 2635273,
+        "optimizedHash": "dcbcd243a7365066282298f3cdc6a4a6e3afe8b4da48fd1cbed660b53fadae5f",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 199.6,
+        "durationSeconds": 199.6065,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -485,10 +706,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/16-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-piano-sonata-n-1-2-adagio-beethoven-schnabel-1.opus",
+        "format": "opus",
         "sizeBytes": 21414273,
-        "sha256": "beff30d98fd9f4668794e6e572cca0c032f1bada707b0a342daa8a2bbd8db373"
+        "sha256": "beff30d98fd9f4668794e6e572cca0c032f1bada707b0a342daa8a2bbd8db373",
+        "sourcePath": "offline-media/pack-v1/16-wm-piano-sonata-n-1-2-adagio-beethoven-schnabel.ogg",
+        "sourceBytes": 21414273,
+        "sourceHash": "beff30d98fd9f4668794e6e572cca0c032f1bada707b0a342daa8a2bbd8db373",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-piano-sonata-n-1-2-adagio-beethoven-schnabel-1.opus",
+        "optimizedBytes": 4752426,
+        "optimizedHash": "0d154ce9bd7dc5868e9ef14f53494fb641929dc1c0f4433ee21bb38616f45ead",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 361.093333,
+        "durationSeconds": 361.099833,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -513,10 +747,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/17-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel-1.opus",
+        "format": "opus",
         "sizeBytes": 12171498,
-        "sha256": "8102ad5fd3de1ba434b46cffd9e6399a4d7a93b9d5c8a80c2031c40f538678da"
+        "sha256": "8102ad5fd3de1ba434b46cffd9e6399a4d7a93b9d5c8a80c2031c40f538678da",
+        "sourcePath": "offline-media/pack-v1/17-wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel.ogg",
+        "sourceBytes": 12171498,
+        "sourceHash": "8102ad5fd3de1ba434b46cffd9e6399a4d7a93b9d5c8a80c2031c40f538678da",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-piano-sonata-n-1-3-menuetto-and-trio-beethoven-schnabel-1.opus",
+        "optimizedBytes": 2754913,
+        "optimizedHash": "2d13680c22ef56b461bbe751270e87cd830d91d534ea9d42e9895d80565d79f7",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 206,
+        "durationSeconds": 206.0065,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -541,10 +788,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/18-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel-1.opus",
+        "format": "opus",
         "sizeBytes": 16578378,
-        "sha256": "c71fd4de394e4aa2b849a150b1f66e9f8c93fbeb955a871f1c6a531665c32660"
+        "sha256": "c71fd4de394e4aa2b849a150b1f66e9f8c93fbeb955a871f1c6a531665c32660",
+        "sourcePath": "offline-media/pack-v1/18-wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel.ogg",
+        "sourceBytes": 16578378,
+        "sourceHash": "c71fd4de394e4aa2b849a150b1f66e9f8c93fbeb955a871f1c6a531665c32660",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-piano-sonata-n-1-4-prestissimo-beethoven-schnabel-1.opus",
+        "optimizedBytes": 3870967,
+        "optimizedHash": "aa24c1f2a30814062d97d4de0155c0e8d5487e91d273095106f4e48143c9f110",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 283.653333,
+        "durationSeconds": 283.659833,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -569,10 +829,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/19-wm-klaviersonate-nr-2-op-2-2-i-allegro-vivace.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-i-allegro-vivace-1.opus",
+        "format": "opus",
         "sizeBytes": 14347864,
-        "sha256": "fc5d8a513f191fa211b3ea21b24e646a959071814c7b9ca9ed49a2f430f81b7c"
+        "sha256": "fc5d8a513f191fa211b3ea21b24e646a959071814c7b9ca9ed49a2f430f81b7c",
+        "sourcePath": "offline-media/pack-v1/19-wm-klaviersonate-nr-2-op-2-2-i-allegro-vivace.ogg",
+        "sourceBytes": 14347864,
+        "sourceHash": "fc5d8a513f191fa211b3ea21b24e646a959071814c7b9ca9ed49a2f430f81b7c",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-i-allegro-vivace-1.opus",
+        "optimizedBytes": 5109821,
+        "optimizedHash": "eeada935a6b1d02ebd71edc83808340a828e96cecc8c0a7f8849477a3386018a",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 391.836735,
+        "durationSeconds": 391.84325,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -597,10 +870,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/20-wm-klaviersonate-nr-2-op-2-2-ii-largo-appassionato.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-ii-largo-appassionato-1.opus",
+        "format": "opus",
         "sizeBytes": 16076670,
-        "sha256": "f9cabb67a01b2af232497f919557def7091e1a1a883c5e4fb5135c6bb59b7b77"
+        "sha256": "f9cabb67a01b2af232497f919557def7091e1a1a883c5e4fb5135c6bb59b7b77",
+        "sourcePath": "offline-media/pack-v1/20-wm-klaviersonate-nr-2-op-2-2-ii-largo-appassionato.ogg",
+        "sourceBytes": 16076670,
+        "sourceHash": "f9cabb67a01b2af232497f919557def7091e1a1a883c5e4fb5135c6bb59b7b77",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-ii-largo-appassionato-1.opus",
+        "optimizedBytes": 6002158,
+        "optimizedHash": "77d4240b5f3d92e47227b70b0a140df9b2711593623844826222944c1787a633",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 446.066939,
+        "durationSeconds": 446.073458,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -625,10 +911,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/21-wm-klaviersonate-nr-2-op-2-2-iii-scherzo-and-trio-allegretto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-iii-scherzo-and-trio-allegretto-1.opus",
+        "format": "opus",
         "sizeBytes": 7596195,
-        "sha256": "a7b5cbb766a0dfa5c2353f3f31d1fb31882333d271f967f1036d3e87762b79a1"
+        "sha256": "a7b5cbb766a0dfa5c2353f3f31d1fb31882333d271f967f1036d3e87762b79a1",
+        "sourcePath": "offline-media/pack-v1/21-wm-klaviersonate-nr-2-op-2-2-iii-scherzo-and-trio-allegretto.ogg",
+        "sourceBytes": 7596195,
+        "sourceHash": "a7b5cbb766a0dfa5c2353f3f31d1fb31882333d271f967f1036d3e87762b79a1",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-iii-scherzo-and-trio-allegretto-1.opus",
+        "optimizedBytes": 2835909,
+        "optimizedHash": "f32a2aad4547f7010be9c2023ccb7200939d6c31cf6a4592f3ddd7e5100ed681",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 207.438367,
+        "durationSeconds": 207.444875,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -653,10 +952,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/22-wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso-1.opus",
+        "format": "opus",
         "sizeBytes": 12595970,
-        "sha256": "8b44eac12b1f36bb9cdaf7a6e0d5fdb1d4c0b517f5e9853d0c92bed7236206bb"
+        "sha256": "8b44eac12b1f36bb9cdaf7a6e0d5fdb1d4c0b517f5e9853d0c92bed7236206bb",
+        "sourcePath": "offline-media/pack-v1/22-wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso.ogg",
+        "sourceBytes": 12595970,
+        "sourceHash": "8b44eac12b1f36bb9cdaf7a6e0d5fdb1d4c0b517f5e9853d0c92bed7236206bb",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-2-op-2-2-iv-rondo-grazioso-1.opus",
+        "optimizedBytes": 4787204,
+        "optimizedHash": "1391fdf46cf3aadfbabd4e655ef1dd5def95eed830f01c2c3e4dcaf01813bc5a",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 348.917551,
+        "durationSeconds": 348.924063,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -681,10 +993,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/23-wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio-1.opus",
+        "format": "opus",
         "sizeBytes": 16923865,
-        "sha256": "2374aa15b440bf431a899f8268e10a16d0b84e1feb6da31244e24e0f9111a057"
+        "sha256": "2374aa15b440bf431a899f8268e10a16d0b84e1feb6da31244e24e0f9111a057",
+        "sourcePath": "offline-media/pack-v1/23-wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio.ogg",
+        "sourceBytes": 16923865,
+        "sourceHash": "2374aa15b440bf431a899f8268e10a16d0b84e1feb6da31244e24e0f9111a057",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-ii-adagio-1.opus",
+        "optimizedBytes": 5850324,
+        "optimizedHash": "16aeffa28653f8ce46e64e962f65d62b3bf5eef548f168e45befdbeb0bcf6549",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 468.819592,
+        "durationSeconds": 468.826104,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -709,10 +1034,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/24-wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai-1.opus",
+        "format": "opus",
         "sizeBytes": 11649421,
-        "sha256": "45277c8321f57738de9c3214c2caf9fb29e147cc6107a7c2c50c0e52498f09d1"
+        "sha256": "45277c8321f57738de9c3214c2caf9fb29e147cc6107a7c2c50c0e52498f09d1",
+        "sourcePath": "offline-media/pack-v1/24-wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai.ogg",
+        "sourceBytes": 11649421,
+        "sourceHash": "45277c8321f57738de9c3214c2caf9fb29e147cc6107a7c2c50c0e52498f09d1",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-iv-allegro-assai-1.opus",
+        "optimizedBytes": 4220724,
+        "optimizedHash": "711509028c2bca9bf56278531486dabb3cc68f93a17d1ce62dbbf0cbf2a61fde",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 322.821224,
+        "durationSeconds": 322.827729,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -737,10 +1075,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/25-wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro-1.opus",
+        "format": "opus",
         "sizeBytes": 6425245,
-        "sha256": "e6d3b5fe93654d69041febaf18bd5077c494efe89edb868f00fdb2160eab8b1d"
+        "sha256": "e6d3b5fe93654d69041febaf18bd5077c494efe89edb868f00fdb2160eab8b1d",
+        "sourcePath": "offline-media/pack-v1/25-wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro.ogg",
+        "sourceBytes": 6425245,
+        "sourceHash": "e6d3b5fe93654d69041febaf18bd5077c494efe89edb868f00fdb2160eab8b1d",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-iii-allegro-1.opus",
+        "optimizedBytes": 2256165,
+        "optimizedHash": "d208edcb20cac57eea5afcbab395786922ab8314fbcf78a4b89ae164767c0c6f",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 175.098776,
+        "durationSeconds": 175.105292,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -765,10 +1116,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/26-wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio-1.opus",
+        "format": "opus",
         "sizeBytes": 16326140,
-        "sha256": "7ea830b533dbb8630e4a7cf429d1d0f953a139a075f85410decfb7ffa3a839eb"
+        "sha256": "7ea830b533dbb8630e4a7cf429d1d0f953a139a075f85410decfb7ffa3a839eb",
+        "sourcePath": "offline-media/pack-v1/26-wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio.ogg",
+        "sourceBytes": 16326140,
+        "sourceHash": "7ea830b533dbb8630e4a7cf429d1d0f953a139a075f85410decfb7ffa3a839eb",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-i-allegro-molto-e-con-brio-1.opus",
+        "optimizedBytes": 5886388,
+        "optimizedHash": "22c2e18ac204e84be2538a5e4d7e96ccfe8489f54b25f55a32b5d5fa93b16165",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 450.429388,
+        "durationSeconds": 450.435896,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -793,10 +1157,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/27-wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio-1.opus",
+        "format": "opus",
         "sizeBytes": 21921992,
-        "sha256": "01e04a6b8594fe4f1578f63a041c38a0253f3caa6bccdad7effe9c6a40559d72"
+        "sha256": "01e04a6b8594fe4f1578f63a041c38a0253f3caa6bccdad7effe9c6a40559d72",
+        "sourcePath": "offline-media/pack-v1/27-wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio.ogg",
+        "sourceBytes": 21921992,
+        "sourceHash": "01e04a6b8594fe4f1578f63a041c38a0253f3caa6bccdad7effe9c6a40559d72",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-3-op-2-3-c-dur-i-allegro-con-brio-1.opus",
+        "optimizedBytes": 7906704,
+        "optimizedHash": "6a83ca44a8a171c7af2b888840615bd1931f555f1c18df4011706e772b897973",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 604.525714,
+        "durationSeconds": 604.532229,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -821,10 +1198,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/28-wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro-1.opus",
+        "format": "opus",
         "sizeBytes": 10738578,
-        "sha256": "03f9f08280577c9cb4a9891e738b7b29ce902dc15ab20cda8ec8492239ac7d4a"
+        "sha256": "03f9f08280577c9cb4a9891e738b7b29ce902dc15ab20cda8ec8492239ac7d4a",
+        "sourcePath": "offline-media/pack-v1/28-wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro.ogg",
+        "sourceBytes": 10738578,
+        "sourceHash": "03f9f08280577c9cb4a9891e738b7b29ce902dc15ab20cda8ec8492239ac7d4a",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-iii-allegro-1.opus",
+        "optimizedBytes": 3780157,
+        "optimizedHash": "3a4dd74428c067ae6c09e5ab846c76aea1600bee2049805eefa86f745f44d28e",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 295.601633,
+        "durationSeconds": 295.608146,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -849,10 +1239,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/29-wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso-1.opus",
+        "format": "opus",
         "sizeBytes": 13276273,
-        "sha256": "b3d62a378d9784812b6e0b6b6ab4aa7ecff14f77322cb6a7f60132d9472c236a"
+        "sha256": "b3d62a378d9784812b6e0b6b6ab4aa7ecff14f77322cb6a7f60132d9472c236a",
+        "sourcePath": "offline-media/pack-v1/29-wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso.ogg",
+        "sourceBytes": 13276273,
+        "sourceHash": "b3d62a378d9784812b6e0b6b6ab4aa7ecff14f77322cb6a7f60132d9472c236a",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-4-op-7-e-dur-iv-rondo-poco-allegfretto-e-gracioso-1.opus",
+        "optimizedBytes": 4802006,
+        "optimizedHash": "e7a4fb761377577311666fed6ad2dc47ed836153075d63ac45ca3c0b0593c56b",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 371.069388,
+        "durationSeconds": 371.075896,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -877,10 +1280,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/30-wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto-1.opus",
+        "format": "opus",
         "sizeBytes": 17520928,
-        "sha256": "1bdaacc89628f1bd8c6e7f62664326d8b0c41126766dda902ebd93712b77354a"
+        "sha256": "1bdaacc89628f1bd8c6e7f62664326d8b0c41126766dda902ebd93712b77354a",
+        "sourcePath": "offline-media/pack-v1/30-wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto.ogg",
+        "sourceBytes": 17520928,
+        "sourceHash": "1bdaacc89628f1bd8c6e7f62664326d8b0c41126766dda902ebd93712b77354a",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-5-op-10-1-ii-adagio-molto-1.opus",
+        "optimizedBytes": 6075074,
+        "optimizedHash": "e321a44f352aa5f73b7af37ec5cc03beb302abd9c077a7f4feb5dc72d4329cd9",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 485.825306,
+        "durationSeconds": 485.831813,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -905,10 +1321,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/31-wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo-1.opus",
+        "format": "opus",
         "sizeBytes": 8309507,
-        "sha256": "2c8a10f80cad2fa9474915da19c62bdb8fa3941665fb7368553e13edb5ee3bc0"
+        "sha256": "2c8a10f80cad2fa9474915da19c62bdb8fa3941665fb7368553e13edb5ee3bc0",
+        "sourcePath": "offline-media/pack-v1/31-wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo.ogg",
+        "sourceBytes": 8309507,
+        "sourceHash": "2c8a10f80cad2fa9474915da19c62bdb8fa3941665fb7368553e13edb5ee3bc0",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-5-op-10-1-iii-finale-prestissimo-1.opus",
+        "optimizedBytes": 2900624,
+        "optimizedHash": "225d0c021b0f369c1548c04e3141c088225409185a8f1a5a29d64c0d254335e1",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 231.157551,
+        "durationSeconds": 231.164063,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -933,10 +1362,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/32-wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto-1.opus",
+        "format": "opus",
         "sizeBytes": 8760035,
-        "sha256": "419fed939e3c742c419d63c435cdc121508844bc9b87715f4c9ee43b0e74e55f"
+        "sha256": "419fed939e3c742c419d63c435cdc121508844bc9b87715f4c9ee43b0e74e55f",
+        "sourcePath": "offline-media/pack-v1/32-wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto.ogg",
+        "sourceBytes": 8760035,
+        "sourceHash": "419fed939e3c742c419d63c435cdc121508844bc9b87715f4c9ee43b0e74e55f",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-6-f-moll-op-10-2-ii-allegretto-1.opus",
+        "optimizedBytes": 3229288,
+        "optimizedHash": "26418b0a2671f37bbade7cfaa325f47a7c1bb2380b8ec3441f74b897db0ad9bd",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 243.826939,
+        "durationSeconds": 243.833458,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -961,10 +1403,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/33-wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto-1.opus",
+        "format": "opus",
         "sizeBytes": 4617312,
-        "sha256": "005f4ea95fcb24eba49d36613a099a13f8217585ade6d7435c9aea2fce16d7f4"
+        "sha256": "005f4ea95fcb24eba49d36613a099a13f8217585ade6d7435c9aea2fce16d7f4",
+        "sourcePath": "offline-media/pack-v1/33-wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto.ogg",
+        "sourceBytes": 4617312,
+        "sourceHash": "005f4ea95fcb24eba49d36613a099a13f8217585ade6d7435c9aea2fce16d7f4",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-6-f-moll-op-10-2-iii-presto-1.opus",
+        "optimizedBytes": 1708647,
+        "optimizedHash": "0007d86517ac5a703c743f3e4e89c2a0e2941ce6e53cd78a60fb2c380218b140",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 128.835918,
+        "durationSeconds": 128.842438,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -989,10 +1444,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/34-wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto-1.opus",
+        "format": "opus",
         "sizeBytes": 24704513,
-        "sha256": "e5d7a92643ac4d1bbacf410f1831e86d20f75cb7911cad7a1e263aa19f43a9f5"
+        "sha256": "e5d7a92643ac4d1bbacf410f1831e86d20f75cb7911cad7a1e263aa19f43a9f5",
+        "sourcePath": "offline-media/pack-v1/34-wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto.ogg",
+        "sourceBytes": 24704513,
+        "sourceHash": "e5d7a92643ac4d1bbacf410f1831e86d20f75cb7911cad7a1e263aa19f43a9f5",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-ii-largo-e-mesto-1.opus",
+        "optimizedBytes": 8811288,
+        "optimizedHash": "217d9d40a4f6ccbc5ad0322298e9d749c1e156faa0e9a7f0033eab76d8fe39af",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 698.226939,
+        "durationSeconds": 698.233458,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1017,10 +1485,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/35-wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto-1.opus",
+        "format": "opus",
         "sizeBytes": 14139038,
-        "sha256": "af29ee9ea84b193e1a080805e82195db6564ce53183cb8a87a6f3907ca58fdeb"
+        "sha256": "af29ee9ea84b193e1a080805e82195db6564ce53183cb8a87a6f3907ca58fdeb",
+        "sourcePath": "offline-media/pack-v1/35-wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto.ogg",
+        "sourceBytes": 14139038,
+        "sourceHash": "af29ee9ea84b193e1a080805e82195db6564ce53183cb8a87a6f3907ca58fdeb",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-i-presto-1.opus",
+        "optimizedBytes": 5117055,
+        "optimizedHash": "bac60de9e55bcf731034d28d1cbe1b629c1a3a3b6bacf54a82d88e76662c0955",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 393.822041,
+        "durationSeconds": 393.828542,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1045,10 +1526,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/36-wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio-1.opus",
+        "format": "opus",
         "sizeBytes": 5348773,
-        "sha256": "5e378ce80e19242e265c6092ebe199426846504f7e5977e8dbafc0dd5334d7c9"
+        "sha256": "5e378ce80e19242e265c6092ebe199426846504f7e5977e8dbafc0dd5334d7c9",
+        "sourcePath": "offline-media/pack-v1/36-wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio.ogg",
+        "sourceBytes": 5348773,
+        "sourceHash": "5e378ce80e19242e265c6092ebe199426846504f7e5977e8dbafc0dd5334d7c9",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-7-d-dur-op-10-3-iii-menuetto-trio-1.opus",
+        "optimizedBytes": 1964989,
+        "optimizedHash": "02b3e3ad0227cf8b666b6bb03ae895f7653f0d0237adb7a78d1a29af2a4bba4c",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 148.401633,
+        "durationSeconds": 148.408146,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1073,10 +1567,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/37-wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro-1.opus",
+        "format": "opus",
         "sizeBytes": 14563894,
-        "sha256": "8c339f03e36d5c8ce3171ed80534f1ef3d733cf50f035bc9e59405c04fb3f443"
+        "sha256": "8c339f03e36d5c8ce3171ed80534f1ef3d733cf50f035bc9e59405c04fb3f443",
+        "sourcePath": "offline-media/pack-v1/37-wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro.ogg",
+        "sourceBytes": 14563894,
+        "sourceHash": "8c339f03e36d5c8ce3171ed80534f1ef3d733cf50f035bc9e59405c04fb3f443",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-i-allegro-1.opus",
+        "optimizedBytes": 5416989,
+        "optimizedHash": "8ec59f70615651a69cf4547ec6f33bd8c9b7c2f83de2723be5828919a962fd2e",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 409.835102,
+        "durationSeconds": 409.841604,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1101,10 +1608,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/38-wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto-1.opus",
+        "format": "opus",
         "sizeBytes": 9017005,
-        "sha256": "3dc11c8fc1839c39951dcd06a64bfb143bdc5355c801d7af4b095ef1506d44d2"
+        "sha256": "3dc11c8fc1839c39951dcd06a64bfb143bdc5355c801d7af4b095ef1506d44d2",
+        "sourcePath": "offline-media/pack-v1/38-wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto.ogg",
+        "sourceBytes": 9017005,
+        "sourceHash": "3dc11c8fc1839c39951dcd06a64bfb143bdc5355c801d7af4b095ef1506d44d2",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-ii-allegretto-1.opus",
+        "optimizedBytes": 3213400,
+        "optimizedHash": "a0bddff4e7d7f8d485ca251aefb4741f5db53c76e6da5d54ab9efb4508d23a81",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 247.666939,
+        "durationSeconds": 247.673458,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1129,10 +1649,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/39-wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo-1.opus",
+        "format": "opus",
         "sizeBytes": 6874858,
-        "sha256": "9f57ec8f2684b6f7476db1b9ea37579fae4feab3565abe433ef7df7186b579ca"
+        "sha256": "9f57ec8f2684b6f7476db1b9ea37579fae4feab3565abe433ef7df7186b579ca",
+        "sourcePath": "offline-media/pack-v1/39-wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo.ogg",
+        "sourceBytes": 6874858,
+        "sourceHash": "9f57ec8f2684b6f7476db1b9ea37579fae4feab3565abe433ef7df7186b579ca",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-9-e-dur-op-14-1-iii-rondo-allegro-commodo-1.opus",
+        "optimizedBytes": 2387619,
+        "optimizedHash": "585d9a967e731f7e016a5c93f7a01a2b887ad0770dd7eb47d78b0b62e219d8d1",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 188.969796,
+        "durationSeconds": 188.976313,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1157,10 +1690,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/40-wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro-1.opus",
+        "format": "opus",
         "sizeBytes": 12279079,
-        "sha256": "e53f12883d9320a5d816603bc82e860c4682919489aa4ea04c40d3416cce8e51"
+        "sha256": "e53f12883d9320a5d816603bc82e860c4682919489aa4ea04c40d3416cce8e51",
+        "sourcePath": "offline-media/pack-v1/40-wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro.ogg",
+        "sourceBytes": 12279079,
+        "sourceHash": "e53f12883d9320a5d816603bc82e860c4682919489aa4ea04c40d3416cce8e51",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-i-allegro-1.opus",
+        "optimizedBytes": 4837392,
+        "optimizedHash": "1a85cedace3e8fca2647fc65e3fb7327389ac57320353c3c4f425f9db32b513a",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 351.242449,
+        "durationSeconds": 351.248958,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1185,10 +1731,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/41-wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante-1.opus",
+        "format": "opus",
         "sizeBytes": 15148248,
-        "sha256": "f9d44465c83d6d53f7433c1cc4c4c446f22d28e1b45d489551e8c1a91ec82fc8"
+        "sha256": "f9d44465c83d6d53f7433c1cc4c4c446f22d28e1b45d489551e8c1a91ec82fc8",
+        "sourcePath": "offline-media/pack-v1/41-wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante.ogg",
+        "sourceBytes": 15148248,
+        "sourceHash": "f9d44465c83d6d53f7433c1cc4c4c446f22d28e1b45d489551e8c1a91ec82fc8",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-ii-andante-1.opus",
+        "optimizedBytes": 5769461,
+        "optimizedHash": "0502040ccf1c56b69070f613900c928dd02f411943a586b1e07e5ec5fc4c50e3",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 430.733061,
+        "durationSeconds": 430.739563,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1213,10 +1772,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/42-wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai-1.opus",
+        "format": "opus",
         "sizeBytes": 7638860,
-        "sha256": "213ae4544777ea1428dfc99c43243128df60db7ba65f81f016a38f4d89960c5c"
+        "sha256": "213ae4544777ea1428dfc99c43243128df60db7ba65f81f016a38f4d89960c5c",
+        "sourcePath": "offline-media/pack-v1/42-wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai.ogg",
+        "sourceBytes": 7638860,
+        "sourceHash": "213ae4544777ea1428dfc99c43243128df60db7ba65f81f016a38f4d89960c5c",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-10-g-dur-op-14-2-iii-allegro-assai-1.opus",
+        "optimizedBytes": 2822395,
+        "optimizedHash": "b171b6dc8cd7980d5bfacee46e8344b8e27f9849b6891ac27f0a6ccfefe77ba4",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 216.450612,
+        "durationSeconds": 216.457125,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1241,10 +1813,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/43-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-1.opus",
+        "format": "opus",
         "sizeBytes": 31227686,
-        "sha256": "bd3b96d6a7461c20a47ffd51b1ebfa9869e56bb59d0c2706cba3df9657e9b78e"
+        "sha256": "bd3b96d6a7461c20a47ffd51b1ebfa9869e56bb59d0c2706cba3df9657e9b78e",
+        "sourcePath": "offline-media/pack-v1/43-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op.oga",
+        "sourceBytes": 31227686,
+        "sourceHash": "bd3b96d6a7461c20a47ffd51b1ebfa9869e56bb59d0c2706cba3df9657e9b78e",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-1.opus",
+        "optimizedBytes": 3494121,
+        "optimizedHash": "6e2b96eff9d8ad07757ff13f1c65893ee26fd132f4dad34d4e5c9fd2a83e65a9",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 204.436333,
+        "durationSeconds": 204.445167,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1269,10 +1854,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/44-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2-1.opus",
+        "format": "opus",
         "sizeBytes": 52105936,
-        "sha256": "97c2787fed64fbf49826dd5e20998c01005ab705488c91414593d77342bb3125"
+        "sha256": "97c2787fed64fbf49826dd5e20998c01005ab705488c91414593d77342bb3125",
+        "sourcePath": "offline-media/pack-v1/44-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2.oga",
+        "sourceBytes": 52105936,
+        "sourceHash": "97c2787fed64fbf49826dd5e20998c01005ab705488c91414593d77342bb3125",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-2-1.opus",
+        "optimizedBytes": 5619406,
+        "optimizedHash": "60ceed469cfdb4181019226fd2835ff91059f82f1d5459d1ab774daee74b09ce",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 315.548333,
+        "durationSeconds": 315.557167,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1297,10 +1895,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/45-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3-1.opus",
+        "format": "opus",
         "sizeBytes": 33103290,
-        "sha256": "7d90daf426935f52c1c0eca638844fe834d2401547f4e492c40db0644b348f31"
+        "sha256": "7d90daf426935f52c1c0eca638844fe834d2401547f4e492c40db0644b348f31",
+        "sourcePath": "offline-media/pack-v1/45-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3.oga",
+        "sourceBytes": 33103290,
+        "sourceHash": "7d90daf426935f52c1c0eca638844fe834d2401547f4e492c40db0644b348f31",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-3-1.opus",
+        "optimizedBytes": 3929656,
+        "optimizedHash": "ac46eaf5466ccdd88d867df2d3e7d4b1ef9c3590fdbee784a7fad075211199ca",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 219.930667,
+        "durationSeconds": 219.9395,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1325,10 +1936,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/46-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4-1.opus",
+        "format": "opus",
         "sizeBytes": 30063734,
-        "sha256": "aa106530f7b4f0e92ec19f26b4db82b556c411fefccbccb01ae939115a0c885b"
+        "sha256": "aa106530f7b4f0e92ec19f26b4db82b556c411fefccbccb01ae939115a0c885b",
+        "sourcePath": "offline-media/pack-v1/46-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4.oga",
+        "sourceBytes": 30063734,
+        "sourceHash": "aa106530f7b4f0e92ec19f26b4db82b556c411fefccbccb01ae939115a0c885b",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-4-1.opus",
+        "optimizedBytes": 3729091,
+        "optimizedHash": "3edc6c1ef996f2de06938fe6ed2ce2aad697abd5e3c8692fc1a972407197b8fa",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 195.707333,
+        "durationSeconds": 195.713833,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1353,10 +1977,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/47-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5.oga",
-        "format": "oga",
+        "path": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5-1.opus",
+        "format": "opus",
         "sizeBytes": 47385598,
-        "sha256": "6b96311c578fbe4cffbac119469df1d640dae7ec10088a1c276d1e3f35f111e2"
+        "sha256": "6b96311c578fbe4cffbac119469df1d640dae7ec10088a1c276d1e3f35f111e2",
+        "sourcePath": "offline-media/pack-v1/47-wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5.oga",
+        "sourceBytes": 47385598,
+        "sourceHash": "6b96311c578fbe4cffbac119469df1d640dae7ec10088a1c276d1e3f35f111e2",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-artur-schnabel-plays-beethoven-s-piano-sonata-no-11-in-b-flat-major-op-5-1.opus",
+        "optimizedBytes": 5931347,
+        "optimizedHash": "3a4588b2842dfbdc846f5257d3edc93131061be700058e9b19a9e960be5431ce",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 313.971667,
+        "durationSeconds": 313.978167,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1381,10 +2018,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/48-wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio-1.opus",
+        "format": "opus",
         "sizeBytes": 9976771,
-        "sha256": "2896b73780953ef3fdfc501c3f7de284ff8467c23ff12bb67e85565892a10696"
+        "sha256": "2896b73780953ef3fdfc501c3f7de284ff8467c23ff12bb67e85565892a10696",
+        "sourcePath": "offline-media/pack-v1/48-wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio.ogg",
+        "sourceBytes": 9976771,
+        "sourceHash": "2896b73780953ef3fdfc501c3f7de284ff8467c23ff12bb67e85565892a10696",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-i-allegro-con-brio-1.opus",
+        "optimizedBytes": 4021714,
+        "optimizedHash": "ad66759e190ae91ea9c41f26a0192fee305728f439f89744cb4b6efaa4299197",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 402.99102,
+        "durationSeconds": 402.997521,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1409,10 +2059,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/49-wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto-1.opus",
+        "format": "opus",
         "sizeBytes": 4948363,
-        "sha256": "d8a7d159199cac35174cbc7a0dac5fd29be6e44dbd33fce7d9baad5a8c90a240"
+        "sha256": "d8a7d159199cac35174cbc7a0dac5fd29be6e44dbd33fce7d9baad5a8c90a240",
+        "sourcePath": "offline-media/pack-v1/49-wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto.ogg",
+        "sourceBytes": 4948363,
+        "sourceHash": "d8a7d159199cac35174cbc7a0dac5fd29be6e44dbd33fce7d9baad5a8c90a240",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-iii-minuetto-1.opus",
+        "optimizedBytes": 2077346,
+        "optimizedHash": "8190d036b7e47a5643adedfeb8eae0fb56f529b86d237c5cae371eed8cc15252",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 199.915102,
+        "durationSeconds": 199.921604,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
@@ -1437,10 +2100,23 @@
     "genre": "instrumental / classical",
     "files": [
       {
-        "path": "offline-media/pack-v1/50-wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto.ogg",
-        "format": "ogg",
+        "path": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto-1.opus",
+        "format": "opus",
         "sizeBytes": 7705847,
-        "sha256": "de0f4cb0bee29d531c9b1cc9646f7fc6e333aa580a55902742bbece7d292bc02"
+        "sha256": "de0f4cb0bee29d531c9b1cc9646f7fc6e333aa580a55902742bbece7d292bc02",
+        "sourcePath": "offline-media/pack-v1/50-wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto.ogg",
+        "sourceBytes": 7705847,
+        "sourceHash": "de0f4cb0bee29d531c9b1cc9646f7fc6e333aa580a55902742bbece7d292bc02",
+        "sourceFormat": "opus",
+        "optimizedPath": "offline-media/optimized/wm-klaviersonate-nr-11-b-dur-op-22-iv-rondo-allegretto-1.opus",
+        "optimizedBytes": 3257257,
+        "optimizedHash": "66b0c04ee998f472a493bf3cd9f99ce19eb43777d6ef2ca1e41162dc51fbd49e",
+        "optimizedCodec": "opus",
+        "optimizedBitrate": 96000,
+        "sourceDurationSeconds": 324.127347,
+        "durationSeconds": 324.133854,
+        "optimizedSampleRate": 48000,
+        "optimizedChannels": 2
       }
     ],
     "duration": null,
