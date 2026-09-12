@@ -29,6 +29,9 @@ jobs:
       - name: Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Permitir execução do Gradle Wrapper
+        run: chmod +x android-elo/gradlew
+
       - name: Build debug APK
         working-directory: android-elo
         run: ./gradlew assembleDebug --no-daemon --stacktrace
