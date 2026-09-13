@@ -39,15 +39,6 @@ android {
         noCompress += listOf("mp3", "ogg", "oga", "opus")
     }
 
-    testOptions {
-        unitTests.all {
-            val localTestClasses = files(
-                "$buildDir/tmp/kotlin-classes/debugUnitTest",
-                "$buildDir/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes"
-            )
-            it.classpath = it.classpath.plus(localTestClasses)
-        }
-    }
 }
 
 dependencies {
