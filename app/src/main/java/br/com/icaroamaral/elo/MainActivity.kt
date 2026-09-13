@@ -24,6 +24,8 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
@@ -45,6 +47,7 @@ class MainActivity : Activity() {
     private lateinit var offlineController: EloOfflineController
     private var lastConnectivityState: EloConnectivityState? = null
     @Volatile private var currentPageUrl: String? = null
+    private var pendingWebAudioRequest: PermissionRequest? = null
 
     private val connectivityTicker = object : Runnable {
         override fun run() {
@@ -95,6 +98,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(connectivityTicker)
+        pendingWebAudioRequest?.deny()
+        pendingWebAudioRequest = null
         offlineController.release()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface(BRIDGE_NAME)
@@ -114,8 +119,16 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_AUDIO && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            mainHandler.post { wakeController.setWakeEnabled(true) }
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        when (requestCode) {
+            REQ_AUDIO -> {
+                if (granted) {
+                    mainHandler.post { wakeController.setWakeEnabled(true) }
+                } else {
+                    Toast.makeText(this, "O microfone é necessário para ativar a voz do ELO.", Toast.LENGTH_LONG).show()
+                }
+            }
+            REQ_WEB_AUDIO -> completePendingWebAudioPermission(granted)
         }
     }
 
@@ -140,6 +153,7 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 26) CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
             addJavascriptInterface(bridge, BRIDGE_NAME)
             webViewClient = secureClient()
+            webChromeClient = secureChromeClient()
         }
 
         val verticalRoot = LinearLayout(this).apply {
@@ -176,6 +190,52 @@ class MainActivity : Activity() {
         val restoredHistory = webView.restoreState(savedInstanceState) ?: return false
         if (restoredHistory.size <= 0) return false
         return true
+    }
+
+    private fun secureChromeClient(): WebChromeClient {
+        return object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                mainHandler.post { handleWebPermissionRequest(request) }
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest) {
+                mainHandler.post {
+                    if (pendingWebAudioRequest === request) pendingWebAudioRequest = null
+                }
+            }
+        }
+    }
+
+    private fun handleWebPermissionRequest(request: PermissionRequest) {
+        val audioResources = request.resources.filter {
+            it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+        }.toTypedArray()
+        if (audioResources.isEmpty() || !originPolicy.isTrustedUrl(request.origin?.toString())) {
+            request.deny()
+            return
+        }
+
+        pendingWebAudioRequest?.takeUnless { it === request }?.deny()
+        pendingWebAudioRequest = null
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            request.grant(audioResources)
+            return
+        }
+
+        pendingWebAudioRequest = request
+        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_WEB_AUDIO)
+    }
+
+    private fun completePendingWebAudioPermission(granted: Boolean) {
+        val request = pendingWebAudioRequest
+        pendingWebAudioRequest = null
+        if (request == null) return
+        if (granted) {
+            request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+        } else {
+            request.deny()
+            Toast.makeText(this, "O microfone é necessário para usar a voz do ELO.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun secureClient(): WebViewClient {
@@ -499,6 +559,7 @@ class MainActivity : Activity() {
         private const val OFFLINE_STATUS_TEXT = "Offline"
         private const val CONNECTIVITY_TICK_MS = 1500L
         private const val REQ_AUDIO = 10
+        private const val REQ_WEB_AUDIO = 11
         private const val PREFS = "elo_shell"
         private const val KEY_PLAYER_MOVED = "player_moved"
         private const val KEY_PLAYER_X = "player_x"
