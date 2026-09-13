@@ -1156,6 +1156,7 @@
         clientId: clean(work.clientId || work.client_id),
         address: clean(work.address || work.endereco),
         type: clean(work.type || work.tipo),
+        entityType: "work",
         status: clean(work.status)
       } : null;
     }).filter(function (work) { return !!(work && work.id && work.name); });
@@ -1240,10 +1241,6 @@
     }
     if (works.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: Object.assign({ source: "obrareport_local_storage" }, works[0]) };
     if (works.length > 1) return { ok: false, reason: "work_selection_required", works };
-    if (identity.projectId) {
-      const contextWork = works.find(function (work) { return work.id === identity.projectId; }) || null;
-      return { ok: true, source: "authenticated_context", works, work: Object.assign({ source: "authenticated_context" }, contextWork || { id: identity.projectId, name: identity.projectName || identity.projectId, clientId: identity.clientId }) };
-    }
     return { ok: false, reason: "no_works", works };
   }
 
@@ -1286,6 +1283,17 @@
       }));
     }
     const work = workResolution.work;
+    if (!work || work.entityType !== "work" || !work.id || !work.name) {
+      clearRdoPending();
+      return Promise.resolve(rdoResult(input, {
+        ok: false,
+        action: "rdo.create.preview",
+        mode: "blocked",
+        humanAnswer: "Para qual obra? Informe uma obra real cadastrada. Nenhum RDO foi criado.",
+        error: "rdo_work_entity_required",
+        data: { works: workResolution.works || [] }
+      }));
+    }
     const pendingExecute = makeRdoPending(input, intent, work);
     saveRdoPending(pendingExecute);
     return Promise.resolve(rdoResult(input, {
@@ -1298,6 +1306,7 @@
         "ACTION: rdo.create",
         "PROJECT: " + work.name,
         "PROJECT ID: " + work.id,
+        "ENTITY TYPE: WORK",
         "DATE: " + intent.targetDate,
         "CONFIRMATION REQUIRED: SIM",
         "WRITE EXECUTED: 0",
