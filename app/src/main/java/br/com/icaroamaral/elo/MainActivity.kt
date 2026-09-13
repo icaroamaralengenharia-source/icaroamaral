@@ -66,7 +66,8 @@ class MainActivity : Activity() {
             originPolicy = originPolicy,
             currentUrlProvider = { if (::webView.isInitialized) webView.url else null },
             wakeController = wakeController,
-            offlineController = offlineController
+            offlineController = offlineController,
+            wakePermissionRequester = { enabled -> requestMicThenSetWake(enabled) }
         )
         buildShell()
         if (!restoreWebViewState(savedInstanceState)) {
@@ -113,7 +114,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_AUDIO && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            wakeController.setWakeEnabled(true)
+            mainHandler.post { wakeController.setWakeEnabled(true) }
         }
     }
 
@@ -201,6 +202,7 @@ class MainActivity : Activity() {
                 if (originPolicy.isTrustedUrl(url)) {
                     view.visibility = View.VISIBLE
                     installOfflineChatBridge(view)
+                    installEloAppHotfixes(view)
                     renderConnectivityState()
                 } else {
                     showCompactOfflineStatus()
@@ -227,6 +229,7 @@ class MainActivity : Activity() {
         val state = EloConnectivity.snapshot(this)
         if (state == lastConnectivityState) return
         lastConnectivityState = state
+        notifyWebConnectivityState()
         if (state == EloConnectivityState.ONLINE_VALIDATED) {
             offlineStatus.visibility = View.GONE
         } else {
@@ -285,7 +288,7 @@ class MainActivity : Activity() {
         panel.addView(TextView(this).apply {
             tag = PLAYER_TITLE_TAG
             text = title
-            textSize = 14f
+            textSize = 12f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(8))
@@ -297,8 +300,8 @@ class MainActivity : Activity() {
 
         installDragHandle(handle, panel)
         musicPanel = panel
-        rootFrame.addView(panel, FrameLayout.LayoutParams(dp(300), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            setMargins(dp(12), dp(12), dp(12), dp(24))
+        rootFrame.addView(panel, FrameLayout.LayoutParams(dp(250), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.RIGHT).apply {
+            setMargins(dp(12), dp(72), dp(12), dp(12))
         })
         panel.post { restoreOrPlaceMusicPanel(panel) }
     }
@@ -352,7 +355,7 @@ class MainActivity : Activity() {
             moveMusicPanel(panel, prefs.getFloat(KEY_PLAYER_X, panel.x), prefs.getFloat(KEY_PLAYER_Y, panel.y), persist = false)
         } else {
             val x = (rootFrame.width - panel.width) / 2f
-            val y = (rootFrame.height - panel.height - dp(24)).toFloat()
+            val y = dp(72).toFloat()
             moveMusicPanel(panel, x, y, persist = false)
         }
     }
@@ -392,6 +395,11 @@ class MainActivity : Activity() {
             .putFloat(KEY_PLAYER_X, panel.x)
             .putFloat(KEY_PLAYER_Y, panel.y)
             .apply()
+    }
+
+    private fun installEloAppHotfixes(view: WebView) {
+        view.evaluateJavascript(EloWebViewHotfix.installScript(), null)
+        notifyWebConnectivityState()
     }
 
     private fun installOfflineChatBridge(view: WebView) {
@@ -434,6 +442,11 @@ class MainActivity : Activity() {
         view.evaluateJavascript(js, null)
     }
 
+    private fun notifyWebConnectivityState() {
+        if (!::webView.isInitialized || !originPolicy.isTrustedUrl(webView.url ?: return)) return
+        webView.evaluateJavascript(EloWebViewHotfix.connectivityScript(EloConnectivity.snapshot(this).name), null)
+    }
+
     private fun requestMicThenSetWake(enabled: Boolean) {
         if (!enabled) {
             wakeController.setWakeEnabled(false)
@@ -443,7 +456,7 @@ class MainActivity : Activity() {
             wakeController.setWakeEnabled(true)
             return
         }
-        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO)
+        mainHandler.post { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO) }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -451,7 +464,7 @@ class MainActivity : Activity() {
     companion object {
         const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html"
         const val BRIDGE_NAME = "EloNativeBridge"
-        private const val OFFLINE_STATUS_TEXT = "ELO offline - recursos locais disponiveis"
+        private const val OFFLINE_STATUS_TEXT = "Offline"
         private const val CONNECTIVITY_TICK_MS = 1500L
         private const val REQ_AUDIO = 10
         private const val PREFS = "elo_shell"
