@@ -4809,3 +4809,82 @@ test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa 
   assert.doesNotMatch(elementText(messages), /Certo\.\s*$/);
   assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 1);
 });
+
+test('ELO Action Bus RDO auth: execute usa sessao atual do EloCanonicalSession, nao token do preview', async () => {
+  const calls = [];
+  const staleToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'stale-user' });
+  const currentToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-current-token', name: 'Obra Auth Atual', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: currentToken } }), 'obrareport-saas-v1': workState },
+    window: {
+      ELO_AUTH_TOKEN: staleToken,
+      ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co',
+      ELO_SUPABASE_ANON_KEY: 'anon-key',
+      ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com',
+      EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: currentToken }) }
+    },
+    fetch(url, config = {}) {
+      const call = { href: String(url), method: config.method || 'GET', headers: config.headers || {} };
+      calls.push(call);
+      if (call.href.includes('/api/obrareport/rdos') && call.method === 'POST') return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: 'rdo-current-token', project_id: 'work-current-token', rdo_date: '2026-09-13' } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const context = { authToken: staleToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  const preview = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Auth Atual', { context });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  const rdoPosts = calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos'));
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(rdoPosts.length, 1);
+  assert.equal(rdoPosts[0].headers.Authorization, 'Bearer ' + currentToken);
+  assert.notEqual(rdoPosts[0].headers.Authorization, 'Bearer ' + staleToken);
+});
+
+test('ELO Action Bus RDO auth: token expirado renova sessao Supabase uma unica vez antes do POST', async () => {
+  const calls = [];
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60, sub: 'user-a' });
+  const refreshedToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-refresh', name: 'Obra Refresh', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: expiredToken, refresh_token: 'refresh-a' } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: expiredToken, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com', EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: expiredToken, refresh_token: 'refresh-a' }) } },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method, headers: config.headers || {} });
+      if (href.includes('/auth/v1/token?grant_type=refresh_token')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ access_token: refreshedToken, refresh_token: 'refresh-b', user: { id: 'user-a' } }) });
+      if (href.includes('/api/obrareport/rdos') && method === 'POST') return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: 'rdo-refresh', project_id: 'work-refresh', rdo_date: '2026-09-13' } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const context = { authToken: expiredToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Refresh', { context });
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  const refreshes = calls.filter((call) => call.href.includes('/auth/v1/token?grant_type=refresh_token'));
+  const rdoPosts = calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos'));
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(refreshes.length, 1);
+  assert.equal(rdoPosts.length, 1);
+  assert.equal(rdoPosts[0].headers.Authorization, 'Bearer ' + refreshedToken);
+});
+
+test('ELO Action Bus RDO auth: sessao invalida bloqueia execute sem POST', async () => {
+  const calls = [];
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-invalid-session', name: 'Obra Invalid Session', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: expiredToken } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: expiredToken, ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com', EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: expiredToken }) } },
+    fetch(url, config = {}) { calls.push({ href: String(url), method: config.method || 'GET' }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) }); }
+  });
+  const context = { authToken: expiredToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Invalid Session', { context });
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(confirmed.commandBridge.error, 'invalid_session');
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 0);
+});
