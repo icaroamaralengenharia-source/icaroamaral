@@ -4658,3 +4658,76 @@ test('ELO Web TTS nao reinicia quando callbacks antigos chegam depois do stop', 
   assert.equal(speakCount, 1);
   assert.equal(fallback.elo.getSpeechStateForTest().state, 'idle');
 });
+
+test('ELO Action Bus RDO: hidrata contexto canonico imediatamente antes da action embedded', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const expectedId = 'work-canonical-auth-001';
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' },
+    { id: 'work-other-002', name: 'Outra obra', clientId: 'client-other' }
+  ], clients: [
+    { id: 'client-test', name: 'CLIENTE TESTE ELO E2E' }
+  ], reports: [], dailyLogs: [] });
+  const canonical = {
+    userId: 'canonical-user-1',
+    role: 'admin',
+    institutionId: 'tenant-canonical-1',
+    companyId: 'company-canonical-1',
+    profile: {
+      id: 'canonical-user-1',
+      role: 'admin',
+      institution_id: 'tenant-canonical-1',
+      company_id: 'company-canonical-1'
+    }
+  };
+  const { elo, localStorage, context } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: {
+      'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }),
+      'obrareport-saas-v1': workState
+    },
+    window: {
+      ELO_AUTH_TOKEN: token,
+      ELO_AUTH_CONTEXT: canonical,
+      ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co',
+      ELO_SUPABASE_ANON_KEY: 'anon-key',
+      ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com'
+    },
+    fetch(url, config = {}) {
+      calls.push({ href: String(url), method: config.method || 'GET' });
+      if (String(url).includes('/api/obrareport/rdos') && (config.method || 'GET') !== 'GET') throw new Error('rdo_write_should_wait_for_confirm');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const staleEmbeddedContext = {
+    userId: 'embedded-user-1',
+    role: '',
+    institutionId: null,
+    companyId: undefined,
+    identity: { userId: 'embedded-user-1', institutionId: '', companyId: {} }
+  };
+
+  const hydrated = context.window.EloActionBusRdo.resolveCanonicalAuthContext();
+  assert.equal(hydrated.userId, 'canonical-user-1');
+  assert.equal(hydrated.role, 'admin');
+  assert.equal(hydrated.institutionId, 'tenant-canonical-1');
+  assert.equal(hydrated.companyId, 'company-canonical-1');
+
+  const choose = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context: staleEmbeddedContext });
+  assert.equal(choose.commandBridge.error, 'work_selection_required');
+  assert.doesNotMatch(choose.fullAnswer, /Preciso do tenant\/empresa ativo/i);
+  assert.match(choose.fullAnswer, /Para qual obra/i);
+  assert.equal(choose.commandBridge.data.pending.identity.institutionId, 'tenant-canonical-1');
+  assert.equal(choose.commandBridge.data.pending.identity.companyId, 'company-canonical-1');
+  assert.equal(choose.commandBridge.data.pending.identity.userId, 'canonical-user-1');
+  assert.equal(localStorage.getItem('elo_action_bus_rdo_pending_v1') !== null, true);
+
+  const preview = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context: staleEmbeddedContext });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
+  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
+  assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
+});
