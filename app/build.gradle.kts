@@ -53,4 +53,5 @@ android {
 dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
     testImplementation(kotlin("test-junit"))
+    testImplementation("org.json:json:20240303")
 }
