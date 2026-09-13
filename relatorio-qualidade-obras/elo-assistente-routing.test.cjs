@@ -4731,3 +4731,81 @@ test('ELO Action Bus RDO: hidrata contexto canonico imediatamente antes da actio
   assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
 });
+
+
+test("ELO Action Bus RDO: confirmações explícitas priorizam pending, cancelam e não capturam frase ambígua", async () => {
+  async function prepare() {
+    const calls = [];
+    const token = createEloHotfixToken();
+    const workState = JSON.stringify({ version: 1, works: [{ id: "work-confirmation-1", name: "Obra confirmação", clientId: "client-1" }], clients: [], reports: [], dailyLogs: [] });
+    const context = { identity: { institutionId: "inst_auth", companyId: "inst_auth", userId: "profile_auth" } };
+    const { elo, localStorage } = loadEloContext({
+      preloadScripts: ["elo-command-bridge.js"],
+      localStorage: { "sb-elo-core-auth-token": JSON.stringify({ currentSession: { access_token: token } }), "obrareport-saas-v1": workState },
+      window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com" },
+      fetch(url, config = {}) {
+        const href = String(url);
+        const method = config.method || "GET";
+        calls.push({ href, method });
+        if (href.includes("/api/obrareport/rdos") && method === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: "rdo-confirmation-1", project_id: "work-confirmation-1", rdo_date: "2026-09-13" } }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+      }
+    });
+    const preview = await elo.buildCommandBridgeResponseForTest("crie um RDO para hoje", { context });
+    assert.equal(preview.commandBridge.requiresConfirmation, true);
+    return { elo, localStorage, calls, context };
+  }
+
+  for (const phrase of ["sim", "s", "confirmo", "confirmar", "pode criar", "pode prosseguir", "prossiga", "pode executar"]) {
+    const { elo, calls, context } = await prepare();
+    const request = elo.detectCommandBridgeRequestForTest(phrase);
+    assert.equal(request.action, "rdo_confirm", phrase);
+    const confirmed = await elo.buildCommandBridgeResponseForTest(phrase, { context });
+    assert.equal(confirmed.commandBridge.action, "rdo.create.execute", phrase);
+    assert.equal(calls.filter((call) => call.method === "POST").length, 1, phrase);
+  }
+
+  for (const phrase of ["não", "nao", "cancelar", "cancela", "não prossiga"]) {
+    const cancelledCase = await prepare();
+    const cancelRequest = cancelledCase.elo.detectCommandBridgeRequestForTest(phrase);
+    assert.equal(cancelRequest.action, "rdo_cancel", phrase);
+    const cancelled = await cancelledCase.elo.buildCommandBridgeResponseForTest(phrase, { context: cancelledCase.context });
+    assert.equal(cancelledCase.calls.filter((call) => call.method === "POST").length, 0, phrase);
+    assert.equal(cancelledCase.localStorage.getItem("elo_action_bus_rdo_pending_v1"), null, phrase);
+    assert.match(cancelled.fullAnswer, /cancelada/i, phrase);
+  }
+
+  const ambiguousCase = await prepare();
+  assert.equal(ambiguousCase.elo.detectCommandBridgeRequestForTest("sim, pode criar porque revisei tudo"), null);
+  assert.equal(ambiguousCase.calls.filter((call) => call.method === "POST").length, 0);
+});
+
+
+test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa geral", async () => {
+  const calls = [];
+  const messages = createElement("div");
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [{ id: "work-ask-confirm-1", name: "Obra ask confirmação", clientId: "client-1" }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ["elo-command-bridge.js"],
+    localStorage: { "sb-elo-core-auth-token": JSON.stringify({ currentSession: { access_token: token } }), "obrareport-saas-v1": workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_CONTEXT: { userId: "user-1", role: "admin", institutionId: "inst-1", companyId: "company-1" }, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com" },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || "GET";
+      calls.push({ href, method });
+      if (href.includes("/api/obrareport/rdos") && method === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: "rdo-ask-confirm-1", project_id: "work-ask-confirm-1", rdo_date: "2026-09-13" } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask("crie um RDO para hoje", [], "manual");
+  await flushEloHotfixPromises();
+  assert.match(elementText(messages), /CONFIRMATION REQUIRED: SIM/);
+  assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0, JSON.stringify(calls));
+  elo.ask("sim", [], "manual");
+  await flushEloHotfixPromises();
+  assert.match(elementText(messages), /RDO criado pelo ELO/);
+  assert.doesNotMatch(elementText(messages), /Certo\.\s*$/);
+  assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 1);
+});

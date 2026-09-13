@@ -1035,7 +1035,7 @@
     const text = normalize(raw);
     const nowDate = payload.now ? new Date(payload.now) : new Date();
     const parsed = {
-      action: /^rdo\./.test(action) ? action : action === "rdo_confirm" ? "rdo.confirm" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
+      action: /^rdo\./.test(action) ? action : action === "rdo_confirm" ? "rdo.confirm" : action === "rdo_cancel" ? "rdo.cancel" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
       raw,
       rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
       projectId: clean(payload.projectId || payload.project_id),
@@ -1553,6 +1553,14 @@
     if (pending && pending.action === "rdo.update.execute") return executePendingRdoUpdate(input, pending);
     return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.confirm", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para confirmar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
   }
+  function executeRdoCancel(input) {
+    const pending = readRdoPending();
+    if (!pending || !/^rdo\.(?:create|update)\.execute$/.test(String(pending.action || "")) || pending.status !== "pending") {
+      return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.cancel", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para cancelar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
+    }
+    clearRdoPending();
+    return Promise.resolve(rdoResult(input, { action: "rdo.cancel", mode: "cancel", humanAnswer: "A ação de RDO foi cancelada. Nenhum RDO foi criado ou atualizado.", data: { pending } }));
+  }
   function executeRdo(input) {
     input = Object.assign({}, input || {}, { context: Object.assign({}, input && input.context || {}) });
     return getCanonicalRdoSession_(input).then(function (session) {
@@ -1562,7 +1570,7 @@
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
       if (intent.invalidPeriod) return rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" });
-      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
+      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.cancel" ? executeRdoCancel : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
       return run(input, intent).catch(function (error) {
         const code = clean(error && error.message) || "rdo_error";
         if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
