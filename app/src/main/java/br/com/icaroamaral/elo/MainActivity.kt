@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var wakeController: EloWakeController
     private lateinit var offlineController: EloOfflineController
     private var lastConnectivityState: EloConnectivityState? = null
+    @Volatile private var currentPageUrl: String? = null
 
     private val connectivityTicker = object : Runnable {
         override fun run() {
@@ -64,7 +65,7 @@ class MainActivity : Activity() {
         bridge = EloNativeBridge(
             context = this,
             originPolicy = originPolicy,
-            currentUrlProvider = { if (::webView.isInitialized) webView.url else null },
+            currentUrlProvider = { currentPageUrl },
             wakeController = wakeController,
             offlineController = offlineController,
             wakePermissionRequester = { enabled -> requestMicThenSetWake(enabled) }
@@ -189,6 +190,7 @@ class MainActivity : Activity() {
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                currentPageUrl = url
                 loading.visibility = View.VISIBLE
                 if (originPolicy.isTrustedUrl(url)) {
                     view.addJavascriptInterface(bridge, BRIDGE_NAME)
@@ -198,6 +200,7 @@ class MainActivity : Activity() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                currentPageUrl = url
                 loading.visibility = View.GONE
                 if (originPolicy.isTrustedUrl(url)) {
                     view.visibility = View.VISIBLE
