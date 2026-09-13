@@ -23524,4 +23524,46 @@
     createConfirmedProduct: createConfirmedOperationalProduct_,
     createConfirmedExit: createConfirmedOperationalExit_
   });
+
+  function buildEloSurfaceAuthContext_() {
+    const user = currentUser && typeof currentUser === "object" ? currentUser : {};
+    const session = appState && appState.session && typeof appState.session === "object" ? appState.session : {};
+    const profile = {
+      id: clean(user.id), name: clean(user.name), email: clean(user.email),
+      role: clean(user.role) || getUserRole_(user), status: clean(user.status),
+      institution_id: clean(user.institutionId || user.institution_id || session.institutionId || session.institution_id),
+      company_id: clean(user.companyId || user.company_id || session.companyId || session.company_id),
+      tenant_id: clean(user.tenantId || user.tenant_id || session.tenantId || session.tenant_id),
+      unit_id: clean(user.unitId || user.unit_id || session.unitId || session.unit_id)
+    };
+    const institutionId = clean(profile.institution_id);
+    const companyId = clean(profile.company_id);
+    const tenantId = clean(profile.tenant_id || companyId || institutionId);
+    return {
+      userId: clean(user.id || session.userId), institutionId: institutionId, companyId: companyId,
+      tenantId: tenantId, role: profile.role,
+      permissions: Array.isArray(user.permissions) ? user.permissions.slice(0, 80).map(clean).filter(Boolean) : [],
+      profile: profile
+    };
+  }
+
+  function buildEloSurfaceContext_() {
+    const auth = buildEloSurfaceAuthContext_();
+    const works = Array.isArray(appState && appState.works) ? appState.works : [];
+    const currentWorkId = clean(appState && appState.local && appState.local.lastWorkId);
+    const currentWork = works.find(function (work) { return clean(work && work.id) === currentWorkId; }) || null;
+    return {
+      version: 1, source: "obrareport", auth: auth,
+      currentUser: auth.userId ? Object.assign({}, auth.profile, { id: auth.userId }) : null,
+      tenant: { id: auth.tenantId, institutionId: auth.institutionId, companyId: auth.companyId },
+      currentWork: currentWork ? {
+        id: clean(currentWork.id), name: clean(currentWork.name || currentWork.nome),
+        clientId: clean(currentWork.clientId || currentWork.client_id), address: clean(currentWork.address || currentWork.endereco),
+        type: clean(currentWork.type || currentWork.tipo), status: clean(currentWork.status)
+      } : null,
+      obraReportState: { storageKey: saasStoreKey, version: Number(appState && appState.version) || 1, workCount: works.length },
+      memoryContext: { storageKey: "elo_core_auth_context_v1" }
+    };
+  }
+  window.ObraReportEloSurface = Object.assign({}, window.ObraReportEloSurface || {}, { getContext: buildEloSurfaceContext_ });
 })();

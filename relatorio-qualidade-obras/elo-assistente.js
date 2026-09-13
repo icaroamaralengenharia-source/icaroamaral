@@ -2563,6 +2563,31 @@
   function clearEloCoreLocalConversationState_() { clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); setEloCoreCurrentConversationId_(""); ELO_UI.coreConversationId = ""; ELO_UI.historySnapshot = null; ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; if (ELO_UI.messages) { ELO_UI.messages.textContent = ""; } if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); updateEloComposerHeight_(); }
   function normalizeEloCoreAuthContext_(context) { const source = context && typeof context === "object" ? context : {}; const profileSource = source.profile && typeof source.profile === "object" ? source.profile : {}; const profile = { id: sanitizeUserText(profileSource.id).slice(0, 140), institution_id: sanitizeUserText(profileSource.institution_id).slice(0, 140), company_id: sanitizeUserText(profileSource.company_id).slice(0, 140), unit_id: sanitizeUserText(profileSource.unit_id).slice(0, 140), name: sanitizeUserText(profileSource.name).slice(0, 140), email: sanitizeUserText(profileSource.email).slice(0, 180), role: sanitizeUserText(profileSource.role).slice(0, 80), status: sanitizeUserText(profileSource.status).slice(0, 80) }; const institutionId = sanitizeUserText(source.institutionId || profile.institution_id || profile.company_id).slice(0, 140); const companyId = sanitizeUserText(source.companyId || profile.company_id || profile.institution_id).slice(0, 140); return { userId: sanitizeUserText(source.userId || profile.id).slice(0, 140), institutionId: institutionId, companyId: companyId, projectId: sanitizeUserText(source.projectId).slice(0, 140), role: sanitizeUserText(source.role || profile.role).slice(0, 80), permissions: Array.isArray(source.permissions) ? source.permissions.map(function (item) { return sanitizeUserText(item).slice(0, 80); }).filter(Boolean).slice(0, 80) : [], profile: profile }; }
   function shouldEloCoreClearConversationOnIdentityChange_() { return !ELO_UI.allowAuthContextChangeDuringBootstrap && !ELO_UI.userInteractedSinceBootstrap && getEloCoreUserMessageCount_() === 0; }
+  function getObraReportEloSurfaceContext_() {
+    const provider = window.ObraReportEloSurface;
+    if (!provider || typeof provider.getContext !== "function") return null;
+    try { const context = provider.getContext(); return context && typeof context === "object" ? context : null; } catch (error) { return null; }
+  }
+  function buildEloSurfaceContext_(surface, auth) {
+    const reportContext = getObraReportEloSurfaceContext_() || {};
+    return {
+      version: 1, source: sanitizeUserText(reportContext.source || surface || "elo"),
+      auth: normalizeEloCoreAuthContext_(auth || {}), currentUser: surface === "report" ? reportContext.currentUser || null : null,
+      tenant: reportContext.tenant || {}, currentWork: reportContext.currentWork || null,
+      obraReportState: Object.assign({ storageKey: "obrareport-saas-v1" }, reportContext.obraReportState || {}),
+      memoryContext: Object.assign({ storageKey: ELO_CORE_AUTH_CONTEXT_STORAGE_KEY }, reportContext.memoryContext || {})
+    };
+  }
+  function handoffEloSurfaceContext_(config) {
+    const surface = sanitizeUserText(config && config.surface || "elo") || "elo";
+    const reportContext = getObraReportEloSurfaceContext_();
+    let auth = normalizeEloCoreAuthContext_(getEloCoreAuthContext_());
+    if (surface === "report" && reportContext && reportContext.auth && reportContext.auth.userId) auth = applyEloCoreAuthContext_(reportContext.auth);
+    const context = buildEloSurfaceContext_(surface, auth);
+    context.memoryContext = Object.assign({}, context.memoryContext, { identityScope: getEloCoreStorageIdentityScope_() });
+    window.ELO_SURFACE_CONTEXT = context;
+    return context;
+  }
   function applyEloCoreAuthContext_(context) { if (!context || typeof context !== "object") return {}; const previousIdentity = getEloCoreAuthContextIdentity_(getEloCoreAuthContext_()); const safe = normalizeEloCoreAuthContext_(context); const nextIdentity = getEloCoreAuthContextIdentity_(safe); if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity && shouldEloCoreClearConversationOnIdentityChange_()) clearEloCoreLocalConversationState_(); window.ELO_AUTH_CONTEXT = safe; if (safe.userId) window.ELO_AUTH_USER_ID = safe.userId; try { window.sessionStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} return safe; }
   function applyEloCoreAuthContextFromResponse_(data) { if (data && data.authContext) applyEloCoreAuthContext_(data.authContext); }
   function applyEloCoreSupabaseUserContext_(user) {
@@ -34235,6 +34260,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function initializeEloCoreSurface(options) {
     const config = options || {};
+    handoffEloSurfaceContext_(config);
     const panel = document.querySelector(config.panel || ".elo-standalone-panel");
     if (!panel) {
       return false;
@@ -34503,6 +34529,7 @@ function isEloResidentialNewPipelineEnabled_() {
       };
     },
     getCoreIdentityForTest: getEloCoreIdentity_,
+    buildSurfaceContextForTest: function (surface, auth) { return buildEloSurfaceContext_(surface || "elo", auth || getEloCoreAuthContext_()); },
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
     routeCoreIntentsForTest: routeEloCoreIntents_,
