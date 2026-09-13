@@ -116,6 +116,22 @@ public class EloOfflineEngineTest {
         assertEquals("base local", current.handle("impermeabilização").getText());
     }
 
+    @Test public void simulacaoConversaOffline() {
+        EloOfflineEngine current = engine("2025-12-31T15:00:00Z");
+        String[] localRequests = {
+                "Bom dia", "Que dia é hoje?", "E amanhã?", "Quanto é 125 x 8?", "E vezes 3?",
+                "O que é impermeabilização?", "Toque Für Elise", "O que está tocando?", "Você funciona sem internet?"
+        };
+        for (String request : localRequests) {
+            EloOfflineResult result = current.handle(request);
+            assertTrue(request, result.getHandled());
+            assertFalse(request, result.getRequiresInternet());
+        }
+        EloOfflineResult online = current.handle("Pesquise o preço do cimento");
+        assertTrue(online.getHandled());
+        assertTrue(online.getRequiresInternet());
+    }
+
     private static EloOfflineEngine engine() { return engine("2025-06-15T15:00:00Z"); }
 
     private static EloOfflineEngine engine(String instant) {
