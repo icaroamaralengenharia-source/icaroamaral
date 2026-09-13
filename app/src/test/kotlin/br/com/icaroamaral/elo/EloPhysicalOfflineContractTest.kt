@@ -11,7 +11,7 @@ class EloPhysicalOfflineContractTest {
         val gradle = java.io.File("build.gradle.kts").readText()
 
         assertTrue(gradle.contains("versionCode = 3"))
-        assertTrue(gradle.contains("versionName = \"0.2.1\""))
+        assertTrue(gradle.contains("versionName = \"0.3.0\""))
     }
 
     @Test
@@ -50,7 +50,7 @@ class EloPhysicalOfflineContractTest {
     fun unsupportedOfflineTextKeepsWebFlowUnlessItIsHonestMusicMiss() {
         val gate = EloOfflineDispatchGate(clock = { 1_000L })
 
-        assertEquals(EloOfflineDispatchDecision.RouteWeb, gate.evaluate("oi", EloConnectivityState.OFFLINE))
+        assertEquals(EloOfflineDispatchDecision.DispatchNative, gate.evaluate("oi", EloConnectivityState.OFFLINE))
         assertEquals(EloOfflineDispatchDecision.DispatchNative, gate.evaluate("toque Take On Me", EloConnectivityState.OFFLINE))
     }
 
