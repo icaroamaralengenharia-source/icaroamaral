@@ -49,6 +49,9 @@ class EloOfflineLabCoreTest {
     @Test
     fun detectsOnlyExplicitOfflineIntents() {
         assertEquals(EloOfflineIntent.MUSIC_PLAY, EloOfflineRouter.detectIntent("toque Beethoven"))
+        assertEquals(EloOfflineIntent.CALCULATOR, EloOfflineRouter.detectIntent("17% de 850"))
+        assertEquals(EloOfflineIntent.CONVERSION, EloOfflineRouter.detectIntent("3,5 metros em centimetros"))
+        assertEquals(EloOfflineIntent.ENGINEERING, EloOfflineRouter.detectIntent("laje de 8 por 12 com 12 cm de espessura"))
         assertEquals(EloOfflineIntent.MUSIC_STOP, EloOfflineRouter.detectIntent("pare"))
         assertEquals(EloOfflineIntent.MEMORY_WRITE, EloOfflineRouter.detectIntent("lembre que meu cachorro se chama Thor"))
         assertEquals(EloOfflineIntent.MEMORY_READ, EloOfflineRouter.detectIntent("qual o nome do meu cachorro?"))
@@ -94,6 +97,43 @@ class EloOfflineLabCoreTest {
         assertTrue(result.handled)
         assertTrue(result.localStop)
         assertEquals(EloOfflineIntent.MUSIC_STOP, result.intent)
+    }
+
+    @Test
+    fun localToolsResolveWithoutProviderOrChatCalls() {
+        val router = EloOfflineRouter(FakeMemory(), emptyList())
+        assertEquals("4", router.route("2 + 2").message)
+        assertEquals("90", router.route("25 vezes 3,6").message)
+        assertEquals("144,5", router.route("17% de 850").message)
+        assertEquals("12", router.route("raiz de 144").message)
+        assertEquals("144", router.route("12 elevado a 2").message)
+        assertEquals("840", router.route("(35 x 18) + 210").message)
+        assertEquals("10", router.route("media de 8, 10 e 12").message)
+        assertEquals("350 cm", router.route("3,5 metros em centimetros").message)
+        assertEquals("18.000 L", router.route("18 m3 em litros").message)
+        assertEquals("25.000 kPa", router.route("25 MPa em kPa").message)
+        assertEquals("20.000 m²", router.route("2 hectares em m2").message)
+        assertEquals("1,5 m", router.route("1500 mm em m").message)
+        val concrete = router.route("laje de 8 por 12 com 12 cm de espessura")
+        assertTrue(concrete.handled)
+        assertEquals(EloOfflineIntent.ENGINEERING, concrete.intent)
+        assertTrue(concrete.message.contains("11,52 m³"))
+        assertTrue(concrete.message.contains("8 x 12 x 0,12 = 11,52 m³"))
+        assertTrue(router.route("área de 5 por 8").message.contains("40 m²"))
+        assertTrue(router.route("perímetro de 5 por 8").message.contains("26 m"))
+        assertTrue(router.route("rampa sobe 0,5 m em 10 m").message.contains("5%"))
+        assertEquals(0, concrete.providerCalls)
+        assertEquals(0, concrete.chatCalls)
+    }
+
+    @Test
+    fun localCalculatorBlocksInjectionAndDivisionByZero() {
+        val router = EloOfflineRouter(FakeMemory(), emptyList())
+        assertFalse(router.route("alert(1)").handled)
+        assertFalse(router.route("window.location").handled)
+        assertFalse(router.route("fetch('https://x.test')").handled)
+        assertFalse(router.route("__proto__").handled)
+        assertTrue(router.route("10 / 0").message.contains("dividir por zero"))
     }
 
     private class FakeMemory : EloOfflineMemoryContract {

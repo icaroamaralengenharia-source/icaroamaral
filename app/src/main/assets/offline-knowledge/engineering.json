@@ -1,0 +1,18 @@
+[
+  {"topic":"concreto","keywords":["concreto","fck"],"answer":"Concreto é uma mistura de cimento, agregados, água e, quando necessário, aditivos. A resistência e o controle devem seguir o projeto estrutural."},
+  {"topic":"alvenaria","keywords":["alvenaria","assentar bloco","parede"],"answer":"A sequência básica é: conferir projeto e locação, preparar a base, iniciar pelos cantos, assentar fiadas com prumo e nível, conferir vãos e finalizar amarrações e instalações previstas."},
+  {"topic":"argamassa","keywords":["argamassa","traço"],"answer":"A argamassa deve ser compatível com o serviço, aplicada sobre base preparada e protegida contra perda rápida de água."},
+  {"topic":"impermeabilização","keywords":["impermeabilização","infiltração","umidade"],"answer":"Impermeabilização é o conjunto de camadas e detalhes que impede a passagem de água. A base deve estar preparada, os encontros tratados e a proteção mecânica executada quando prevista."},
+  {"topic":"revestimentos","keywords":["revestimento","fissura","reboco","chapisco"],"answer":"Fissuras em revestimentos podem resultar de retração, base sem preparo, espessura excessiva, movimentação da estrutura, cura inadequada ou incompatibilidade entre camadas."},
+  {"topic":"cobertura","keywords":["cobertura","telhado","telha"],"answer":"Uma cobertura exige caimento, estrutura compatível, arremates, rufos, calhas e verificação da estanqueidade."},
+  {"topic":"instalações","keywords":["instalações","hidráulica","elétrica"],"answer":"Instalações devem seguir projeto, compatibilização, traçados acessíveis, testes e registros antes do fechamento das paredes."},
+  {"topic":"fiscalização","keywords":["fiscalização","inspeção","conferir obra"],"answer":"A fiscalização deve comparar serviço executado com projeto, registrar evidências, apontar não conformidades e acompanhar a correção."},
+  {"topic":"medição","keywords":["medição","medir serviço"],"answer":"A medição deve usar critérios definidos em contrato, conferir dimensões executadas e separar serviço aceito de pendências."},
+  {"topic":"quantitativos","keywords":["quantitativo","quantidade","m2","m3"],"answer":"Quantitativos dependem de geometria, unidades, vãos, perdas justificadas e critérios de medição claramente registrados."},
+  {"topic":"patologias","keywords":["patologia","corrosão","desplacamento"],"answer":"Patologias devem ser descritas por localização, manifestação, extensão, possível causa e evidência, sem concluir além do que a vistoria permite."},
+  {"topic":"vistoria","keywords":["vistoria","laudo","anomalia"],"answer":"Uma vistoria organizada registra ambiente, elemento, estado observado, fotos, risco aparente e recomendação de verificação."},
+  {"topic":"orçamento","keywords":["orçamento","custo","composição"],"answer":"Um orçamento confiável separa serviço, unidade, quantidade, composição, fonte de preço, premissas e itens ainda pendentes."},
+  {"topic":"arquitetura","keywords":["arquitetura","planta","ambiente"],"answer":"A arquitetura organiza usos, fluxos, dimensões, iluminação, ventilação, acessos e compatibilização com os demais projetos."},
+  {"topic":"acessibilidade","keywords":["acessibilidade","rota acessível","pessoa com deficiência"],"answer":"Acessibilidade deve ser considerada desde a implantação, garantindo rota contínua, circulação, uso e sinalização conforme o projeto aplicável."},
+  {"topic":"sequência executiva","keywords":["sequência executiva","etapas da obra","ordem de execução"],"answer":"A sequência executiva deve considerar preparação, estrutura, vedações, instalações, revestimentos, esquadrias, acabamentos, testes e entrega."}
+]

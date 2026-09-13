@@ -249,14 +249,17 @@ class MainActivity : Activity() {
     private fun renderPlaybackEvent(event: EloOfflinePlaybackUiEvent) {
         when (event) {
             is EloOfflinePlaybackUiEvent.Playing -> showMusicPanel(event.track)
+            is EloOfflinePlaybackUiEvent.PlayingV2 -> showMusicPanel(event.track.title)
             EloOfflinePlaybackUiEvent.Stopped -> hideMusicPanel()
         }
     }
 
-    private fun showMusicPanel(track: EloOfflineTrack) {
+    private fun showMusicPanel(track: EloOfflineTrack) = showMusicPanel(track.title)
+
+    private fun showMusicPanel(title: String) {
         val existing = musicPanel
         if (existing != null) {
-            existing.findViewWithTag<TextView>(PLAYER_TITLE_TAG)?.text = track.title
+            existing.findViewWithTag<TextView>(PLAYER_TITLE_TAG)?.text = title
             existing.visibility = View.VISIBLE
             clampMusicPanel()
             return
@@ -280,7 +283,7 @@ class MainActivity : Activity() {
         panel.addView(handle, LinearLayout.LayoutParams(dp(72), dp(5)).apply { gravity = Gravity.CENTER_HORIZONTAL })
         panel.addView(TextView(this).apply {
             tag = PLAYER_TITLE_TAG
-            text = track.title
+            text = title
             textSize = 14f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER

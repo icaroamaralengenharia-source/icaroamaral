@@ -10,10 +10,14 @@ class EloOfflineController(
     private val appContext = context.applicationContext
     private val router = EloOfflineRouter(appContext)
     private val player = EloOfflineMusicPlayer(appContext)
+    private val offlineV2 = EloOfflineV2Controller(appContext, playbackUiCallback)
 
     fun connectivityState(): String = EloConnectivity.snapshot(appContext).name
 
     fun playOfflineMusic(command: String): String {
+        if (EloConnectivity.snapshot(appContext) != EloConnectivityState.ONLINE_VALIDATED) {
+            offlineV2.handle(command)?.let { return it }
+        }
         val result = router.route(command)
         if (result.localStop) {
             player.stop()
@@ -28,12 +32,14 @@ class EloOfflineController(
     }
 
     fun stopMedia(): String {
+        offlineV2.stop()
         player.stop()
         playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
         return "{\"ok\":true,\"action\":\"stop\"}"
     }
 
     fun release() {
+        offlineV2.release()
         player.release()
     }
 
@@ -60,5 +66,6 @@ class EloOfflineController(
 
 sealed class EloOfflinePlaybackUiEvent {
     data class Playing(val track: EloOfflineTrack) : EloOfflinePlaybackUiEvent()
+    data class PlayingV2(val track: br.com.icaroamaral.elo.offlinev2.EloOfflineTrack) : EloOfflinePlaybackUiEvent()
     data object Stopped : EloOfflinePlaybackUiEvent()
 }

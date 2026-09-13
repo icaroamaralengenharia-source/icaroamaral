@@ -19,6 +19,9 @@ data class EloOfflineTrack(
 )
 
 enum class EloOfflineIntent {
+    CALCULATOR,
+    CONVERSION,
+    ENGINEERING,
     MUSIC_PLAY,
     MUSIC_STOP,
     MEMORY_WRITE,
@@ -55,7 +58,13 @@ class EloOfflineRouter(
     )
 
     fun route(command: String): EloOfflineRouteResult {
+        EloLocalToolEngine.handle(command)?.let { return it }
         return when (val intent = detectIntent(command)) {
+            EloOfflineIntent.CALCULATOR,
+            EloOfflineIntent.CONVERSION,
+            EloOfflineIntent.ENGINEERING ->
+                EloLocalToolEngine.handle(command)
+                    ?: error("Local tool intent was not handled: $intent")
             EloOfflineIntent.MUSIC_STOP -> EloOfflineRouteResult(
                 handled = true,
                 intent = intent,
@@ -116,6 +125,7 @@ class EloOfflineRouter(
 
         fun detectIntent(command: String): EloOfflineIntent {
             val lower = normalize(command)
+            EloLocalToolEngine.handle(command)?.let { return it.intent }
             return when {
                 Regex("^(pare|parar|stop|interrompa|pause)\\b").containsMatchIn(lower) -> EloOfflineIntent.MUSIC_STOP
                 Regex("^(toque|toca|tocar|coloque|reproduza|play)\\b").containsMatchIn(lower) -> EloOfflineIntent.MUSIC_PLAY

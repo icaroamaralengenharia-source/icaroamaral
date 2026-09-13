@@ -5,6 +5,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class EloPhysicalOfflineContractTest {
+
+    @Test
+    fun gradleVersionMatchesHotfixApk() {
+        val gradle = java.io.File("build.gradle.kts").readText()
+
+        assertTrue(gradle.contains("versionCode = 3"))
+        assertTrue(gradle.contains("versionName = \"0.2.1\""))
+    }
+
     @Test
     fun offlineSupportedMusicCommandsDispatchNativeOnce() {
         var now = 10_000L
@@ -71,10 +80,11 @@ class EloPhysicalOfflineContractTest {
     @Test
     fun mainActivityKeepsOfflineStatusCompactAndNonBlocking() {
         val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
-        assertTrue(source.contains("ELO offline - recursos locais disponiveis"))
+        assertTrue(source.contains("OFFLINE_STATUS_TEXT = \"Offline\""))
         assertTrue(source.contains("isClickable = false"))
         assertTrue(source.contains("SOFT_INPUT_ADJUST_RESIZE"))
         assertTrue(source.contains("mediaPlaybackRequiresUserGesture = false"))
+        assertTrue(source.contains("addView(offlineStatus, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))"))
         assertTrue(source.contains("addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))"))
     }
     @Test
@@ -101,5 +111,65 @@ class EloPhysicalOfflineContractTest {
         assertTrue(source.contains("window.dispatchEvent(new Event('resize'))"))
         assertTrue(source.contains("window.visualViewport.dispatchEvent(new Event('resize'))"))
         assertTrue(source.contains("if (window.__eloOfflineChatBridgeV1) return;"))
+    }
+    @Test
+    fun appInjectsWebHotfixesForHeaderHistoryDateAndConnectivity() {
+        val main = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+        val bridge = java.io.File("src/main/java/br/com/icaroamaral/elo/EloNativeBridge.kt").readText()
+        val hotfix = java.io.File("src/main/java/br/com/icaroamaral/elo/EloWebViewHotfix.kt").readText()
+
+        assertTrue(main.contains("installEloAppHotfixes(view)"))
+        assertTrue(main.contains("notifyWebConnectivityState()"))
+        assertTrue(main.contains("wakePermissionRequester = { enabled -> requestMicThenSetWake(enabled) }"))
+        assertTrue(main.contains("mainHandler.post { wakeController.setWakeEnabled(true) }"))
+        assertTrue(main.contains("mainHandler.post { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO) }"))
+        assertTrue(bridge.contains("fun getLocalDateTimeAnswer(command: String): String"))
+        assertTrue(bridge.contains("fun playResolvedOfflineMusic(command: String): String"))
+        assertTrue(bridge.contains("offlineController.playOfflineMusic(command)"))
+        assertTrue(bridge.contains("ZonedDateTime.now()"))
+        assertTrue(hotfix.contains("elo-native-status-chip"))
+        assertTrue(hotfix.contains("elo-native-pause-button"))
+        assertTrue(hotfix.contains("EDU-REX"))
+        assertTrue(hotfix.contains("window.EloPauseGame.open()"))
+        assertTrue(hotfix.contains("playResolvedOfflineMusic"))
+        assertTrue(hotfix.contains("ELO_NATIVE_LOCAL_MUSIC_FALLBACK"))
+        assertTrue(hotfix.contains("normalizeActionButtons"))
+        assertTrue(hotfix.contains("data-elo-native-no-chat-submit"))
+        assertTrue(hotfix.contains("Carregando histórico..."))
+        assertTrue(hotfix.contains("sem resumo salvo"))
+        assertTrue(hotfix.contains("removeIntrusiveOfflineNotices"))
+        assertTrue(hotfix.contains("data-elo-native-hidden-offline-notice"))
+        assertTrue(hotfix.contains("getLocalDateTimeAnswer"))
+        assertTrue(hotfix.contains("que dia e hoje"))
+        assertTrue(hotfix.contains("qual e a data de hoje"))
+        assertTrue(hotfix.contains("qual o horario"))
+        assertTrue(hotfix.contains("que horas sao"))
+        assertTrue(hotfix.contains("grid-template-columns:repeat(auto-fit"))
+        assertTrue(hotfix.contains("data-elo-history-panel"))
+        assertTrue(hotfix.contains("__eloAndroid021PhysicalHotfixV1"))
+    }
+
+    @Test
+    fun wakeServiceHandlesDateTimeAndWakeOnlyLocally() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/EloWakeService.kt").readText()
+
+        assertTrue(source.contains("handleLocalDateTimeCommand(cleanCommand)"))
+        assertTrue(source.contains("resolveLocalDateTimeAnswer(command: String)"))
+        assertTrue(source.contains("LOCAL_DEVICE_TIME"))
+        assertTrue(source.contains("SKIPPED_LOCAL_DEVICE_TIME"))
+        assertTrue(source.contains("acknowledgeWakeOnly()"))
+        assertTrue(source.contains("WAKE_LOCAL"))
+        assertTrue(source.contains("Bom dia. Pode falar."))
+        assertTrue(source.contains("Boa tarde. Pode falar."))
+        assertTrue(source.contains("Boa noite. Pode falar."))
+    }
+    @Test
+    fun nativePlayerStartsCompactAwayFromComposer() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+
+        assertTrue(source.contains("FrameLayout.LayoutParams(dp(250), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.RIGHT)"))
+        assertTrue(source.contains("setMargins(dp(12), dp(72), dp(12), dp(12))"))
+        assertTrue(source.contains("val y = dp(72).toFloat()"))
+        assertTrue(source.contains("textSize = 12f"))
     }
 }

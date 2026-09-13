@@ -21,6 +21,9 @@ import android.util.Log
 import android.view.KeyEvent
 import android.media.AudioManager
 import java.text.Normalizer
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private enum class WakeRecognizerState { IDLE, STARTING, LISTENING }
 
@@ -142,7 +145,7 @@ class EloWakeService : Service(), RecognitionListener {
 
     private val wakeOnlySettleRunnable = Runnable {
         if (serviceEnabled && state == EloConversationState.WAKE_LISTENING && wakeCandidate && commandStabilizer.snapshot().isBlank()) {
-            enterCommandListening()
+            acknowledgeWakeOnly()
         }
     }
 
@@ -488,6 +491,117 @@ class EloWakeService : Service(), RecognitionListener {
             .replace(Regex("\\s+"), " ")
             .trim()
     }
+
+    private fun handleLocalDateTimeCommand(command: String): Boolean {
+        val answer = resolveLocalDateTimeAnswer(command) ?: return false
+        val now = SystemClock.elapsedRealtime()
+        handler.removeCallbacks(inlineWakeDispatchRunnable)
+        handler.removeCallbacks(wakeOnlySettleRunnable)
+        handler.removeCallbacks(commandTimeoutRunnable)
+        cancelProcessingWatchdog()
+        wakeCandidate = false
+        lastWakeCandidate = "false"
+        lastDispatchedCommand = command
+        lastRawCommand = command
+        lastNormalizedCommand = normalizeStopText(command)
+        lastRouter = "LOCAL_DEVICE_TIME"
+        lastRouterAction = "date_time"
+        lastBackendAnswer = answer
+        lastTtsText = answer
+        lastAnswer = answer
+        lastAnswerLength = answer.length.toString()
+        lastCommand = command
+        lastTranscript = command
+        lastError = "none"
+        lastChatHttp = "SKIPPED_LOCAL_DEVICE_TIME"
+        lastChatBody = "-"
+        commandAcceptedAtMs = now
+        dispatchStartedAtMs = now
+        chatStartedAtMs = 0L
+        httpStartedAtMs = 0L
+        httpCompletedAtMs = 0L
+        answerParsedAtMs = now
+        answerReadyAtMs = now
+        processingEndedAtMs = now
+        chatResponseAtMs = now
+        currentGeneration += 1
+        val generation = currentGeneration
+        resetAudioTelemetry()
+        stopRecognizer()
+        rememberConversation(command, answer)
+        speakAnswer(answer, generation, preferLocalFastPath = true)
+        return true
+    }
+
+    private fun resolveLocalDateTimeAnswer(command: String): String? {
+        val normalized = normalizeStopText(command).removePrefix("pesquise ").trim()
+        val asksTime = Regex("\\b(que horas sao|qual a hora|hora local|horario local|me diga as horas)\\b").containsMatchIn(normalized)
+        val asksWeekday = Regex("\\b(qual o dia da semana|hoje e que dia da semana)\\b").containsMatchIn(normalized)
+        val asksDate = Regex("\\b(que dia e hoje|qual a data de hoje|data de hoje|hoje e que dia|qual e a data)\\b").containsMatchIn(normalized)
+        if (!asksTime && !asksWeekday && !asksDate) return null
+        val now = ZonedDateTime.now()
+        return when {
+            asksTime -> "Agora são " + now.format(DateTimeFormatter.ofPattern("HH:mm", Locale("pt", "BR"))) + "."
+            asksWeekday -> {
+                val weekday = now.format(DateTimeFormatter.ofPattern("EEEE", Locale("pt", "BR")))
+                val date = now.format(DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("pt", "BR")))
+                "Hoje é " + weekday + ", " + date + "."
+            }
+            else -> "Hoje é " + now.format(DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("pt", "BR"))) + "."
+        }
+    }
+
+    private fun acknowledgeWakeOnly() {
+        if (!serviceEnabled || state != EloConversationState.WAKE_LISTENING || !wakeCandidate) return
+        val greeting = localWakeGreeting()
+        val now = SystemClock.elapsedRealtime()
+        currentGeneration += 1
+        val generation = currentGeneration
+        state = EloConversationState.SPEAKING
+        lastCommand = "ELO"
+        lastTranscript = "ELO"
+        lastAnswer = greeting
+        lastAnswerLength = greeting.length.toString()
+        lastRouter = "WAKE_LOCAL"
+        lastRouterAction = "wake_ack"
+        lastBackendAnswer = "-"
+        lastTtsText = greeting
+        lastError = "none"
+        wakeStatus = "DETECTED"
+        commandAcceptedAtMs = now
+        ttsStartedAtMs = now
+        resetAudioTelemetry()
+        resetWakeInlineState(clearDebug = false)
+        commandStabilizer.reset()
+        handler.removeCallbacks(dispatchCommandRunnable)
+        handler.removeCallbacks(commandTimeoutRunnable)
+        cancelProcessingWatchdog()
+        stopRecognizer()
+        updateNotification()
+        broadcast("RUNNING", state.name)
+        voicePlayer?.speak(
+            greeting,
+            preferLocalFastPath = true,
+            onStatus = { report ->
+                if (generation == currentGeneration) {
+                    applyVoiceReport(report)
+                    broadcast("RUNNING", state.name)
+                }
+            },
+            onDone = {
+                if (generation == currentGeneration && serviceEnabled) enterCommandListening()
+            }
+        ) ?: enterCommandListening()
+    }
+
+    private fun localWakeGreeting(): String {
+        return when (ZonedDateTime.now().hour) {
+            in 5..11 -> "Bom dia. Pode falar."
+            in 12..17 -> "Boa tarde. Pode falar."
+            else -> "Boa noite. Pode falar."
+        }
+    }
+
     private fun stopCurrentResponse(reason: String = "stop-command") {
         stopCurrentResponseCalledAtMs = SystemClock.elapsedRealtime()
         val detectedAtMs = if (stopMatchedAtMs > 0L) stopMatchedAtMs else stopCurrentResponseCalledAtMs
@@ -517,6 +631,7 @@ class EloWakeService : Service(), RecognitionListener {
         }
 
         if (handleMediaControlCommand(cleanCommand)) return
+        if (handleLocalDateTimeCommand(cleanCommand)) return
 
         handler.removeCallbacks(inlineWakeDispatchRunnable)
         handler.removeCallbacks(wakeOnlySettleRunnable)

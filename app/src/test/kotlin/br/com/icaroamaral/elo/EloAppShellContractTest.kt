@@ -28,11 +28,15 @@ class EloAppShellContractTest {
     fun nativeCapabilitiesV1ExposePhotoBridgeDisabled() {
         val json = EloNativeCapabilities().toJson()
 
-        assertTrue(json.contains("\"version\":1"))
+        assertTrue(json.contains("\"version\":2"))
         assertTrue(json.contains("\"wake\":true"))
         assertTrue(json.contains("\"nativeTts\":true"))
         assertTrue(json.contains("\"offlineMusic\":true"))
         assertTrue(json.contains("\"offlineCore\":true"))
+        assertTrue(json.contains("\"fileChooser\":true"))
+        assertTrue(json.contains("\"calculator\":true"))
+        assertTrue(json.contains("\"conversions\":true"))
+        assertTrue(json.contains("\"engineeringTools\":true"))
         assertTrue(json.contains("\"photoBridge\":false"))
     }
 }
