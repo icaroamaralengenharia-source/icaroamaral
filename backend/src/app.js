@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
+import { registerLocalMessengerRoutes } from "./elo-messenger-local.js";
 import { getSupabaseClient } from "./supabase.js";
 import { resolveAuthenticatedEloContext, resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
@@ -1191,6 +1192,24 @@ export function createApp(options = {}) {
     response.sendStatus(204);
   });
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
+
+  if (options.eloMessengerLocalStore) {
+    const messengerBasePath =
+      options.eloMessengerLocalBasePath || "/api/elo-messenger-local";
+    const messengerAlias = options.eloMessengerLocalAlias || null;
+    const messengerRateLimit = createEloMessengerRateLimiter_(env);
+
+    app.use(messengerBasePath, messengerRateLimit);
+
+    const messengerRouter = registerLocalMessengerRoutes(app, {
+      store: options.eloMessengerLocalStore,
+      basePath: messengerBasePath
+    });
+
+    if (messengerAlias && messengerAlias !== messengerBasePath) {
+      app.use(messengerAlias, messengerRateLimit, messengerRouter);
+    }
+  }
 
   app.get("/api/health", (request, response) => {
     response.json({
@@ -4317,6 +4336,63 @@ export function createApp(options = {}) {
   });
 
   return app;
+}
+
+function createEloMessengerRateLimiter_(env) {
+  const configuredMax = Number(env.ELO_MESSENGER_RATE_LIMIT_MAX);
+  const configuredWindow = Number(env.ELO_MESSENGER_RATE_LIMIT_WINDOW_MS);
+
+  const maxRequests =
+    Number.isFinite(configuredMax) && configuredMax > 0
+      ? Math.floor(configuredMax)
+      : 120;
+
+  const windowMs =
+    Number.isFinite(configuredWindow) && configuredWindow > 0
+      ? Math.floor(configuredWindow)
+      : 60_000;
+
+  const buckets = new Map();
+
+  return (request, response, next) => {
+    const now = Date.now();
+    const key = request.ip || request.socket.remoteAddress || "unknown";
+
+    let bucket = buckets.get(key);
+
+    if (!bucket || bucket.resetAt <= now) {
+      bucket = {
+        count: 0,
+        resetAt: now + windowMs
+      };
+
+      buckets.set(key, bucket);
+    }
+
+    bucket.count += 1;
+
+    response.setHeader("X-RateLimit-Limit", String(maxRequests));
+    response.setHeader(
+      "X-RateLimit-Remaining",
+      String(Math.max(0, maxRequests - bucket.count))
+    );
+
+    if (bucket.count > maxRequests) {
+      response.setHeader(
+        "Retry-After",
+        String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)))
+      );
+
+      response.status(429).json({
+        ok: false,
+        error: "rate_limit_exceeded"
+      });
+
+      return;
+    }
+
+    next();
+  };
 }
 
 function requireApartmentHandoverDatabase_(env, response, databaseOverride = null) {
