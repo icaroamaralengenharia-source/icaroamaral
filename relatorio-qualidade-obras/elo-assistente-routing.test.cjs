@@ -2039,6 +2039,33 @@ test('ELO surfaces expose one sanitized context contract', () => {
   assert.equal(report.auth.userId, standalone.auth.userId);
   assert.equal(report.auth.role, standalone.auth.role);
   assert.equal(report.tenant.id, 'tenant-1');
+
+test('ELO embedded handoff preserves canonical tenant and company after auth merge', () => {
+  const { elo, context } = loadEloContext({
+    window: {
+      ELO_AUTH_CONTEXT: {
+        userId: 'elo-user-1', role: 'admin', tenantId: 'tenant-1',
+        institutionId: 'institution-1', companyId: 'company-1',
+        profile: { id: 'elo-user-1', email: 'user@example.com', role: 'admin', company_id: 'company-1' }
+      },
+      ObraReportEloSurface: {
+        getContext() {
+          return {
+            source: 'obrareport',
+            auth: { userId: 'obrareport-user-1', role: 'admin', profile: { id: 'obrareport-user-1' } },
+            tenant: {}, currentWork: { id: 'obr-1', name: 'OBRA TESTE ELO E2E' }
+          };
+        }
+      }
+    }
+  });
+  const handoff = elo.handoffSurfaceContextForTest('report');
+  assert.equal(handoff.auth.userId, 'elo-user-1');
+  assert.equal(handoff.auth.institutionId, 'institution-1');
+  assert.equal(handoff.auth.companyId, 'company-1');
+  assert.equal(handoff.auth.role, 'admin');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.companyId, 'company-1');
+});
 });
 
 test('ELO CORE confiabilidade: registra eventos sanitizados e limita historico local', () => {

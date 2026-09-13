@@ -2578,11 +2578,27 @@
       memoryContext: Object.assign({ storageKey: ELO_CORE_AUTH_CONTEXT_STORAGE_KEY }, reportContext.memoryContext || {})
     };
   }
+  function mergeEloSurfaceAuthContexts_(primary, fallback) {
+    const first = normalizeEloCoreAuthContext_(primary || {});
+    const second = normalizeEloCoreAuthContext_(fallback || {});
+    return normalizeEloCoreAuthContext_({
+      userId: first.userId || second.userId,
+      institutionId: first.institutionId || second.institutionId,
+      companyId: first.companyId || second.companyId,
+      projectId: first.projectId || second.projectId,
+      role: first.role || second.role,
+      permissions: first.permissions.length ? first.permissions : second.permissions,
+      profile: Object.assign({}, second.profile || {}, first.profile || {})
+    });
+  }
   function handoffEloSurfaceContext_(config) {
     const surface = sanitizeUserText(config && config.surface || "elo") || "elo";
     const reportContext = getObraReportEloSurfaceContext_();
     let auth = normalizeEloCoreAuthContext_(getEloCoreAuthContext_());
-    if (surface === "report" && reportContext && reportContext.auth && reportContext.auth.userId) auth = applyEloCoreAuthContext_(reportContext.auth);
+    if (surface === "report" && reportContext && reportContext.auth) {
+      auth = mergeEloSurfaceAuthContexts_(auth, reportContext.auth);
+      if (auth.userId) auth = applyEloCoreAuthContext_(auth);
+    }
     const context = buildEloSurfaceContext_(surface, auth);
     context.memoryContext = Object.assign({}, context.memoryContext, { identityScope: getEloCoreStorageIdentityScope_() });
     window.ELO_SURFACE_CONTEXT = context;
@@ -3075,6 +3091,8 @@
         if (!merged) {
           ELO_UI.coreAuthMergePromise = null;
           setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true);
+        } else if (!isStandaloneMode()) {
+          handoffEloSurfaceContext_({ surface: "report" });
         }
         return data;
       }).catch(function () {
@@ -34529,6 +34547,7 @@ function isEloResidentialNewPipelineEnabled_() {
       };
     },
     getCoreIdentityForTest: getEloCoreIdentity_,
+    handoffSurfaceContextForTest: function (surface) { return handoffEloSurfaceContext_({ surface: surface || "report" }); },
     buildSurfaceContextForTest: function (surface, auth) { return buildEloSurfaceContext_(surface || "elo", auth || getEloCoreAuthContext_()); },
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
