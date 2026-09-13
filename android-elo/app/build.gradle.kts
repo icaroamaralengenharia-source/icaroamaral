@@ -26,7 +26,18 @@ android {
         }
     }
 
-    androidResources {
-        noCompress += listOf("opus")
-    }
+androidResources {
+    noCompress += listOf("opus")
+}
+
+tasks.register<Exec>("validateMusicAssets") {
+    group = "verification"
+    description = "Validates the offline music catalog, assets, and SHA256 manifest."
+    workingDir(rootProject.projectDir)
+    commandLine("node", "scripts/validate-music-assets.mjs")
+}
+
+tasks.named("preBuild") {
+    dependsOn("validateMusicAssets")
+}
 }

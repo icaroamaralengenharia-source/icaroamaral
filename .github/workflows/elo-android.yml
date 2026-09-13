@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -31,6 +33,10 @@ jobs:
 
       - name: Permitir execução do Gradle Wrapper
         run: chmod +x android-elo/gradlew
+
+      - name: Validar catálogo e assets musicais
+        working-directory: android-elo
+        run: node scripts/validate-music-assets.mjs
 
       - name: Build debug APK
         working-directory: android-elo
