@@ -116,6 +116,11 @@ export async function resolveAuthContext(request, options = {}) {
     institutionId,
     companyId: tenantId,
     role: clean(profile.role) || "user",
+    user,
     profile
   };
+}
+
+export async function resolveAuthenticatedEloContext(request, options = {}) {
+  return resolveAuthContext(request, options);
 }
