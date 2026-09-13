@@ -899,6 +899,15 @@
     return date.toISOString().slice(0, 10);
   }
 
+  function extractRdoWorkName_(raw) {
+    const text = clean(raw);
+    if (!text) return "";
+    const inline = text.match(/\b(?:na|no|em)\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|[.!?]+\s*$|$)/i);
+    if (!inline) return "";
+    const candidate = clean(inline[1]).replace(/^["“']|["”']$/g, "");
+    return /^(?:obra|projeto|ela|ele)$/i.test(candidate) ? "" : candidate;
+  }
+
   function parseRdoIntent(input) {
     const action = clean(input && input.action);
     const payload = input && input.payload || {};
@@ -918,6 +927,7 @@
       limit: Number(payload.limit || 0) || 0,
       updateNote: clean(payload.note || payload.observation || payload.observacao || payload.description || payload.descricao)
     };
+    if (!parsed.workName) parsed.workName = extractRdoWorkName_(raw);
     const idMatch = raw.match(/\b(?:rdo|id)\s+([a-z0-9_-]{6,})\b/i);
     if (!parsed.rdoId && idMatch) parsed.rdoId = clean(idMatch[1]);
     if (!parsed.targetDate && /\bhoje\b/.test(text)) parsed.targetDate = isoDate(nowDate);
@@ -1218,10 +1228,6 @@
   function resolveRdoWorkSelection_(input, intent) {
     const identity = getRdoIdentity(input);
     const works = resolveExistingObraReportWorks_();
-    if (identity.projectId) {
-      const contextWork = works.find(function (work) { return work.id === identity.projectId; }) || null;
-      return { ok: true, source: "authenticated_context", works, work: Object.assign({ source: "authenticated_context" }, contextWork || { id: identity.projectId, name: identity.projectName || identity.projectId, clientId: identity.clientId }) };
-    }
     const requestedName = clean(intent.workName || input && input.payload && (input.payload.workName || input.payload.work_name));
     if (requestedName) {
       const normalized = normalize(requestedName);
@@ -1234,6 +1240,10 @@
     }
     if (works.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: Object.assign({ source: "obrareport_local_storage" }, works[0]) };
     if (works.length > 1) return { ok: false, reason: "work_selection_required", works };
+    if (identity.projectId) {
+      const contextWork = works.find(function (work) { return work.id === identity.projectId; }) || null;
+      return { ok: true, source: "authenticated_context", works, work: Object.assign({ source: "authenticated_context" }, contextWork || { id: identity.projectId, name: identity.projectName || identity.projectId, clientId: identity.clientId }) };
+    }
     return { ok: false, reason: "no_works", works };
   }
 
