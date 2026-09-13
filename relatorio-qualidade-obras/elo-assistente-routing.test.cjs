@@ -2015,6 +2015,32 @@ test('ELO CORE sincroniza as tres superficies publicas no bootstrap minimalista'
 });
 
 
+test('ELO surfaces expose one sanitized context contract', () => {
+  const { elo, context } = loadEloContext({
+    window: {
+      ObraReportEloSurface: {
+        getContext() {
+          return {
+            source: 'obrareport',
+            auth: { userId: 'user-1', role: 'admin', companyId: 'company-1', tenantId: 'tenant-1', profile: { id: 'user-1', email: 'user@example.com' } },
+            tenant: { id: 'tenant-1', companyId: 'company-1' },
+            currentWork: { id: 'obr-1', name: 'OBRA TESTE ELO E2E' },
+            obraReportState: { storageKey: 'obrareport-saas-v1', workCount: 2 }
+          };
+        }
+      }
+    }
+  });
+  const report = elo.buildSurfaceContextForTest('report', { userId: 'user-1', role: 'admin', companyId: 'company-1' });
+  const standalone = elo.buildSurfaceContextForTest('elo', report.auth);
+  assert.equal(report.obraReportState.storageKey, 'obrareport-saas-v1');
+  assert.equal(report.obraReportState.workCount, 2);
+  assert.equal(report.currentWork.name, 'OBRA TESTE ELO E2E');
+  assert.equal(report.auth.userId, standalone.auth.userId);
+  assert.equal(report.auth.role, standalone.auth.role);
+  assert.equal(report.tenant.id, 'tenant-1');
+});
+
 test('ELO CORE confiabilidade: registra eventos sanitizados e limita historico local', () => {
   const { elo, localStorage } = loadEloContext();
   for (let index = 0; index < 105; index += 1) {

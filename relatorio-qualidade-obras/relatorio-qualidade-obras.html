@@ -2365,5 +2365,24 @@ defer></script>
       }
     });
   </script>
+  <style>
+    .report-elo-chat { position: relative; isolation: isolate; }
+    .report-elo-chat .elo-standalone-panel { display: grid; grid-template-rows: minmax(220px, 1fr) auto auto; min-height: 440px; max-height: min(68vh, 640px); overflow: hidden; }
+    .report-elo-chat .elo-messages { min-height: 220px; max-height: 380px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .report-elo-chat .elo-input-row { position: relative; z-index: 2; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: end; gap: 8px; min-width: 0; }
+    .report-elo-chat .elo-input { min-width: 0; width: 100%; min-height: 46px; max-height: 140px; resize: vertical; }
+    .report-elo-chat .elo-attach-button, .report-elo-chat .elo-mic-button, .report-elo-chat .elo-send-button, .report-elo-chat .elo-voice-mode-button { position: relative; z-index: 3; flex: 0 0 auto; }
+    .report-elo-chat .elo-voice-status { min-height: 24px; margin: 4px 0 0; overflow-wrap: anywhere; }
+    .report-elo-chat .elo-message-bubble { max-width: 100%; overflow-wrap: anywhere; }
+    @media (max-width: 760px) {
+      .report-elo-chat .elo-standalone-panel { min-height: 380px; max-height: none; }
+      .report-elo-chat .elo-input-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; }
+      .report-elo-chat .elo-input { grid-column: 1 / -1; grid-row: 1; }
+      .report-elo-chat .elo-attach-button { grid-column: 1; grid-row: 2; }
+      .report-elo-chat .elo-mic-button { grid-column: 2; grid-row: 2; justify-self: start; }
+      .report-elo-chat .elo-send-button { grid-column: 3; grid-row: 2; }
+      .report-elo-chat .elo-voice-mode-button, .report-elo-chat .elo-voice-status { width: 100%; max-width: 100%; }
+    }
+  </style>
 </body>
 </html>
