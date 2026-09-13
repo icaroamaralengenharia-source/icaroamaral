@@ -95,6 +95,104 @@
     }
   }
 
+  function isEmptyAuthValue_(value) {
+    if (value === null || value === undefined || value === "") return true;
+    return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0;
+  }
+
+  function authValue_(context, identity, profile, keys) {
+    const sources = [context, identity, profile];
+    for (const source of sources) {
+      if (!source || typeof source !== "object") continue;
+      for (const key of keys) {
+        if (!isEmptyAuthValue_(source[key])) return source[key];
+      }
+    }
+    return "";
+  }
+
+  function normalizeAuthContext_(context) {
+    const safe = context && typeof context === "object" ? context : {};
+    const identity = safe.identity && typeof safe.identity === "object" ? safe.identity : {};
+    const profile = safe.profile && typeof safe.profile === "object" ? safe.profile : {};
+    const normalized = Object.assign({}, safe);
+    normalized.identity = Object.assign({}, identity);
+    normalized.profile = Object.assign({}, profile);
+    const values = {
+      userId: authValue_(safe, identity, profile, ["userId", "user_id", "id"]),
+      role: authValue_(safe, identity, profile, ["role", "userRole", "user_role"]),
+      institutionId: authValue_(safe, identity, profile, ["institutionId", "institution_id", "tenantId", "tenant_id"]),
+      companyId: authValue_(safe, identity, profile, ["companyId", "company_id"]),
+      projectId: authValue_(safe, identity, profile, ["projectId", "project_id", "workId", "work_id"])
+    };
+    Object.keys(values).forEach(function (key) {
+      if (!isEmptyAuthValue_(values[key])) normalized[key] = clean(values[key]);
+    });
+    normalized.identity = Object.assign({}, normalized.identity, {
+      userId: normalized.userId || clean(normalized.identity.userId),
+      role: normalized.role || clean(normalized.identity.role),
+      institutionId: normalized.institutionId || clean(normalized.identity.institutionId),
+      companyId: normalized.companyId || clean(normalized.identity.companyId),
+      projectId: normalized.projectId || clean(normalized.identity.projectId)
+    });
+    return normalized;
+  }
+
+  function readStoredAuthContext_() {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem("elo_core_auth_context_v1");
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readSurfaceAuthContext_() {
+    const contexts = [];
+    if (window.ELO_SURFACE_CONTEXT && typeof window.ELO_SURFACE_CONTEXT === "object") contexts.push(window.ELO_SURFACE_CONTEXT.auth);
+    try {
+      const surface = window.ObraReportEloSurface;
+      if (surface && typeof surface.getContext === "function") {
+        const reportContext = surface.getContext();
+        if (reportContext && typeof reportContext === "object") contexts.push(reportContext.auth);
+      }
+    } catch (error) {}
+    return contexts;
+  }
+
+  function mergeAuthContexts_(contexts) {
+    const merged = {};
+    const mergedIdentity = {};
+    const mergedProfile = {};
+    (contexts || []).forEach(function (raw) {
+      const context = normalizeAuthContext_(raw);
+      const identity = context.identity || {};
+      const profile = context.profile || {};
+      ["authToken", "token", "userId", "role", "institutionId", "companyId", "projectId", "tenantId", "permissions"].forEach(function (key) {
+        if (isEmptyAuthValue_(merged[key]) && !isEmptyAuthValue_(context[key])) merged[key] = context[key];
+      });
+      Object.keys(identity).forEach(function (key) {
+        if (isEmptyAuthValue_(mergedIdentity[key]) && !isEmptyAuthValue_(identity[key])) mergedIdentity[key] = identity[key];
+      });
+      Object.keys(profile).forEach(function (key) {
+        if (isEmptyAuthValue_(mergedProfile[key]) && !isEmptyAuthValue_(profile[key])) mergedProfile[key] = profile[key];
+      });
+    });
+    merged.identity = mergedIdentity;
+    merged.profile = mergedProfile;
+    return normalizeAuthContext_(merged);
+  }
+
+  function resolveCanonicalRdoAuthContext_() {
+    return mergeAuthContexts_([window.ELO_CANONICAL_AUTH_CONTEXT, window.ELO_AUTH_CONTEXT, readStoredAuthContext_()].concat(readSurfaceAuthContext_()));
+  }
+
+  function hydrateRdoInputContext_(input) {
+    const safe = Object.assign({}, input || {});
+    const current = safe.context && typeof safe.context === "object" ? safe.context : {};
+    safe.context = mergeAuthContexts_([resolveCanonicalRdoAuthContext_(), current]);
+    return safe;
+  }
   function getIdentity(input) {
     const context = input && input.context || {};
     const identity = context.identity || {};
@@ -1434,6 +1532,7 @@
     return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.confirm", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para confirmar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
   }
   function executeRdo(input) {
+    input = hydrateRdoInputContext_(input);
     const auth = requireRdoAccess(input);
     if (!auth.ok) return Promise.resolve(rdoAuthBlocked(input, auth));
     const intent = parseRdoIntent(input);
@@ -1609,6 +1708,7 @@
     readPending: readRdoPending,
     clearPending: clearRdoPending,
     resolveExistingWorks: resolveExistingObraReportWorks_,
+    resolveCanonicalAuthContext: resolveCanonicalRdoAuthContext_,
     aggregateRecurringProblems,
     normalizeProblemKey,
     version: "elo-action-bus-rdo-v1"
