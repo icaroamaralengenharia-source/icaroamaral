@@ -447,16 +447,17 @@ class MainActivity : Activity() {
         webView.evaluateJavascript(EloWebViewHotfix.connectivityScript(EloConnectivity.snapshot(this).name), null)
     }
 
-    private fun requestMicThenSetWake(enabled: Boolean) {
+    private fun requestMicThenSetWake(enabled: Boolean): Boolean {
         if (!enabled) {
             wakeController.setWakeEnabled(false)
-            return
+            return true
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             wakeController.setWakeEnabled(true)
-            return
+            return true
         }
         mainHandler.post { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_AUDIO) }
+        return false
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
