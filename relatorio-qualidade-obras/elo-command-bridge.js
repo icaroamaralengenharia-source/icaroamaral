@@ -73,10 +73,15 @@
   }
 
   function getAuthToken(context) {
-    const fromContext = context && (context.authToken || context.token);
-    if (fromContext) return clean(fromContext);
+    const provider = window.EloCanonicalSession;
+    if (provider && typeof provider.getAccessToken === "function") {
+      try {
+        const canonicalToken = clean(provider.getAccessToken());
+        if (canonicalToken) return canonicalToken;
+      } catch (error) {}
+    }
     try {
-      const keys = ["stock_full_access_token", "elo_core_auth_token", "obrareport_access_token", "sb-stock-full-auth-token", "sb-stock-full-backend-auth-token", "stockFullSupabaseToken"];
+      const keys = ["sb-elo-core-auth-token", "stock_full_access_token", "elo_core_auth_token", "obrareport_access_token", "sb-stock-full-auth-token", "sb-stock-full-backend-auth-token", "stockFullSupabaseToken"];
       for (const key of keys) {
         const raw = clean(window.localStorage.getItem(key) || window.sessionStorage && window.sessionStorage.getItem(key));
         if (!raw) continue;
@@ -91,8 +96,25 @@
       }
       return "";
     } catch (error) {
-      return "";
+      const compatibilityToken = context && (context.authToken || context.token);
+      return compatibilityToken ? clean(compatibilityToken) : "";
     }
+  }
+
+  function getCanonicalRdoSession_(input) {
+    const token = getAuthToken(input && input.context || {});
+    const existingContext = mergeAuthContexts_([resolveCanonicalRdoAuthContext_(), input && input.context || {}]);
+    if (token && existingContext.userId && (existingContext.institutionId || existingContext.companyId)) return Promise.resolve({ ok: true, accessToken: token, authContext: existingContext });
+    const provider = window.EloCanonicalSession;
+    if (provider && typeof provider.getSession === "function") {
+      return Promise.resolve().then(function () { return provider.getSession(); }).then(function (session) {
+        if (!session || session.ok !== true || !session.accessToken) return { ok: false, error: session && session.error || "authentication_required" };
+        if (session.authContext) input.context = mergeAuthContexts_([session.authContext, input.context]);
+        return session;
+      });
+    }
+    const fallbackToken = getAuthToken(input && input.context || {});
+    return Promise.resolve(fallbackToken ? { ok: true, accessToken: fallbackToken } : { ok: false, error: "authentication_required" });
   }
 
   function isEmptyAuthValue_(value) {
@@ -951,10 +973,10 @@
     };
   }
 
-  function requireRdoAccess(input) {
+  function requireRdoAccess(input, options) {
     if (!getAuthToken(input.context || {})) return { ok: false, reason: "auth" };
     const identity = getRdoIdentity(input);
-    if (!identity.institutionId) return { ok: false, reason: "tenant" };
+    if ((!options || options.requireTenant !== false) && !identity.institutionId) return { ok: false, reason: "tenant" };
     return { ok: true, identity };
   }
 
@@ -1532,17 +1554,21 @@
     return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.confirm", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para confirmar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
   }
   function executeRdo(input) {
-    input = hydrateRdoInputContext_(input);
-    const auth = requireRdoAccess(input);
-    if (!auth.ok) return Promise.resolve(rdoAuthBlocked(input, auth));
-    const intent = parseRdoIntent(input);
-    if (intent.invalidPeriod) return Promise.resolve(rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" }));
-    const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
-    return run(input, intent).catch(function (error) {
-      const code = clean(error && error.message) || "rdo_error";
-      if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
-      if (code === "rdo_not_found") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse RDO no contexto autenticado. Nenhum RDO foi inventado.", error: code });
-      return rdoResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de RDO. O backend retornou: " + code + ".", error: code });
+    input = Object.assign({}, input || {}, { context: Object.assign({}, input && input.context || {}) });
+    return getCanonicalRdoSession_(input).then(function (session) {
+      if (!session.ok) return rdoAuthBlocked(input, { ok: false, reason: "auth" });
+      input = hydrateRdoInputContext_(input);
+      const intent = parseRdoIntent(input);
+      const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
+      if (!auth.ok) return rdoAuthBlocked(input, auth);
+      if (intent.invalidPeriod) return rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" });
+      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
+      return run(input, intent).catch(function (error) {
+        const code = clean(error && error.message) || "rdo_error";
+        if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
+        if (code === "rdo_not_found") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse RDO no contexto autenticado. Nenhum RDO foi inventado.", error: code });
+        return rdoResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de RDO. O backend retornou: " + code + ".", error: code });
+      });
     });
   }
 

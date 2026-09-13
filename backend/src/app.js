@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
-import { resolveAuthContext } from "./auth-context.js";
+import { resolveAuthenticatedEloContext, resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
@@ -1159,6 +1159,7 @@ export function createApp(options = {}) {
   const apartmentHandoverInviteRateLimiter = createApartmentHandoverInviteRateLimiter_();
 
   app.locals.resolveAuthContext = (request) => resolveAuthContext(request, { supabase: getAuthContextDatabase() });
+  app.locals.resolveCanonicalAuthContext = (request) => resolveAuthenticatedEloContext(request, { supabase: getAuthContextDatabase() });
 
   app.use(cors({
     origin(origin, callback) {
@@ -1442,10 +1443,39 @@ export function createApp(options = {}) {
   });
 
   function buildObraReportContext_(request) {
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    if (auth.ok) {
+      return {
+        institutionId: clean_(auth.institutionId || profile.institution_id || profile.company_id),
+        companyId: clean_(auth.companyId || profile.company_id || profile.institution_id),
+        userId: clean_(auth.userId || profile.auth_user_id),
+        role: clean_(auth.role || profile.role),
+        profile,
+        user: auth.user || null,
+        authenticated: true
+      };
+    }
     return {
       institutionId: clean_(request.headers["x-institution-id"] || request.body.institutionId || request.body.institution_id),
       userId: clean_(request.headers["x-user-id"] || request.body.userId || request.body.user_id)
     };
+  }
+
+  async function requireCanonicalObraReportAuth_(request, response, next) {
+    try {
+      const context = request.eloAuthContext && request.eloAuthContext.ok
+        ? request.eloAuthContext
+        : await app.locals.resolveCanonicalAuthContext(request);
+      if (!context || !context.ok) {
+        response.status(context && context.status ? context.status : 401).json({ ok: false, error: clean_(context && context.error || "invalid_session") });
+        return;
+      }
+      request.eloAuthContext = context;
+      next();
+    } catch (error) {
+      response.status(401).json({ ok: false, error: "invalid_session" });
+    }
   }
 
   function operationalTimelineEnabled_() {
@@ -1764,6 +1794,8 @@ export function createApp(options = {}) {
       handleObraReportError_(response, error);
     }
   });
+  app.use("/api/obrareport/rdos", requireCanonicalObraReportAuth_);
+
   app.post("/api/obrareport/rdos", async (request, response) => {
     try {
       const rdo = obraReportTransactionalService.createRdo(buildObraReportContext_(request), request.body || {});

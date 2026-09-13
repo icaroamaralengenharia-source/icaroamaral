@@ -3011,6 +3011,25 @@
       throw transient;
     });
   }
+  function getCanonicalEloSession_() {
+    const token = getEloCoreAuthToken_();
+    if (!token) return Promise.resolve({ ok: false, error: "authentication_required" });
+    return ensureEloCoreAuthMerge_().then(function (merged) {
+      if (!merged) return { ok: false, error: "auth_context_unavailable", accessToken: token };
+      const context = normalizeEloCoreAuthContext_(getEloCoreAuthContext_());
+      window.ELO_CANONICAL_AUTH_CONTEXT = context;
+      return {
+        ok: true,
+        accessToken: token,
+        userId: context.userId,
+        role: context.role,
+        tenantId: context.institutionId || context.companyId,
+        institutionId: context.institutionId,
+        companyId: context.companyId,
+        authContext: context
+      };
+    });
+  }
   function clearEloCoreSupabaseSessionTokens_() {
     window.ELO_AUTH_TOKEN = "";
     window.ELO_AUTH_SESSION_VALIDATED = false;
@@ -34694,9 +34713,16 @@ function isEloResidentialNewPipelineEnabled_() {
     getSpeechStateForTest: function () { return { generation: ELO_UI.activeSpeechGenerationId, shutdown: ELO_UI.speechShutdownRequested, state: ELO_UI.speechSynthesisState, hasAudio: !!ELO_UI.neuralSpeechAudio, wakeState: ELO_UI.wakeContinuousState, wakeRestartScheduled: ELO_UI.wakeRestartScheduled }; },
     refreshLayoutStateForTest: setEloCoreWelcomeVisible_,
     getCoreAuthTokenForTest: getEloCoreAuthToken_,
+    getCanonicalSessionForTest: getCanonicalEloSession_,
     validateSupabaseTokenForTest: validateEloCoreSupabaseToken_,
     initCorePersistenceForTest: initEloCorePersistence_,
     maybeShowProactiveAttentionForTest: maybeShowEloProactiveAttention_
+  });
+
+  window.EloCanonicalSession = Object.assign({}, window.EloCanonicalSession || {}, {
+    getSession: getCanonicalEloSession_,
+    getAccessToken: getEloCoreAuthToken_,
+    getContext: function () { return normalizeEloCoreAuthContext_(getEloCoreAuthContext_()); }
   });
 
   // ELO_BOOTSTRAP
