@@ -850,6 +850,16 @@
     const hasStockContext = /\b(?:estoque|stock|stock\s+full|almoxarifado|unidade|un\.?|kg|saco|sacos|m2|m3|m²|m³|metro|metros)\b/.test(text);
     return Boolean(hasProductTerm && hasStockContext && (hasCreateVerb || hasNewProduct));
   }
+  function isEloRdoConfirmationPositive_(text) {
+    return /^(?:sim|s|confirmo|confirmar|pode criar|pode prosseguir|prossiga|pode executar)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
+  }
+  function isEloRdoConfirmationNegative_(text) {
+    return /^(?:nao|cancelar|cancela|nao prossiga)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
+  }
+  function isEloRdoPendingConfirmation_(pending) {
+    if (!pending || !/^(?:pending|saving|saved)$/.test(String(pending.status || ""))) return false;
+    return /^(?:rdo\.(?:create|update)\.(?:preview|execute))$/.test(String(pending.action || ""));
+  }
   function detectEloCommandBridgeRequest_(message) {
     const raw = sanitizeUserText(message || "");
     const text = canonicalizeEloSemanticText_(raw);
@@ -857,10 +867,13 @@
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
-    if (pendingRdo && /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|ok|certo)$/.test(text) && /^rdo\.(?:create|update)\.execute$/.test(pendingRdo.action)) {
+    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
       return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
     }
-    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !/^(?:sim|confirmo|confirmar|pode confirmar|ok|certo|nao|não|cancelar|cancela|abortar)$/.test(text)) {
+    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationNegative_(text)) {
+      return { module: "obrareport_rdo", action: "rdo_cancel", payload: payload };
+    }
+    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !isEloRdoConfirmationPositive_(text) && !isEloRdoConfirmationNegative_(text)) {
       return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, { workName: raw }) };
     }
     if (isEloExplicitMemoryCommand_(raw)) {
@@ -933,7 +946,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;
@@ -2839,13 +2852,14 @@
   }
 
   function hasEloPendingActionForSocialFastPath_() {
+    const rdoPending = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     return !!(
       getEloMusicPendingCandidate_ && getEloMusicPendingCandidate_() ||
       isEloRdoPreviewActive_ && isEloRdoPreviewActive_() ||
       hasEloBudgetRoutePending_ && hasEloBudgetRoutePending_() ||
       ELO_SESSION_MEMORY.activeResidentialBudgetState ||
       ELO_SESSION_MEMORY.budgetOrchestratorV2 ||
-      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active || rdoPending && /^(?:rdo\.(?:create|update)\.execute)$/.test(String(rdoPending.action || ""))
     );
   }
 
