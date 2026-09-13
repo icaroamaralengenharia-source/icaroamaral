@@ -62,6 +62,7 @@ class MainActivity : Activity() {
             routeResultCallback = { result -> mainHandler.post { showOfflineRouteResult(result) } }
         )
         bridge = EloNativeBridge(
+            context = this,
             originPolicy = originPolicy,
             currentUrlProvider = { if (::webView.isInitialized) webView.url else null },
             wakeController = wakeController,
