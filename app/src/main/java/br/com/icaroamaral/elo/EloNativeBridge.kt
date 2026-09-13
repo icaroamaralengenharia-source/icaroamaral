@@ -91,6 +91,36 @@ class EloNativeBridge(
     }
 
     @JavascriptInterface
+    fun playOfflineTrack(trackId: String): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return offlineController.playOfflineTrack(trackId)
+    }
+
+    @JavascriptInterface
+    fun pauseOfflineTrack(): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return offlineController.pauseOfflineTrack()
+    }
+
+    @JavascriptInterface
+    fun resumeOfflineTrack(): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return offlineController.resumeOfflineTrack()
+    }
+
+    @JavascriptInterface
+    fun nextOfflineTrack(): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return offlineController.nextOfflineTrack()
+    }
+
+    @JavascriptInterface
+    fun previousOfflineTrack(): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
+        return offlineController.previousOfflineTrack()
+    }
+
+    @JavascriptInterface
     fun playResolvedOfflineMusic(command: String): String {
         if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
         return offlineController.playOfflineMusic(command)

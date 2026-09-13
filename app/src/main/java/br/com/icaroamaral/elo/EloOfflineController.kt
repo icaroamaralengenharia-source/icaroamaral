@@ -31,6 +31,17 @@ class EloOfflineController(
         return offlineResultJson(result)
     }
 
+
+    fun playOfflineTrack(trackId: String): String = offlineV2.playTrack(trackId)
+
+    fun pauseOfflineTrack(): String = offlineV2.pauseTrack()
+
+    fun resumeOfflineTrack(): String = offlineV2.resumeTrack()
+
+    fun nextOfflineTrack(): String = offlineV2.nextTrack()
+
+    fun previousOfflineTrack(): String = offlineV2.previousTrack()
+
     fun stopMedia(): String {
         offlineV2.stop()
         player.stop()
@@ -67,5 +78,7 @@ class EloOfflineController(
 sealed class EloOfflinePlaybackUiEvent {
     data class Playing(val track: EloOfflineTrack) : EloOfflinePlaybackUiEvent()
     data class PlayingV2(val track: br.com.icaroamaral.elo.offlinev2.EloOfflineTrack) : EloOfflinePlaybackUiEvent()
+    data class PausedV2(val track: br.com.icaroamaral.elo.offlinev2.EloOfflineTrack) : EloOfflinePlaybackUiEvent()
+    data class ErrorV2(val track: br.com.icaroamaral.elo.offlinev2.EloOfflineTrack?, val error: String) : EloOfflinePlaybackUiEvent()
     data object Stopped : EloOfflinePlaybackUiEvent()
 }

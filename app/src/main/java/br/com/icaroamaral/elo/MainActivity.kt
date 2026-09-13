@@ -252,9 +252,27 @@ class MainActivity : Activity() {
 
     private fun renderPlaybackEvent(event: EloOfflinePlaybackUiEvent) {
         when (event) {
-            is EloOfflinePlaybackUiEvent.Playing -> showMusicPanel(event.track)
-            is EloOfflinePlaybackUiEvent.PlayingV2 -> showMusicPanel(event.track.title)
-            EloOfflinePlaybackUiEvent.Stopped -> hideMusicPanel()
+            is EloOfflinePlaybackUiEvent.Playing -> {
+                showMusicPanel(event.track)
+                notifyWebPlaybackState("PLAYING", event.track.id, event.track.title)
+            }
+            is EloOfflinePlaybackUiEvent.PlayingV2 -> {
+                showMusicPanel(event.track.title)
+                notifyWebPlaybackState("PLAYING", event.track.id, event.track.title)
+            }
+            is EloOfflinePlaybackUiEvent.PausedV2 -> {
+                showMusicPanel(event.track.title)
+                notifyWebPlaybackState("PAUSED", event.track.id, event.track.title)
+            }
+            is EloOfflinePlaybackUiEvent.ErrorV2 -> {
+                event.track?.let { showMusicPanel(it.title) }
+                notifyWebPlaybackState("ERROR", event.track?.id.orEmpty(), event.track?.title.orEmpty(), event.error)
+                Toast.makeText(this, event.error, Toast.LENGTH_LONG).show()
+            }
+            EloOfflinePlaybackUiEvent.Stopped -> {
+                hideMusicPanel()
+                notifyWebPlaybackState("STOPPED")
+            }
         }
     }
 
@@ -440,6 +458,16 @@ class MainActivity : Activity() {
 })();
         """.trimIndent()
         view.evaluateJavascript(js, null)
+    }
+
+    private fun notifyWebPlaybackState(
+        state: String,
+        trackId: String = "",
+        title: String = "",
+        error: String? = null
+    ) {
+        if (!::webView.isInitialized || !originPolicy.isTrustedUrl(webView.url ?: return)) return
+        webView.evaluateJavascript(EloWebViewHotfix.playbackScript(state, trackId, title, error), null)
     }
 
     private fun notifyWebConnectivityState() {

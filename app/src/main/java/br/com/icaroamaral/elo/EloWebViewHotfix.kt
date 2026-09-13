@@ -11,6 +11,20 @@ object EloWebViewHotfix {
         """.trimIndent()
     }
 
+    fun playbackScript(state: String, trackId: String = "", title: String = "", error: String? = null): String {
+        val safeState = org.json.JSONObject.quote(state)
+        val safeTrackId = org.json.JSONObject.quote(trackId)
+        val safeTitle = org.json.JSONObject.quote(title)
+        val safeError = org.json.JSONObject.quote(error.orEmpty())
+        return """
+(function(){
+  var detail = {state:$safeState, trackId:$safeTrackId, title:$safeTitle, error:$safeError};
+  document.documentElement.setAttribute('data-elo-native-playback', detail.state);
+  window.dispatchEvent(new CustomEvent('elo-native-playback', { detail: detail }));
+})();
+        """.trimIndent()
+    }
+
     fun installScript(): String = """
 (function(){
   if (window.__eloAndroid021PhysicalHotfixV1) return;
@@ -205,15 +219,24 @@ object EloWebViewHotfix {
   }
   function callNativeResolvedMusic(media){
     try {
-      if (!isLocalMedia(media) || !window.EloNativeBridge || !window.EloNativeBridge.playResolvedOfflineMusic) return false;
+      if (!isLocalMedia(media) || !window.EloNativeBridge) return false;
       var command = resolvedMusicCommand(media);
-      var raw = window.EloNativeBridge.playResolvedOfflineMusic(command);
+      var raw = '';
+      if (media.id && window.EloNativeBridge.playOfflineTrack) {
+        raw = window.EloNativeBridge.playOfflineTrack(String(media.id));
+      }
       var parsed = JSON.parse(raw || '{}');
+      if (!parsed.handled && window.EloNativeBridge.playResolvedOfflineMusic) {
+        raw = window.EloNativeBridge.playResolvedOfflineMusic(command);
+        parsed = JSON.parse(raw || '{}');
+      }
       if (parsed && parsed.handled) {
-        console.info('ELO_NATIVE_LOCAL_MUSIC_FALLBACK', command, parsed.trackId || '');
+        console.info('ELO_NATIVE_LOCAL_MUSIC_FALLBACK', command, parsed.trackId || media.id || '');
         return true;
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error('ELO_NATIVE_LOCAL_MUSIC_BRIDGE_FAILED', err && err.name || 'Error', err && err.message || String(err));
+    }
     return false;
   }
   function wrapMediaPlayerMethod(player, name){
@@ -226,13 +249,68 @@ object EloWebViewHotfix {
     wrapped.__eloNativeWrapped = true;
     player[name] = wrapped;
   }
+  function nativePlaybackActive(){
+    var state = document.documentElement.getAttribute('data-elo-native-playback') || '';
+    return state === 'PLAYING' || state === 'PAUSED' || state === 'TRACK_CHANGED';
+  }
+  function callNativePlaybackControl(method){
+    try {
+      if (!nativePlaybackActive() || !window.EloNativeBridge || !window.EloNativeBridge[method]) return false;
+      var parsed = JSON.parse(window.EloNativeBridge[method]() || '{}');
+      return !!(parsed && parsed.handled);
+    } catch (err) {
+      console.error('ELO_NATIVE_PLAYBACK_CONTROL_FAILED', method, err && err.name || 'Error', err && err.message || String(err));
+      return false;
+    }
+  }
+  function wrapNativeControl(player, name, bridgeMethod){
+    if (!player || typeof player[name] !== 'function' || player[name].__eloNativeWrapped) return;
+    var original = player[name];
+    var wrapped = function(){
+      if (callNativePlaybackControl(bridgeMethod)) return Promise.resolve(true);
+      return original.apply(this, arguments);
+    };
+    wrapped.__eloNativeWrapped = true;
+    player[name] = wrapped;
+  }
   function installNativeLocalMusicFallback(){
     if (!window.EloMediaPlayer) return;
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'play');
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'playTrack');
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'playMedia');
+    wrapNativeControl(window.EloMediaPlayer, 'pause', 'pauseOfflineTrack');
+    wrapNativeControl(window.EloMediaPlayer, 'resume', 'resumeOfflineTrack');
+    wrapNativeControl(window.EloMediaPlayer, 'next', 'nextOfflineTrack');
+    wrapNativeControl(window.EloMediaPlayer, 'previous', 'previousOfflineTrack');
   }
-  var observer = new MutationObserver(function(){ ensureStatusChip(); ensurePauseButton(); normalizeActionButtons(); removeIntrusiveOfflineNotices(); improveHistoryCards(); installNativeLocalMusicFallback(); });
+  function installAudioPlayDiagnostics(){
+    if (!window.HTMLMediaElement || HTMLMediaElement.prototype.__eloAudioPlayDiagnostics) return;
+    var original = HTMLMediaElement.prototype.play;
+    var wrapped = function(){
+      var result;
+      try {
+        result = original.apply(this, arguments);
+      } catch (err) {
+        console.error('ELO_AUDIO_PLAY_FAILED', err && err.name || 'Error', err && err.message || String(err));
+        throw err;
+      }
+      if (result && typeof result.catch === 'function') {
+        result.catch(function(err){
+          console.error('ELO_AUDIO_PLAY_FAILED', err && err.name || 'Error', err && err.message || String(err));
+        });
+      }
+      return result;
+    };
+    wrapped.__eloAudioPlayDiagnostics = true;
+    HTMLMediaElement.prototype.play = wrapped;
+  }
+  window.addEventListener('elo-native-playback', function(event){
+    var detail = event && event.detail || {};
+    document.querySelectorAll('[data-elo-native-track-title]').forEach(function(node){
+      node.textContent = detail.title || '';
+    });
+  });
+  var observer = new MutationObserver(function(){ ensureStatusChip(); ensurePauseButton(); normalizeActionButtons(); removeIntrusiveOfflineNotices(); improveHistoryCards(); installNativeLocalMusicFallback(); installAudioPlayDiagnostics(); });
   observer.observe(document.documentElement, { childList:true, subtree:true });
   window.addEventListener('resize', function(){ normalizeActionButtons(); removeIntrusiveOfflineNotices(); improveHistoryCards(); });
   window.addEventListener('orientationchange', function(){ window.setTimeout(function(){ normalizeActionButtons(); improveHistoryCards(); }, 120); });
@@ -243,6 +321,7 @@ object EloWebViewHotfix {
   syncConnectivity();
   improveHistoryCards();
   installNativeLocalMusicFallback();
+  installAudioPlayDiagnostics();
   window.setInterval(syncConnectivity, 3000);
   window.setInterval(installNativeLocalMusicFallback, 1000);
 })();
