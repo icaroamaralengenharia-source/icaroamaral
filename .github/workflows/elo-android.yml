@@ -42,15 +42,9 @@ jobs:
         working-directory: android-elo
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Android tests when present
+      - name: Offline Core V2 unit tests
         working-directory: android-elo
-        shell: bash
-        run: |
-          if [[ -d app/src/test ]]; then
-            ./gradlew test --no-daemon --stacktrace
-          else
-            echo "No Android unit-test source set present."
-          fi
+        run: ./gradlew :app:offlineCoreUnitTest --no-daemon --stacktrace
 
       - name: SHA256
         working-directory: android-elo
