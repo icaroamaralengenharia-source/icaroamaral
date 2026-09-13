@@ -1549,7 +1549,9 @@ test('ELO Action Bus RDO: sem obra inequívoca pede seleção e consome a respos
   const workState = JSON.stringify({ version: 1, works: [
     { id: 'obr_mpm0ugmi_71rfcq', name: 'Residência teste', clientId: 'client-old' },
     { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' }
-  ], clients: [], reports: [], dailyLogs: [] });
+  ], clients: [
+    { id: 'obr_mtzctvob_hjdnbv', name: 'CLIENTE TESTE ELO E2E' }
+  ], reports: [], dailyLogs: [] });
   const { elo, localStorage } = loadEloContext({
     preloadScripts: ['elo-command-bridge.js'],
     localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
@@ -1577,6 +1579,7 @@ test('ELO Action Bus RDO: sem obra inequívoca pede seleção e consome a respos
   assert.equal(preview.commandBridge.requiresConfirmation, true);
   assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
   assert.match(preview.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
   assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
   assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
