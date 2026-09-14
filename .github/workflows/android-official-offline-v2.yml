@@ -1,7 +1,9 @@
 name: Android Official Full Offline V2
 on:
   push:
-    branches: [fix/elo-official-full-plus-offline-v2]
+    branches:
+      - fix/elo-official-full-plus-offline-v2
+      - recovery/elo-offline-routing-from-apk
   workflow_dispatch:
 permissions:
   contents: read
