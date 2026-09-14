@@ -19,6 +19,30 @@ jobs:
       - run: chmod +x gradlew
       - run: ./gradlew test --no-daemon --stacktrace
       - run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Test report summary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          files = glob.glob("app/build/test-results/test/**/*.xml", recursive=True)
+          total = failures = errors = skipped = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              for case in root.iter("testcase"):
+                  total += 1
+                  failures += len(list(case.findall("failure")))
+                  errors += len(list(case.findall("error")))
+                  skipped += len(list(case.findall("skipped")))
+          passed = total - failures - errors - skipped
+          print(f"TESTS_TOTAL={total}")
+          print(f"TESTS_PASS={passed}")
+          print(f"TESTS_FAIL={failures + errors}")
+          print(f"TESTS_SKIPPED={skipped}")
+          if failures or errors:
+              raise SystemExit(1)
+          PY
+
       - name: Validate APK
         shell: bash
         run: |
@@ -31,8 +55,11 @@ jobs:
           for symbol in EloOfflineEngine EloApiClient EloNativeBridge EloFileChooserController EloTtsClient EloVoicePlayer EloWakeParser EloWakeController OfflineLabActivity EloBootReceiver; do grep -F "$symbol" <<<"$dex"; done
           test "$(unzip -Z1 "$apk" | grep -c '.opus$')" -eq 52
           test "$(python3 -c 'import json; print(len(json.load(open("app/src/main/assets/offline-media/catalog.json"))))')" -eq 50
+          sha256sum "$apk" | tee app/build/outputs/apk/debug/app-debug.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: elo-oficial-v0.3.0-full-offline-v2
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
