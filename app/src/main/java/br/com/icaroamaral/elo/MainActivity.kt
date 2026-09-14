@@ -497,17 +497,33 @@ class MainActivity : Activity() {
     for (var i = fields.length - 1; i >= 0; i--) if (fields[i].value) return fields[i].value;
     return '';
   }
+  function trace(stage, command, online, engine, handled, requiresInternet, action, reason){
+    try {
+      if (window.EloNativeBridge && window.EloNativeBridge.traceRouting) {
+        window.EloNativeBridge.traceRouting(stage, String(command || ''), 'TEXT', String(online || ''), String(engine || ''), !!handled, !!requiresInternet, String(action || ''), String(reason || ''));
+      }
+    } catch (_) {}
+  }
   function route(command){
     try {
       if (!command || !window.EloNativeBridge || !window.EloNativeBridge.routeOfflineChat) return false;
+      trace('ELO_TRACE_01_COMPOSER_INPUT', command, '', '', false, false, '', 'composer_route');
+      trace('ELO_TRACE_03_WEB_ROUTE_LOCAL', command, '', '', false, false, '', 'before_native_bridge');
       var raw = window.EloNativeBridge.routeOfflineChat(String(command));
       var result = JSON.parse(raw || '{}');
-      if (!result.handled) return false;
+      trace('ELO_TRACE_09_RESPONSE_TO_WEBVIEW', command, '', result.route || '', !!result.handled, !!result.requiresInternet, result.action || result.state || '', 'native_result');
+      if (!result.handled) {
+        trace('ELO_TRACE_10_BACKEND_FALLBACK', command, '', result.route || '', false, !!result.requiresInternet, '', result.requiresInternet ? 'requires_internet' : 'native_not_handled');
+        return false;
+      }
       appendLocalMessage('user', command);
       appendLocalMessage('assistant', result.text || result.message || '');
       clearComposer();
       return true;
-    } catch (err) { return false; }
+    } catch (err) {
+      trace('ELO_TRACE_10_BACKEND_FALLBACK', command, '', '', false, false, '', 'route_exception');
+      return false;
+    }
   }
   document.addEventListener('submit', function(event){
     if (route(candidateText(event.target))) {

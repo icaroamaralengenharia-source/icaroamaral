@@ -65,9 +65,17 @@ class EloOfflineV2Controller(
     }
 
     private fun handleResolved(command: String, allowMusic: Boolean): String? {
-        val result = engine.handle(command)
-        if (!result.handled) return null
-        if (!allowMusic && (result.requiresInternet || result.action != EloOfflineAction.None)) return null
+        val online = EloConnectivity.snapshot(appContext) == EloConnectivityState.ONLINE_VALIDATED
+        val result = engine.handle(command, online)
+        if (!result.handled) {
+            EloRoutingTrace.log("ELO_TRACE_08_HANDLED", command, online = online, handled = false, requiresInternet = result.requiresInternet, reason = "engine_not_handled")
+            return null
+        }
+        if (!allowMusic && (result.requiresInternet || result.action != EloOfflineAction.None)) {
+            EloRoutingTrace.log("ELO_TRACE_08_HANDLED", command, online = online, handled = false, requiresInternet = result.requiresInternet, action = result.action.toString(), reason = "blocked_nonlocal_action")
+            return null
+        }
+        EloRoutingTrace.log("ELO_TRACE_08_HANDLED", command, online = online, handled = true, requiresInternet = result.requiresInternet, action = result.action.toString(), reason = "offline_v2_handled")
 
         when (val action = result.action) {
             is EloOfflineAction.PlayTrack -> {

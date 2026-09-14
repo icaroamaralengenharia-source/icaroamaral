@@ -128,7 +128,17 @@ class EloNativeBridge(
     @JavascriptInterface
     fun routeOfflineChat(command: String): String {
         if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
-        return offlineController.routeOfflineChat(command)
+        val online = offlineController.connectivityState() == EloConnectivityState.ONLINE_VALIDATED.name
+        return offlineController.routeOfflineChat(command).also { result ->
+            EloRoutingTrace.logJson("ELO_TRACE_04_NATIVE_BRIDGE", command, "TEXT", online, result, "routeOfflineChat_return")
+        }
+    }
+
+    @JavascriptInterface
+    fun traceRouting(stage: String, command: String, source: String, online: String, engine: String, handled: Boolean, requiresInternet: Boolean, action: String, reason: String): String {
+        if (!isTrustedCaller()) return "{\"trusted\":false}"
+        EloRoutingTrace.log(stage, command, source.ifBlank { "TEXT" }, online.toBooleanStrictOrNull(), engine, handled, requiresInternet, action, reason)
+        return "{\"trusted\":true}"
     }
 
     @JavascriptInterface

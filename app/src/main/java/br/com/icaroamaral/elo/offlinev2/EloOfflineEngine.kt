@@ -1,4 +1,5 @@
 package br.com.icaroamaral.elo.offlinev2
+import br.com.icaroamaral.elo.EloRoutingTrace
 import java.text.Normalizer
 import java.time.Clock
 import java.util.Locale
@@ -15,38 +16,58 @@ class EloOfflineEngine(
     private val technical = technicalKnowledge
     private val music = MusicCommandEngine(tracks)
 
-    fun handle(input: String): EloOfflineResult {
+    fun handle(input: String, online: Boolean? = null): EloOfflineResult {
         val raw = input.trim()
-        if (raw.isBlank()) return fallback()
+        if (raw.isBlank()) return traced("Fallback", raw, fallback(), online, "blank")
 
-        music.answer(raw, context)?.let { return it }
+        val normalized = normalize(raw)
+        EloRoutingTrace.log("ELO_TRACE_02_NORMALIZED", normalized, online = online, reason = "raw_present")
+
+        music.answer(raw, context)?.let { return traced("MusicCommandEngine", raw, it, online) }
         dateTime.answer(raw)?.let {
             context.lastTopic = "data_hora"
             context.lastIntent = "date_time"
-            return EloOfflineResult(true, it)
+            return traced("DateTimeEngine", raw, EloOfflineResult(true, it), online)
         }
         calculator.calculate(raw, context)?.let {
             context.lastTopic = "calculo"
             context.lastIntent = "calculo_${it.topic}"
-            return EloOfflineResult(true, it.text)
+            return traced("CalculatorEngine", raw, EloOfflineResult(true, it.text), online)
         }
         conversation.answer(raw)?.let {
             context.lastTopic = "conversa"
             context.lastIntent = "conversation"
-            return EloOfflineResult(true, it)
+            return traced("ConversationEngine", raw, EloOfflineResult(true, it), online)
         }
         technical.answer(raw)?.let { (answer, topic) ->
             context.lastTopic = "tecnico"
             context.lastTechnicalTopic = topic
             context.lastIntent = "technical_$topic"
-            return EloOfflineResult(true, answer)
+            return traced("TechnicalKnowledgeEngine", raw, EloOfflineResult(true, answer), online)
         }
         if (isClearlyOnline(raw)) {
             context.lastTopic = "online"
             context.lastIntent = "requires_internet"
-            return EloOfflineResult(true, "Esse pedido precisa de internet. Quando a conexão voltar eu consigo pesquisar.", requiresInternet = true)
+            return traced("OnlineRequest", raw, EloOfflineResult(true, "Esse pedido precisa de internet. Quando a conexão voltar eu consigo pesquisar.", requiresInternet = true), online)
         }
-        return fallback()
+        return traced("Fallback", raw, fallback(), online, "no_engine_match")
+    }
+
+    private fun traced(engine: String, phrase: String, result: EloOfflineResult, online: Boolean?, reason: String = ""): EloOfflineResult {
+        EloRoutingTrace.log("ELO_TRACE_06_ENGINE_SELECTED", phrase, online = online, engine = engine, handled = result.handled, requiresInternet = result.requiresInternet, action = result.action.traceName(), reason = reason)
+        EloRoutingTrace.log("ELO_TRACE_07_ENGINE_RESULT", phrase, online = online, engine = engine, handled = result.handled, requiresInternet = result.requiresInternet, action = result.action.traceName(), reason = if (result.handled) "result_ready" else reason)
+        return result
+    }
+
+    private fun EloOfflineAction.traceName(): String = when (this) {
+        EloOfflineAction.None -> "None"
+        EloOfflineAction.Pause -> "Pause"
+        EloOfflineAction.Resume -> "Resume"
+        EloOfflineAction.NextTrack -> "NextTrack"
+        EloOfflineAction.PreviousTrack -> "PreviousTrack"
+        EloOfflineAction.Shuffle -> "Shuffle"
+        EloOfflineAction.CurrentTrack -> "CurrentTrack"
+        is EloOfflineAction.PlayTrack -> "PlayTrack"
     }
 
     private fun isClearlyOnline(input: String): Boolean {

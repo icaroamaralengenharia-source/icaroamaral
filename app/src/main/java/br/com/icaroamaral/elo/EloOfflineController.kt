@@ -61,8 +61,15 @@ class EloOfflineController(
         } else {
             offlineV2.handle(command)
         }
-        if (local != null) return local
-        if (online) return "{\"handled\":false,\"route\":\"web\"}"
+        if (local != null) {
+            EloRoutingTrace.logJson("ELO_TRACE_05_CONTROLLER", command, "TEXT", online, local, "offline_v2_return")
+            return local
+        }
+        if (online) {
+            val web = "{\"handled\":false,\"route\":\"web\"}"
+            EloRoutingTrace.logJson("ELO_TRACE_05_CONTROLLER", command, "TEXT", online, web, "online_web_fallback")
+            return web
+        }
 
         val result = router.route(command)
         if (result.localStop) {
@@ -74,7 +81,9 @@ class EloOfflineController(
             playbackUiCallback(EloOfflinePlaybackUiEvent.Playing(result.track))
         }
         if (result.handled) routeResultCallback(result)
-        return offlineResultJson(result)
+        return offlineResultJson(result).also {
+            EloRoutingTrace.logJson("ELO_TRACE_05_CONTROLLER", command, "TEXT", online, it, "legacy_router_fallback")
+        }
     }
     private fun offlineResultJson(result: EloOfflineRouteResult): String {
         return "{" +
