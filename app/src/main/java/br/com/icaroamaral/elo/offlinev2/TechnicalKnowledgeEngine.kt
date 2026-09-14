@@ -31,7 +31,10 @@ class TechnicalKnowledgeEngine(private val entries: List<TechnicalEntry>) {
                 }.orEmpty()
                 TechnicalEntry(item.optString("topic"), keywords, item.optString("answer"))
             }
-            return TechnicalKnowledgeEngine(entries)
+            return TechnicalKnowledgeEngine(entries + listOf(
+                TechnicalEntry("cura", listOf("cura", "cura do concreto"), "A cura do concreto deve manter umidade e temperatura adequadas pelo período previsto em projeto, evitando secagem prematura e protegendo a superfície contra perda rápida de água."),
+                TechnicalEntry("chapisco", listOf("chapisco"), "Chapisco é a camada de preparo aplicada sobre a base para aumentar a aderência do revestimento. A superfície deve estar limpa, firme e receber a execução e a cura previstas para o sistema.")
+            ))
         }
 
         fun defaults(): TechnicalKnowledgeEngine = TechnicalKnowledgeEngine(listOf(

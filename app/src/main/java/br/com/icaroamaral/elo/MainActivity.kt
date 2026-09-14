@@ -491,7 +491,9 @@ class MainActivity : Activity() {
   function candidateText(form){
     var active = document.activeElement;
     if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.value) return active.value;
-    var fields = form && form.querySelectorAll ? form.querySelectorAll('textarea,input[type=text],input:not([type])') : [];
+    var fields = form && form.querySelectorAll
+      ? form.querySelectorAll('textarea,input[type=text],input:not([type])')
+      : document.querySelectorAll('textarea,input[type=text],input:not([type])');
     for (var i = fields.length - 1; i >= 0; i--) if (fields[i].value) return fields[i].value;
     return '';
   }
