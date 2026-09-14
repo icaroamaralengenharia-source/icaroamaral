@@ -14,9 +14,10 @@ function createStorage() {
   };
 }
 
-function loadElo() {
+function loadElo(options = {}) {
   const fetchRequests = [];
   const storage = createStorage();
+  const fetchHandler = options.fetch;
   const document = {
     body: { dataset: {}, getAttribute() { return null; }, setAttribute() {}, appendChild() {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } } },
     documentElement: { getAttribute() { return null; }, setAttribute() {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } } },
@@ -54,8 +55,9 @@ function loadElo() {
     Date,
     Math,
     console,
-    fetch(url, options) { fetchRequests.push({ url, options: options || {} }); throw new Error("network disabled in test"); }
+    fetch(url, requestOptions) { fetchRequests.push({ url, options: requestOptions || {} }); if (typeof fetchHandler === "function") return fetchHandler(url, requestOptions || {}); throw new Error("network disabled in test"); }
   };
+  Object.assign(window, options.window || {});
   window.window = window;
   const context = vm.createContext({ window, document, navigator: window.navigator, localStorage: storage, sessionStorage: window.sessionStorage, console, setTimeout, clearTimeout, URLSearchParams, Date, Math, fetch: window.fetch });
   const source = fs.readFileSync(path.join(__dirname, "elo-assistente.js"), "utf8");
@@ -133,4 +135,61 @@ test("comando por voz com wake word também entra na memória arbitrária", () =
   const response = api.buildExplicitMemoryCommandForTest(message);
   assert.equal(response.sessionIntent, "explicit_memory_save");
   assert.ok(api.getLongTermMemoriesForTest().some((item) => /viga azul/i.test(item.text)));
+});
+
+test("continuação contextual não vira música e música explícita continua sendo música", () => {
+  const { api } = loadElo();
+  assert.equal(api.detectMusicPlayIntentForTest("ela terá 5 metros de vão"), null);
+  assert.equal(api.detectMusicPlayIntentForTest("toque Comfortably Numb Pink Floyd").intent, "PLAY");
+});
+
+test("variações de relatório reutilizam a análise anterior e entram na ação real", () => {
+  const { api } = loadElo();
+  api.rememberActiveAnalysisForTest("analise essa foto", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
+
+  for (const phrase of [
+    "gere um relatório disso",
+    "gere um relatório dessa análise",
+    "faça um relatório de qualidade",
+    "transforme isso em relatório",
+    "gere o relatório"
+  ]) {
+    assert.equal(api.detectReportFromAnalysisContextForTest(phrase), true, phrase);
+    const route = api.detectCommandBridgeRequestForTest(phrase);
+    assert.equal(route.module, "obrareport_report", phrase);
+    assert.equal(route.action, "generate_report_from_context", phrase);
+    const response = api.buildReportFromAnalysisContextForTest(phrase);
+    assert.equal(response.reportFromAnalysisContext.realReportAction, true, phrase);
+    assert.equal(response.reportFromAnalysisContext.source, "last_analysis", phrase);
+  }
+});
+
+test("sem análise, pedido de relatório não inventa conteúdo", () => {
+  const { api } = loadElo();
+  const response = api.buildReportFromAnalysisContextForTest("gere um relatório disso");
+  assert.equal(response.sessionIntent, "generate_report_from_context_missing_context");
+  assert.match(response.fullAnswer, /Nao tenho uma analise recente/i);
+});
+
+test("ação de relatório de contexto usa o mesmo gerador real e preserva os achados", async () => {
+  const calls = [];
+  const { api } = loadElo({
+    window: { RELATORIO_QUALIDADE_CONFIG: { appsScriptUrl: "https://script.test/report" } },
+    fetch(url, options) {
+      calls.push({ url, options });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ ok: true, pdfUrl: "https://script.test/report.pdf", requestId: "req-context-1" }))
+      });
+    }
+  });
+  api.rememberActiveAnalysisForTest("analise essa foto", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
+  await api.generateReportFromAnalysisContextForTest("gere um relatório disso");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://script.test/report");
+  const payload = JSON.parse(calls[0].options.body);
+  assert.equal(payload.fotosUnidade.length, 0);
+  assert.match(payload.report.observacoes, /falta de material/i);
+  assert.match(payload.inconformidades[0].descricaoTecnica, /falta de material/i);
 });
