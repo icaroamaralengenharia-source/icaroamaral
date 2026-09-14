@@ -17,7 +17,11 @@ Cadastre no painel da plataforma:
 ```text
 OPENAI_API_KEY=sua_chave_da_openai
 NODE_ENV=production
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=chave_privilegiada_apenas_no_backend
+ELO_RDO_STORE=supabase
 ```
+Para produção, mantenha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `ELO_RDO_STORE=supabase` configurados. O backend falha no startup se o armazenamento Supabase do RDO não estiver disponível; o JSON local só é usado em testes ou quando `ELO_RDO_STORE=file` é escolhido explicitamente.
 
 Opcionalmente, ajuste:
 

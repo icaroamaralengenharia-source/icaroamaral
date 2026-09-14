@@ -9,7 +9,35 @@ import { createObraReportTransactionalService } from "../src/services/obrareport
 async function withServer(callback) {
   const dir = mkdtempSync(join(tmpdir(), "obrareport-api-"));
   const app = createApp({
-    obraReportTransactionalService: createObraReportTransactionalService({ dataPath: join(dir, "obrareport.json") })
+    obraReportTransactionalService: createObraReportTransactionalService({ dataPath: join(dir, "obrareport.json") }),
+    authContextSupabaseClient: {
+      auth: {
+        async getUser(token) {
+          return { data: { user: { id: token === "token-b" ? "user_b" : "user_a" } }, error: null };
+        }
+      },
+      from(table) {
+        assert.equal(table, "profiles");
+        return {
+          select() {
+            return {
+              eq(_column, value) {
+                return {
+                  async maybeSingle() {
+                    return {
+                      data: value === "user_b"
+                        ? { id: "profile-b", auth_user_id: "user_b", institution_id: "inst_b", role: "admin" }
+                        : { id: "profile-a", auth_user_id: "user_a", institution_id: "inst_a", role: "admin" },
+                      error: null
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+    }
   });
   const server = await new Promise((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
@@ -36,8 +64,8 @@ async function json(url, options = {}) {
   return { response, data };
 }
 
-const headersA = { "x-institution-id": "inst_a", "x-user-id": "user_a" };
-const headersB = { "x-institution-id": "inst_b", "x-user-id": "user_b" };
+const headersA = { Authorization: "Bearer token-a", "x-institution-id": "inst_a", "x-user-id": "user_a" };
+const headersB = { Authorization: "Bearer token-b", "x-institution-id": "inst_b", "x-user-id": "user_b" };
 
 test("ObraReport API cria, lista, busca, atualiza, versiona, documenta e audita relatorio", async () => {
   await withServer(async (base) => {
