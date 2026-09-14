@@ -1,0 +1,67 @@
+name: Backend Security Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/backend-security-gate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/backend-security-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-security-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-security:
+    name: Backend auth and RDO security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Syntax gate
+        run: |
+          node --check src/app.js
+          node --check src/auth-context.js
+          node --check src/services/obrareport-transactional-service.js
+          node --check tests/canonical-session-rdo-security.test.js
+          node --check tests/obrareport-rdo-tenant-isolation-p0.test.js
+
+      - name: Auth, session, tenant, RDO and backend regression gate
+        run: >-
+          node --test
+          tests/auth-context.test.js
+          tests/elo-auth-context-integration.test.js
+          tests/canonical-session-rdo-security.test.js
+          tests/obrareport-rdo-tenant-isolation-p0.test.js
+          tests/obrareport-transactional-service.test.js
