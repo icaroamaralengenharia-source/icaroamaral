@@ -24,7 +24,8 @@ import { registerEloTtsRoute } from "./elo-tts.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
-import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { createObraReportTransactionalService, defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repository.js";
 import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
@@ -1146,7 +1147,13 @@ export function createApp(options = {}) {
   const apartmentHandoverEntitlementSupabaseClient = options.apartmentHandoverEntitlementSupabaseClient || null;
   const municipalAdminSupabaseClient = options.municipalAdminSupabaseClient || authContextSupabaseClient || null;
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
-  const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
+  const configuredRdoStore = clean_(env.ELO_RDO_STORE).toLowerCase();
+  const rdoStoreMode = configuredRdoStore || (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : env.NODE_ENV === "production" ? "supabase" : "file");
+  if (configuredRdoStore && !["supabase", "file"].includes(configuredRdoStore)) throw new Error("rdo_store_mode_invalid");
+  const rdoSupabaseClient = options.rdoSupabaseClient || (!options.obraReportTransactionalService && rdoStoreMode === "supabase" ? getSupabaseClient(env) : null);
+  if (rdoStoreMode === "supabase" && !options.obraReportTransactionalService && !options.rdoRepository && !rdoSupabaseClient) throw new Error("rdo_supabase_store_not_configured");
+  const rdoRepository = options.rdoRepository || (rdoStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseRdoRepository({ client: rdoSupabaseClient }) : null);
+  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
   const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
@@ -1815,7 +1822,7 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdo = obraReportTransactionalService.createRdo(buildCanonicalRdoContext_(request), request.body || {});
+      const rdo = await obraReportTransactionalService.createRdo(buildCanonicalRdoContext_(request), request.body || {});
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_created", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO criado", description: "Referencia de RDO criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, rdo });
     } catch (error) {
@@ -1823,18 +1830,18 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get("/api/obrareport/rdos", (request, response) => {
+  app.get("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdos = obraReportTransactionalService.listRdos(buildCanonicalRdoContext_(request), request.query || {});
+      const rdos = await obraReportTransactionalService.listRdos(buildCanonicalRdoContext_(request), request.query || {});
       response.json({ ok: true, rdos });
     } catch (error) {
       handleObraReportError_(response, error);
     }
   });
 
-  app.get("/api/obrareport/rdos/:id", (request, response) => {
+  app.get("/api/obrareport/rdos/:id", async (request, response) => {
     try {
-      const rdo = obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
+      const rdo = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
       response.json({ ok: true, rdo });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1843,7 +1850,7 @@ export function createApp(options = {}) {
 
   app.put("/api/obrareport/rdos/:id", async (request, response) => {
     try {
-      const rdo = obraReportTransactionalService.updateRdo(buildCanonicalRdoContext_(request), request.params.id, request.body || {});
+      const rdo = await obraReportTransactionalService.updateRdo(buildCanonicalRdoContext_(request), request.params.id, request.body || {});
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_updated", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO atualizado", description: "Referencia de RDO atualizada.", severity: "informational", status: rdo.status === "closed" ? "completed" : "active" });
       response.json({ ok: true, rdo });
     } catch (error) {
@@ -1851,9 +1858,9 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/obrareport/rdos/:id/versions", (request, response) => {
+  app.post("/api/obrareport/rdos/:id/versions", async (request, response) => {
     try {
-      const version = obraReportTransactionalService.createRdoVersion(buildCanonicalRdoContext_(request), request.params.id);
+      const version = await obraReportTransactionalService.createRdoVersion(buildCanonicalRdoContext_(request), request.params.id);
       response.status(201).json({ ok: true, version });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1862,8 +1869,8 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos/:id/generate-document", async (request, response) => {
     try {
-      const document = obraReportTransactionalService.generateRdoDocument(buildCanonicalRdoContext_(request), request.params.id);
-      const rdoForTimeline = obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
+      const document = await obraReportTransactionalService.generateRdoDocument(buildCanonicalRdoContext_(request), request.params.id);
+      const rdoForTimeline = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
       await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: rdoForTimeline.project_id }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Referencia de documento de RDO gerado.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
       response.status(201).json({ ok: true, document });
     } catch (error) {
@@ -1871,9 +1878,9 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get("/api/obrareport/rdos/:id/events", (request, response) => {
+  app.get("/api/obrareport/rdos/:id/events", async (request, response) => {
     try {
-      const events = obraReportTransactionalService.listRdoEvents(buildCanonicalRdoContext_(request), request.params.id);
+      const events = await obraReportTransactionalService.listRdoEvents(buildCanonicalRdoContext_(request), request.params.id);
       response.json({ ok: true, events });
     } catch (error) {
       handleObraReportError_(response, error);
