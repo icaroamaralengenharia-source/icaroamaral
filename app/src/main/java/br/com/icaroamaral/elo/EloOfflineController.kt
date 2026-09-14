@@ -54,6 +54,28 @@ class EloOfflineController(
         player.release()
     }
 
+    fun routeOfflineChat(command: String): String {
+        val online = EloConnectivity.snapshot(appContext) == EloConnectivityState.ONLINE_VALIDATED
+        val local = if (online) {
+            offlineV2.handleLocal(command)
+        } else {
+            offlineV2.handle(command)
+        }
+        if (local != null) return local
+        if (online) return "{\"handled\":false,\"route\":\"web\"}"
+
+        val result = router.route(command)
+        if (result.localStop) {
+            player.stop()
+            playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
+        }
+        if (result.localPlay && result.track != null) {
+            player.play(result.track)
+            playbackUiCallback(EloOfflinePlaybackUiEvent.Playing(result.track))
+        }
+        if (result.handled) routeResultCallback(result)
+        return offlineResultJson(result)
+    }
     private fun offlineResultJson(result: EloOfflineRouteResult): String {
         return "{" +
             "\"handled\":" + result.handled + "," +

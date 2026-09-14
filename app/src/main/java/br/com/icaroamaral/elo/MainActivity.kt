@@ -500,7 +500,11 @@ class MainActivity : Activity() {
       if (!command || !window.EloNativeBridge || !window.EloNativeBridge.routeOfflineChat) return false;
       var raw = window.EloNativeBridge.routeOfflineChat(String(command));
       var result = JSON.parse(raw || '{}');
-      return !!result.handled;
+      if (!result.handled) return false;
+      appendLocalMessage('user', command);
+      appendLocalMessage('assistant', result.text || result.message || '');
+      clearComposer();
+      return true;
     } catch (err) { return false; }
   }
   document.addEventListener('submit', function(event){

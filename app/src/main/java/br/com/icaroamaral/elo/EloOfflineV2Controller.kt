@@ -56,8 +56,17 @@ class EloOfflineV2Controller(
     }
 
     fun handle(command: String): String? {
+        return handleResolved(command, allowMusic = true)
+    }
+
+    fun handleLocal(command: String): String? {
+        return handleResolved(command, allowMusic = false)
+    }
+
+    private fun handleResolved(command: String, allowMusic: Boolean): String? {
         val result = engine.handle(command)
         if (!result.handled) return null
+        if (!allowMusic && (result.requiresInternet || result.action != EloOfflineAction.None)) return null
 
         when (val action = result.action) {
             is EloOfflineAction.PlayTrack -> {
@@ -240,6 +249,7 @@ class EloOfflineV2Controller(
             "\"route\":\"offline-v2\"," +
             "\"requiresInternet\":" + requiresInternet + "," +
             "\"state\":\"" + state + "\"," +
+            "\"text\":\"" + escape(message) + "\"," +
             "\"message\":\"" + escape(message) + "\"," +
             "\"trackId\":\"" + escape(currentTrack?.id.orEmpty()) + "\"" +
             "}"

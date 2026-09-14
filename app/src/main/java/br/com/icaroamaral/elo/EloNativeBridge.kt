@@ -128,7 +128,7 @@ class EloNativeBridge(
     @JavascriptInterface
     fun routeOfflineChat(command: String): String {
         if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
-        return routeTrustedOfflineCommand(command)
+        return offlineController.routeOfflineChat(command)
     }
 
     @JavascriptInterface
