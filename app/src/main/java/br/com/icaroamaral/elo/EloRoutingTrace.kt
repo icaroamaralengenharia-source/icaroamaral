@@ -16,12 +16,14 @@ object EloRoutingTrace {
         action: String = "",
         reason: String = "",
     ) {
-        Log.i(
-            stage,
-            "phrase=${safe(phrase)} source=${safe(source)} online=${online?.toString() ?: "unknown"} " +
-                "engine=${safe(engine)} handled=$handled requiresInternet=$requiresInternet " +
-                "action=${safe(action)} reason=${safe(reason)}"
-        )
+        runCatching {
+            Log.i(
+                stage,
+                "phrase=${safe(phrase)} source=${safe(source)} online=${online?.toString() ?: "unknown"} " +
+                    "engine=${safe(engine)} handled=$handled requiresInternet=$requiresInternet " +
+                    "action=${safe(action)} reason=${safe(reason)}"
+            )
+        }
     }
 
     fun logJson(stage: String, phrase: String, source: String, online: Boolean?, json: String, reason: String = "") {
