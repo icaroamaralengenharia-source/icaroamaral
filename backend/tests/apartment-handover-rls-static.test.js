@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const migrationPath = resolve("backend/src/data/apartment-handover-entitlements-migration.sql");
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const migrationPath = join(REPO_ROOT, "backend", "src", "data", "apartment-handover-entitlements-migration.sql");
 const sql = readFileSync(migrationPath, "utf8");
 const compact = sql.replace(/\s+/g, " ").toLowerCase();
 
