@@ -1441,8 +1441,8 @@
     if (/\b(?:liste|listar|mostre|mostrar|abra|abrir|qual|quais|ultimo|ultimos|historico|consultar|consulta)\b[\s\S]{0,60}\b(?:relatorios?|relat.rios?|manifestacoes?|fotos?)\b/.test(text)) return false;
     const hasCreateVerb = /\b(?:faca|fazer|gere|gerar|crie|criar|monte|montar|transforme|transformar|elabore|elaborar|coloque|preparar|prepare)\b/.test(text);
     const hasReportNoun = /\b(?:relatorio|relat.rio|pdf|laudo|parecer|documento)\b/.test(text);
-    const hasAnaphora = /\b(?:isso|dessa\s+analise|desta\s+analise|essa\s+analise|esta\s+analise|o\s+que\s+voce\s+encontrou|o\s+que\s+encontrou|esses\s+problemas|dos\s+problemas\s+encontrados|isso\s+ai|arquivo\s+analisado|fotos\s+analisadas|com\s+isso|relatando\s+isso|dessa\s+avaliacao|deste\s+diagnostico)\b/.test(text);
-    return hasCreateVerb && hasReportNoun && hasAnaphora;
+    const hasAnaphora = /\b(?:isso|disso|dessa\s+analise|desta\s+analise|essa\s+analise|esta\s+analise|o\s+que\s+voce\s+encontrou|o\s+que\s+encontrou|esses\s+problemas|dos\s+problemas\s+encontrados|isso\s+ai|arquivo\s+analisado|fotos\s+analisadas|com\s+isso|relatando\s+isso|dessa\s+avaliacao|deste\s+diagnostico)\b/.test(text);
+    return hasCreateVerb && hasReportNoun && (hasAnaphora || /\b(?:de\s+qualidade|o\s+relatorio)\b/.test(text));
   }
 
   function formatEloAnalysisContextReport_(context) {
@@ -1461,7 +1461,7 @@
       return { shortAnswer: "Nao tenho uma analise recente para transformar em relatorio.", fullAnswer: "Nao tenho uma analise recente para transformar em relatorio. Envie ou cole a analise, ou anexe o arquivo/foto para eu analisar primeiro.", nextAction: "Analise um arquivo, foto, RDO ou vistoria antes de pedir o relatorio disso.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context_missing_context", action: "generate_report_from_context" };
     }
     const report = formatEloAnalysisContextReport_(context);
-    return { shortAnswer: "Preparei o relatorio com base na analise anterior.", fullAnswer: "Preparei o relatorio com base na analise anterior.\n\n" + report, nextAction: "Revise os dados ausentes antes de entregar ao cliente ou transformar em PDF formal.", canSave: true, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: "last_analysis", context: context, text: report } };
+    return { shortAnswer: "Vou gerar o relatorio real com base na analise anterior.", fullAnswer: "Vou gerar o relatorio real com base na analise anterior.\n\n" + report, nextAction: "Revise o arquivo gerado antes de entregar ao cliente.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: "last_analysis", context: context, text: report, realReportAction: true } };
   }
   function applyEloBudgetRouteContext_() {
     const context = getEloBudgetRouteContext_();
@@ -28174,16 +28174,24 @@ function isEloResidentialNewPipelineEnabled_() {
     return result;
   }
 
-  function buildEloReportPayload_(message, imagePayload, imageAnalysis) {
+  function buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext) {
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
     const promptContext = sanitizeUserText(message) || "Relatorio gerado pelo Elo com imagem anexada.";
-    const visualReport = imageAnalysis && imageAnalysis.reportText ? imageAnalysis.reportText : promptContext;
-    const photo = Object.assign({}, imagePayload, {
+    const contextReport = analysisContext ? formatEloAnalysisContextReport_(analysisContext) : "";
+    const visualReport = imageAnalysis && imageAnalysis.reportText ? imageAnalysis.reportText : contextReport || promptContext;
+    const photo = imagePayload ? Object.assign({}, imagePayload, {
       originalName: imagePayload.originalName || imagePayload.fileName || "imagem-elo.jpg",
       fileName: imagePayload.fileName || "imagem-elo.jpg",
       mimeType: imagePayload.mimeType || "image/jpeg"
-    });
+    }) : null;
+    const inconformidade = {
+      numero: "01",
+      descricaoTecnica: imageAnalysis && imageAnalysis.technicalDescription ? imageAnalysis.technicalDescription : visualReport,
+      solucaoRecomendada: imageAnalysis && imageAnalysis.recommendedAction ? imageAnalysis.recommendedAction : "Revisar tecnicamente o registro antes da entrega ao cliente.",
+      grauRisco: imageAnalysis && imageAnalysis.riskLevel ? imageAnalysis.riskLevel : "A avaliar"
+    };
+    if (photo) inconformidade.foto = photo;
 
     return {
       submittedAt: now.toISOString(),
@@ -28205,25 +28213,11 @@ function isEloResidentialNewPipelineEnabled_() {
         observacoes: visualReport,
         emailDestino: "icaroamaralengenharia@gmail.com"
       },
-      fotosUnidade: [
-        {
-          numero: "01",
-          descricao: visualReport,
-          foto: photo
-        }
-      ],
-      inconformidades: [
-        {
-          numero: "01",
-          descricaoTecnica: imageAnalysis && imageAnalysis.technicalDescription ? imageAnalysis.technicalDescription : visualReport,
-          solucaoRecomendada: imageAnalysis && imageAnalysis.recommendedAction ? imageAnalysis.recommendedAction : "Revisar tecnicamente o registro antes da entrega ao cliente.",
-          grauRisco: imageAnalysis && imageAnalysis.riskLevel ? imageAnalysis.riskLevel : "A avaliar",
-          foto: photo
-        }
-      ]
+      fotosUnidade: photo ? [{ numero: "01", descricao: visualReport, foto: photo }] : [],
+      inconformidades: [inconformidade]
     };
   }
-  async function generateEloReportPdfFromChat_(message, attachments) {
+  async function generateEloReportPdfFromChat_(message, attachments, analysisContext) {
     const appsScriptUrl = getEloReportAppsScriptUrl_();
     const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
     const statusMessage = appendMessage("assistant", "Analisando imagem e gerando PDF real pelo ObraReport...");
@@ -28232,17 +28226,28 @@ function isEloResidentialNewPipelineEnabled_() {
       if (!appsScriptUrl) {
         throw new Error("Apps Script do ObraReport nao esta configurado nesta pagina.");
       }
-      if (!imageFile) {
+      if (!imageFile && !analysisContext) {
         throw new Error("Anexe uma imagem JPG ou PNG e peca novamente para gerar o relatorio.");
       }
 
-      const imagePayload = await compressEloImageAttachment_(imageFile);
-      const rawAnalysis = await analyzeEloImageForReport_(imagePayload, message, imageFile);
-      if (rawAnalysis && rawAnalysis.mode === "error") {
-        throw new Error(rawAnalysis.suggestion || rawAnalysis.note || "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+      let imagePayload = null;
+      let imageAnalysis = null;
+      if (imageFile) {
+        imagePayload = await compressEloImageAttachment_(imageFile);
+        const rawAnalysis = await analyzeEloImageForReport_(imagePayload, message, imageFile);
+        if (rawAnalysis && rawAnalysis.mode === "error") {
+          throw new Error(rawAnalysis.suggestion || rawAnalysis.note || "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+        }
+        imageAnalysis = normalizeEloReportImageAnalysis_(rawAnalysis, message);
+      } else {
+        imageAnalysis = {
+          reportText: formatEloAnalysisContextReport_(analysisContext),
+          technicalDescription: (analysisContext.findings || []).join(" ") || analysisContext.summary || "Analise tecnica anterior do ELO.",
+          recommendedAction: (analysisContext.recommendations || []).join(" ") || "Revisar tecnicamente os achados antes da entrega.",
+          riskLevel: (analysisContext.risks || []).join(" ") || "A avaliar"
+        };
       }
-      const imageAnalysis = normalizeEloReportImageAnalysis_(rawAnalysis, message);
-      const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis);
+      const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext);
       const response = await fetch(appsScriptUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -28262,7 +28267,7 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       const answer = [
-        "PDF real gerado pelo ObraReport com base na analise visual da imagem.",
+        analysisContext ? "PDF real gerado pelo ObraReport com base na analise anterior." : "PDF real gerado pelo ObraReport com base na analise visual da imagem.",
         "",
         imageAnalysis.reportText,
         "",
@@ -28283,6 +28288,7 @@ function isEloResidentialNewPipelineEnabled_() {
       updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui gerar o PDF agora.");
     } finally {
       clearProductAttachmentPreview();
+      removeTypingIndicator();
     }
   }
   const ELO_RDO_PREVIEW_MAX_PHOTOS = 12;
@@ -28843,7 +28849,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const tokens = normalized.split(/\s+/).filter(Boolean);
     if (tokens.length < 2) return false;
     if (/\b(?:oi|ola|olá|estou|tenho|quero|como|qual|quanto|porque|por que|compare|analise|análise|crie|gere|faca|faça|continue|valeu|obrigado|obrigada|e se)\b/i.test(normalized)) return false;
-    return ELO_MUSIC_ARTIST_HINTS_.some(function (hint) { return normalized.indexOf(hint) >= 0; }) || /\b(?:do|da|de|by)\b/i.test(normalized) || /^(?:faixa|musica|música)\b/i.test(normalized);
+    return ELO_MUSIC_ARTIST_HINTS_.some(function (hint) { return normalized.indexOf(hint) >= 0; }) || /^(?:faixa|musica|música)\b/i.test(normalized);
   }
 
   function readEloWakeAliasForRouting_(message) {
@@ -30005,6 +30011,21 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const priorityCommandBridgeRequest = detectEloCommandBridgeRequest_(cleanQuestion);
       if (isEloCommandBridgePriorityRequest_(priorityCommandBridgeRequest)) {
+        if (priorityCommandBridgeRequest.module === "obrareport_report" && priorityCommandBridgeRequest.action === "generate_report_from_context") {
+          const reportContextResponse = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
+          const reportContext = getEloActiveAnalysisContext_();
+          if (!reportContext) {
+            const missingContextAnswer = formatResponse(reportContextResponse);
+            appendAssistantMessage(cleanQuestion, missingContextAnswer, false, reportContextResponse);
+            saveConversation(cleanQuestion, missingContextAnswer);
+            rememberSessionTurn(cleanQuestion, reportContextResponse, missingContextAnswer);
+            clearProductAttachmentPreview();
+            removeTypingIndicator();
+            return;
+          }
+          generateEloReportPdfFromChat_(cleanQuestion, [], reportContext);
+          return;
+        }
         const priorityCommandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (priorityCommandBridgeResponse) {
           if (isEloAsyncResponse_(priorityCommandBridgeResponse)) {
@@ -34605,6 +34626,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectReportFromAnalysisContextForTest: isEloReportFromAnalysisContextRequest_,
     buildReportFromAnalysisContextForTest: buildEloReportFromAnalysisContextResponse_,
+    generateReportFromAnalysisContextForTest: function (message) { return generateEloReportPdfFromChat_(message, [], getEloActiveAnalysisContext_()); },
     rememberActiveAnalysisForTest: rememberEloActiveAnalysisContext_,
     getActiveAnalysisForTest: getEloActiveAnalysisContext_,
     detectExplicitMemoryCommandForTest: isEloExplicitMemoryCommand_,
