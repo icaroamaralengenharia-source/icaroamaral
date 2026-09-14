@@ -16,6 +16,7 @@ class EloOfflineEngine(
     private val technical = technicalKnowledge
     private val music = MusicCommandEngine(tracks)
 
+    @JvmOverloads
     fun handle(input: String, online: Boolean? = null): EloOfflineResult {
         val raw = input.trim()
         if (raw.isBlank()) return traced("Fallback", raw, fallback(), online, "blank")
