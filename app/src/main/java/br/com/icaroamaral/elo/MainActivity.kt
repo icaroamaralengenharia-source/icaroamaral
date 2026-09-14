@@ -522,6 +522,17 @@ class MainActivity : Activity() {
       event.stopImmediatePropagation();
     }
   }, true);
+  document.addEventListener('click', function(event){
+    var target = event.target;
+    var button = target && target.closest ? target.closest('button,[role="button"]') : null;
+    if (!button || button.getAttribute('data-elo-native-no-chat-submit') === 'true') return;
+    var form = button.closest ? button.closest('form') : null;
+    var command = candidateText(form);
+    if (command && route(command)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
 })();
         """.trimIndent()
         view.evaluateJavascript(js, null)

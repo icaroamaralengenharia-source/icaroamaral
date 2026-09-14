@@ -25,7 +25,7 @@ jobs:
           python3 - <<'PY'
           import glob
           import xml.etree.ElementTree as ET
-          files = glob.glob("app/build/test-results/test/**/*.xml", recursive=True)
+          files = glob.glob("app/build/test-results/**/*.xml", recursive=True)
           total = failures = errors = skipped = 0
           for path in files:
               root = ET.parse(path).getroot()

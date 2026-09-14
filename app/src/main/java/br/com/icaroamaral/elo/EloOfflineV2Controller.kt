@@ -2,6 +2,7 @@ package br.com.icaroamaral.elo
 
 import android.content.Context
 import android.media.MediaPlayer
+import android.util.Log
 import br.com.icaroamaral.elo.offlinev2.EloOfflineAction
 import br.com.icaroamaral.elo.offlinev2.EloOfflineEngine
 import br.com.icaroamaral.elo.offlinev2.EloOfflineTrack
@@ -196,10 +197,15 @@ class EloOfflineV2Controller(
             }
             created.prepare()
             created.start()
+            Log.i(
+                AUDIO_LOG_TAG,
+                "native_media_started track=${track.id} file=${file.name} isPlaying=${created.isPlaying} positionMs=${created.currentPosition}"
+            )
             playbackUiCallback(EloOfflinePlaybackUiEvent.PlayingV2(track))
         } catch (error: Throwable) {
             if (player === created) player = null
             created.release()
+            Log.e(AUDIO_LOG_TAG, "native_media_start_failed track=${track.id} file=${file.name}", error)
             emitError(track, "MediaPlayer prepare/start failed: " + error.message.orEmpty())
         }
     }
@@ -285,5 +291,6 @@ class EloOfflineV2Controller(
         private const val KNOWLEDGE_ASSET = "offline-knowledge/engineering.json"
         private const val PREFS = "elo_offline_v2"
         private const val KEY_TRACK = "track"
+        private const val AUDIO_LOG_TAG = "ELO_OFFLINE_AUDIO"
     }
 }
