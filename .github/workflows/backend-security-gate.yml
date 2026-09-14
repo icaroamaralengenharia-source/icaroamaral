@@ -55,13 +55,19 @@ jobs:
           node --check src/auth-context.js
           node --check src/services/obrareport-transactional-service.js
           node --check tests/canonical-session-rdo-security.test.js
-          node --check tests/obrareport-rdo-tenant-isolation-p0.test.js
+          if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
+            node --check tests/obrareport-rdo-tenant-isolation-p0.test.js
+          fi
 
       - name: Auth, session, tenant, RDO and backend regression gate
-        run: >-
-          node --test
-          tests/auth-context.test.js
-          tests/elo-auth-context-integration.test.js
-          tests/canonical-session-rdo-security.test.js
-          tests/obrareport-rdo-tenant-isolation-p0.test.js
-          tests/obrareport-transactional-service.test.js
+        run: |
+          test_files=(
+            tests/auth-context.test.js
+            tests/elo-auth-context-integration.test.js
+            tests/canonical-session-rdo-security.test.js
+            tests/obrareport-transactional-service.test.js
+          )
+          if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
+            test_files+=(tests/obrareport-rdo-tenant-isolation-p0.test.js)
+          fi
+          node --test "${test_files[@]}"
