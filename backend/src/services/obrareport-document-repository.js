@@ -68,19 +68,21 @@ function rowFromInput(context, input = {}) {
   if (!sourceType || !sourceId) throw Object.assign(new Error("document_source_required"), { status: 400 });
   if (!idempotencyKey) throw Object.assign(new Error("document_idempotency_key_required"), { status: 400 });
   const now = new Date().toISOString();
+  const metadata = Object.assign({}, objectOf(safe.metadata), { sourceType });
+  const sourceTypeForDatabase = sourceType === "rdo" ? "rdo" : "technical_report";
   return {
     id: clean(safe.id) || `obr_doc_${randomUUID()}`,
     institution_id: ctx.institutionId,
     work_id: clean(safe.workId || safe.work_id) || null,
     rdo_id: clean(safe.rdoId || safe.rdo_id) || null,
-    source_type: sourceType,
+    source_type: sourceTypeForDatabase,
     source_id: sourceId,
     document_type: clean(safe.documentType || safe.document_type) || "technical_report_pdf",
     status: clean(safe.status) || "generated",
     file_id: clean(safe.externalFileId || safe.external_file_id) || null,
     file_url: clean(safe.artifactUrl || safe.artifact_url) || null,
     hash: clean(safe.hash) || null,
-    metadata_json: objectOf(safe.metadata),
+    metadata_json: metadata,
     generated_by: ctx.userId || null,
     generated_at: safe.generatedAt || now,
     created_at: safe.createdAt || now,
@@ -140,7 +142,7 @@ export function createSupabaseObraReportDocumentRepository({ client } = {}) {
       const sourceType = clean(safe.sourceType || safe.source_type);
       if (workId) query = query.eq("work_id", workId);
       if (rdoId) query = query.eq("rdo_id", rdoId);
-      if (sourceType) query = query.eq("source_type", sourceType);
+      if (sourceType) query = query.eq("source_type", sourceType === "rdo" ? "rdo" : "technical_report");
       const result = await query.order("updated_at", { ascending: false });
       if (result.error) throw databaseError("document_list_failed", result.error);
       return (Array.isArray(result.data) ? result.data : []).map(normalize);

@@ -138,7 +138,7 @@ test("Step 05 API usa tenant do profile e expõe list/detail/file somente no esc
       };
     }
   };
-  const app = createApp({ authContextSupabaseClient: auth, documentRepository: store, documentOrchestrator: orchestrator, env: { AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500" } });
+  const app = createApp({ authContextSupabaseClient: auth, documentRepository: store, documentOrchestrator: orchestrator, documentArtifactBroker: { async open() { return { bytes: Buffer.from("%PDF-1.4\n%mock\n"), contentType: "application/pdf" }; } }, env: { AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500" } });
   const server = await new Promise((resolve) => { const instance = app.listen(0, () => resolve(instance)); });
   const base = "http://127.0.0.1:" + server.address().port;
   const headers = { "Content-Type": "application/json", Authorization: "Bearer a", "x-institution-id": "tenant-b" };
@@ -146,15 +146,25 @@ test("Step 05 API usa tenant do profile e expõe list/detail/file somente no esc
     const generated = await fetch(base + "/api/obrareport/documents/generate", { method: "POST", headers, body: JSON.stringify({ sourceType: "analysis", workId: "work-a", sourceId: "analysis-a", idempotencyKey: "analysis-v1", generatorPayload: { report: { obra: "OBRA TESTE ELO E2E" } } }) });
     assert.equal(generated.status, 201);
     const body = await generated.json();
-    assert.equal(body.document.institution_id, "tenant-a");
+    assert.equal(body.document.institution_id, undefined);
+    assert.equal(Object.hasOwn(body.document, "artifact_url"), false);
+    assert.equal(body.openUrl, "/api/obrareport/documents/" + body.document.id + "/content");
     const list = await fetch(base + "/api/obrareport/documents", { headers });
     assert.equal(list.status, 200);
-    assert.equal((await list.json()).documents.length, 1);
+    const listBody = await list.json();
+    assert.equal(listBody.documents.length, 1);
     const detail = await fetch(base + "/api/obrareport/documents/" + body.document.id, { headers });
     assert.equal(detail.status, 200);
+    const detailBody = await detail.json();
+    assert.equal(Object.hasOwn(detailBody.document, "artifact_url"), false);
+    assert.equal(Object.hasOwn(listBody.documents[0], "artifact_url"), false);
     const file = await fetch(base + "/api/obrareport/documents/" + body.document.id + "/file", { headers, redirect: "manual" });
-    assert.equal(file.status, 302);
-    const cross = await fetch(base + "/api/obrareport/documents/" + body.document.id, { headers: { "Content-Type": "application/json", Authorization: "Bearer b" } });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get("content-type").startsWith("application/pdf"), true);
+    assert.equal(Buffer.from(await file.arrayBuffer()).toString("ascii").startsWith("%PDF-1.4"), true);
+    const anonymous = await fetch(base + "/api/obrareport/documents/" + body.document.id + "/content");
+    assert.equal(anonymous.status, 401);
+    const cross = await fetch(base + "/api/obrareport/documents/" + body.document.id + "/content", { headers: { "Content-Type": "application/json", Authorization: "Bearer b" } });
     assert.equal(cross.status, 404);
   } finally {
     await new Promise((resolve) => server.close(resolve));

@@ -28266,10 +28266,10 @@ function isEloResidentialNewPipelineEnabled_() {
       const registryDocument = registry && registry.document || {};
       const result = {
         ok: registry && registry.ok === true,
-        pdfUrl: sanitizeUserText(registryDocument.artifact_url || registryDocument.artifactUrl),
-        requestId: sanitizeUserText(registryDocument.metadata_json && registryDocument.metadata_json.generatorRequestId)
+        openUrl: sanitizeUserText(registry && (registry.openUrl || registry.open_url) || registryDocument.open_url),
+        requestId: sanitizeUserText(registry && registry.requestId || registryDocument.request_id)
       };
-      if (!result.ok || !result.pdfUrl) {
+      if (!result.ok || !result.openUrl) {
         throw new Error((registry && registry.error) || "Nao foi possivel registrar o PDF agora.");
       }
 
@@ -28278,13 +28278,13 @@ function isEloResidentialNewPipelineEnabled_() {
         "",
         imageAnalysis.reportText,
         "",
-        "Link do PDF: " + result.pdfUrl,
+        "Abra o PDF pelo ELO.",
         result.requestId ? "Request ID: " + result.requestId : "",
         "",
         "Revise o arquivo antes de enviar ao cliente."
       ].filter(Boolean).join("\n");
       updateEloMessage_(statusMessage, answer);
-      appendEloPdfDownloadAction_(statusMessage, result.pdfUrl);
+      appendEloPdfDownloadAction_(statusMessage, result.openUrl, true);
       saveConversation(message, answer);
       rememberSessionTurn(message, {
         sessionTheme: "obrareport_pdf_real",
@@ -31598,9 +31598,40 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const actions = createElement("div", "elo-library-actions");
     const openButton = createElement("a", "elo-inline-button", "Abrir / baixar PDF");
-    openButton.href = pdfUrl;
-    openButton.target = "_blank";
-    openButton.rel = "noopener noreferrer";
+    if (arguments.length >= 3 && arguments[2] === true) {
+      openButton.href = "#";
+      openButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        if (openButton.dataset && openButton.dataset.loading === "true") return;
+        if (openButton.dataset) openButton.dataset.loading = "true";
+        openButton.textContent = "Abrindo PDF...";
+        fetch(getEloBackendEndpoint_(pdfUrl), { headers: getEloCoreAuthHeaders_() })
+          .then(function (response) {
+            if (!response.ok) throw new Error("Nao foi possivel abrir o PDF agora.");
+            return response.blob();
+          })
+          .then(function (blob) {
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.target = "_blank";
+            anchor.rel = "noopener noreferrer";
+            anchor.click();
+            window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+          })
+          .catch(function (error) {
+            openButton.textContent = error && error.message ? error.message : "Nao foi possivel abrir o PDF agora.";
+          })
+          .finally(function () {
+            if (openButton.dataset) openButton.dataset.loading = "false";
+            if (openButton.textContent === "Abrindo PDF...") openButton.textContent = "Abrir / baixar PDF";
+          });
+      });
+    } else {
+      openButton.href = pdfUrl;
+      openButton.target = "_blank";
+      openButton.rel = "noopener noreferrer";
+    }
     actions.appendChild(openButton);
     message.appendChild(actions);
     scrollEloConversationToBottom_({ force: true });
