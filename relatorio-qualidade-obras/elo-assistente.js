@@ -28218,14 +28218,10 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
   async function generateEloReportPdfFromChat_(message, attachments, analysisContext) {
-    const appsScriptUrl = getEloReportAppsScriptUrl_();
     const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
     const statusMessage = appendMessage("assistant", "Analisando imagem e gerando PDF real pelo ObraReport...");
 
     try {
-      if (!appsScriptUrl) {
-        throw new Error("Apps Script do ObraReport nao esta configurado nesta pagina.");
-      }
       if (!imageFile && !analysisContext) {
         throw new Error("Anexe uma imagem JPG ou PNG e peca novamente para gerar o relatorio.");
       }
@@ -28248,22 +28244,33 @@ function isEloResidentialNewPipelineEnabled_() {
         };
       }
       const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext);
-      const response = await fetch(appsScriptUrl, {
+      const surfaceScope = typeof getEloObraSnapshotScope_ === "function" ? getEloObraSnapshotScope_() : {};
+      const sourceType = analysisContext ? "analysis" : "image_analysis";
+      const sourceId = analysisContext && (analysisContext.id || analysisContext.sourceId)
+        ? sanitizeUserText(analysisContext.id || analysisContext.sourceId)
+        : "elo-image-" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sanitizeUserText(imageFile && imageFile.name));
+      const idempotencyKey = "elo-report:" + sourceType + ":" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sourceId + "|" + sanitizeUserText(imageAnalysis && imageAnalysis.reportText));
+      const registry = await eloCoreFetch_("/api/obrareport/documents/generate", {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          sourceType: sourceType,
+          sourceId: sourceId,
+          workId: sanitizeUserText(surfaceScope && surfaceScope.workId || window.ELO_WORK_ID || ""),
+          idempotencyKey: idempotencyKey,
+          title: "Relatorio gerado pelo Elo",
+          documentType: "technical_report_pdf",
+          generatorPayload: payload,
+          metadata: { source: "elo-assistente", sourceSurface: "shared-elo" }
+        })
       });
-      const text = await response.text();
-      let result = null;
-
-      try {
-        result = JSON.parse(text);
-      } catch (error) {
-        throw new Error("O Apps Script respondeu em formato inesperado.");
-      }
-
-      if (!response.ok || !result || !result.ok || !result.pdfUrl) {
-        throw new Error((result && result.error) || "Nao foi possivel gerar o PDF agora.");
+      const registryDocument = registry && registry.document || {};
+      const result = {
+        ok: registry && registry.ok === true,
+        openUrl: sanitizeUserText(registry && (registry.openUrl || registry.open_url) || registryDocument.open_url),
+        requestId: sanitizeUserText(registry && registry.requestId || registryDocument.request_id)
+      };
+      if (!result.ok || !result.openUrl) {
+        throw new Error((registry && registry.error) || "Nao foi possivel registrar o PDF agora.");
       }
 
       const answer = [
@@ -28271,13 +28278,13 @@ function isEloResidentialNewPipelineEnabled_() {
         "",
         imageAnalysis.reportText,
         "",
-        "Link do PDF: " + result.pdfUrl,
+        "Abra o PDF pelo ELO.",
         result.requestId ? "Request ID: " + result.requestId : "",
         "",
         "Revise o arquivo antes de enviar ao cliente."
       ].filter(Boolean).join("\n");
       updateEloMessage_(statusMessage, answer);
-      appendEloPdfDownloadAction_(statusMessage, result.pdfUrl);
+      appendEloPdfDownloadAction_(statusMessage, result.openUrl, true);
       saveConversation(message, answer);
       rememberSessionTurn(message, {
         sessionTheme: "obrareport_pdf_real",
@@ -31591,9 +31598,40 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const actions = createElement("div", "elo-library-actions");
     const openButton = createElement("a", "elo-inline-button", "Abrir / baixar PDF");
-    openButton.href = pdfUrl;
-    openButton.target = "_blank";
-    openButton.rel = "noopener noreferrer";
+    if (arguments.length >= 3 && arguments[2] === true) {
+      openButton.href = "#";
+      openButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        if (openButton.dataset && openButton.dataset.loading === "true") return;
+        if (openButton.dataset) openButton.dataset.loading = "true";
+        openButton.textContent = "Abrindo PDF...";
+        fetch(getEloBackendEndpoint_(pdfUrl), { headers: getEloCoreAuthHeaders_() })
+          .then(function (response) {
+            if (!response.ok) throw new Error("Nao foi possivel abrir o PDF agora.");
+            return response.blob();
+          })
+          .then(function (blob) {
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.target = "_blank";
+            anchor.rel = "noopener noreferrer";
+            anchor.click();
+            window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+          })
+          .catch(function (error) {
+            openButton.textContent = error && error.message ? error.message : "Nao foi possivel abrir o PDF agora.";
+          })
+          .finally(function () {
+            if (openButton.dataset) openButton.dataset.loading = "false";
+            if (openButton.textContent === "Abrindo PDF...") openButton.textContent = "Abrir / baixar PDF";
+          });
+      });
+    } else {
+      openButton.href = pdfUrl;
+      openButton.target = "_blank";
+      openButton.rel = "noopener noreferrer";
+    }
     actions.appendChild(openButton);
     message.appendChild(actions);
     scrollEloConversationToBottom_({ force: true });
