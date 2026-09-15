@@ -29,6 +29,7 @@ import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repositor
 import { createSupabaseObraReportDocumentRepository } from "./services/obrareport-document-repository.js";
 import { createObraReportReportOrchestrator } from "./services/obrareport-report-orchestrator.js";
 import { createObraReportArtifactBroker } from "./services/obrareport-artifact-broker.js";
+import { buildObraReportDocumentContext } from "./services/obrareport-document-context.js";
 import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
@@ -1995,6 +1996,26 @@ export function createApp(options = {}) {
       }
       const document = await documentRepository.getById(buildCanonicalRdoContext_(request), request.params.id);
       response.json({ ok: true, document: safeGeneratedDocumentForClient_(document) });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id/context", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const context = buildCanonicalRdoContext_(request);
+      const document = await documentRepository.getById(context, request.params.id);
+      const work = document.work_id && typeof documentRepository.validateWork === "function"
+        ? await documentRepository.validateWork(context, document.work_id)
+        : null;
+      const rdo = document.rdo_id && rdoRepository && typeof rdoRepository.getById === "function"
+        ? await rdoRepository.getById(context, document.rdo_id)
+        : null;
+      response.json({ ok: true, context: buildObraReportDocumentContext({ document, work, rdo }) });
     } catch (error) {
       handleObraReportError_(response, error);
     }
