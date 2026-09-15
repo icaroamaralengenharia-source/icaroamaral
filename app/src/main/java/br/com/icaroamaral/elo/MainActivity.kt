@@ -504,6 +504,28 @@ class MainActivity : Activity() {
       }
     } catch (_) {}
   }
+  function renderLocalMessage(role, text){
+    var messages = document.querySelector('.elo-messages');
+    if (!messages) throw new Error('ELO_RENDER_MESSAGES_NOT_FOUND');
+    var item = document.createElement('article');
+    item.className = 'elo-message ' + String(role || 'assistant');
+    var bubble = document.createElement('div');
+    bubble.className = 'elo-message-bubble';
+    bubble.textContent = String(text || '');
+    item.appendChild(bubble);
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+    if (document.body) {
+      document.body.classList.add('elo-chat-state');
+      document.body.classList.remove('elo-empty-state');
+    }
+  }
+  function clearLocalComposer(){
+    var input = document.querySelector('.elo-input');
+    if (!input) return;
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   function route(command){
     try {
       if (!command || !window.EloNativeBridge || !window.EloNativeBridge.routeOfflineChat) return false;
@@ -516,9 +538,13 @@ class MainActivity : Activity() {
         trace('ELO_TRACE_10_BACKEND_FALLBACK', command, '', result.route || '', false, !!result.requiresInternet, '', result.requiresInternet ? 'requires_internet' : 'native_not_handled');
         return false;
       }
-      appendLocalMessage('user', command);
-      appendLocalMessage('assistant', result.text || result.message || '');
-      clearComposer();
+      try {
+        renderLocalMessage('user', command);
+        renderLocalMessage('assistant', result.text || result.message || '');
+        clearLocalComposer();
+      } catch (err) {
+        trace('ELO_TRACE_RENDER_ERROR', command, '', result.route || '', true, !!result.requiresInternet, '', (err.name || 'Error') + ':' + (err.message || 'render_failed'));
+      }
       return true;
     } catch (err) {
       trace('ELO_TRACE_10_BACKEND_FALLBACK', command, '', '', false, false, '', 'route_exception');

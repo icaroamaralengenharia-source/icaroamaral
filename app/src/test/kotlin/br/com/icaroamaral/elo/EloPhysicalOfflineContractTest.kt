@@ -2,6 +2,7 @@ package br.com.icaroamaral.elo
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EloPhysicalOfflineContractTest {
@@ -112,6 +113,20 @@ class EloPhysicalOfflineContractTest {
         assertTrue(source.contains("window.visualViewport.dispatchEvent(new Event('resize'))"))
         assertTrue(source.contains("if (window.__eloOfflineChatBridgeV1) return;"))
     }
+
+    @Test
+    fun handledNativeResultStaysConsumedWhenWebRendererThrows() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+
+        assertTrue(source.contains("function renderLocalMessage(role, text)"))
+        assertTrue(source.contains("function clearLocalComposer()"))
+        assertTrue(source.contains("if (!result.handled)"))
+        assertTrue(source.contains("trace('ELO_TRACE_RENDER_ERROR'"))
+        assertTrue(source.contains("true, !!result.requiresInternet"))
+        assertFalse(source.contains("appendLocalMessage("))
+        assertFalse(source.contains("clearComposer();"))
+    }
+
     @Test
     fun appInjectsWebHotfixesForHeaderHistoryDateAndConnectivity() {
         val main = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
