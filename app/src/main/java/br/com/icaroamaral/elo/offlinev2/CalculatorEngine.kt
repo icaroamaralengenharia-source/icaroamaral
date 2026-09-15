@@ -19,10 +19,10 @@ class CalculatorEngine {
             return Calculation(value, "Volume: ${format(value)} m³", "volume")
         }
 
-        Regex("(?:15|20|[0-9]+(?:[.,][0-9]+)?)\\s*%\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)")
+        Regex("(-?[0-9]+(?:[.,][0-9]+)?)\\s*(?:%|por cento)\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)")
             .find(normalized)?.let { match ->
-                val percent = number(match.groupValues[0].substringBefore('%').trim())
-                val base = number(match.groupValues[1])
+                val percent = number(match.groupValues[1])
+                val base = number(match.groupValues[2])
                 val value = percent * base / 100.0
                 return Calculation(value, "Resultado: ${format(value)}", "porcentagem")
             }

@@ -39,6 +39,8 @@ public class EloOfflineEngineTest {
 
     @Test public void porcentagem() { assertEquals("Resultado: 30", engine().handle("quanto é 15% de 200?").getText()); }
 
+    @Test public void porcentagemPorExtenso() { assertEquals("Resultado: 30", engine().handle("quanto é 15 por cento de 200?").getText()); }
+
     @Test public void volume() { assertEquals("Volume: 5,76 m³", engine().handle("uma laje de 8 x 6 x 0,12 m tem quantos m³?").getText()); }
 
     @Test public void continuidadeMatematica() {
