@@ -67,6 +67,8 @@ public class EloOfflineEngineTest {
 
     @Test public void fissuraEmRevestimento() { assertTrue(engine().handle("O que pode causar fissura em revestimento?").getText().contains("retração")); }
 
+    @Test public void chapiscoNaoCaiEmRevestimentos() { assertTrue(engine().handle("chapisco").getText().contains("camada de preparo")); }
+
     @Test public void pedidoOnlineOffline() {
         EloOfflineResult result = engine().handle("Pesquise o preço do cimento");
         assertTrue(result.getHandled());
