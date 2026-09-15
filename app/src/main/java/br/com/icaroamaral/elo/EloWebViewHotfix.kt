@@ -35,11 +35,15 @@ object EloWebViewHotfix {
     'body[data-elo-product="chat"] .elo-product-top{box-sizing:border-box;max-width:calc(100vw - 16px);min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;}',
     'body[data-elo-product="chat"] .elo-product-brand,body[data-elo-product="chat"] .elo-core-actions,body[data-elo-product="chat"] .elo-local-auth,body[data-elo-product="chat"] .elo-local-auth-session{min-width:0;}',
     'body[data-elo-product="chat"] .elo-core-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;}',
-    'body[data-elo-product="chat"] .elo-core-actions button,body[data-elo-product="chat"] .elo-local-auth-session button{white-space:nowrap;}',
-    '.elo-native-status-chip{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:0 8px;border-radius:999px;border:1px solid rgba(22,163,74,.18);color:#166534;background:rgba(22,163,74,.08);font-size:11px;font-weight:800;white-space:nowrap;}',
-    '.elo-native-pause-button{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(34,211,238,.38);background:#0f172a;color:#e0f2fe;font-size:12px;font-weight:900;white-space:nowrap;box-shadow:0 8px 22px rgba(15,23,42,.18);}',
-    '.elo-native-pause-button:active{transform:translateY(1px);}',
-    'html[data-elo-native-connectivity]:not([data-elo-native-connectivity="ONLINE_VALIDATED"]) .elo-native-status-chip{border-color:rgba(180,83,9,.22);color:#92400e;background:#fffbeb;}',
+     'body[data-elo-product="chat"] .elo-core-actions button,body[data-elo-product="chat"] .elo-local-auth-session button{white-space:nowrap;}',
+     '.elo-native-status-chip{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:0 8px;border-radius:999px;border:1px solid rgba(22,163,74,.18);color:#166534;background:rgba(22,163,74,.08);font-size:11px;font-weight:800;white-space:nowrap;}',
+     '.elo-native-pause-button{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(34,211,238,.38);background:#0f172a;color:#e0f2fe;font-size:12px;font-weight:900;white-space:nowrap;box-shadow:0 8px 22px rgba(15,23,42,.18);}',
+     '.elo-native-pause-button:active{transform:translateY(1px);}',
+     '.elo-native-edurex-panel{grid-column:1/-1;display:none;box-sizing:border-box;width:100%;max-height:min(320px,calc(100vh - 160px));overflow:auto;margin-top:2px;padding:12px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;color:#0f172a;box-shadow:0 10px 28px rgba(15,23,42,.14);}',
+     '.elo-native-edurex-panel.is-open{display:block;}',
+     '.elo-native-edurex-panel p{margin:6px 0 10px;font-size:12px;line-height:1.45;}',
+     '.elo-native-edurex-panel button{min-height:34px;padding:0 12px;border:1px solid rgba(15,23,42,.18);border-radius:9px;background:#f8fafc;color:#0f172a;font-weight:800;}',
+     'html[data-elo-native-connectivity]:not([data-elo-native-connectivity="ONLINE_VALIDATED"]) .elo-native-status-chip{border-color:rgba(180,83,9,.22);color:#92400e;background:#fffbeb;}',
     'html[data-elo-native-connectivity]:not([data-elo-native-connectivity="ONLINE_VALIDATED"]) .elo-native-status-chip::before{content:"";width:7px;height:7px;border-radius:999px;background:#f59e0b;}',
     'html[data-elo-native-connectivity="ONLINE_VALIDATED"] .elo-native-status-chip::before{content:"";width:7px;height:7px;border-radius:999px;background:#16a34a;}',
     'body[data-elo-product="chat"] .elo-history-list{width:100%;max-width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;align-items:stretch;}',
@@ -64,9 +68,73 @@ object EloWebViewHotfix {
     chip.textContent = 'Online';
     top.insertBefore(chip, top.children[1] || null);
   }
+  var eduRexOpen = false;
+  function updateEduRexButton(){
+    var button = document.querySelector('.elo-native-pause-button');
+    if (!button) return;
+    button.setAttribute('aria-expanded', String(eduRexOpen));
+    button.setAttribute('aria-label', eduRexOpen ? 'Fechar EDU-REX' : 'Abrir EDU-REX');
+  }
+  function ensureEduRexPanel(){
+    var top = document.querySelector('.elo-product-top');
+    if (!top || document.querySelector('.elo-native-edurex-panel')) return;
+    var panel = document.createElement('section');
+    panel.className = 'elo-native-edurex-panel';
+    panel.hidden = true;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'EDU-REX');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.innerHTML = '<strong>EDU-REX</strong><p>Painel EDU-REX disponível no ELO. Use fechar para retornar à conversa.</p><button type="button" data-elo-native-edurex-close>Fechar</button>';
+    panel.querySelector('[data-elo-native-edurex-close]').addEventListener('click', function(event){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeEduRex();
+    }, true);
+    top.appendChild(panel);
+  }
+  function setFallbackEduRex(open){
+    ensureEduRexPanel();
+    var panel = document.querySelector('.elo-native-edurex-panel');
+    if (!panel) return;
+    eduRexOpen = !!open;
+    panel.hidden = !eduRexOpen;
+    panel.classList.toggle('is-open', eduRexOpen);
+    panel.setAttribute('aria-hidden', String(!eduRexOpen));
+    updateEduRexButton();
+  }
+  function callPauseGame(open){
+    try {
+      if (!window.EloPauseGame) return false;
+      var method = open ? 'open' : 'close';
+      if (typeof window.EloPauseGame[method] !== 'function') return false;
+      window.EloPauseGame[method]();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+  function openEduRex(){
+    eduRexOpen = true;
+    if (callPauseGame(true)) {
+      var fallback = document.querySelector('.elo-native-edurex-panel');
+      if (fallback) setFallbackEduRex(false);
+      updateEduRexButton();
+      return;
+    }
+    setFallbackEduRex(true);
+  }
+  function closeEduRex(){
+    eduRexOpen = false;
+    callPauseGame(false);
+    setFallbackEduRex(false);
+  }
+  function toggleEduRex(){
+    if (eduRexOpen) closeEduRex(); else openEduRex();
+  }
   function ensurePauseButton(){
     var actions = document.querySelector('.elo-core-actions') || document.querySelector('.elo-local-auth-session') || document.querySelector('.elo-product-top');
     if (!actions || document.querySelector('.elo-native-pause-button')) return;
+    ensureEduRexPanel();
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'elo-native-pause-button';
@@ -76,15 +144,21 @@ object EloWebViewHotfix {
     button.addEventListener('click', function(event){
       event.preventDefault();
       event.stopImmediatePropagation();
-      try {
-        if (window.EloPauseGame && typeof window.EloPauseGame.open === 'function') {
-          window.EloPauseGame.open();
-        }
-      } catch (err) {}
+      toggleEduRex();
       return false;
     }, true);
     actions.appendChild(button);
+    updateEduRexButton();
   }
+  document.addEventListener('click', function(event){
+    if (!eduRexOpen) return;
+    var panel = document.querySelector('.elo-native-edurex-panel');
+    var button = document.querySelector('.elo-native-pause-button');
+    if (panel && !panel.contains(event.target) && event.target !== button) closeEduRex();
+  }, true);
+  document.addEventListener('keydown', function(event){
+    if (event.key === 'Escape' && eduRexOpen) closeEduRex();
+  }, true);
   function syncConnectivity(){
     ensureStatusChip();
     var state = 'ONLINE_VALIDATED';
