@@ -94,6 +94,49 @@ test("GET /api/elo/obra/attention isola obra A de obra B e retorna alerta de fal
   });
 });
 
+
+test("GET /api/elo/obra/attention aguarda listRdos assincrono do repository duravel", async () => {
+  let resolved = false;
+  let calls = 0;
+  const readers = {
+    async readBudget() { return null; },
+    async readStockObras() { return null; }
+  };
+  const obraReportTransactionalService = {
+    async listRdos(context, filters) {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      resolved = true;
+      assert.deepEqual(context, {
+        institutionId: "inst-a",
+        userId: "user-a",
+        profile: { id: "profile-a", institution_id: "inst-a", role: "gestor" }
+      });
+      assert.deepEqual(filters, { projectId: "obra-a" });
+      return [{
+        id: "obr_rdo_test",
+        project_id: "obra-a",
+        rdo_date: "2026-09-14",
+        rdo_data_json: {
+          work: "OBRA TESTE ELO E2E",
+          date: "2026-09-14",
+          observations: ["TESTE ELO E2E — atualização controlada"]
+        }
+      }];
+    }
+  };
+
+  await withServer(readers, async (base) => {
+    const result = await getJson(base);
+    assert.equal(result.response.status, 200);
+    assert.equal(result.data.ok, true);
+    assert.equal(calls, 1);
+    assert.equal(resolved, true);
+    assert.equal(result.data.sourcesUsed.rdos, true);
+    assert.equal(result.data.summary.rdos, 1);
+    assert.equal(result.data.dataQuality.missingSources.includes("rdos"), false);
+  }, { obraReportTransactionalService });
+});
 test("GET /api/elo/obra/attention responde 200 com baixa qualidade quando faltam dados", async () => {
   const { readers, calls } = createReadonlyReaders({
     budget: null,
