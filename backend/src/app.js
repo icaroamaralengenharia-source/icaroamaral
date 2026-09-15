@@ -26,6 +26,8 @@ import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { createObraReportTransactionalService, defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repository.js";
+import { createSupabaseObraReportDocumentRepository } from "./services/obrareport-document-repository.js";
+import { createObraReportReportOrchestrator } from "./services/obrareport-report-orchestrator.js";
 import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
@@ -1154,6 +1156,16 @@ export function createApp(options = {}) {
   if (rdoStoreMode === "supabase" && !options.obraReportTransactionalService && !options.rdoRepository && !rdoSupabaseClient) throw new Error("rdo_supabase_store_not_configured");
   const rdoRepository = options.rdoRepository || (rdoStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseRdoRepository({ client: rdoSupabaseClient }) : null);
   const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
+  const documentSupabaseClient = options.documentSupabaseClient || rdoSupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null);
+  const documentRepository = options.documentRepository || (documentSupabaseClient ? createSupabaseObraReportDocumentRepository({ client: documentSupabaseClient }) : null);
+  const documentOrchestrator = options.documentOrchestrator || (documentRepository
+    ? createObraReportReportOrchestrator({
+      documentRepository,
+      rdoRepository,
+      appsScriptUrl: env.OBRAREPORT_APPS_SCRIPT_URL || env.RELATORIO_APPS_SCRIPT_URL || "",
+      fetchImpl: options.reportGeneratorFetch || globalThis.fetch
+    })
+    : null);
   const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
@@ -1887,6 +1899,62 @@ export function createApp(options = {}) {
     }
   });
 
+
+  app.post("/api/obrareport/documents/generate", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentOrchestrator) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const result = await documentOrchestrator.generate(buildCanonicalRdoContext_(request), request.body || {});
+      response.status(result.duplicate ? 200 : 201).json({ ok: true, duplicate: result.duplicate, document: result.document });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const documents = await documentRepository.list(buildCanonicalRdoContext_(request), request.query || {});
+      response.json({ ok: true, documents });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const document = await documentRepository.getById(buildCanonicalRdoContext_(request), request.params.id);
+      response.json({ ok: true, document });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id/file", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const document = await documentRepository.getById(buildCanonicalRdoContext_(request), request.params.id);
+      if (!document.artifact_url) {
+        response.status(404).json({ ok: false, error: "document_artifact_not_found" });
+        return;
+      }
+      response.redirect(302, document.artifact_url);
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
   app.post("/api/obrareport/documents/:id/prepare-email", (request, response) => {
     try {
       const email = obraReportTransactionalService.prepareDocumentEmail(buildObraReportContext_(request), request.params.id, request.body || {});

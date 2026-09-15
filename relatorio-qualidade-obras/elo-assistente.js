@@ -28218,14 +28218,10 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
   async function generateEloReportPdfFromChat_(message, attachments, analysisContext) {
-    const appsScriptUrl = getEloReportAppsScriptUrl_();
     const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
     const statusMessage = appendMessage("assistant", "Analisando imagem e gerando PDF real pelo ObraReport...");
 
     try {
-      if (!appsScriptUrl) {
-        throw new Error("Apps Script do ObraReport nao esta configurado nesta pagina.");
-      }
       if (!imageFile && !analysisContext) {
         throw new Error("Anexe uma imagem JPG ou PNG e peca novamente para gerar o relatorio.");
       }
@@ -28248,22 +28244,33 @@ function isEloResidentialNewPipelineEnabled_() {
         };
       }
       const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext);
-      const response = await fetch(appsScriptUrl, {
+      const surfaceScope = typeof getEloObraSnapshotScope_ === "function" ? getEloObraSnapshotScope_() : {};
+      const sourceType = analysisContext ? "analysis" : "image_analysis";
+      const sourceId = analysisContext && (analysisContext.id || analysisContext.sourceId)
+        ? sanitizeUserText(analysisContext.id || analysisContext.sourceId)
+        : "elo-image-" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sanitizeUserText(imageFile && imageFile.name));
+      const idempotencyKey = "elo-report:" + sourceType + ":" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sourceId + "|" + sanitizeUserText(imageAnalysis && imageAnalysis.reportText));
+      const registry = await eloCoreFetch_("/api/obrareport/documents/generate", {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          sourceType: sourceType,
+          sourceId: sourceId,
+          workId: sanitizeUserText(surfaceScope && surfaceScope.workId || window.ELO_WORK_ID || ""),
+          idempotencyKey: idempotencyKey,
+          title: "Relatorio gerado pelo Elo",
+          documentType: "technical_report_pdf",
+          generatorPayload: payload,
+          metadata: { source: "elo-assistente", sourceSurface: "shared-elo" }
+        })
       });
-      const text = await response.text();
-      let result = null;
-
-      try {
-        result = JSON.parse(text);
-      } catch (error) {
-        throw new Error("O Apps Script respondeu em formato inesperado.");
-      }
-
-      if (!response.ok || !result || !result.ok || !result.pdfUrl) {
-        throw new Error((result && result.error) || "Nao foi possivel gerar o PDF agora.");
+      const registryDocument = registry && registry.document || {};
+      const result = {
+        ok: registry && registry.ok === true,
+        pdfUrl: sanitizeUserText(registryDocument.artifact_url || registryDocument.artifactUrl),
+        requestId: sanitizeUserText(registryDocument.metadata_json && registryDocument.metadata_json.generatorRequestId)
+      };
+      if (!result.ok || !result.pdfUrl) {
+        throw new Error((registry && registry.error) || "Nao foi possivel registrar o PDF agora.");
       }
 
       const answer = [
