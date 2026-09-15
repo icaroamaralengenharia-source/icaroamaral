@@ -145,7 +145,7 @@ class EloPhysicalOfflineContractTest {
         assertTrue(hotfix.contains("elo-native-status-chip"))
         assertTrue(hotfix.contains("elo-native-pause-button"))
         assertTrue(hotfix.contains("EDU-REX"))
-        assertTrue(hotfix.contains("window.EloPauseGame.open()"))
+        assertTrue(hotfix.contains("callPauseGame(true)"))
         assertTrue(hotfix.contains("elo-native-edurex-panel"))
         assertTrue(hotfix.contains("function toggleEduRex()"))
         assertTrue(hotfix.contains("function closeEduRex()"))
