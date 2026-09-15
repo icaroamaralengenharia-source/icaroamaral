@@ -1671,7 +1671,7 @@ export function createApp(options = {}) {
       rdos = await eloObraObserverReaders.readRdos(context);
       sourcesUsed.rdos = Array.isArray(rdos) && rdos.length > 0;
     } else if (obraReportTransactionalService && typeof obraReportTransactionalService.listRdos === "function") {
-      rdos = normalizeEloObraObserverRdos_(obraReportTransactionalService.listRdos({ institutionId: context.institutionId, userId: context.userId, profile: context.profile }, { projectId: context.projectId }));
+      rdos = normalizeEloObraObserverRdos_(await obraReportTransactionalService.listRdos({ institutionId: context.institutionId, userId: context.userId, profile: context.profile }, { projectId: context.projectId }));
       sourcesUsed.rdos = rdos.length > 0;
     }
 
