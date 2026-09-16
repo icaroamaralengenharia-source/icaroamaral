@@ -83,6 +83,7 @@ class EloOfflineV2Controller(
                 if (index >= 0) requestPlayAt(index)
             }
             EloOfflineAction.Pause -> pauseTrack()
+            EloOfflineAction.Stop -> stop()
             EloOfflineAction.Resume -> resumeTrack()
             EloOfflineAction.NextTrack -> nextTrack()
             EloOfflineAction.PreviousTrack -> previousTrack()

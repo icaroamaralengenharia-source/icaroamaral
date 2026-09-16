@@ -19,11 +19,12 @@ class CalculatorEngine {
             return Calculation(value, "Volume: ${format(value)} m³", "volume")
         }
 
-        Regex("(-?[0-9]+(?:[.,][0-9]+)?)\\s*(?:%|por cento)\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)")
+        Regex("(-?[0-9]+(?:[.,][0-9]+)?)\\s*(?:%|por cento)\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)\\s*(mil|milhao|milhoes)?")
             .find(normalized)?.let { match ->
                 val percent = number(match.groupValues[1])
-                val base = number(match.groupValues[2])
+                val base = number(match.groupValues[2]) * scale(match.groupValues[3])
                 val value = percent * base / 100.0
+                context.lastCalculatedValue = value
                 return Calculation(value, "Resultado: ${format(value)}", "porcentagem")
             }
 
@@ -60,10 +61,17 @@ class CalculatorEngine {
             return Calculation(value, "Resultado: ${format(value)}")
         }
 
-        if (normalized.matches(Regex("e (?:vezes|multiplicado por) [0-9]+(?:[.,][0-9]+)?"))) {
+        if (normalized.matches(Regex("e (?:vezes|multiplicado por|dividido por|mais|menos) [0-9]+(?:[.,][0-9]+)?"))) {
             val right = Regex("[0-9]+(?:[.,][0-9]+)?").find(normalized)?.value?.let(::number) ?: return null
             val left = context.lastCalculatedValue ?: return null
-            val value = left * right
+            val value = when {
+                normalized.startsWith("e vezes") || normalized.startsWith("e multiplicado") -> left * right
+                normalized.startsWith("e dividido") -> left / right
+                normalized.startsWith("e mais") -> left + right
+                normalized.startsWith("e menos") -> left - right
+                else -> return null
+            }
+            context.lastCalculatedValue = value
             return Calculation(value, "Resultado: ${format(value)}")
         }
         return null
@@ -79,6 +87,12 @@ class CalculatorEngine {
     }
 
     private fun number(value: String): Double = value.replace(".", "").replace(',', '.').toDouble()
+
+    private fun scale(value: String): Double = when (value) {
+        "mil" -> 1_000.0
+        "milhao", "milhoes" -> 1_000_000.0
+        else -> 1.0
+    }
 
     private fun format(value: Double): String = DecimalFormat("0.##", DecimalFormatSymbols(Locale("pt", "BR"))).format(value)
 

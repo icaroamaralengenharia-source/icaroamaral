@@ -32,9 +32,10 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.ComponentActivity
 import android.widget.Toast
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private val originPolicy = EloTrustedOriginPolicy()
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var rootFrame: FrameLayout
@@ -48,6 +49,7 @@ class MainActivity : Activity() {
     private var lastConnectivityState: EloConnectivityState? = null
     @Volatile private var currentPageUrl: String? = null
     private var pendingWebAudioRequest: PermissionRequest? = null
+    private lateinit var fileChooserController: EloFileChooserController
 
     private val connectivityTicker = object : Runnable {
         override fun run() {
@@ -58,6 +60,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        fileChooserController = EloFileChooserController(this)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         wakeController = EloWakeController(this)
         offlineController = EloOfflineController(
@@ -100,6 +103,7 @@ class MainActivity : Activity() {
         mainHandler.removeCallbacks(connectivityTicker)
         pendingWebAudioRequest?.deny()
         pendingWebAudioRequest = null
+        fileChooserController.cancelPending()
         offlineController.release()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface(BRIDGE_NAME)
@@ -194,6 +198,12 @@ class MainActivity : Activity() {
 
     private fun secureChromeClient(): WebChromeClient {
         return object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: android.webkit.ValueCallback<Array<Uri>>?,
+                fileChooserParams: WebChromeClient.FileChooserParams?
+            ): Boolean = fileChooserController.onShowFileChooser(webView, filePathCallback, fileChooserParams)
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 mainHandler.post { handleWebPermissionRequest(request) }
             }
@@ -374,10 +384,22 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(8))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        panel.addView(Button(this).apply {
-            text = "PARAR"
-            setOnClickListener { offlineController.stopMedia() }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        fun addControl(label: String, description: String, action: () -> Unit) {
+            controls.addView(Button(this).apply {
+                text = label
+                contentDescription = description
+                minHeight = dp(42)
+                setOnClickListener { action() }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        addControl("ANTERIOR", "Faixa anterior", { offlineController.previousOfflineTrack() })
+        addControl("PARAR", "Parar música", { offlineController.stopMedia() })
+        addControl("PRÓXIMA", "Próxima faixa", { offlineController.nextOfflineTrack() })
+        panel.addView(controls, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         installDragHandle(handle, panel)
         musicPanel = panel

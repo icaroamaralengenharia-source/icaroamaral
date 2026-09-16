@@ -37,7 +37,7 @@ class EloOfflineDispatchGate(
         lastAtMs = now
         return EloOfflineDispatchDecision.DispatchNative
     }
-    private fun looksLikeOfflineV2Command(text: String): Boolean = listOf("amanha", "ontem", "depois de amanha", "que dia", "que horas", "hora", "ola", "oi", "quanto e", "calcule", "calcular", "concreto", "fck", "alvenaria", "argamassa", "impermeabilizacao", "infiltracao", "fissura", "reboco", "chapisco", "telhado", "hidraulica", "eletrica", "inspecao", "medicao", "laudo", "orcamento", "arquitetura", "planta", "acessibilidade", "toque ", "tocar ", "play ", "pausar", "pause", "continue", "proxima", "anterior", "embaralh", "o que esta tocando", "pesquise", "pesquisar").any(text::contains)
+    private fun looksLikeOfflineV2Command(text: String): Boolean = listOf("amanha", "ontem", "depois de amanha", "que dia", "que horas", "hora", "ola", "oi", "quanto e", "calcule", "calcular", "concreto", "fck", "alvenaria", "argamassa", "impermeabilizacao", "infiltracao", "fissura", "reboco", "chapisco", "telhado", "hidraulica", "eletrica", "inspecao", "medicao", "laudo", "orcamento", "arquitetura", "planta", "acessibilidade", "toque ", "tocar ", "play ", "pausar", "pause", "continue", "parar", "pare", "stop", "proxima", "anterior", "embaralh", "dividido por", "e vezes", "e multiplicado por", "e mais", "e menos", "o que esta tocando", "pesquise", "pesquisar").any(text::contains)
 }
 enum class EloOfflineDispatchDecision {
     RouteWeb,

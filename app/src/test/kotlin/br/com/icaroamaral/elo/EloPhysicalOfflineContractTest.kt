@@ -26,7 +26,9 @@ class EloPhysicalOfflineContractTest {
             "toque Vivaldi",
             "toque Pachelbel",
             "toque Chopin",
-            "pare"
+            "pare",
+            "parar música",
+            "e dividido por 2"
         )) {
             now += 2_000L
             assertEquals(

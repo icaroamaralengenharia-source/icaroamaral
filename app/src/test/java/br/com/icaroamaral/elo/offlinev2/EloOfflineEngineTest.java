@@ -93,6 +93,34 @@ public class EloOfflineEngineTest {
         assertTrue(engine().handle("continue").getAction() instanceof EloOfflineAction.Resume);
     }
 
+    @Test public void stopAliasesProduceNativeStop() {
+        for (String command : List.of("parar", "pare", "stop", "pare a música", "parar música", "parar a música")) {
+            assertTrue(command, engine().handle(command).getAction() instanceof EloOfflineAction.Stop);
+        }
+        assertFalse(engine().handle("parede").getAction() instanceof EloOfflineAction.Stop);
+    }
+
+    @Test public void percentageMillionsAndShortContextOperations() {
+        EloOfflineEngine current = engine();
+        assertEquals("Resultado: 99.500.000", current.handle("quanto é 10% de 995 milhões").getText());
+        assertEquals("Resultado: 49.750.000", current.handle("e dividido por 2?").getText());
+        assertEquals("Resultado: 149.250.000", current.handle("e vezes 3?").getText());
+        assertEquals("Resultado: 150.000.000", current.handle("e mais 750 mil?").getText());
+    }
+
+    @Test public void stopDoesNotMatchPeaceOfMindBySingleToken() {
+        List<EloOfflineTrack> tracks = List.of(
+                new EloOfflineTrack("peace-of-mind", "Peace of Mind", "Boston", "rock", List.of("mind"), List.of("peace.opus"))
+        );
+        EloOfflineResult result = new EloOfflineEngine(
+                tracks,
+                TechnicalKnowledgeEngine.Companion.defaults(),
+                Clock.systemDefaultZone()
+        ).handle("toque Sweet Child of Mind");
+        assertFalse(result.getAction() instanceof EloOfflineAction.PlayTrack);
+        assertTrue(result.getText().contains("não está disponível"));
+    }
+
     @Test public void faixaAtual() {
         EloOfflineEngine current = engine();
         current.handle("toque Für Elise");

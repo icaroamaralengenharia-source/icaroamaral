@@ -1,0 +1,17 @@
+{
+  "versionCode": 3,
+  "versionName": "0.3.0",
+  "gitCommit": "5be6d56c3f2141fd85f3d8b11ead8d1010c8430a",
+  "branch": "recovery/elo-offline-routing-from-apk",
+  "apkName": "elo-oficial-v0.3.0-edurex-percent-chapisco-hotfix-signed.apk",
+  "apkSha256": "9BE1AC315D83E10B84581F0398EE6C1559186B4F473C93EB86FAC9B6540E4F78",
+  "certificateSha256": "8442425d1b3d0c5d5f241276d5efc570b01bcfbd2387103d46c04909f87fba52",
+  "ciRun": null,
+  "ciPassed": false,
+  "physicalTestPassed": false,
+  "testDate": "2026-09-15",
+  "releaseStatus": "pending-build-and-physical-gate",
+  "note": "Candidate manifest; version is unchanged and merge gate remains closed until fresh physical validation.",
+  "proposedNextVersionCode": 4,
+  "proposedNextVersionName": "0.3.1"
+}

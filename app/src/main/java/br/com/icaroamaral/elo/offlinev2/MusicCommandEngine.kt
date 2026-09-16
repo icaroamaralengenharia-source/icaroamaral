@@ -6,6 +6,7 @@ class MusicCommandEngine(private val tracks: List<EloOfflineTrack>) {
     fun answer(input: String, context: EloOfflineContext): EloOfflineResult? {
         val text = normalize(input)
         return when {
+            isStopCommand(text) -> result("Música interrompida.", EloOfflineAction.Stop, context, "music_stop")
             text.contains("pausar") || text == "pause" || text.contains("pausa") -> result("Pausando a faixa atual.", EloOfflineAction.Pause, context, "music_pause")
             text.contains("continue") || text.contains("retome") || text.contains("retomar") -> result("Continuando a faixa atual.", EloOfflineAction.Resume, context, "music_resume")
             text == "proxima" || text.contains("proxima musica") || text.contains("seguinte") -> result("Indo para a próxima faixa.", EloOfflineAction.NextTrack, context, "music_next")
@@ -44,8 +45,21 @@ class MusicCommandEngine(private val tracks: List<EloOfflineTrack>) {
             } ?: 0
         }?.takeIf { track ->
             val values = listOf(track.title, track.composer, track.genre) + track.aliases
-            values.any { candidate -> normalize(candidate).contains(safe) || safe.contains(normalize(candidate)) }
+            values.any { candidate -> matchesQuery(safe, normalize(candidate)) }
         }
+    }
+
+    private fun matchesQuery(query: String, candidate: String): Boolean {
+        if (query.isBlank() || candidate.isBlank()) return false
+        if (query == candidate || candidate.contains(query) || query.contains(candidate) && query.split(" ").size > 1 && candidate.split(" ").size > 1) return true
+        val queryTokens = query.split(" ").filter { it.length > 2 }
+        val candidateTokens = candidate.split(" ").filter { it.length > 2 }
+        return queryTokens.size <= 1 && queryTokens.any { token -> candidateTokens.contains(token) }
+    }
+
+    private fun isStopCommand(text: String): Boolean = when (text) {
+        "parar", "pare", "stop", "pare a musica", "parar musica", "parar a musica" -> true
+        else -> false
     }
 
     private fun result(text: String, action: EloOfflineAction, context: EloOfflineContext, intent: String, trackId: String? = null): EloOfflineResult {

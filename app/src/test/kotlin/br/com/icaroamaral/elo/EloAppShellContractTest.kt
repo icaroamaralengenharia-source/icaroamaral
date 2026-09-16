@@ -25,6 +25,16 @@ class EloAppShellContractTest {
     }
 
     @Test
+    fun activityRoutesWebFileChooserToExistingController() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
+        assertTrue(source.contains("class MainActivity : ComponentActivity()"))
+        assertTrue(source.contains("EloFileChooserController(this)"))
+        assertTrue(source.contains("override fun onShowFileChooser"))
+        assertTrue(source.contains("fileChooserController.onShowFileChooser"))
+        assertTrue(source.contains("fileChooserController.cancelPending()"))
+    }
+
+    @Test
     fun nativeCapabilitiesV1ExposePhotoBridgeDisabled() {
         val json = EloNativeCapabilities().toJson()
 

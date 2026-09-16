@@ -63,6 +63,7 @@ class EloOfflineEngine(
     private fun EloOfflineAction.traceName(): String = when (this) {
         EloOfflineAction.None -> "None"
         EloOfflineAction.Pause -> "Pause"
+        EloOfflineAction.Stop -> "Stop"
         EloOfflineAction.Resume -> "Resume"
         EloOfflineAction.NextTrack -> "NextTrack"
         EloOfflineAction.PreviousTrack -> "PreviousTrack"

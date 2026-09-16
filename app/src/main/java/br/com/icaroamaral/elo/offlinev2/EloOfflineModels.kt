@@ -11,6 +11,7 @@ data class EloOfflineTrack(
 sealed class EloOfflineAction {
     data class PlayTrack(val trackId: String) : EloOfflineAction()
     data object Pause : EloOfflineAction()
+    data object Stop : EloOfflineAction()
     data object Resume : EloOfflineAction()
     data object NextTrack : EloOfflineAction()
     data object PreviousTrack : EloOfflineAction()

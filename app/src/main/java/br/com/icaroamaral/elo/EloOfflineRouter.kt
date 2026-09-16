@@ -139,9 +139,13 @@ class EloOfflineRouter(
             val query = normalize(command).replace(Regex("^(toque|toca|tocar|coloque|reproduza|play)\\s+"), "")
             return tracks.firstOrNull { track ->
                 if (!track.offlineAllowed) return@firstOrNull false
+                val queryTokens = query.split(" ").filter { it.length > 2 }
                 val terms = listOf(track.title, track.composer) + track.aliases
                 terms.map(::normalize).any { alias ->
-                    alias.isNotBlank() && (query == alias || query.contains(alias) || alias.contains(query))
+                    if (alias.isBlank()) return@any false
+                    query == alias ||
+                        (queryTokens.size <= 1 && query.contains(alias)) ||
+                        (queryTokens.size > 1 && alias.split(" ").filter { it.length > 2 }.size > 1 && (query.contains(alias) || alias.contains(query)))
                 }
             }
         }
