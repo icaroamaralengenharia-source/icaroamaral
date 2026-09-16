@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ApkPath = "",
-    [string]$Package = "br.com.icaroamar.elo",
+    [string]$Package = "br.com.icaroamaral.elo",
     [switch]$Stress
 )
 
@@ -35,8 +35,9 @@ function Record-Check {
 function Measure-Launch {
     param([string]$Mode)
     $start = Get-Date
-    $output = Invoke-Adb @("shell", "am", "start", "-W", "-n", "$Package/.MainActivity")
+    $output = Invoke-Adb @("shell", "am", "start", "-W", "-n", "$Package/br.com.icaroamaral.elo.MainActivity")
     $elapsed = ((Get-Date) - $start).TotalMilliseconds
+    if ($output -match "Error type|Activity class .* does not exist") { throw "launch failed: $output" }
     $total = [regex]::Match($output, "TotalTime:\s*(\d+)").Groups[1].Value
     return [ordered]@{ mode = $Mode; wallMs = [math]::Round($elapsed); amStartTotalMs = if ($total) { [int]$total } else { $null } }
 }
@@ -55,7 +56,7 @@ try {
     if ($connected -lt 1) { throw "Nenhum aparelho físico em estado device." }
 
     $packageDump = Invoke-Adb @("shell", "dumpsys", "package", $Package)
-    Record-Check "package-correct" ($packageDump -match [regex]::Escape($Package)) $Package
+    Record-Check "package-correct" ($packageDump -match ("(?m)\b" + [regex]::Escape($Package) + "/")) $Package
 
     if ($ApkPath) {
         if (-not (Test-Path -LiteralPath $ApkPath -PathType Leaf)) { throw "APK não encontrado: $ApkPath" }
@@ -116,7 +117,7 @@ try {
     Invoke-Adb @("shell", "settings", "put", "system", "user_rotation", "1") | Out-Null
     Invoke-Adb @("shell", "settings", "put", "system", "user_rotation", "0") | Out-Null
     Invoke-Adb @("shell", "am", "force-stop", $Package) | Out-Null
-    Invoke-Adb @("shell", "am", "start", "-n", "$Package/.MainActivity") | Out-Null
+    Invoke-Adb @("shell", "am", "start", "-n", "$Package/br.com.icaroamaral.elo.MainActivity") | Out-Null
 
     if ($Stress) {
         $results["stress-warning"] = "Opt-in requested; deterministic UI input is device-layout dependent."
@@ -125,7 +126,7 @@ try {
         }
         for ($i = 1; $i -le 20; $i++) {
             Invoke-Adb @("shell", "am", "force-stop", $Package) | Out-Null
-            Invoke-Adb @("shell", "am", "start", "-n", "$Package/.MainActivity") | Out-Null
+            Invoke-Adb @("shell", "am", "start", "-n", "$Package/br.com.icaroamaral.elo.MainActivity") | Out-Null
         }
     }
 
