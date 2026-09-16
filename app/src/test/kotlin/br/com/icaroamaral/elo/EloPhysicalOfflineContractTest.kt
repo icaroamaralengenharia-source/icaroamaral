@@ -188,7 +188,7 @@ class EloPhysicalOfflineContractTest {
     fun nativePlayerStartsCompactAwayFromComposer() {
         val source = java.io.File("src/main/java/br/com/icaroamaral/elo/MainActivity.kt").readText()
 
-        assertTrue(source.contains("FrameLayout.LayoutParams(dp(250), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.RIGHT)"))
+        assertTrue(source.contains("FrameLayout.LayoutParams(dp(210), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.RIGHT)"))
         assertTrue(source.contains("setMargins(dp(12), dp(72), dp(12), dp(12))"))
         assertTrue(source.contains("val y = dp(72).toFloat()"))
         assertTrue(source.contains("textSize = 12f"))
