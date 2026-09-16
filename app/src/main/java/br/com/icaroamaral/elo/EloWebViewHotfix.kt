@@ -34,6 +34,8 @@ object EloWebViewHotfix {
     'html,body{width:100%;max-width:100%;overflow-x:hidden;}',
     'body[data-elo-product="chat"] .elo-product-top{box-sizing:border-box;max-width:calc(100vw - 16px);min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;}',
     'body[data-elo-product="chat"] .elo-product-brand,body[data-elo-product="chat"] .elo-core-actions,body[data-elo-product="chat"] .elo-local-auth,body[data-elo-product="chat"] .elo-local-auth-session{min-width:0;}',
+    'body[data-elo-product="chat"] .elo-local-auth{position:relative!important;inset:auto!important;z-index:1;max-width:100%;}',
+    'body[data-elo-product="chat"].elo-chat-state .elo-local-auth{display:none!important;}',
     'body[data-elo-product="chat"] .elo-core-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;}',
      'body[data-elo-product="chat"] .elo-core-actions button,body[data-elo-product="chat"] .elo-local-auth-session button{white-space:nowrap;}',
      '.elo-native-status-chip{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:0 8px;border-radius:999px;border:1px solid rgba(22,163,74,.18);color:#166534;background:rgba(22,163,74,.08);font-size:11px;font-weight:800;white-space:nowrap;}',
@@ -68,6 +70,14 @@ object EloWebViewHotfix {
     chip.textContent = 'Online';
     top.insertBefore(chip, top.children[1] || null);
   }
+  function syncChatAuthLayout(){
+    var hasConversation = !!document.querySelector('.elo-messages .elo-message, .elo-standalone-panel.is-chat-active');
+    document.body.classList.toggle('elo-chat-state', hasConversation);
+  }
+  var chatAuthObserver = new MutationObserver(syncChatAuthLayout);
+  chatAuthObserver.observe(document.body, {childList:true, subtree:true});
+  syncChatAuthLayout();
+
   var eduRexOpen = false;
   function updateEduRexButton(){
     var button = document.querySelector('.elo-native-pause-button');
