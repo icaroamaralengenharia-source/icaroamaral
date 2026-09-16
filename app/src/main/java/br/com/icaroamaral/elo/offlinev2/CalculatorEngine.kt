@@ -61,8 +61,9 @@ class CalculatorEngine {
             return Calculation(value, "Resultado: ${format(value)}")
         }
 
-        if (normalized.matches(Regex("e (?:vezes|multiplicado por|dividido por|mais|menos) [0-9]+(?:[.,][0-9]+)?"))) {
-            val right = Regex("[0-9]+(?:[.,][0-9]+)?").find(normalized)?.value?.let(::number) ?: return null
+        val continuation = Regex("e (?:vezes|multiplicado por|dividido por|mais|menos) ([0-9]+(?:[.,][0-9]+)?)\\s*(mil|milhao|milhoes)?").matchEntire(normalized)
+        if (continuation != null) {
+            val right = number(continuation.groupValues[1]) * scale(continuation.groupValues[2])
             val left = context.lastCalculatedValue ?: return null
             val value = when {
                 normalized.startsWith("e vezes") || normalized.startsWith("e multiplicado") -> left * right
