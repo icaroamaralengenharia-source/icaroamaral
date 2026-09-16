@@ -19,7 +19,7 @@ class CalculatorEngine {
             return Calculation(value, "Volume: ${format(value)} m³", "volume")
         }
 
-        Regex("(-?[0-9]+(?:[.,][0-9]+)?)\\s*(?:%|por cento)\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)\\s*(mil|milhao|milhoes)?")
+        Regex("(-?[0-9]+(?:[.,][0-9]+)?)\\s*(?:%|por cento)\\s*(?:de|sobre)\\s*(-?[0-9]+(?:[.,][0-9]+)?)\\s*(milhoes|milhao|mil)?")
             .find(normalized)?.let { match ->
                 val percent = number(match.groupValues[1])
                 val base = number(match.groupValues[2]) * scale(match.groupValues[3])
@@ -61,7 +61,7 @@ class CalculatorEngine {
             return Calculation(value, "Resultado: ${format(value)}")
         }
 
-        val continuation = Regex("e (?:vezes|multiplicado por|dividido por|mais|menos) ([0-9]+(?:[.,][0-9]+)?)\\s*(mil|milhao|milhoes)?").matchEntire(normalized)
+        val continuation = Regex("e (?:vezes|multiplicado por|dividido por|mais|menos) ([0-9]+(?:[.,][0-9]+)?)\\s*(milhoes|milhao|mil)?").matchEntire(normalized)
         if (continuation != null) {
             val right = number(continuation.groupValues[1]) * scale(continuation.groupValues[2])
             val left = context.lastCalculatedValue ?: return null
