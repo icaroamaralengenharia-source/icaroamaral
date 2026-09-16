@@ -102,10 +102,10 @@ public class EloOfflineEngineTest {
 
     @Test public void percentageMillionsAndShortContextOperations() {
         EloOfflineEngine current = engine();
-        assertEquals("Resultado: 99.500.000", current.handle("quanto é 10% de 995 milhões").getText());
-        assertEquals("Resultado: 49.750.000", current.handle("e dividido por 2?").getText());
-        assertEquals("Resultado: 149.250.000", current.handle("e vezes 3?").getText());
-        assertEquals("Resultado: 150.000.000", current.handle("e mais 750 mil?").getText());
+        assertEquals("Resultado: 99500000", current.handle("quanto é 10% de 995 milhões").getText());
+        assertEquals("Resultado: 49750000", current.handle("e dividido por 2?").getText());
+        assertEquals("Resultado: 149250000", current.handle("e vezes 3?").getText());
+        assertEquals("Resultado: 150000000", current.handle("e mais 750 mil?").getText());
     }
 
     @Test public void stopDoesNotMatchPeaceOfMindBySingleToken() {
