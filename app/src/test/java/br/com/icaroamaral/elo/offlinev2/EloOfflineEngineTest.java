@@ -118,6 +118,7 @@ public class EloOfflineEngineTest {
                 Clock.systemDefaultZone()
         ).handle("toque Sweet Child of Mind");
         assertFalse(result.getAction() instanceof EloOfflineAction.PlayTrack);
+        assertFalse(result.getRequiresInternet());
         assertTrue(result.getText().contains("não está disponível"));
     }
 

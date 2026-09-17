@@ -193,4 +193,23 @@ class EloPhysicalOfflineContractTest {
         assertTrue(source.contains("val y = dp(72).toFloat()"))
         assertTrue(source.contains("textSize = 12f"))
     }
+
+    @Test
+    fun voicePlayerObservesAudioFocusLossAndGain() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/EloVoicePlayer.kt").readText()
+
+        assertTrue(source.contains("setOnAudioFocusChangeListener(listener)"))
+        assertTrue(source.contains("AUDIOFOCUS_LOSS_TRANSIENT"))
+        assertTrue(source.contains("AUDIO_FOCUS_GAIN"))
+        assertTrue(source.contains("audioManager.abandonAudioFocus(it)"))
+    }
+
+    @Test
+    fun onlineMusicMissIsReleasedOnlyByTheOnlineControllerGate() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/EloOfflineV2Controller.kt").readText()
+
+        assertTrue(source.contains("isOnlineMusicMiss(command, result)"))
+        assertTrue(source.contains("if (!allowMusic"))
+        assertTrue(source.contains("Regex(\"^(toque|toca|tocar|coloque|reproduza|play)"))
+    }
 }

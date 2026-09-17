@@ -41,6 +41,8 @@ class EloVoicePlayer(
     private var mediaPlayer: MediaPlayer? = null
     private var tempAudioFile: File? = null
     private var focusRequest: AudioFocusRequest? = null
+    private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
+    private var audioFocusLost = false
     private var ttsReady = false
     private var doneCallback: (() -> Unit)? = null
     private var statusCallback: ((EloVoiceReport) -> Unit)? = null
@@ -336,17 +338,58 @@ class EloVoicePlayer(
     }
 
     private fun requestAudioFocus(attributes: AudioAttributes): Boolean {
+        val listener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            handler.post { handleAudioFocusChange(focusChange) }
+        }
+        audioFocusListener = listener
+        audioFocusLost = false
         return if (Build.VERSION.SDK_INT >= 26) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                 .setAudioAttributes(attributes)
-                .setOnAudioFocusChangeListener { }
+                .setOnAudioFocusChangeListener(listener)
                 .build()
             focusRequest = request
-            audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            val granted = audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (!granted) audioFocusListener = null
+            granted
         } else {
             @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            val granted = audioManager.requestAudioFocus(listener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (!granted) audioFocusListener = null
+            granted
         }
+    }
+
+    private fun handleAudioFocusChange(focusChange: Int) {
+        if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+            if (!audioFocusLost) return
+            audioFocusLost = false
+            val player = mediaPlayer ?: return
+            runCatching {
+                player.start()
+                statusCallback?.invoke(baseReport("AUDIO_FOCUS_GAIN", dataSource = "CACHE_FILE", isPlaying = safeIsPlaying(player)))
+            }.onFailure { error ->
+                statusCallback?.invoke(baseReport("AUDIO_FOCUS_RESUME_FAILED", dataSource = "CACHE_FILE", error = error.message ?: "audio-focus-resume"))
+            }
+            return
+        }
+
+        if (focusChange != AudioManager.AUDIOFOCUS_LOSS &&
+            focusChange != AudioManager.AUDIOFOCUS_LOSS_TRANSIENT &&
+            focusChange != AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK
+        ) return
+
+        audioFocusLost = true
+        val player = mediaPlayer
+        if (focusChange != AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+            runCatching { if (player?.isPlaying == true) player.pause() }
+        }
+        val stage = when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> "AUDIO_FOCUS_LOSS"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> "AUDIO_FOCUS_LOSS_TRANSIENT"
+            else -> "AUDIO_FOCUS_DUCK"
+        }
+        statusCallback?.invoke(baseReport(stage, dataSource = "CACHE_FILE", isPlaying = player?.let(::safeIsPlaying) ?: "-"))
     }
 
     private fun abandonAudioFocus() {
@@ -355,8 +398,10 @@ class EloVoicePlayer(
             focusRequest = null
         } else {
             @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(null)
+            audioFocusListener?.let { audioManager.abandonAudioFocus(it) }
         }
+        audioFocusListener = null
+        audioFocusLost = false
     }
 
     private fun buildSpeechAudioAttributes(usage: Int): AudioAttributes {

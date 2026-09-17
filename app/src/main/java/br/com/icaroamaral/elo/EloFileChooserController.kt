@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 class EloFileChooserController(
     activity: ComponentActivity
 ) {
+    private val hostActivity = activity
     private var pendingCallback: ValueCallback<Array<Uri>>? = null
 
     private val launcher = activity.registerForActivityResult(
@@ -28,7 +29,9 @@ class EloFileChooserController(
             return@registerForActivityResult
         }
 
-        callback.onReceiveValue(extractUris(result))
+        val uris = extractUris(result)
+        persistReadPermission(result, uris)
+        callback.onReceiveValue(uris)
     }
 
     fun onShowFileChooser(
@@ -141,18 +144,29 @@ class EloFileChooserController(
                     if (value.contains("/")) value else null
             }
 
-        private fun extractUris(result: ActivityResult): Array<Uri>? {
-            val data = result.data ?: return null
+    }
 
-            data.clipData?.let { clip ->
-                if (clip.itemCount > 0) {
-                    return Array(clip.itemCount) { index ->
-                        clip.getItemAt(index).uri
-                    }
+    private fun extractUris(result: ActivityResult): Array<Uri>? {
+        val data = result.data ?: return null
+
+        data.clipData?.let { clip ->
+            if (clip.itemCount > 0) {
+                return Array(clip.itemCount) { index ->
+                    clip.getItemAt(index).uri
                 }
             }
+        }
 
-            return data.data?.let { arrayOf(it) }
+        return data.data?.let { arrayOf(it) }
+    }
+
+    private fun persistReadPermission(result: ActivityResult, uris: Array<Uri>?) {
+        val data = result.data ?: return
+        val readFlag = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+        if (readFlag == 0 || uris.isNullOrEmpty()) return
+        uris.forEach { uri ->
+            runCatching {
+                hostActivity.contentResolver.takePersistableUriPermission(uri, readFlag)
+            }
         }
     }
-}

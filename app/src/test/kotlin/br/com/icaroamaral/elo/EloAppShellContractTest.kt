@@ -35,6 +35,15 @@ class EloAppShellContractTest {
     }
 
     @Test
+    fun selectedDocumentsKeepReadableUriPermissionWhenProviderSupportsIt() {
+        val source = java.io.File("src/main/java/br/com/icaroamaral/elo/EloFileChooserController.kt").readText()
+
+        assertTrue(source.contains("ACTION_OPEN_DOCUMENT"))
+        assertTrue(source.contains("takePersistableUriPermission"))
+        assertTrue(source.contains("persistReadPermission(result, uris)"))
+    }
+
+    @Test
     fun nativeCapabilitiesV1ExposePhotoBridgeDisabled() {
         val json = EloNativeCapabilities().toJson()
 

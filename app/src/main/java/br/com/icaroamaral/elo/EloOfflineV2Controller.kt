@@ -5,6 +5,7 @@ import android.media.MediaPlayer
 import android.util.Log
 import br.com.icaroamaral.elo.offlinev2.EloOfflineAction
 import br.com.icaroamaral.elo.offlinev2.EloOfflineEngine
+import br.com.icaroamaral.elo.offlinev2.EloOfflineResult
 import br.com.icaroamaral.elo.offlinev2.EloOfflineTrack
 import br.com.icaroamaral.elo.offlinev2.OfflineMusicStore
 import br.com.icaroamaral.elo.offlinev2.TechnicalKnowledgeEngine
@@ -71,7 +72,11 @@ class EloOfflineV2Controller(
             EloRoutingTrace.log("ELO_TRACE_08_HANDLED", command, online = online, handled = false, requiresInternet = result.requiresInternet, reason = "engine_not_handled")
             return null
         }
-        if (!allowMusic && (result.requiresInternet || result.action != EloOfflineAction.None)) {
+        if (!allowMusic && (
+                result.requiresInternet ||
+                    result.action != EloOfflineAction.None ||
+                    isOnlineMusicMiss(command, result)
+                )) {
             EloRoutingTrace.log("ELO_TRACE_08_HANDLED", command, online = online, handled = false, requiresInternet = result.requiresInternet, action = result.action.toString(), reason = "blocked_nonlocal_action")
             return null
         }
@@ -91,6 +96,13 @@ class EloOfflineV2Controller(
             EloOfflineAction.CurrentTrack, EloOfflineAction.None -> Unit
         }
         return resultJson(result.text, result.requiresInternet, result.action)
+    }
+
+    private fun isOnlineMusicMiss(command: String, result: EloOfflineResult): Boolean {
+        if (!result.handled || result.action != EloOfflineAction.None) return false
+        val normalized = EloOfflineRouter.normalize(command)
+        return normalized == "musica" ||
+            Regex("^(toque|toca|tocar|coloque|reproduza|play)\\b").containsMatchIn(normalized)
     }
 
     fun playTrack(trackId: String): String {
