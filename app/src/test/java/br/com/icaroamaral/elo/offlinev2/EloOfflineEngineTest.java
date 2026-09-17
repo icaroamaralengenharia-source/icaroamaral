@@ -88,8 +88,9 @@ public class EloOfflineEngineTest {
 
     @Test public void anterior() { assertTrue(engine().handle("anterior").getAction() instanceof EloOfflineAction.PreviousTrack); }
 
-    @Test public void pauseResume() {
-        assertTrue(engine().handle("pause").getAction() instanceof EloOfflineAction.Pause);
+    @Test public void stopAndResume() {
+        assertTrue(engine().handle("pause").getAction() instanceof EloOfflineAction.Stop);
+        assertTrue(engine().handle("pausar").getAction() instanceof EloOfflineAction.Stop);
         assertTrue(engine().handle("continue").getAction() instanceof EloOfflineAction.Resume);
     }
 

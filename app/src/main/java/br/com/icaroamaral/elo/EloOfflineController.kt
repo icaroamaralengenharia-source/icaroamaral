@@ -5,16 +5,27 @@ import android.content.Context
 class EloOfflineController(
     context: Context,
     private val playbackUiCallback: (EloOfflinePlaybackUiEvent) -> Unit = {},
-    private val routeResultCallback: (EloOfflineRouteResult) -> Unit = {}
+    private val routeResultCallback: (EloOfflineRouteResult) -> Unit = {},
+    private val playerCoordinator: EloMusicPlayerCoordinator = EloMusicPlayerCoordinator()
 ) {
     private val appContext = context.applicationContext
     private val router = EloOfflineRouter(appContext)
     private val player = EloOfflineMusicPlayer(appContext)
-    private val offlineV2 = EloOfflineV2Controller(appContext, playbackUiCallback)
+    private val offlineV2 = EloOfflineV2Controller(
+        context = appContext,
+        playbackUiCallback = playbackUiCallback,
+        beforePlayback = {
+            playerCoordinator.activatePlayer(EloMusicPlayerCoordinator.ActivePlayer.OFFLINE)
+        },
+        isOfflineOwner = {
+            playerCoordinator.currentPlayer() == EloMusicPlayerCoordinator.ActivePlayer.OFFLINE
+        }
+    )
 
     fun connectivityState(): String = EloConnectivity.snapshot(appContext).name
 
     fun playOfflineMusic(command: String): String {
+        if (isActiveMusicStopCommand(command)) return stopCommandResult()
         if (EloConnectivity.snapshot(appContext) != EloConnectivityState.ONLINE_VALIDATED) {
             offlineV2.handle(command)?.let { return it }
         }
@@ -24,6 +35,7 @@ class EloOfflineController(
             playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
         }
         if (result.localPlay && result.track != null) {
+            playerCoordinator.activatePlayer(EloMusicPlayerCoordinator.ActivePlayer.OFFLINE)
             player.play(result.track)
             playbackUiCallback(EloOfflinePlaybackUiEvent.Playing(result.track))
         }
@@ -43,18 +55,25 @@ class EloOfflineController(
     fun previousOfflineTrack(): String = offlineV2.previousTrack()
 
     fun stopMedia(): String {
-        offlineV2.stop()
-        player.stop()
+        playerCoordinator.stopActivePlayer()
+        stopForArbitration()
         playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
         return "{\"ok\":true,\"action\":\"stop\"}"
     }
 
     fun release() {
-        offlineV2.release()
-        player.release()
+        stopForArbitration()
+    }
+
+    /** Stops all native playback without changing coordinator ownership mid-switch. */
+    fun stopForArbitration() {
+        offlineV2.stop()
+        player.stop()
+        playerCoordinator.deactivatePlayer(EloMusicPlayerCoordinator.ActivePlayer.OFFLINE)
     }
 
     fun routeOfflineChat(command: String): String {
+        if (isActiveMusicStopCommand(command)) return stopCommandResult()
         val online = EloConnectivity.snapshot(appContext) == EloConnectivityState.ONLINE_VALIDATED
         val local = if (online) {
             offlineV2.handleLocal(command)
@@ -77,6 +96,7 @@ class EloOfflineController(
             playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
         }
         if (result.localPlay && result.track != null) {
+            playerCoordinator.activatePlayer(EloMusicPlayerCoordinator.ActivePlayer.OFFLINE)
             player.play(result.track)
             playbackUiCallback(EloOfflinePlaybackUiEvent.Playing(result.track))
         }
@@ -96,6 +116,15 @@ class EloOfflineController(
             "\"trackId\":\"" + escape(result.track?.id ?: "") + "\"" +
             "}"
     }
+
+    private fun stopCommandResult(): String {
+        stopMedia()
+        return "{\"handled\":true,\"intent\":\"MUSIC_STOP\",\"text\":\"Música interrompida.\",\"message\":\"Música interrompida.\",\"localPlay\":false,\"localStop\":true,\"unavailableOffline\":false,\"trackId\":\"\"}"
+    }
+
+    private fun isActiveMusicStopCommand(command: String): Boolean =
+        playerCoordinator.currentPlayer() != EloMusicPlayerCoordinator.ActivePlayer.NONE &&
+            EloVoiceMediaCommand.isStopCommandForActiveMusic(command)
 
     private fun escape(value: String): String {
         return value

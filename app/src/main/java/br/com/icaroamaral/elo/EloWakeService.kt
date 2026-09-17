@@ -838,6 +838,7 @@ class EloWakeService : Service(), RecognitionListener {
         }
 
         runCatching {
+            EloMusicPlayerCoordinatorRegistry.stopActivePlayer()
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + result.mediaVideoId)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -854,16 +855,16 @@ class EloWakeService : Service(), RecognitionListener {
     private fun handleMediaControlCommand(command: String): Boolean {
         val normalized = normalizeStopText(command)
         return when {
+            mediaState != MediaPlaybackState.MEDIA_IDLE && isMediaStopIntent(normalized) -> {
+                stopExternalMedia(normalized)
+                true
+            }
             mediaState == MediaPlaybackState.MEDIA_PLAYING && isMediaPauseIntent(normalized) -> {
                 pauseExternalMedia(normalized)
                 true
             }
             mediaState == MediaPlaybackState.MEDIA_PAUSED && isMediaResumeIntent(normalized) -> {
                 resumeExternalMedia(normalized)
-                true
-            }
-            mediaState != MediaPlaybackState.MEDIA_IDLE && isMediaStopIntent(normalized) -> {
-                stopExternalMedia(normalized)
                 true
             }
             else -> false
@@ -919,7 +920,8 @@ class EloWakeService : Service(), RecognitionListener {
 
     private fun isMediaResumeIntent(normalized: String): Boolean = normalized in mediaResumeWords
 
-    private fun isMediaStopIntent(normalized: String): Boolean = normalized in mediaStopWords
+    private fun isMediaStopIntent(normalized: String): Boolean =
+        EloVoiceMediaCommand.isStopCommandForActiveMusic(normalized)
 
     private fun historySnapshot(): List<EloConversationMessage> {
         return conversationHistory.takeLast(10).toList()
@@ -1395,7 +1397,6 @@ class EloWakeService : Service(), RecognitionListener {
         private val stopWords = setOf("pare", "para", "parar", "chega", "cala")
         private val mediaPauseWords = setOf("pare", "para", "pausa", "pause")
         private val mediaResumeWords = setOf("continue", "continuar", "retome", "volte")
-        private val mediaStopWords = setOf("parar musica", "para musica", "encerrar musica", "encerra musica")
         private val recoverableErrors = setOf(
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT,

@@ -1,6 +1,9 @@
 package br.com.icaroamaral.elo
 
 object EloWebViewHotfix {
+    fun stopOnlinePlayerScript(): String =
+        "window.__eloNativeStopOnlinePlayer && window.__eloNativeStopOnlinePlayer();"
+
     fun connectivityScript(state: String): String {
         val safeState = state.replace("'", "")
         return """
@@ -304,6 +307,7 @@ object EloWebViewHotfix {
   function callNativeResolvedMusic(media){
     try {
       if (!isLocalMedia(media) || !window.EloNativeBridge) return false;
+      stopOnlinePlayerDom();
       var command = resolvedMusicCommand(media);
       var raw = '';
       if (media.id && window.EloNativeBridge.playOfflineTrack) {
@@ -323,12 +327,78 @@ object EloWebViewHotfix {
     }
     return false;
   }
+  function callNativeOnlinePlayer(){
+    try {
+      if (!window.EloNativeBridge || !window.EloNativeBridge.activateOnlinePlayer) return false;
+      return !!window.EloNativeBridge.activateOnlinePlayer();
+    } catch (err) {
+      console.error('ELO_ONLINE_PLAYER_COORDINATOR_FAILED', err && err.name || 'Error', err && err.message || String(err));
+      return false;
+    }
+  }
+  function stopOnlinePlayerDom(){
+    var player = window.EloMediaPlayer;
+    if (player) {
+      var stopped = false;
+      ['stop','close','destroy'].forEach(function(name){
+        try {
+          if (typeof player[name] !== 'function') return;
+          player[name]();
+          stopped = true;
+        } catch (err) {
+        }
+      });
+      if (!stopped) {
+        try { if (typeof player.pause === 'function') player.pause(); } catch (err) {}
+      }
+    }
+    document.querySelectorAll('audio,video').forEach(function(media){
+      try { media.pause(); } catch (err) {}
+      try { media.removeAttribute('autoplay'); } catch (err) {}
+      try { media.removeAttribute('src'); media.load(); } catch (err) {}
+    });
+    document.querySelectorAll([
+      '[data-elo-media-player]', '[data-elo-player]', '.elo-media-player',
+      '.elo-music-player', '#elo-media-player', '#elo-music-player',
+      'iframe[src*="youtube.com/embed"]', 'iframe[src*="youtube-nocookie.com/embed"]'
+    ].join(',')).forEach(function(node){
+      if (node.tagName === 'IFRAME') node.removeAttribute('src');
+      node.setAttribute('aria-hidden', 'true');
+      node.style.display = 'none';
+    });
+    try {
+      if (window.EloNativeBridge && window.EloNativeBridge.notifyOnlinePlayerStopped) {
+        window.EloNativeBridge.notifyOnlinePlayerStopped();
+      }
+    } catch (err) {}
+    document.documentElement.setAttribute('data-elo-online-player', 'STOPPED');
+    window.dispatchEvent(new CustomEvent('elo-online-player-stopped'));
+    return true;
+  }
   function wrapMediaPlayerMethod(player, name){
     if (!player || typeof player[name] !== 'function' || player[name].__eloNativeWrapped) return;
     var original = player[name];
     var wrapped = function(media){
       if (callNativeResolvedMusic(media)) return Promise.resolve(true);
+      stopOnlinePlayerDom();
+      callNativeOnlinePlayer();
       return original.apply(this, arguments);
+    };
+    wrapped.__eloNativeWrapped = true;
+    player[name] = wrapped;
+  }
+  function wrapOnlineStopMethod(player, name){
+    if (!player || typeof player[name] !== 'function' || player[name].__eloNativeWrapped) return;
+    var original = player[name];
+    var wrapped = function(){
+      var result = original.apply(this, arguments);
+      try {
+        if (window.EloNativeBridge && window.EloNativeBridge.notifyOnlinePlayerStopped) {
+          window.EloNativeBridge.notifyOnlinePlayerStopped();
+        }
+      } catch (err) {}
+      document.documentElement.setAttribute('data-elo-online-player', 'STOPPED');
+      return result;
     };
     wrapped.__eloNativeWrapped = true;
     player[name] = wrapped;
@@ -362,6 +432,9 @@ object EloWebViewHotfix {
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'play');
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'playTrack');
     wrapMediaPlayerMethod(window.EloMediaPlayer, 'playMedia');
+    wrapOnlineStopMethod(window.EloMediaPlayer, 'stop');
+    wrapOnlineStopMethod(window.EloMediaPlayer, 'close');
+    wrapOnlineStopMethod(window.EloMediaPlayer, 'destroy');
     wrapNativeControl(window.EloMediaPlayer, 'pause', 'pauseOfflineTrack');
     wrapNativeControl(window.EloMediaPlayer, 'resume', 'resumeOfflineTrack');
     wrapNativeControl(window.EloMediaPlayer, 'next', 'nextOfflineTrack');
@@ -394,6 +467,7 @@ object EloWebViewHotfix {
       node.textContent = detail.title || '';
     });
   });
+  window.__eloNativeStopOnlinePlayer = stopOnlinePlayerDom;
   var observer = new MutationObserver(function(){ ensureStatusChip(); ensurePauseButton(); normalizeActionButtons(); removeIntrusiveOfflineNotices(); improveHistoryCards(); installNativeLocalMusicFallback(); installAudioPlayDiagnostics(); });
   observer.observe(document.documentElement, { childList:true, subtree:true });
   window.addEventListener('resize', function(){ normalizeActionButtons(); removeIntrusiveOfflineNotices(); improveHistoryCards(); });

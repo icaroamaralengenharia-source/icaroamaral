@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var bridge: EloNativeBridge
     private lateinit var wakeController: EloWakeController
     private lateinit var offlineController: EloOfflineController
+    private val playerCoordinator = EloMusicPlayerCoordinator()
     private var lastConnectivityState: EloConnectivityState? = null
     @Volatile private var currentPageUrl: String? = null
     private var pendingWebAudioRequest: PermissionRequest? = null
@@ -66,7 +67,8 @@ class MainActivity : ComponentActivity() {
         offlineController = EloOfflineController(
             context = this,
             playbackUiCallback = { event -> mainHandler.post { renderPlaybackEvent(event) } },
-            routeResultCallback = { result -> mainHandler.post { showOfflineRouteResult(result) } }
+            routeResultCallback = { result -> mainHandler.post { showOfflineRouteResult(result) } },
+            playerCoordinator = playerCoordinator
         )
         bridge = EloNativeBridge(
             context = this,
@@ -74,8 +76,12 @@ class MainActivity : ComponentActivity() {
             currentUrlProvider = { currentPageUrl },
             wakeController = wakeController,
             offlineController = offlineController,
+            playerCoordinator = playerCoordinator,
             wakePermissionRequester = { enabled -> requestMicThenSetWake(enabled) }
         )
+        playerCoordinator.attachOfflineStopper { offlineController.stopForArbitration() }
+        playerCoordinator.attachOnlineStopper { stopOnlinePlayerForArbitration() }
+        EloMusicPlayerCoordinatorRegistry.register(playerCoordinator)
         buildShell()
         if (!restoreWebViewState(savedInstanceState)) {
             webView.loadUrl(ELO_WEB_URL)
@@ -104,6 +110,7 @@ class MainActivity : ComponentActivity() {
         pendingWebAudioRequest?.deny()
         pendingWebAudioRequest = null
         fileChooserController.cancelPending()
+        EloMusicPlayerCoordinatorRegistry.unregister(playerCoordinator)
         offlineController.release()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface(BRIDGE_NAME)
@@ -416,6 +423,27 @@ class MainActivity : ComponentActivity() {
         musicPanel?.visibility = View.GONE
     }
 
+    private fun stopOnlinePlayerForArbitration() {
+        if (!::webView.isInitialized || !originPolicy.isTrustedUrl(webView.url ?: return)) return
+        val completed = java.util.concurrent.CountDownLatch(1)
+        webView.post {
+            try {
+                if (originPolicy.isTrustedUrl(webView.url.orEmpty())) {
+                    webView.evaluateJavascript(EloWebViewHotfix.stopOnlinePlayerScript()) {
+                        completed.countDown()
+                    }
+                } else {
+                    completed.countDown()
+                }
+            } catch (_: Throwable) {
+                completed.countDown()
+            }
+        }
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            completed.await(800, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun installDragHandle(handle: View, panel: View) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
@@ -551,9 +579,16 @@ class MainActivity : ComponentActivity() {
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
+  function stopOnlineBeforeMusicRoute(command){
+    if (!/\b(toque|toca|tocar|coloque|reproduza|play)\b/i.test(String(command || ''))) return;
+    try {
+      if (window.__eloNativeStopOnlinePlayer) window.__eloNativeStopOnlinePlayer();
+    } catch (_) {}
+  }
   function route(command){
     try {
       if (!command || !window.EloNativeBridge || !window.EloNativeBridge.routeOfflineChat) return false;
+      stopOnlineBeforeMusicRoute(command);
       trace('ELO_TRACE_01_COMPOSER_INPUT', command, '', '', false, false, '', 'composer_route');
       trace('ELO_TRACE_03_WEB_ROUTE_LOCAL', command, '', '', false, false, '', 'before_native_bridge');
       var raw = window.EloNativeBridge.routeOfflineChat(String(command));

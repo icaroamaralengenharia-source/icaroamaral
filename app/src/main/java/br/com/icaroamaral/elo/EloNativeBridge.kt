@@ -17,6 +17,7 @@ class EloNativeBridge(
     private val currentUrlProvider: () -> String?,
     private val wakeController: EloWakeController,
     private val offlineController: EloOfflineController,
+    private val playerCoordinator: EloMusicPlayerCoordinator,
     private val wakePermissionRequester: ((Boolean) -> Boolean)? = null,
     private val capabilities: EloNativeCapabilities = EloNativeCapabilities(),
     private val dispatchGate: EloOfflineDispatchGate = EloOfflineDispatchGate()
@@ -124,6 +125,20 @@ class EloNativeBridge(
     fun playResolvedOfflineMusic(command: String): String {
         if (!isTrustedCaller()) return "{\"trusted\":false,\"handled\":false}"
         return offlineController.playOfflineMusic(command)
+    }
+
+    @JavascriptInterface
+    fun activateOnlinePlayer(): Boolean {
+        if (!isTrustedCaller()) return false
+        playerCoordinator.activatePlayer(EloMusicPlayerCoordinator.ActivePlayer.ONLINE)
+        return true
+    }
+
+    @JavascriptInterface
+    fun notifyOnlinePlayerStopped(): Boolean {
+        if (!isTrustedCaller()) return false
+        playerCoordinator.deactivatePlayer(EloMusicPlayerCoordinator.ActivePlayer.ONLINE)
+        return true
     }
     @JavascriptInterface
     fun routeOfflineChat(command: String): String {

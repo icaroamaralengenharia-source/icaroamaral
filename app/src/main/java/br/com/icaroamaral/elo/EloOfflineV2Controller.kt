@@ -16,6 +16,8 @@ import java.time.Clock
 class EloOfflineV2Controller(
     context: Context,
     private val playbackUiCallback: (EloOfflinePlaybackUiEvent) -> Unit = {},
+    private val beforePlayback: () -> Unit = {},
+    private val isOfflineOwner: () -> Boolean = { true }
 ) {
     private val appContext = context.applicationContext
     private val store = OfflineMusicStore(appContext)
@@ -28,7 +30,9 @@ class EloOfflineV2Controller(
     }
     private var currentFileIndex = 0
     private var currentTrack: EloOfflineTrack? = tracks.getOrNull(currentIndex)
-    private var pendingAction: (() -> Unit)? = null
+    private data class PendingAction(val generation: Long, val action: () -> Unit)
+    private var pendingAction: PendingAction? = null
+    private var playbackGeneration = 0L
     @Volatile private var musicReady = false
     @Volatile private var readyFailure: String? = null
 
@@ -45,9 +49,9 @@ class EloOfflineV2Controller(
                 pendingAction = null
                 action
             }
-            if (musicReady) {
-                pending?.invoke()
-            } else if (pending != null) {
+            if (musicReady && pending != null && canExecute(pending.generation)) {
+                pending.action()
+            } else if (!musicReady && pending != null && canExecute(pending.generation)) {
                 emitError(currentTrack, readyFailure ?: "offline music initialization failed")
             }
         }.apply {
@@ -149,9 +153,16 @@ class EloOfflineV2Controller(
     }
 
     fun stop() {
-        synchronized(stateLock) { pendingAction = null }
-        player?.release()
-        player = null
+        val oldPlayer = synchronized(stateLock) {
+            playbackGeneration += 1
+            pendingAction = null
+            val current = player
+            player = null
+            current
+        }
+        runCatching { oldPlayer?.setOnCompletionListener(null) }
+        runCatching { oldPlayer?.setOnErrorListener(null) }
+        oldPlayer?.release()
         playbackUiCallback(EloOfflinePlaybackUiEvent.Stopped)
     }
 
@@ -159,30 +170,39 @@ class EloOfflineV2Controller(
 
     private fun requestPlayAt(index: Int) {
         if (index !in tracks.indices) return
+        val generation = synchronized(stateLock) {
+            playbackGeneration += 1
+            pendingAction = null
+            playbackGeneration
+        }
+        beforePlayback()
         currentIndex = index
         currentFileIndex = 0
         val track = tracks[index]
         currentTrack = track
         engine.context.lastMusicTrackId = track.id
         appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_TRACK, track.id).apply()
-        whenReady { playCurrent(track) }
+        whenReady(generation) { playCurrent(track, generation) }
     }
 
-    private fun whenReady(action: () -> Unit) {
+    private fun whenReady(generation: Long, action: () -> Unit) {
         val runNow = synchronized(stateLock) {
-            if (musicReady) {
+            if (generation != playbackGeneration) {
+                false
+            } else if (musicReady) {
                 true
             } else {
-                pendingAction = action
+                pendingAction = PendingAction(generation, action)
                 false
             }
         }
-        if (runNow) action()
+        if (runNow && canExecute(generation)) action()
     }
 
-    private fun playCurrent(track: EloOfflineTrack) {
+    private fun playCurrent(track: EloOfflineTrack, generation: Long) {
+        if (!canExecute(generation)) return
         if (!musicReady) {
-            whenReady { playCurrent(track) }
+            whenReady(generation) { playCurrent(track, generation) }
             return
         }
         val path = track.files.getOrNull(currentFileIndex)
@@ -192,11 +212,20 @@ class EloOfflineV2Controller(
             return
         }
 
-        player?.release()
+        if (!canExecute(generation)) return
+        val oldPlayer = player
         player = null
+        runCatching { oldPlayer?.setOnCompletionListener(null) }
+        runCatching { oldPlayer?.setOnErrorListener(null) }
+        oldPlayer?.release()
         val created = MediaPlayer()
         player = created
         try {
+            if (!canExecute(generation)) {
+                if (player === created) player = null
+                created.release()
+                return
+            }
             created.setAudioAttributes(
                 android.media.AudioAttributes.Builder()
                     .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
@@ -205,18 +234,28 @@ class EloOfflineV2Controller(
             )
             created.setDataSource(file.absolutePath)
             created.setOnCompletionListener {
+                if (!canExecute(generation) || player !== created) {
+                    runCatching { created.release() }
+                    return@setOnCompletionListener
+                }
                 if (currentFileIndex + 1 < track.files.size) {
                     currentFileIndex++
-                    playCurrent(track)
+                    playCurrent(track, generation)
                 } else if (tracks.isNotEmpty()) {
                     requestPlayAt((currentIndex + 1) % tracks.size)
                 }
             }
             created.setOnErrorListener { _, what, extra ->
+                if (!canExecute(generation) || player !== created) return@setOnErrorListener true
                 emitError(track, "MediaPlayer error what=" + what + " extra=" + extra + " file=" + file.name)
                 true
             }
             created.prepare()
+            if (!canExecute(generation)) {
+                if (player === created) player = null
+                created.release()
+                return
+            }
             created.start()
             Log.i(
                 AUDIO_LOG_TAG,
@@ -234,6 +273,9 @@ class EloOfflineV2Controller(
     private fun emitError(track: EloOfflineTrack?, message: String) {
         playbackUiCallback(EloOfflinePlaybackUiEvent.ErrorV2(track, message))
     }
+
+    private fun canExecute(generation: Long): Boolean =
+        synchronized(stateLock) { generation == playbackGeneration } && isOfflineOwner()
 
     private fun loadTracks(): List<EloOfflineTrack> = runCatching {
         val items = JSONArray(appContext.assets.open(CATALOG_ASSET).bufferedReader().use { it.readText() })

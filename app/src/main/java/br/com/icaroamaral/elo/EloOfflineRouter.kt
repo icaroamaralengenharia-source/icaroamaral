@@ -127,7 +127,7 @@ class EloOfflineRouter(
             val lower = normalize(command)
             EloLocalToolEngine.handle(command)?.let { return it.intent }
             return when {
-                Regex("^(pare|parar|stop|interrompa|pause)\\b").containsMatchIn(lower) -> EloOfflineIntent.MUSIC_STOP
+                EloVoiceMediaCommand.isStopCommand(lower) -> EloOfflineIntent.MUSIC_STOP
                 Regex("^(toque|toca|tocar|coloque|reproduza|play)\\b").containsMatchIn(lower) -> EloOfflineIntent.MUSIC_PLAY
                 Regex("^(lembre|memorize)\\b").containsMatchIn(lower) -> EloOfflineIntent.MEMORY_WRITE
                 Regex("(qual|como|o que|lembra).{0,60}(cachorro|projeto|photo bridge|memoria)").containsMatchIn(lower) -> EloOfflineIntent.MEMORY_READ
