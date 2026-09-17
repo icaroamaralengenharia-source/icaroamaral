@@ -1,12 +1,40 @@
 {
-  "atualizadoEm": "2026-09-17T07:37:55.911Z",
-  "coletadoEm": "2026-09-17T07:37:55.911Z",
+  "atualizadoEm": "2026-09-17T13:25:59.588Z",
+  "coletadoEm": "2026-09-17T13:25:59.588Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "3eef1a6378344046",
+      "titulo": "Edmilson Costa defende jornada de 30 horas e fim da escala 6x1",
+      "resumo": "O candidato à Presidência Edmilson Costa, do Partido Comunista Brasileiro (PCB), propõe em seu programa de governo reformas estruturais nas áreas sociais e do mundo do trabalho, com a implantação da jornada de 30 horas semanais sem redução salarial e o fim da escala 6x1.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/politica/noticia/2026-09/edmilson-costa-defende-jornada-de-30-horas-e-fim-da-escala-6x1",
+      "publicadoEm": "2026-09-17T11:00:00.000Z",
+      "coletadoEm": "2026-09-17T13:25:59.588Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/1IT_22sifnN4dEo-GmHt6OZUO5k=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/15/sem_titulo-3.jpg?itok=_yco8HR1",
+      "imagemAlt": "Edmilson Costa defende jornada de 30 horas e fim da escala 6x1",
+      "imagemOrigem": "Agencia Brasil"
+    },
+    {
+      "id": "ed502d0738421264",
+      "titulo": "Petrobras aumenta diesel, mas subsídio mantém valor final; entenda",
+      "resumo": "A Petrobras anunciou nesta quarta-feira (16) que vai aumentar o preço do diesel nas refinarias em R$ 1 por litro a partir desta quinta-feira, (19).",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/economia/noticia/2026-09/petrobras-aumenta-diesel-mas-subsitio-mantem-valor-final-entenda",
+      "publicadoEm": "2026-09-17T10:44:00.000Z",
+      "coletadoEm": "2026-09-17T13:25:59.588Z",
+      "categoria": "Infraestrutura e Obras",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/vlPCyTNYNOglbobWxriy4XX2QTg=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2019-05-07t131900z_6993045_rc15f3e59060_rtrmadp_3_petrobras-divestiture-refineries.jpg?itok=y-fNX2V2",
+      "imagemAlt": "Petrobras aumenta diesel, mas subsídio mantém valor final; entenda",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "20187b64106e0d22",
       "titulo": "Mesmo com nova queda da Selic, juros elevados ainda desafiam construção, avalia CBIC",
