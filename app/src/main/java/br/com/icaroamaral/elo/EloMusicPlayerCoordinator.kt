@@ -10,6 +10,13 @@ class EloMusicPlayerCoordinator {
 
     private var activePlayer = ActivePlayer.NONE
     private var transitionGeneration = 0L
+    private data class Transition(
+        val generation: Long,
+        val current: ActivePlayer,
+        val target: ActivePlayer,
+        val thread: Thread
+    )
+    private var transition: Transition? = null
     private var offlineStopper: (() -> Unit)? = null
     private var onlineStopper: (() -> Unit)? = null
 
@@ -25,23 +32,30 @@ class EloMusicPlayerCoordinator {
 
     /** Stops the opposite engine before making [target] the owner. */
     fun activatePlayer(target: ActivePlayer) {
-        val stoppers = synchronized(this) {
-            if (activePlayer == target) return
+        val plan = synchronized(this) {
+            if (activePlayer == target || transition != null) return
             transitionGeneration += 1
-            val generation = transitionGeneration
-            val selected = when (target) {
-                ActivePlayer.OFFLINE -> listOfNotNull(onlineStopper)
-                ActivePlayer.ONLINE -> listOfNotNull(offlineStopper)
-                ActivePlayer.NONE -> listOfNotNull(offlineStopper, onlineStopper)
+            val current = activePlayer
+            val next = Transition(transitionGeneration, current, target, Thread.currentThread())
+            transition = next
+            val stopper = when (current) {
+                ActivePlayer.OFFLINE -> offlineStopper
+                ActivePlayer.ONLINE -> onlineStopper
+                ActivePlayer.NONE -> null
             }
-            activePlayer = ActivePlayer.NONE
-            selected to generation
+            stopper to next
         }
-        stoppers.first.forEach { it.invoke() }
-        if (target != ActivePlayer.NONE) {
+        var succeeded = false
+        try {
+            plan.first?.invoke()
+            succeeded = true
+        } finally {
             synchronized(this) {
-                if (stoppers.second == transitionGeneration && activePlayer == ActivePlayer.NONE) {
-                    activePlayer = target
+                if (transition === plan.second && transitionGeneration == plan.second.generation) {
+                    if (succeeded && activePlayer == plan.second.current) {
+                        activePlayer = plan.second.target
+                    }
+                    transition = null
                 }
             }
         }
@@ -50,21 +64,42 @@ class EloMusicPlayerCoordinator {
     fun switchPlayer(target: ActivePlayer) = activatePlayer(target)
 
     fun stopActivePlayer() {
-        val stopper = synchronized(this) {
+        val plan = synchronized(this) {
+            transition?.let { pending ->
+                if (pending.thread !== Thread.currentThread()) {
+                    transitionGeneration += 1
+                    transition = null
+                    activePlayer = ActivePlayer.NONE
+                }
+                return
+            }
+            if (activePlayer == ActivePlayer.NONE) return
             transitionGeneration += 1
-            val selected = when (activePlayer) {
+            val current = activePlayer
+            val next = Transition(transitionGeneration, current, ActivePlayer.NONE, Thread.currentThread())
+            transition = next
+            val stopper = when (current) {
                 ActivePlayer.OFFLINE -> offlineStopper
                 ActivePlayer.ONLINE -> onlineStopper
                 ActivePlayer.NONE -> null
             }
-            activePlayer = ActivePlayer.NONE
-            selected
+            stopper to next
         }
-        stopper?.invoke()
+        try {
+            plan.first?.invoke()
+        } finally {
+            synchronized(this) {
+                if (transition === plan.second) {
+                    activePlayer = ActivePlayer.NONE
+                    transition = null
+                }
+            }
+        }
     }
 
     @Synchronized
     fun deactivatePlayer(player: ActivePlayer) {
+        if (transition?.current == player) return
         if (activePlayer == player) {
             transitionGeneration += 1
             activePlayer = ActivePlayer.NONE
