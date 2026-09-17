@@ -13,8 +13,7 @@ class EloMusicPlayerCoordinator {
     private data class Transition(
         val generation: Long,
         val current: ActivePlayer,
-        val target: ActivePlayer,
-        val thread: Thread
+        val target: ActivePlayer
     )
     private var transition: Transition? = null
     private var offlineStopper: (() -> Unit)? = null
@@ -36,7 +35,7 @@ class EloMusicPlayerCoordinator {
             if (activePlayer == target || transition != null) return
             transitionGeneration += 1
             val current = activePlayer
-            val next = Transition(transitionGeneration, current, target, Thread.currentThread())
+            val next = Transition(transitionGeneration, current, target)
             transition = next
             val stopper = when (current) {
                 ActivePlayer.OFFLINE -> offlineStopper
@@ -66,17 +65,15 @@ class EloMusicPlayerCoordinator {
     fun stopActivePlayer() {
         val plan = synchronized(this) {
             transition?.let { pending ->
-                if (pending.thread !== Thread.currentThread()) {
-                    transitionGeneration += 1
-                    transition = null
-                    activePlayer = ActivePlayer.NONE
-                }
+                transitionGeneration += 1
+                transition = null
+                activePlayer = ActivePlayer.NONE
                 return
             }
             if (activePlayer == ActivePlayer.NONE) return
             transitionGeneration += 1
             val current = activePlayer
-            val next = Transition(transitionGeneration, current, ActivePlayer.NONE, Thread.currentThread())
+            val next = Transition(transitionGeneration, current, ActivePlayer.NONE)
             transition = next
             val stopper = when (current) {
                 ActivePlayer.OFFLINE -> offlineStopper
