@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -31,6 +31,7 @@ import { createObraReportReportOrchestrator } from "./services/obrareport-report
 import { createObraReportArtifactBroker } from "./services/obrareport-artifact-broker.js";
 import { buildObraReportDocumentContext } from "./services/obrareport-document-context.js";
 import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
+import { bucketBytes, bucketCount, bucketTokens, classifyTelemetryError, createEloTelemetryService, hashOpaque } from "./elo-telemetry.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
 import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
@@ -197,6 +198,9 @@ function createEloLatencyMetrics_() {
     ,answerMode: "DIRECT"
     ,missingEssentialCount: 0
     ,riskDetected: false
+    ,modelClass: ""
+    ,tokenUsageBucket: ""
+    ,estimatedCostBucket: ""
   };
 }
 
@@ -223,6 +227,9 @@ function finalizeEloLatencyMetrics_(metrics, startedAt) {
   safe.answerMode = clean_(safe.answerMode || "DIRECT").slice(0, 30) || "DIRECT";
   safe.missingEssentialCount = Math.max(0, Math.min(20, Number(safe.missingEssentialCount) || 0));
   safe.riskDetected = safe.riskDetected === true;
+  safe.modelClass = clean_(safe.modelClass || "").slice(0, 30);
+  safe.tokenUsageBucket = clean_(safe.tokenUsageBucket || "").slice(0, 20);
+  safe.estimatedCostBucket = clean_(safe.estimatedCostBucket || "").slice(0, 20);
   safe.model = clean_(safe.model || "").slice(0, 80);
   return safe;
 }
@@ -1226,6 +1233,14 @@ export function createApp(options = {}) {
   const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
+  const eloTelemetry = options.eloTelemetry || createEloTelemetryService({
+    env,
+    client: options.eloTelemetrySupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null),
+    store: options.eloTelemetryStore
+  });
+  const eloTelemetryHashSalt = eloTelemetry.hashSalt;
+  const eloTelemetryRate = new Map();
+  app.locals.eloTelemetry = eloTelemetry;
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
@@ -1267,6 +1282,156 @@ export function createApp(options = {}) {
     response.sendStatus(204);
   });
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
+
+  function recordEloTelemetry_(event) {
+    try {
+      const result = eloTelemetry.ingest(event);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch (_) {}
+  }
+
+  function buildEloTelemetryIdentity_(request) {
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const context = body.context && typeof body.context === "object" ? body.context : {};
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    const hash = (value) => hashOpaque(value, eloTelemetryHashSalt);
+    return {
+      session_hash: hash(context.sessionId || context.session_id || request.headers["x-elo-session-id"]),
+      anonymous_user_hash: hash(body.anonymousId || context.anonymousId || context.anonymous_id),
+      tenant_hash: hash(auth.institutionId || profile.institution_id || context.tenantId || context.tenant_id),
+      project_hash: hash(auth.projectId || profile.project_id || context.projectId || context.project_id)
+    };
+  }
+
+  function telemetryRequestEvent_(request, response, startedAt) {
+    const route = request.path === "/api/ai/analyze-image" ? "analyze-image" : "chat";
+    const image = request.body && request.body.image && typeof request.body.image === "object" ? request.body.image : null;
+    const context = request.body && request.body.context && typeof request.body.context === "object" ? request.body.context : {};
+    const meta = request.eloTelemetryMeta || {};
+    const latencyHeader = response.getHeader("X-Elo-Latency");
+    let latency = {};
+    try { latency = latencyHeader ? JSON.parse(String(latencyHeader)) : {}; } catch (_) {}
+    const statusCode = Number(response.statusCode || 200);
+    const failed = statusCode >= 400 || meta.failed === true;
+    const eventType = route === "analyze-image" ? (failed ? "IMAGE_FAILED" : "IMAGE_ANALYSIS") : (failed ? "CHAT_FAILED" : "CHAT_RESPONSE");
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const responseSize = meta.responseSize || response.getHeader("Content-Length");
+    return Object.assign({
+      event_type: eventType,
+      timestamp: new Date().toISOString(),
+      surface: request.headers["x-elo-surface"] || context.surface || "WEB",
+      route,
+      latency_ms: Math.round(Number(latency.totalMs) || Date.now() - startedAt),
+      backend_latency_ms: Math.round(Number(latency.totalMs) || Date.now() - startedAt),
+      model_latency_ms: Math.round(Number(latency.modelTotalMs) || 0),
+      status: failed ? "ERROR" : "SUCCESS",
+      http_status: statusCode,
+      error_code: failed ? classifyTelemetryError(meta.errorCode || "", statusCode) : undefined,
+      fallback_used: Boolean(meta.fallbackUsed),
+      offline_used: Boolean(meta.offlineUsed),
+      attachment_type: meta.attachmentType || (image ? image.mimeType : undefined),
+      attachment_size_bucket: meta.attachmentSizeBucket || (image ? bucketBytes(String(image.base64 || "").length * 0.75) : undefined),
+      response_size_bucket: bucketBytes(responseSize),
+      context_turn_count_bucket: bucketCount(Array.isArray(body.history) ? body.history.length : 0),
+      memory_used: Boolean(meta.memoryUsed || context.memoriesSummary || context.relevantMemoriesSummary),
+      project_context_used: Boolean(meta.projectContextUsed || context.projectId || context.project_id),
+      risk_detected: Boolean(latency.riskDetected || meta.riskDetected),
+      missing_essential_count: Number(latency.missingEssentialCount || meta.missingEssentialCount || 0),
+      answer_mode: latency.answerMode || meta.answerMode,
+      proactivity_level: latency.proactivityLevel || meta.proactivityLevel,
+      self_check_level: latency.selfCheckLevel || meta.selfCheckLevel,
+      model_class: meta.modelClass || latency.modelClass,
+      token_usage_bucket: meta.tokenUsage ? bucketTokens(meta.tokenUsage) : latency.tokenUsageBucket,
+      estimated_cost_bucket: meta.estimatedCostBucket || latency.estimatedCostBucket
+    }, buildEloTelemetryIdentity_(request));
+  }
+
+  app.use((request, response, next) => {
+    const telemetryRoute = request.path === "/api/elo/chat" || request.path === "/api/ai/analyze-image";
+    if (!telemetryRoute) {
+      next();
+      return;
+    }
+    const startedAt = Date.now();
+    const originalJson = response.json.bind(response);
+    response.json = (body) => {
+      try {
+        if (body && body.error) request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { failed: true, errorCode: body.error });
+        if (body && body.fallback) request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { fallbackUsed: true });
+        request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { responseSize: JSON.stringify(body || {}).length });
+        recordEloTelemetry_(telemetryRequestEvent_(request, response, startedAt));
+        const latencyHeader = response.getHeader("X-Elo-Latency");
+        let latency = {};
+        try { latency = latencyHeader ? JSON.parse(String(latencyHeader)) : {}; } catch (_) {}
+        const identity = buildEloTelemetryIdentity_(request);
+        if (latency.proactivityLevel && latency.proactivityLevel !== "NONE") recordEloTelemetry_(Object.assign({}, identity, {
+          event_type: "PROACTIVE_REASONING", surface: request.headers["x-elo-surface"] || "WEB", route: "chat",
+          status: "SUCCESS", proactivity_level: latency.proactivityLevel, risk_detected: latency.riskDetected === true,
+          missing_essential_count: latency.missingEssentialCount
+        }));
+        if (latency.selfCheckLevel && latency.selfCheckLevel !== "NONE") recordEloTelemetry_(Object.assign({}, identity, {
+          event_type: "SELF_CHECK", surface: request.headers["x-elo-surface"] || "WEB", route: "chat",
+          status: "SUCCESS", self_check_level: latency.selfCheckLevel
+        }));
+      } catch (_) {}
+      return originalJson(body);
+    };
+    next();
+  });
+
+  app.post("/api/elo/telemetry", async (request, response) => {
+    const now = Date.now();
+    const address = String(request.ip || request.socket && request.socket.remoteAddress || "unknown");
+    const previous = eloTelemetryRate.get(address) || { startedAt: now, count: 0 };
+    if (now - previous.startedAt > 60 * 1000) {
+      previous.startedAt = now;
+      previous.count = 0;
+    }
+    previous.count += 1;
+    eloTelemetryRate.set(address, previous);
+    if (previous.count > 120) {
+      response.status(429).json({ ok: false, accepted: 0, error: "telemetry_rate_limited" });
+      return;
+    }
+    const events = Array.isArray(request.body && request.body.events) ? request.body.events : Array.isArray(request.body) ? request.body : [];
+    try {
+      const result = await eloTelemetry.ingestBatch(events);
+      response.status(202).json({ ok: true, accepted: result.accepted, rejected: result.rejected || 0 });
+    } catch (_) {
+      response.status(202).json({ ok: true, accepted: 0, rejected: events.length, fail_open: true });
+    }
+  });
+
+  app.get("/api/elo/telemetry/health", async (request, response) => {
+    const expected = String(options.telemetryAdminToken || env.ELO_TELEMETRY_ADMIN_TOKEN || "");
+    const supplied = String(request.headers["x-elo-telemetry-admin"] || "");
+    let serverTokenAccepted = false;
+    if (expected && supplied) {
+      try {
+        const expectedBytes = Buffer.from(expected);
+        const suppliedBytes = Buffer.from(supplied);
+        serverTokenAccepted = expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
+      } catch (_) {}
+    }
+    if (!serverTokenAccepted) {
+      let authContext = null;
+      try { authContext = await app.locals.resolveAuthContext(request); } catch (_) { authContext = null; }
+      const role = clean_(authContext && authContext.role || authContext && authContext.profile && authContext.profile.role).toLowerCase();
+      const internalRoles = new Set(["admin", "owner", "superadmin", "platform_admin", "institution_admin", "gestor"]);
+      if (!authContext || !authContext.ok) {
+        response.status(authContext && authContext.status ? authContext.status : 401).json({ ok: false, error: "authentication_required" });
+        return;
+      }
+      if (!internalRoles.has(role)) {
+        response.status(403).json({ ok: false, error: "telemetry_admin_required" });
+        return;
+      }
+    }
+    const requestedWindow = String(request.query.window || "24h").toLowerCase();
+    const hours = requestedWindow === "7d" ? 168 : requestedWindow === "30d" ? 720 : 24;
+    response.json({ ok: true, health: await eloTelemetry.snapshot({ windowMs: hours * 60 * 60 * 1000 }), buffer: eloTelemetry.getStats() });
+  });
 
   app.get("/api/health", (request, response) => {
     response.json({
@@ -3735,6 +3900,7 @@ export function createApp(options = {}) {
 
   app.post("/api/ai/analyze-image", async (request, response) => {
     if (!clean_(request.headers.authorization)) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "AUTH_REQUIRED" });
       response.status(401).json({
         ok: false,
         error: "authentication_required"
@@ -3746,6 +3912,7 @@ export function createApp(options = {}) {
     try {
       authContext = await app.locals.resolveAuthContext(request);
     } catch (_) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "INVALID_SESSION" });
       response.status(401).json({
         ok: false,
         error: "invalid_session"
@@ -3754,12 +3921,15 @@ export function createApp(options = {}) {
     }
 
     if (!authContext || !authContext.ok) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "INVALID_SESSION" });
       response.status(authContext && authContext.status ? authContext.status : 401).json({
         ok: false,
         error: clean_(authContext && authContext.error || "invalid_session")
       });
       return;
     }
+
+    recordEloTelemetry_({ event_type: "AUTH_VALIDATED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "SUCCESS" });
 
     const validation = validateImageRequest_(request.body || {});
 
@@ -4239,6 +4409,19 @@ export function createApp(options = {}) {
       const bodyParseStartedAt = nowMs_();
       chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics);
       latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
+      if (chatRequest.documents.length || chatRequest.attachmentErrors.length) {
+        request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, {
+          attachmentType: chatRequest.documents[0] && chatRequest.documents[0].mimeType || "unknown"
+        });
+        const attachmentEvent = chatRequest.documents.length ? "ATTACHMENT_PROCESSED" : "ATTACHMENT_FAILED";
+        recordEloTelemetry_(Object.assign({}, buildEloTelemetryIdentity_(request), {
+          event_type: attachmentEvent,
+          surface: request.headers["x-elo-surface"] || "WEB",
+          route: "chat",
+          status: chatRequest.documents.length ? "SUCCESS" : "ERROR",
+          error_code: chatRequest.documents.length ? undefined : classifyTelemetryError("file parse failed")
+        }));
+      }
     } catch (error) {
       const message = error && error.message ? error.message : "Nao consegui receber o anexo enviado.";
       response.status(error && error.status ? error.status : 400).json({
@@ -8060,6 +8243,7 @@ async function callOpenAiElo_(payload, env, metrics = null) {
   if (metrics) {
     metrics.promptBuildMs += nowMs_() - promptBuildStartedAt;
     metrics.model = model;
+    metrics.modelClass = /(?:o1|o3|o4|reasoning)/i.test(model) ? "HIGH_REASONING" : /mini|nano|local/i.test(model) ? "CHEAP_REMOTE" : "STANDARD";
     metrics.inputChars = requestBodyText.length;
     metrics.maxOutputTokens = requestBody.max_output_tokens;
     metrics.temperature = requestBody.temperature;
@@ -8102,6 +8286,11 @@ async function callOpenAiElo_(payload, env, metrics = null) {
   }
 
   const outputText = extractOutputText_(data);
+  if (metrics && data && data.usage) {
+    const tokenCount = Number(data.usage.total_tokens || Number(data.usage.input_tokens || 0) + Number(data.usage.output_tokens || 0));
+    metrics.tokenUsageBucket = bucketTokens(tokenCount);
+    metrics.estimatedCostBucket = metrics.modelClass === "HIGH_REASONING" || tokenCount > 8000 ? "HIGH" : tokenCount > 2000 ? "MEDIUM" : tokenCount > 0 ? "LOW" : "0";
+  }
   if (metrics) metrics.outputChars = clean_(outputText).length;
 
   if (!outputText) {

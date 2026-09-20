@@ -1827,7 +1827,29 @@
       }
     });
     actions.appendChild(pdfButton);
+    const feedback = createElement("div", "elo-message-actions elo-feedback-actions");
+    const positiveFeedback = createElement("button", "elo-inline-button", "👍");
+    const negativeFeedback = createElement("button", "elo-inline-button", "👎");
+    positiveFeedback.type = "button";
+    negativeFeedback.type = "button";
+    positiveFeedback.title = "Resposta útil";
+    negativeFeedback.title = "Resposta precisa melhorar";
+    positiveFeedback.setAttribute("data-elo-feedback", "THUMBS_UP");
+    negativeFeedback.setAttribute("data-elo-feedback", "THUMBS_DOWN");
+    negativeFeedback.addEventListener("click", function () {
+      if (feedback.querySelector("[data-elo-feedback-reason]")) return;
+      ["ERRADA", "NÃO_ENTENDEU", "MUITO_LONGA", "MUITO_CURTA", "NÃO_USOU_CONTEXTO", "OUTRO"].forEach(function (reason) {
+        const reasonButton = createElement("button", "elo-inline-button", reason);
+        reasonButton.type = "button";
+        reasonButton.setAttribute("data-elo-feedback", "NEGATIVE_" + reason);
+        reasonButton.setAttribute("data-elo-feedback-reason", reason);
+        feedback.appendChild(reasonButton);
+      });
+    });
+    feedback.appendChild(positiveFeedback);
+    feedback.appendChild(negativeFeedback);
     message.appendChild(actions);
+    message.appendChild(feedback);
     scrollEloConversationToBottom_({ force: true });
     return true;
   }
@@ -8512,9 +8534,11 @@
     const isTechnicalContinuation = requestOptions.technicalContinuation === true;
     if (!isEloOnline_()) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
+      if (window.EloTelemetry) window.EloTelemetry.track("OFFLINE_COMMAND", { route: "chat", status: "OFFLINE", offline_used: true });
       return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
     }
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
+      if (window.EloTelemetry) window.EloTelemetry.track("BACKEND_UNAVAILABLE", { route: "chat", status: "ERROR", error_code: "BACKEND_5XX" });
       return Promise.resolve(null);
     }
 
@@ -8551,6 +8575,16 @@
     };
     logEloMemorySummaryEvent_("MEMORY_CONTEXT_SENT", { hasExplicit: Boolean(payload.context.memoriesSummary) });
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
+    const telemetryStartedAt = window.performance && typeof window.performance.now === "function" ? window.performance.now() : Date.now();
+    if (window.EloTelemetry) window.EloTelemetry.track("CHAT_SENT", {
+      route: "chat",
+      status: "PENDING",
+      attachment_type: files.length ? (files[0].type || "unknown") : "none",
+      attachment_size: files.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0),
+      context_turn_count: payload.history.length,
+      memory_used: Boolean(payload.context.memoriesSummary),
+      project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+    });
     if (!files.length) {
       applyEloActiveDocumentContextToPayload_(payload, payload.message);
     }
@@ -8577,6 +8611,13 @@
           body: formData
         }).then(function (response) {
           noteEloChatTransportResponse_(response);
+          if (window.EloTelemetry) window.EloTelemetry.track(response && response.ok ? "CHAT_RESPONSE" : "CHAT_FAILED", {
+            route: "chat", status: response && response.ok ? "SUCCESS" : "ERROR", http_status: response && response.status,
+            latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt,
+            attachment_type: files[0] && files[0].type || "unknown",
+            attachment_size: files.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0),
+            context_turn_count: payload.history.length, memory_used: Boolean(payload.context.memoriesSummary), project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+          });
               return response.json().catch(function () {
             return null;
           });
@@ -8598,6 +8639,7 @@
           return null;
         }).catch(function (error) {
           noteEloChatTransportError_(error);
+              if (window.EloTelemetry) window.EloTelemetry.track("CHAT_FAILED", { route: "chat", status: "ERROR", error_code: "NETWORK_TIMEOUT", latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt });
               return null;
         });
       }).catch(function () {
@@ -8613,6 +8655,11 @@
       body: JSON.stringify(payload)
     }).then(function (response) {
       noteEloChatTransportResponse_(response);
+      if (window.EloTelemetry) window.EloTelemetry.track(response && response.ok ? "CHAT_RESPONSE" : "CHAT_FAILED", {
+        route: "chat", status: response && response.ok ? "SUCCESS" : "ERROR", http_status: response && response.status,
+        latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt,
+        context_turn_count: payload.history.length, memory_used: Boolean(payload.context.memoriesSummary), project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+      });
       return response.json().catch(function () {
         return null;
       });
@@ -8634,6 +8681,7 @@
       return null;
     }).catch(function (error) {
       noteEloChatTransportError_(error);
+      if (window.EloTelemetry) window.EloTelemetry.track("CHAT_FAILED", { route: "chat", status: "ERROR", error_code: "NETWORK_TIMEOUT", latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt });
       return null;
     });
   }
@@ -30618,6 +30666,12 @@ function isEloResidentialNewPipelineEnabled_() {
     input.addEventListener("change", function () {
       ELO_UI.attachments = Array.prototype.slice.call(input.files || []).slice(0, getEloAttachmentLimit_());
       renderProductAttachmentStatus();
+      if (window.EloTelemetry) window.EloTelemetry.track("ATTACHMENT_SELECTED", {
+        route: "chat",
+        status: "SUCCESS",
+        attachment_type: ELO_UI.attachments[0] && ELO_UI.attachments[0].type || "unknown",
+        attachment_size: ELO_UI.attachments.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0)
+      });
     });
 
     return { button: button, input: input };
@@ -34513,6 +34567,12 @@ function isEloResidentialNewPipelineEnabled_() {
       attachmentInput.addEventListener("change", function () {
         ELO_UI.attachments = Array.prototype.slice.call(attachmentInput.files || []).slice(0, getEloAttachmentLimit_());
         renderProductAttachmentStatus();
+        if (window.EloTelemetry) window.EloTelemetry.track("ATTACHMENT_SELECTED", {
+          route: "chat",
+          status: "SUCCESS",
+          attachment_type: ELO_UI.attachments[0] && ELO_UI.attachments[0].type || "unknown",
+          attachment_size: ELO_UI.attachments.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0)
+        });
       });
     }
 
