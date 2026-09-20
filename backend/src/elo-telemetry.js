@@ -22,7 +22,7 @@ export const ELO_TELEMETRY_FIELDS = Object.freeze([
   "backend_latency_ms", "model_latency_ms", "status", "http_status", "error_code", "fallback_used",
   "offline_used", "retry_count", "attachment_type", "attachment_size_bucket", "response_size_bucket",
   "context_turn_count_bucket", "memory_used", "project_context_used", "risk_detected", "missing_essential_count",
-  "action_type", "model_class", "token_usage_bucket", "estimated_cost_bucket"
+  "action_type", "response_event_hash", "model_class", "token_usage_bucket", "estimated_cost_bucket"
 ]);
 
 const MAX_BATCH = 50;
@@ -150,6 +150,9 @@ export function sanitizeTelemetryEvent(input, options = {}) {
     response_size_bucket: pick(asSafeString(source.response_size_bucket, 20), SAFE_SIZE_BUCKETS, undefined),
     context_turn_count_bucket: pick(asSafeString(source.context_turn_count_bucket, 20), SAFE_COUNT_BUCKETS, undefined),
     action_type: asSafeString(source.action_type, 40),
+    response_event_hash: /^[a-f0-9]{32,128}$/i.test(asSafeString(source.response_event_hash, 128) || "")
+      ? asSafeString(source.response_event_hash, 128).toLowerCase()
+      : undefined,
     model_class: pick(asSafeString(source.model_class, 30), SAFE_MODEL_CLASSES, undefined),
     token_usage_bucket: pick(asSafeString(source.token_usage_bucket, 20), SAFE_TOKEN_BUCKETS, undefined),
     estimated_cost_bucket: pick(asSafeString(source.estimated_cost_bucket, 20), SAFE_COST_BUCKETS, undefined)
@@ -234,10 +237,33 @@ export function createEloTelemetryService(options = {}) {
     try {
       const row = Object.assign({}, event, { occurred_at: event.timestamp });
       delete row.timestamp;
-      const { error } = await client.from("elo_telemetry_events").insert(row);
+      let { error } = await client.from("elo_telemetry_events").insert(row);
+      if (error && event.response_event_hash) {
+        delete row.response_event_hash;
+        ({ error } = await client.from("elo_telemetry_events").insert(row));
+      }
       if (error) throw error;
     } catch (_) {
       persistErrors += 1;
+    }
+  }
+
+  async function cleanupExpired({ days = 60, now = Date.now(), dryRun = false } = {}) {
+    const retentionDays = Math.max(1, Math.min(3650, Number(days) || 60));
+    const cutoff = new Date(now - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    if (!useSupabase) return { ok: true, skipped: true, dry_run: dryRun, cutoff, matching: 0, deleted: 0 };
+    try {
+      if (dryRun) {
+        const { count, error } = await client.from("elo_telemetry_events").select("id", { count: "exact", head: true }).lt("occurred_at", cutoff);
+        if (error) throw error;
+        return { ok: true, dry_run: true, cutoff, matching: Number(count || 0), deleted: 0 };
+      }
+      const { data, error } = await client.from("elo_telemetry_events").delete().lt("occurred_at", cutoff).select("id");
+      if (error) throw error;
+      return { ok: true, dry_run: false, cutoff, matching: Array.isArray(data) ? data.length : 0, deleted: Array.isArray(data) ? data.length : 0 };
+    } catch (_) {
+      persistErrors += 1;
+      return { ok: false, dry_run: dryRun, cutoff, matching: 0, deleted: 0 };
     }
   }
 
@@ -272,6 +298,7 @@ export function createEloTelemetryService(options = {}) {
     ingest,
     ingestBatch,
     snapshot,
+    cleanupExpired,
     getEvents: () => events.slice(),
     getStats: () => ({ buffered: events.length, capacity, persist_errors: persistErrors })
   };

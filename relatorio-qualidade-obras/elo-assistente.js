@@ -68,6 +68,9 @@
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
+    if (window.EloRuntimeConfig && typeof window.EloRuntimeConfig.apiUrl === "function") {
+      return window.EloRuntimeConfig.apiUrl(path);
+    }
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
     const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") ||
       window.location.protocol === "file:";
@@ -1829,6 +1832,9 @@
     });
     actions.appendChild(pdfButton);
     const feedback = createElement("div", "elo-message-actions elo-feedback-actions");
+    feedback.setAttribute("data-elo-feedback-group", "true");
+    const responseId = sanitizeUserText(message.dataset && message.dataset.eloResponseId || "").slice(0, 120);
+    if (responseId) feedback.setAttribute("data-elo-response-id", responseId);
     const positiveFeedback = createElement("button", "elo-inline-button", "👍");
     const negativeFeedback = createElement("button", "elo-inline-button", "👎");
     positiveFeedback.type = "button";
@@ -31684,6 +31690,30 @@ function isEloResidentialNewPipelineEnabled_() {
     scrollEloConversationToBottom_({ force: shouldStick });
   }
 
+  function appendEloFeedbackActions_(message) {
+    if (!message || !message.classList || !message.classList.contains("assistant")) return false;
+    if (message.querySelector && message.querySelector("[data-elo-feedback-group]")) return false;
+    if (message.classList.contains("is-analyzing") || message.classList.contains("is-error")) return false;
+    const responseId = sanitizeUserText(message.dataset && message.dataset.eloResponseId || "").slice(0, 120);
+    const feedback = createElement("div", "elo-message-actions elo-feedback-actions");
+    feedback.setAttribute("data-elo-feedback-group", "true");
+    if (responseId) feedback.setAttribute("data-elo-response-id", responseId);
+    const positive = createElement("button", "elo-inline-button", "👍");
+    const negative = createElement("button", "elo-inline-button", "👎");
+    positive.type = "button";
+    negative.type = "button";
+    positive.title = "Resposta útil";
+    negative.title = "Resposta precisa melhorar";
+    positive.setAttribute("aria-label", "Resposta útil");
+    negative.setAttribute("aria-label", "Resposta precisa melhorar");
+    positive.setAttribute("data-elo-feedback", "THUMBS_UP");
+    negative.setAttribute("data-elo-feedback", "THUMBS_DOWN");
+    feedback.appendChild(positive);
+    feedback.appendChild(negative);
+    message.appendChild(feedback);
+    return true;
+  }
+
   function appendEloPdfDownloadAction_(message, pdfUrl) {
     if (!message || !pdfUrl) {
       return;
@@ -32256,7 +32286,8 @@ function isEloResidentialNewPipelineEnabled_() {
 
     rememberEloActiveAnalysisContext_(question, response, cleanAnswer);
     const responseId = createEloAssistantResponseId_(question, cleanAnswer, response);
-    const message = appendMessage("assistant", cleanAnswer, Object.assign({ responseLifecycle: "new", responseId: responseId }, buildEloSpeechMetadataFromResponse_(response)));
+    const message = appendMessage("assistant", cleanAnswer, Object.assign({ responseLifecycle: "new", responseId: responseId, feedbackEligible: true }, buildEloSpeechMetadataFromResponse_(response)));
+    appendEloFeedbackActions_(message);
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {
