@@ -3881,6 +3881,7 @@ before(async () => {
       PORT: "0",
       AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
     },
+    authContextSupabaseClient: createMockStockSaudeSupabase_(),
     eloVectorMemoryStore
   });
 
@@ -3983,6 +3984,69 @@ test("análise visual sem chave retorna erro amigável", async () => {
   assert.equal(response.status, 503);
   assert.equal(data.ok, false);
   assert.match(data.error, /OPENAI_API_KEY/);
+});
+
+test("análise visual exige autenticação e contexto de tenant", async () => {
+  const imageBody = {
+    image: {
+      base64: tinyJpegBase64_(),
+      mimeType: "image/jpeg",
+      fileName: "controlled-test.jpg",
+      width: 1,
+      height: 1
+    },
+    context: { securityAudit: "controlled-image" }
+  };
+
+  const cases = [
+    {
+      authorization: undefined,
+      supabase: createMockStockSaudeSupabase_(),
+      status: 401,
+      error: "authentication_required"
+    },
+    {
+      authorization: "Bearer invalid-audit-token",
+      supabase: createMockStockSaudeSupabase_(),
+      status: 401,
+      error: "invalid_session"
+    },
+    {
+      authorization: "Bearer valid-token",
+      supabase: createMockStockSaudeSupabase_({ profile: null }),
+      status: 403,
+      error: "auth_context_profile_not_found"
+    },
+    {
+      authorization: "Bearer valid-token",
+      supabase: createMockStockSaudeSupabase_(),
+      status: 503,
+      errorPattern: /OPENAI_API_KEY/
+    }
+  ];
+
+  for (const scenario of cases) {
+    const app = createApp({
+      env: { PORT: "0" },
+      authContextSupabaseClient: scenario.supabase
+    });
+    const testServer = await listenTestApp_(app);
+    try {
+      const response = await postImageTo_(testServer.baseUrl, imageBody, scenario.authorization);
+      const data = await response.json();
+
+      assert.equal(response.status, scenario.status);
+      assert.equal(data.ok, false);
+      if (scenario.error) {
+        assert.equal(data.error, scenario.error);
+      }
+      if (scenario.errorPattern) {
+        assert.match(data.error, scenario.errorPattern);
+      }
+    } finally {
+      await closeTestServer_(testServer.server);
+    }
+  }
 });
 
 test("elo chat exige mensagem", async () => {
@@ -7604,8 +7668,24 @@ function postImage_(body) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: "Bearer valid-token",
       Origin: "http://127.0.0.1:5500"
     },
+    body: JSON.stringify(body)
+  });
+}
+
+function postImageTo_(url, body, authorization) {
+  const headers = {
+    "Content-Type": "application/json",
+    Origin: "http://127.0.0.1:5500"
+  };
+  if (authorization) {
+    headers.Authorization = authorization;
+  }
+  return fetch(url + "/api/ai/analyze-image", {
+    method: "POST",
+    headers,
     body: JSON.stringify(body)
   });
 }
