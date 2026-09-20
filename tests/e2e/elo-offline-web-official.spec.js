@@ -48,6 +48,125 @@ test("ELO oficial online preserva chat via backend antes do offline router", asy
   expect(errors.filter((message) => !message.includes("Cannot set properties of null (setting 'innerHTML')"))).toEqual([]);
 });
 
+test("ELO oficial não confunde WebView offline com backend válido após autenticação", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+  });
+  let chatCalls = 0;
+  await page.route("**/api/health", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+  await page.route("**/api/elo/chat", async (route) => {
+    chatCalls += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) });
+  });
+  await page.route("**/api/elo/telemetry", async (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    window.dispatchEvent(new Event("offline"));
+    const health = await window.EloAssistente.reconcileCriticalAvailabilityForTest();
+    const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+    return {
+      answer,
+      navigatorOnline: navigator.onLine,
+      health,
+      connectivity: window.EloAssistente.getConnectivityForTest(),
+      transport: window.EloAssistente.getChatTransportStateForTest()
+    };
+  });
+
+  expect(result.navigatorOnline).toBe(false);
+  expect(result.health).toBe(true);
+  expect(result.answer).toBe("OK");
+  expect(result.connectivity.online).toBe(true);
+  expect(result.transport.state).toBe("ONLINE_VALIDATED");
+  expect(chatCalls).toBe(1);
+});
+
+for (const failure of [
+  { name: "500", status: 500 },
+  { name: "404", status: 404 },
+  { name: "timeout", timeout: true }
+]) {
+  test(`ELO oficial mantém chat online quando telemetry falha com ${failure.name}`, async ({ page }) => {
+    await page.route("**/api/elo/telemetry", async (route) => {
+      if (failure.timeout) return route.abort("timedout");
+      return route.fulfill({ status: failure.status, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+    });
+    await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) }));
+    await waitForElo(page);
+    const result = await page.evaluate(async () => {
+      window.ELO_AUTH_SESSION_VALIDATED = true;
+      window.EloAssistente.setConnectivityForTest(false, "webview_false_negative");
+      if (window.EloTelemetry) {
+        window.EloTelemetry.clear();
+        for (let index = 0; index < 25; index += 1) await window.EloTelemetry.track("CHAT_SENT", { route: "chat", status: "PENDING" });
+        await window.EloTelemetry.flush();
+      }
+      const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+      return { answer, transport: window.EloAssistente.getChatTransportStateForTest(), connectivity: window.EloAssistente.getConnectivityForTest() };
+    });
+    expect(result.answer).toBe("OK");
+    expect(result.transport.state).toBe("ONLINE_VALIDATED");
+    expect(result.connectivity.online).toBe(true);
+  });
+}
+
+test("ELO oficial classifica chat HTTP 500 como BACKEND_UNAVAILABLE", async ({ page }) => {
+  await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    window.EloAssistente.setConnectivityForTest(true, "online");
+    const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+    return { answer, transport: window.EloAssistente.getChatTransportStateForTest() };
+  });
+  expect(result.answer).toBe(null);
+  expect(result.transport.state).toBe("BACKEND_UNAVAILABLE");
+});
+
+test("ELO oficial classifica auth HTTP 401 como AUTH_INVALID", async ({ page }) => {
+  await page.route("**/auth/v1/user", async (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "invalid_token" }) }));
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    const encoded = (value) => btoa(JSON.stringify(value)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const token = encoded({ alg: "none", typ: "JWT" }) + "." + encoded({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600 }) + ".signature";
+    try {
+      await window.EloAssistente.validateSupabaseTokenForTest(token);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, status: error && error.status };
+    }
+  });
+  expect(result.ok).toBe(false);
+  expect(result.status).toBe(401);
+});
+
+test("ELO oficial não sofre efeito indevido quando telemetry se recupera", async ({ page }) => {
+  let telemetryStatus = 500;
+  await page.route("**/api/elo/telemetry", async (route) => route.fulfill({ status: telemetryStatus, contentType: "application/json", body: JSON.stringify({ ok: telemetryStatus === 200 }) }));
+  await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) }));
+  await waitForElo(page);
+  const before = await page.evaluate(async () => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    window.EloAssistente.setConnectivityForTest(true, "online");
+    window.EloTelemetry.clear();
+    await window.EloTelemetry.track("CHAT_SENT", { route: "chat", status: "PENDING" });
+    return window.EloTelemetry.flush();
+  });
+  telemetryStatus = 200;
+  const after = await page.evaluate(() => window.EloTelemetry.flush());
+  const result = await page.evaluate(async () => ({
+    answer: await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []),
+    connectivity: window.EloAssistente.getConnectivityForTest(),
+    transport: window.EloAssistente.getChatTransportStateForTest()
+  }));
+  expect(before).toBe(false);
+  expect(after).toBe(true);
+  expect(result.answer).toBe("OK");
+  expect(result.connectivity.online).toBe(true);
+  expect(result.transport.state).toBe("ONLINE_VALIDATED");
+});
+
 test("ELO oficial instala cache e recarrega offline com músicas, memória e pare locais", async ({ page, context }) => {
   await installServiceWorker(page, context);
   const result = await page.evaluate(async () => {
