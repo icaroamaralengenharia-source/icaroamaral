@@ -1242,7 +1242,19 @@ export function createApp(options = {}) {
   const eloTelemetryRetentionIntervalMs = Math.max(60 * 60 * 1000, Number(options.eloTelemetryRetentionIntervalMs || env.ELO_TELEMETRY_RETENTION_INTERVAL_MS || 24 * 60 * 60 * 1000));
   let eloTelemetryRetentionTimer = null;
   if (options.enableEloTelemetryRetention !== false && eloTelemetry && typeof eloTelemetry.cleanupExpired === "function") {
-    const runEloTelemetryRetention = () => eloTelemetry.cleanupExpired({ days: eloTelemetryRetentionDays }).catch(() => null);
+    let eloTelemetryRetentionDryRunComplete = false;
+    const runEloTelemetryRetention = () => eloTelemetry.cleanupExpired({
+      days: eloTelemetryRetentionDays,
+      dryRun: !eloTelemetryRetentionDryRunComplete
+    }).then((result) => {
+      if (result && result.dry_run) {
+        eloTelemetryRetentionDryRunComplete = true;
+        if (result.capped) console.warn("[ELO RETENTION] dry-run volume exceeds per-run deletion limit", { matching: result.matching, max_per_run: result.max_per_run });
+      } else if (result && result.capped) {
+        console.warn("[ELO RETENTION] deletion limited to per-run cap", { deleted: result.deleted, max_per_run: result.max_per_run });
+      }
+      return result;
+    }).catch(() => null);
     runEloTelemetryRetention();
     eloTelemetryRetentionTimer = setInterval(runEloTelemetryRetention, eloTelemetryRetentionIntervalMs);
     if (eloTelemetryRetentionTimer && typeof eloTelemetryRetentionTimer.unref === "function") eloTelemetryRetentionTimer.unref();
@@ -1253,6 +1265,7 @@ export function createApp(options = {}) {
   app.locals.eloTelemetryRetention = {
     days: eloTelemetryRetentionDays,
     interval_ms: eloTelemetryRetentionIntervalMs,
+    max_delete_per_run: 500,
     active: Boolean(eloTelemetryRetentionTimer)
   };
   let operationalTimelineService = null;

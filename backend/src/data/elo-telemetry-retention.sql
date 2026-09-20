@@ -1,4 +1,7 @@
 -- ELO telemetry retention: remove only events older than 60 days.
+-- Dry-run before activation:
+-- select count(*) from public.elo_telemetry_events
+-- where occurred_at < now() - interval '60 days';
 -- The backend scheduler is the runtime fallback. This optional pg_cron block is
 -- idempotent and activates only when pg_cron is available and installable.
 
@@ -11,8 +14,17 @@ as $function$
 declare
   removed integer;
 begin
-  delete from public.elo_telemetry_events
-  where occurred_at < now() - interval '60 days';
+  with candidates as (
+    select id
+    from public.elo_telemetry_events
+    where occurred_at < now() - interval '60 days'
+    order by occurred_at asc
+    limit 500
+  )
+  delete from public.elo_telemetry_events as events
+  using candidates
+  where events.id = candidates.id
+    and events.occurred_at < now() - interval '60 days';
   get diagnostics removed = row_count;
   return removed;
 end;

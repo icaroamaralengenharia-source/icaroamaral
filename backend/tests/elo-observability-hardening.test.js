@@ -49,6 +49,9 @@ test("retention é idempotente, limitada a 60 dias e tem fallback server-side", 
   const retentionSql = read("backend/src/data/elo-telemetry-retention.sql");
   const app = read("backend/src/app.js");
   assert.match(retentionSql, /interval '60 days'/i);
+  assert.match(retentionSql, /limit 500/i);
+  assert.match(retentionSql, /events\.occurred_at < now\(\) - interval '60 days'/i);
+  assert.doesNotMatch(retentionSql, /vacuum\s+full|truncate/i);
   assert.match(retentionSql, /elo-telemetry-retention-60d/);
   assert.match(retentionSql, /if not exists/);
   assert.match(app, /ELO_TELEMETRY_RETENTION_DAYS \|\| 60/);
@@ -59,17 +62,40 @@ test("retention é idempotente, limitada a 60 dias e tem fallback server-side", 
 
 test("cleanup dry-run não apaga eventos e cleanup real só chama o escopo de telemetria", async () => {
   const calls = [];
+  const candidateRows = [{ id: "old-1" }, { id: "old-2" }];
   const fakeClient = {
     from(table) {
       assert.equal(table, "elo_telemetry_events");
       return {
         select(...args) {
           calls.push(["select", args]);
-          return { lt: async (...ltArgs) => { calls.push(["select.lt", ltArgs]); return { count: 2, error: null }; } };
+          return {
+            lt(...ltArgs) {
+              calls.push(["select.lt", ltArgs]);
+              return {
+                order() {
+                  return { limit: async () => ({ data: candidateRows, error: null }) };
+                },
+                then(resolve) {
+                  return Promise.resolve({ count: candidateRows.length, error: null }).then(resolve);
+                }
+              };
+            }
+          };
         },
         delete() {
           calls.push(["delete"]);
-          return { lt() { return { select: async (...selectArgs) => { calls.push(["delete.lt.select", selectArgs]); return { data: [{ id: "old-1" }, { id: "old-2" }], error: null }; } }; } };
+          return {
+            lt(...ltArgs) {
+              calls.push(["delete.lt", ltArgs]);
+              return {
+                in(...inArgs) {
+                  calls.push(["delete.lt.in", inArgs]);
+                  return { select: async (...selectArgs) => { calls.push(["delete.lt.in.select", selectArgs]); return { data: candidateRows, error: null }; } };
+                }
+              };
+            }
+          };
         }
       };
     }
@@ -82,4 +108,57 @@ test("cleanup dry-run não apaga eventos e cleanup real só chama o escopo de te
   const cleanup = await service.cleanupExpired({ days: 60, now: Date.parse("2026-09-20T00:00:00.000Z") });
   assert.equal(cleanup.deleted, 2);
   assert.equal(calls.some(([name]) => name === "delete"), true);
+  assert.equal(cleanup.max_per_run, 500);
+});
+
+test("retention remove 61 dias, preserva 60 exatos, 59 e recentes, sem tocar outras tabelas", async () => {
+  const now = Date.parse("2026-09-20T00:00:00.000Z");
+  const rows = [
+    { id: "old-61", occurred_at: new Date(now - 61 * 86400000).toISOString() },
+    { id: "exact-60", occurred_at: new Date(now - 60 * 86400000).toISOString() },
+    { id: "recent-59", occurred_at: new Date(now - 59 * 86400000).toISOString() },
+    { id: "recent-now", occurred_at: new Date(now).toISOString() }
+  ];
+  const touchedTables = [];
+  const filterRows = (cutoff) => rows.filter((row) => row.occurred_at < cutoff);
+  const fakeClient = {
+    from(table) {
+      touchedTables.push(table);
+      assert.equal(table, "elo_telemetry_events");
+      return {
+        select() {
+          return {
+            lt(_column, cutoff) {
+              return {
+                order() { return { limit: async () => ({ data: filterRows(cutoff).map(({ id }) => ({ id })), error: null }) }; },
+                then(resolve) { return Promise.resolve({ count: filterRows(cutoff).length, error: null }).then(resolve); }
+              };
+            }
+          };
+        },
+        delete() {
+          return {
+            lt(_column, cutoff) {
+              return {
+                in(_column, ids) {
+                  return { select: async () => {
+                    const removed = filterRows(cutoff).filter((row) => ids.includes(row.id));
+                    for (const row of removed) rows.splice(rows.indexOf(row), 1);
+                    return { data: removed, error: null };
+                  } };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+  const service = createEloTelemetryService({ client: fakeClient, store: "supabase", hashSalt: "test" });
+  const preview = await service.cleanupExpired({ now, dryRun: true });
+  assert.equal(preview.matching, 1);
+  const result = await service.cleanupExpired({ now });
+  assert.equal(result.deleted, 1);
+  assert.deepEqual(rows.map((row) => row.id), ["exact-60", "recent-59", "recent-now"]);
+  assert.deepEqual(touchedTables, ["elo_telemetry_events", "elo_telemetry_events", "elo_telemetry_events"]);
 });
