@@ -28162,9 +28162,13 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
       getEloBackendEndpoint_("/api/ai/analyze-image");
+    const authHeaders = getEloCoreAuthHeaders_();
+    if (!authHeaders.Authorization) {
+      throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+    }
     const response = await fetch(configuredEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
       body: JSON.stringify({ image: imagePayload, context: context })
     });
     const result = await response.json();
@@ -31664,12 +31668,25 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
         getEloBackendEndpoint_("/api/ai/analyze-image");
+      const authHeaders = getEloCoreAuthHeaders_();
+      if (!authHeaders.Authorization) {
+        throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+      }
       if (configuredEndpoint && window.fetch) {
         const response = await fetch(configuredEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
           body: JSON.stringify({ image: imagePayload, context: context })
         });
+        if (!response.ok) {
+          const error = new Error(response.status === 401
+            ? "Sua sessão expirou ou não foi validada. Entre novamente para analisar a imagem."
+            : response.status === 403
+              ? "Sua sessão não tem autorização para analisar esta imagem."
+              : "A análise visual não respondeu agora.");
+          error.status = response.status;
+          throw error;
+        }
         result = await response.json();
       } else if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
         result = await window.ObraReportAI.analyzeImage(imagePayload, context);
@@ -31713,11 +31730,24 @@ function isEloResidentialNewPipelineEnabled_() {
       } else {
         const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
           getEloBackendEndpoint_("/api/ai/analyze-image");
+        const authHeaders = getEloCoreAuthHeaders_();
+        if (!authHeaders.Authorization) {
+          throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+        }
         const response = await fetch(configuredEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
           body: JSON.stringify({ image: imagePayload, context: context })
         });
+        if (!response.ok) {
+          const error = new Error(response.status === 401
+            ? "Sua sessão expirou ou não foi validada. Entre novamente para analisar a imagem."
+            : response.status === 403
+              ? "Sua sessão não tem autorização para analisar esta imagem."
+              : "A análise visual não respondeu agora.");
+          error.status = response.status;
+          throw error;
+        }
         result = await response.json();
       }
 
