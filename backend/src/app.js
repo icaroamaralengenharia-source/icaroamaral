@@ -106,6 +106,7 @@ const ELO_MUSIC_SEED_CATALOG = [
 ];
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_DIR = join(BACKEND_DIR, "..");
+const ELO_COMMUNICATION_POLICY_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-communication-policy.js");
 const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
@@ -115,6 +116,27 @@ function nowMs_() {
   return typeof performance !== "undefined" && performance && typeof performance.now === "function"
     ? performance.now()
     : Date.now();
+}
+
+let eloConversationalPolicyPromptCache = null;
+
+function getEloConversationalPolicyPrompt_() {
+  if (eloConversationalPolicyPromptCache !== null) return eloConversationalPolicyPromptCache;
+
+  try {
+    const sandbox = {};
+    vm.runInNewContext(readFileSync(ELO_COMMUNICATION_POLICY_PATH, "utf8"), sandbox, {
+      filename: ELO_COMMUNICATION_POLICY_PATH
+    });
+    const policy = sandbox.EloCommunicationPolicy;
+    eloConversationalPolicyPromptCache = policy && typeof policy.buildPrompt === "function"
+      ? policy.buildPrompt()
+      : "Responda primeiro à pergunta real, use contexto disponível, não invente fatos e preserve formatos estruturados.";
+  } catch (_) {
+    eloConversationalPolicyPromptCache = "Responda primeiro à pergunta real, use contexto disponível, não invente fatos e preserve formatos estruturados.";
+  }
+
+  return eloConversationalPolicyPromptCache;
 }
 
 function createEloLatencyMetrics_() {
@@ -8044,6 +8066,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const constructionQuantitySafetyContext = clean_(context.constructionQuantitySafetyContext || "").slice(0, 1800);
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
+    "ELO_CONVERSATIONAL_POLICY (CANONICAL / WEB + ANDROID WEBVIEW):\n" + getEloConversationalPolicyPrompt_(),
     buildEloMasterContext_(context),
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
