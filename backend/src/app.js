@@ -3684,6 +3684,33 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/ai/analyze-image", async (request, response) => {
+    if (!clean_(request.headers.authorization)) {
+      response.status(401).json({
+        ok: false,
+        error: "authentication_required"
+      });
+      return;
+    }
+
+    let authContext;
+    try {
+      authContext = await app.locals.resolveAuthContext(request);
+    } catch (_) {
+      response.status(401).json({
+        ok: false,
+        error: "invalid_session"
+      });
+      return;
+    }
+
+    if (!authContext || !authContext.ok) {
+      response.status(authContext && authContext.status ? authContext.status : 401).json({
+        ok: false,
+        error: clean_(authContext && authContext.error || "invalid_session")
+      });
+      return;
+    }
+
     const validation = validateImageRequest_(request.body || {});
 
     if (!validation.ok) {
