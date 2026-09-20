@@ -2673,19 +2673,30 @@ if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|co
     if (!safeToken || !config.url || !config.anonKey || typeof window.fetch !== "function") {
       return Promise.reject(new Error("sessao_invalida"));
     }
-    return window.fetch(config.url + "/auth/v1/user", {
-      method: "GET",
-      headers: {
-        apikey: config.anonKey,
-        Authorization: "Bearer " + safeToken
-      }
+    return Promise.resolve().then(function () {
+      return window.fetch(config.url + "/auth/v1/user", {
+        method: "GET",
+        headers: {
+          apikey: config.anonKey,
+          Authorization: "Bearer " + safeToken
+        }
+      });
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
-        if (!response.ok) throw new Error("sessao_invalida");
+        if (!response.ok) {
+          const authError = new Error("sessao_invalida");
+          authError.status = response.status;
+          throw authError;
+        }
         return data;
       });
-    }).catch(function () {
-      throw new Error("sessao_invalida");
+    }).catch(function (error) {
+      const status = Number(error && error.status) || 0;
+      if (status >= 400 && status < 500) throw error;
+      const transient = new Error("sessao_validacao_indisponivel");
+      transient.transient = true;
+      transient.status = status || 0;
+      throw transient;
     });
   }
   function clearEloCoreSupabaseSessionTokens_() {
@@ -2797,7 +2808,7 @@ if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|co
 
   function clearEloCoreConversationDraftState_() { if (ELO_UI.input) ELO_UI.input.value = ""; try { window.sessionStorage.removeItem("elo_core_current_draft_v1"); } catch (error) {} try { window.localStorage.removeItem("elo_core_current_draft_v1"); } catch (error) {} try { window.sessionStorage.removeItem("elo_core_reopen_conversation_id_v1"); } catch (error) {} try { window.localStorage.removeItem("elo_core_reopen_conversation_id_v1"); } catch (error) {} ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; }
   function resetEloCoreConversationSurface_() { removeTypingIndicator(); ELO_UI.lastLocalExecutionStockReport = null; ELO_UI.historySnapshot = null; if (ELO_UI.messages) { ELO_UI.messages.textContent = ""; ELO_UI.messages.scrollTop = 0; } clearEloCoreConversationDraftState_(); if (ELO_UI.panel) ELO_UI.panel.classList.remove("is-history-view"); refreshEloInputHeight_(); setEloCoreWelcomeVisible_(); updateEloComposerHeight_(); }
-  function initEloCorePersistence_() { if (!isStandaloneMode()) return Promise.resolve(false); ELO_UI.coreConversationId = getEloCoreCurrentConversationId_(); window.ELO_AUTH_SESSION_VALIDATED = false; renderEloCoreAuthPanel_(); const token = getEloCoreAuthToken_(); if (!token) return Promise.resolve(false); return validateEloCoreSupabaseToken_(token).then(function () { window.ELO_AUTH_SESSION_VALIDATED = true; return ensureEloCoreAuthMerge_(); }).then(function () { renderEloCoreAuthPanel_(); loadEloCoreMemories_().then(function () { migrateLocalUserNameToEloCore_(); }); if (ELO_UI.coreConversationId && !isEloCoreConversationCleared_(ELO_UI.coreConversationId)) loadEloCoreConversation_(ELO_UI.coreConversationId); else resetEloCoreConversationSurface_(); return true; }).catch(function () { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida. Entre novamente.", true); return false; }); }
+  function initEloCorePersistence_() { if (!isStandaloneMode()) return Promise.resolve(false); ELO_UI.coreConversationId = getEloCoreCurrentConversationId_(); window.ELO_AUTH_SESSION_VALIDATED = false; renderEloCoreAuthPanel_(); const token = getEloCoreAuthToken_(); if (!token) return Promise.resolve(false); return validateEloCoreSupabaseToken_(token).then(function () { window.ELO_AUTH_SESSION_VALIDATED = true; return ensureEloCoreAuthMerge_(); }).then(function () { renderEloCoreAuthPanel_(); loadEloCoreMemories_().then(function () { migrateLocalUserNameToEloCore_(); }); if (ELO_UI.coreConversationId && !isEloCoreConversationCleared_(ELO_UI.coreConversationId)) loadEloCoreConversation_(ELO_UI.coreConversationId); else resetEloCoreConversationSurface_(); return true; }).catch(function (error) { if (error && error.transient && token) { window.ELO_AUTH_SESSION_VALIDATED = true; renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true); return true; } clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida. Entre novamente.", true); return false; }); }
   function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } stopAllEloSpeech_({ shutdown: true }); setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
   function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) markEloCoreConversationCleared_(previous); stopAllEloSpeech_({ shutdown: true }); setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
   function confirmClearEloCoreCurrentConversation_() { if (typeof window.confirm === "function" && !window.confirm("Limpar a conversa atual?")) return false; return clearEloCoreCurrentConversation_(); }
@@ -28865,7 +28876,7 @@ if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
       return;
     }
     const earlyCommandBridgeRequest = !attachedFiles.length ? detectEloCommandBridgeRequest_(cleanQuestion) : null;
-    const shouldPreferRealCommandBridge = earlyCommandBridgeRequest && ["stock_full", "obrareport_report", "obrareport_rdo"].indexOf(earlyCommandBridgeRequest.module) >= 0 && /^(?:list_|read_|stock_balance)/.test(earlyCommandBridgeRequest.action || "");
+    const shouldPreferRealCommandBridge = earlyCommandBridgeRequest && ["stock_full", "obrareport_report", "obrareport_rdo"].indexOf(earlyCommandBridgeRequest.module) >= 0 && (/^(?:list_|read_|stock_balance)/.test(earlyCommandBridgeRequest.action || "") || isEloCommandBridgePriorityRequest_(earlyCommandBridgeRequest));
     const localStockReadonly = !attachedFiles.length && !shouldPreferRealCommandBridge ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
     if (localStockReadonly) {
       appendMessage("user", cleanQuestion);
@@ -33875,6 +33886,4 @@ if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
     }
   }
 })();
-
-
 
