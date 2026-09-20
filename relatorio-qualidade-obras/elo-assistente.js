@@ -3019,9 +3019,11 @@
         return data;
       });
     }).catch(function (error) {
-      if (error && error.status) throw error;
+      const status = Number(error && error.status) || 0;
+      if (status >= 400 && status < 500) throw error;
       const transient = new Error("sessao_validacao_indisponivel");
       transient.transient = true;
+      transient.status = status || 0;
       throw transient;
     });
   }

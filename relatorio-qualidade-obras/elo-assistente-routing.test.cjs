@@ -228,6 +228,29 @@ test('ELO gate: token ELO nao validado nao abre por presenca no storage', () => 
   assertEloGateClosed(gate);
 });
 
+test('ELO auth: 401 rejeita token e falha transitória preserva sessão potencial', async () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const invalid = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) }); }
+  });
+  await assert.rejects(invalid.elo.validateSupabaseTokenForTest(validToken), (error) => {
+    assert.equal(error.message, 'sessao_invalida');
+    assert.equal(error.status, 401);
+    return true;
+  });
+
+  const transient = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: validToken } }) },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.reject(new Error('network unavailable')); }
+  });
+  const restored = await transient.elo.initCorePersistenceForTest();
+  assert.equal(restored, true);
+  assert.equal(transient.context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(transient.elo.getCoreAuthTokenForTest(), validToken);
+});
+
 test('ELO gate: setAuthenticated abre e fecha o ELO', () => {
   const gate = loadEloHtmlGateContext();
 
