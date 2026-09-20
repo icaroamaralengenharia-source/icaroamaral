@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp } from "../src/app.js";
 import { test } from "node:test";
 import {
@@ -13,6 +16,8 @@ import {
   sanitizeTelemetryEvent,
   summarizeTelemetry
 } from "../src/elo-telemetry.js";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function event(overrides = {}) {
   return Object.assign({
@@ -45,6 +50,8 @@ test("sanitiza o contrato canônico sem conteúdo de conversa", () => {
 test("rejeita chaves e canários proibidos antes da persistência", () => {
   assert.equal(sanitizeTelemetryEvent(event({ prompt: "PROMPT_CANARY" })), null);
   assert.equal(sanitizeTelemetryEvent(event({ error_code: "PASSWORD_SECRET_CANARY" })), null);
+  assert.equal(sanitizeTelemetryEvent(event({ action_type: "TOKEN_SECRET_CANARY" })), null);
+  assert.equal(sanitizeTelemetryEvent(event({ action_type: "PROMPT_PRIVATE_CANARY" })), null);
   assert.equal(sanitizeTelemetryEvent({ event_type: "NOT_A_REAL_EVENT" }), null);
 });
 
@@ -116,7 +123,7 @@ test("endpoint aceita lote sanitizado e dashboard exige token interno", async ()
     assert.equal(ingest.status, 202);
     assert.deepEqual(await ingest.json(), { ok: true, accepted: 1, rejected: 1 });
     const denied = await fetch(running.baseUrl + "/api/elo/telemetry/health");
-    assert.equal(denied.status, 403);
+    assert.equal(denied.status, 503);
     const health = await fetch(running.baseUrl + "/api/elo/telemetry/health", { headers: { "X-Elo-Telemetry-Admin": "internal-test-token" } });
     assert.equal(health.status, 200);
     const healthBody = await health.json();
@@ -125,6 +132,49 @@ test("endpoint aceita lote sanitizado e dashboard exige token interno", async ()
   } finally {
     await new Promise((resolve) => running.server.close(resolve));
   }
+});
+
+test("dashboard não solicita nem embute o segredo administrativo", () => {
+  const dashboard = readFileSync(join(REPO_ROOT, "elo-telemetry-dashboard.html"), "utf8");
+  const client = readFileSync(join(REPO_ROOT, "relatorio-qualidade-obras", "elo-telemetry.js"), "utf8");
+  assert.doesNotMatch(dashboard, /ELO_TELEMETRY_ADMIN_TOKEN|X-Elo-Telemetry-Admin|Token interno/i);
+  assert.doesNotMatch(client, /ELO_TELEMETRY_ADMIN_TOKEN|X-Elo-Telemetry-Admin/);
+});
+
+test("dashboard aceita sessão Bearer de role interna sem token administrativo no cliente", async () => {
+  const authSupabase = {
+    auth: { async getUser(token) { return token === "internal-session" ? { data: { user: { id: "admin-user" } }, error: null } : { data: null, error: new Error("invalid") }; } },
+    from(table) {
+      assert.equal(table, "profiles");
+      return {
+        select() {
+          return { eq() { return { async maybeSingle() { return { data: { id: "admin-profile", auth_user_id: "admin-user", institution_id: "tenant-a", role: "admin" }, error: null }; } }; } };
+        }
+      };
+    }
+  };
+  const app = createApp({ env: { NODE_ENV: "test" }, authContextSupabaseClient: authSupabase, eloTelemetryStore: "memory" });
+  const running = await listen(app);
+  try {
+    const response = await fetch(running.baseUrl + "/api/elo/telemetry/health", { headers: { Authorization: "Bearer internal-session" } });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ok, true);
+  } finally {
+    await new Promise((resolve) => running.server.close(resolve));
+  }
+});
+
+test("migration é idempotente, não destrutiva e mantém RLS sem superfície privada", () => {
+  const sql = readFileSync(join(REPO_ROOT, "backend", "src", "data", "elo-telemetry-migration.sql"), "utf8");
+  assert.match(sql, /create table if not exists public\.elo_telemetry_events/i);
+  assert.match(sql, /create index if not exists elo_telemetry_events_occurred_at_idx/i);
+  assert.match(sql, /create index if not exists elo_telemetry_events_type_idx/i);
+  assert.match(sql, /create index if not exists elo_telemetry_events_tenant_idx/i);
+  assert.match(sql, /alter table public\.elo_telemetry_events enable row level security/i);
+  assert.match(sql, /created_at timestamptz/i);
+  assert.doesNotMatch(sql, /\b(drop|truncate|delete)\b/i);
+  assert.doesNotMatch(sql, /profiles|auth\.users|messenger/i);
+  assert.doesNotMatch(sql, /^\s*(prompt|response|email|cpf|cnpj|filename|pdf|image|memory|password|token|jwt|cookie)\s+/im);
 });
 
 test("falha do servidor de telemetria não altera o contrato do chat", async () => {

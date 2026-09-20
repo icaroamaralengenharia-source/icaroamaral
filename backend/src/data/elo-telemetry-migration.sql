@@ -41,6 +41,7 @@ create table if not exists public.elo_telemetry_events (
 create index if not exists elo_telemetry_events_occurred_at_idx on public.elo_telemetry_events (occurred_at desc);
 create index if not exists elo_telemetry_events_type_idx on public.elo_telemetry_events (event_type, occurred_at desc);
 create index if not exists elo_telemetry_events_route_idx on public.elo_telemetry_events (route, occurred_at desc);
+create index if not exists elo_telemetry_events_tenant_idx on public.elo_telemetry_events (tenant_hash, occurred_at desc);
 
 alter table public.elo_telemetry_events enable row level security;
 

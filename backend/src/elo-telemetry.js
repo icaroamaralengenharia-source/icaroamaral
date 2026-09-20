@@ -37,8 +37,8 @@ const SAFE_SIZE_BUCKETS = new Set(["0", "<10KB", "10-100KB", "100KB-1MB", "1-5MB
 const SAFE_COUNT_BUCKETS = new Set(["0", "1-3", "4-10", ">10"]);
 const SAFE_TOKEN_BUCKETS = new Set(["0", "1-500", "501-2k", "2k-8k", ">8k"]);
 const SAFE_COST_BUCKETS = new Set(["0", "LOW", "MEDIUM", "HIGH"]);
-const PROHIBITED_KEYS = /^(prompt|answer|response|content|body|text|raw|file_name|filename|email|cpf|cnpj|jwt|cookie|authorization|password|secret|access_token|refresh_token)$/i;
-const PROHIBITED_VALUE = /(PASSWORD_SECRET_CANARY|PROMPT_CANARY|RESPONSE_CANARY|PDF_TEXT_CANARY|JWT_CANARY|EMAIL_CANARY|CPF_CANARY|CNPJ_CANARY)/i;
+const PROHIBITED_KEYS = /^(prompt|answer|response|content|body|text|raw|file_name|filename|email|cpf|cnpj|phone|telephone|telefone|jwt|cookie|authorization|password|secret|access_token|refresh_token)$/i;
+const PROHIBITED_VALUE = /(TOKEN_SECRET_CANARY|PASSWORD_SECRET_CANARY|PROMPT_CANARY|PROMPT_PRIVATE_CANARY|RESPONSE_CANARY|PDF_TEXT_CANARY|JWT_CANARY|EMAIL_CANARY|CPF_CANARY|CNPJ_CANARY|TELEPHONE_CANARY|BEARER_CANARY|Authorization:\s*Bearer)/i;
 
 function asFiniteInt(value, min = 0, max = 2147483647) {
   const number = Number(value);

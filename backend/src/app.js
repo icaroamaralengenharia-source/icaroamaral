@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -1406,13 +1406,27 @@ export function createApp(options = {}) {
   app.get("/api/elo/telemetry/health", async (request, response) => {
     const expected = String(options.telemetryAdminToken || env.ELO_TELEMETRY_ADMIN_TOKEN || "");
     const supplied = String(request.headers["x-elo-telemetry-admin"] || "");
-    if (!expected) {
-      response.status(404).json({ ok: false, error: "telemetry_dashboard_disabled" });
-      return;
+    let serverTokenAccepted = false;
+    if (expected && supplied) {
+      try {
+        const expectedBytes = Buffer.from(expected);
+        const suppliedBytes = Buffer.from(supplied);
+        serverTokenAccepted = expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
+      } catch (_) {}
     }
-    if (!supplied || supplied !== expected) {
-      response.status(403).json({ ok: false, error: "telemetry_admin_required" });
-      return;
+    if (!serverTokenAccepted) {
+      let authContext = null;
+      try { authContext = await app.locals.resolveAuthContext(request); } catch (_) { authContext = null; }
+      const role = clean_(authContext && authContext.role || authContext && authContext.profile && authContext.profile.role).toLowerCase();
+      const internalRoles = new Set(["admin", "owner", "superadmin", "platform_admin", "institution_admin", "gestor"]);
+      if (!authContext || !authContext.ok) {
+        response.status(authContext && authContext.status ? authContext.status : 401).json({ ok: false, error: "authentication_required" });
+        return;
+      }
+      if (!internalRoles.has(role)) {
+        response.status(403).json({ ok: false, error: "telemetry_admin_required" });
+        return;
+      }
     }
     const requestedWindow = String(request.query.window || "24h").toLowerCase();
     const hours = requestedWindow === "7d" ? 168 : requestedWindow === "30d" ? 720 : 24;

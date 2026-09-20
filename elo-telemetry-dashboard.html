@@ -9,7 +9,7 @@
     body { max-width: 980px; margin: 0 auto; padding: 28px; }
     header { display: flex; justify-content: space-between; gap: 16px; align-items: end; flex-wrap: wrap; }
     form { display: flex; gap: 8px; flex-wrap: wrap; }
-    input, button { border: 1px solid #49636f; border-radius: 8px; padding: 10px 12px; background: #172631; color: inherit; }
+    select, button { border: 1px solid #49636f; border-radius: 8px; padding: 10px 12px; background: #172631; color: inherit; }
     button { cursor: pointer; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 24px; }
     .card { border: 1px solid #284450; border-radius: 12px; padding: 16px; background: #14222b; }
@@ -20,9 +20,8 @@
 </head>
 <body>
   <header>
-    <div><h1>Saúde do produto ELO</h1><p>Visão agregada de telemetria sanitizada. Nenhum conteúdo de conversa é exibido.</p></div>
+    <div><h1>Saúde do produto ELO</h1><p>Visão agregada de telemetria sanitizada. A página usa a sessão administrativa já autenticada no ELO.</p></div>
     <form id="controls">
-      <input id="token" type="password" autocomplete="off" placeholder="Token interno">
       <select id="window" aria-label="Janela"><option value="24h">24h</option><option value="7d">7d</option><option value="30d">30d</option></select>
       <button type="submit">Atualizar</button>
     </form>
@@ -36,10 +35,18 @@
       var cards = document.getElementById("cards");
       function percent(value) { return value === null || value === undefined ? "—" : Math.round(value * 100) + "%"; }
       function add(label, value, className) { var card = document.createElement("section"); card.className = "card"; card.innerHTML = "<div>" + label + "</div><div class=\"value " + (className || "") + "\">" + value + "</div>"; cards.appendChild(card); }
+      function authHeaders() {
+        try {
+          var raw = window.localStorage.getItem("sb-elo-core-auth-token");
+          var session = raw ? JSON.parse(raw) : null;
+          var token = session && session.currentSession && session.currentSession.access_token || session && session.access_token || "";
+          return token ? { Authorization: "Bearer " + token } : {};
+        } catch (_) { return {}; }
+      }
       form.addEventListener("submit", function (event) {
         event.preventDefault();
         status.textContent = "Carregando…";
-        fetch("/api/elo/telemetry/health?window=" + encodeURIComponent(document.getElementById("window").value), { headers: { "X-Elo-Telemetry-Admin": document.getElementById("token").value } })
+        fetch("/api/elo/telemetry/health?window=" + encodeURIComponent(document.getElementById("window").value), { headers: authHeaders() })
           .then(function (response) { return response.json().then(function (body) { if (!response.ok) throw new Error(body.error || "dashboard_error"); return body; }); })
           .then(function (body) {
             var health = body.health || {};
