@@ -107,6 +107,7 @@ const ELO_MUSIC_SEED_CATALOG = [
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_DIR = join(BACKEND_DIR, "..");
 const ELO_COMMUNICATION_POLICY_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-communication-policy.js");
+const ELO_PROACTIVE_REASONING_POLICY_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-proactive-reasoning-policy.js");
 const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
@@ -119,6 +120,7 @@ function nowMs_() {
 }
 
 let eloConversationalPolicyPromptCache = null;
+let eloProactiveReasoningPolicyCache = null;
 
 function getEloConversationalPolicyPrompt_() {
   if (eloConversationalPolicyPromptCache !== null) return eloConversationalPolicyPromptCache;
@@ -137,6 +139,22 @@ function getEloConversationalPolicyPrompt_() {
   }
 
   return eloConversationalPolicyPromptCache;
+}
+
+function getEloProactiveReasoningPolicy_() {
+  if (eloProactiveReasoningPolicyCache !== null) return eloProactiveReasoningPolicyCache;
+
+  try {
+    const sandbox = {};
+    vm.runInNewContext(readFileSync(ELO_PROACTIVE_REASONING_POLICY_PATH, "utf8"), sandbox, {
+      filename: ELO_PROACTIVE_REASONING_POLICY_PATH
+    });
+    eloProactiveReasoningPolicyCache = sandbox.EloProactiveReasoningPolicy || null;
+  } catch (_) {
+    eloProactiveReasoningPolicyCache = null;
+  }
+
+  return eloProactiveReasoningPolicyCache;
 }
 
 function createEloLatencyMetrics_() {
@@ -174,6 +192,11 @@ function createEloLatencyMetrics_() {
     librarySummaryChars: 0,
     eloContextChars: 0,
     documentsSummaryChars: 0
+    ,proactivityLevel: "NONE"
+    ,selfCheckLevel: "NONE"
+    ,answerMode: "DIRECT"
+    ,missingEssentialCount: 0
+    ,riskDetected: false
   };
 }
 
@@ -195,6 +218,11 @@ function finalizeEloLatencyMetrics_(metrics, startedAt) {
   safe.embeddingSkipped = safe.embeddingSkipped === true;
   safe.embeddingCacheHit = safe.embeddingCacheHit === true;
   safe.streaming = safe.streaming === true;
+  safe.proactivityLevel = clean_(safe.proactivityLevel || "NONE").slice(0, 20) || "NONE";
+  safe.selfCheckLevel = clean_(safe.selfCheckLevel || "NONE").slice(0, 20) || "NONE";
+  safe.answerMode = clean_(safe.answerMode || "DIRECT").slice(0, 30) || "DIRECT";
+  safe.missingEssentialCount = Math.max(0, Math.min(20, Number(safe.missingEssentialCount) || 0));
+  safe.riskDetected = safe.riskDetected === true;
   safe.model = clean_(safe.model || "").slice(0, 80);
   return safe;
 }
@@ -4237,6 +4265,16 @@ export function createApp(options = {}) {
       return;
     }
 
+    const proactivePolicy = getEloProactiveReasoningPolicy_();
+    if (proactivePolicy && typeof proactivePolicy.getObservability === "function") {
+      const observability = proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan);
+      latencyMetrics.proactivityLevel = observability.proactivity_level;
+      latencyMetrics.selfCheckLevel = observability.self_check_level;
+      latencyMetrics.answerMode = observability.answer_mode;
+      latencyMetrics.missingEssentialCount = observability.missing_essential_count;
+      latencyMetrics.riskDetected = observability.risk_detected;
+    }
+
     validation.payload.context.documentsSummary = chatRequest.documentsSummary;
     validation.payload.context.attachmentErrors = chatRequest.attachmentErrors;
     validation.payload.interpretation = interpretEloUserMessage({
@@ -4395,6 +4433,7 @@ export function createApp(options = {}) {
         savePrompt,
         error: "Backend do Elo sem OPENAI_API_KEY configurada.",
         interpretation: validation.payload.interpretation,
+        observability: proactivePolicy && proactivePolicy.getObservability ? proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan) : null,
         attachmentErrors: chatRequest.attachmentErrors
       });
       return;
@@ -4430,7 +4469,11 @@ export function createApp(options = {}) {
       const rawAnswer = await callOpenAiElo_(validation.payload, env, latencyMetrics);
       latencyMetrics.modelMs += nowMs_() - modelStartedAt;
       const postProcessStartedAt = nowMs_();
-      const answer = sanitizeEloAnswerText_(rawAnswer);
+      const proactivePolicy = getEloProactiveReasoningPolicy_();
+      const checkedAnswer = proactivePolicy && typeof proactivePolicy.applySelfCheck === "function"
+        ? proactivePolicy.applySelfCheck(validation.payload.context.proactiveReasoningPlan, rawAnswer, validation.payload.context)
+        : rawAnswer;
+      const answer = sanitizeEloAnswerText_(checkedAnswer);
       const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
         userMessage: validation.payload.message,
         assistantResponse: answer,
@@ -4454,6 +4497,7 @@ export function createApp(options = {}) {
         fallback: false,
         answer,
         savePrompt,
+        observability: proactivePolicy && proactivePolicy.getObservability ? proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan) : null,
         interpretation: validation.payload.interpretation,
         eloIntent: validation.payload.eloIntent,
         contextSummary: {
@@ -6585,6 +6629,11 @@ function validateEloChatRequest_(body) {
     };
   }
 
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
+  const proactiveReasoningPlan = proactivePolicy && typeof proactivePolicy.buildResponsePlan === "function"
+    ? proactivePolicy.buildResponsePlan(message, Object.assign({}, context, { history }), {})
+    : null;
+
   return {
     ok: true,
     payload: {
@@ -6604,7 +6653,8 @@ function validateEloChatRequest_(body) {
         workingMemorySummary,
         technicalContinuation,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
-        projectContext
+        projectContext,
+        proactiveReasoningPlan
       }
     }
   };
@@ -6824,6 +6874,15 @@ export async function getEloRelevantContext_({ payload, memoryStore, canonicalMe
     if (!auditoriaContext) {
       resultContext.stockIaLaunchPlan = buildStockIaLaunchPlan(safePayload.message);
     }
+  }
+
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
+  if (proactivePolicy && typeof proactivePolicy.buildResponsePlan === "function") {
+    resultContext.proactiveReasoningPlan = proactivePolicy.buildResponsePlan(
+      safePayload.message,
+      Object.assign({}, context, resultContext, { history: safePayload.history }),
+      { hasAttachment: Boolean(documents.length || attachmentErrors.length) }
+    );
   }
 
   return {
@@ -7948,6 +8007,7 @@ async function callOpenAiElo_(payload, env, metrics = null) {
   });
   const promptBuildStartedAt = nowMs_();
   const systemPrompt = buildEloSystemPrompt_(payload.context);
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
   const personalityPrompt = getEloPersonalityPrompt_({
     interpretation,
     context: payload.context && payload.context.eloContext
@@ -8012,6 +8072,14 @@ async function callOpenAiElo_(payload, env, metrics = null) {
     metrics.librarySummaryChars = clean_(payload.context && (payload.context.librarySummary || payload.context.libraryRelevantSummary)).length;
     metrics.eloContextChars = clean_(payload.context && payload.context.eloContext).length;
     metrics.documentsSummaryChars = clean_(payload.context && payload.context.documentsSummary).length;
+    if (proactivePolicy && typeof proactivePolicy.getObservability === "function") {
+      const observability = proactivePolicy.getObservability(payload.context && payload.context.proactiveReasoningPlan);
+      metrics.proactivityLevel = observability.proactivity_level;
+      metrics.selfCheckLevel = observability.self_check_level;
+      metrics.answerMode = observability.answer_mode;
+      metrics.missingEssentialCount = observability.missing_essential_count;
+      metrics.riskDetected = observability.risk_detected;
+    }
   }
   const modelFetchStartedAt = nowMs_();
   if (metrics) metrics.openAiCalls += 1;
@@ -8064,9 +8132,13 @@ export function buildEloSystemPrompt_(context = {}) {
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
   const obraComposicaoContext = eloContext === "obras" ? clean_(context.obraComposicaoContext || "").slice(0, 3000) : "";
   const constructionQuantitySafetyContext = clean_(context.constructionQuantitySafetyContext || "").slice(0, 1800);
+  const proactiveReasoningPlan = context.proactiveReasoningPlan && typeof context.proactiveReasoningPlan === "object"
+    ? context.proactiveReasoningPlan
+    : null;
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
     "ELO_CONVERSATIONAL_POLICY (CANONICAL / WEB + ANDROID WEBVIEW):\n" + getEloConversationalPolicyPrompt_(),
+    proactiveReasoningPlan && getEloProactiveReasoningPolicy_() ? "ELO_PROACTIVE_REASONING_PLAN (INTERNAL):\n" + getEloProactiveReasoningPolicy_().buildPrompt(proactiveReasoningPlan) : "",
     buildEloMasterContext_(context),
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
