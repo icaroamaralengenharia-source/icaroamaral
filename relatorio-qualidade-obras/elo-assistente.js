@@ -20,6 +20,7 @@
     webSearchEndpoint: "",
     webSearchRequiresConfirmation: true,
     chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
+    criticalHealthEndpoint: getEloBackendEndpoint_("/api/health"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory"),
     budgetRecordsStorageKey: "elo_budget_records_v1",
     budgetCounterStorageKey: "elo_budget_counter_v1"
@@ -3140,7 +3141,7 @@
           ELO_UI.coreAuthMergePromise = null;
           renderEloCoreAuthPanel_();
           setEloCoreAuthStatus_("Usuario autenticado.", false);
-          return data;
+          return reconcileEloCriticalAvailability_().then(function () { return data; });
         });
       });
     }).catch(function (error) { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida.", true); throw error; }).then(function (data) {
@@ -3201,7 +3202,9 @@
       .then(function () {
         window.ELO_AUTH_SESSION_VALIDATED = true;
         ELO_UI.allowAuthContextChangeDuringBootstrap = true;
-        return ensureEloCoreAuthMerge_();
+        return reconcileEloCriticalAvailability_().then(function () {
+          return ensureEloCoreAuthMerge_();
+        });
       })
       .then(function () {
         ELO_UI.allowAuthContextChangeDuringBootstrap = false;
@@ -8502,7 +8505,7 @@
       return router.classifyBackendResult({ status: response && response.status });
     }
     const status = Number(response && response.status);
-    if (status === 0 || status === 502 || status === 503 || status === 504) return "BACKEND_UNAVAILABLE";
+    if (status === 0 || status === 500 || status === 502 || status === 503 || status === 504) return "BACKEND_UNAVAILABLE";
     if (status === 400 || status === 401 || status === 403 || status === 404) return "ONLINE_VALIDATED";
     if (status >= 200 && status < 500) return "ONLINE_VALIDATED";
     return "ONLINE_UNVERIFIED";
@@ -8517,10 +8520,13 @@
   }
 
   function noteEloChatTransportResponse_(response) {
-    return setEloChatTransportState_(classifyEloChatTransportResponse_(response), {
+    const state = classifyEloChatTransportResponse_(response);
+    const noted = setEloChatTransportState_(state, {
       status: Number(response && response.status) || 0,
       reason: response && response.ok ? "http_ok" : "http_not_ok"
     });
+    if (state === "ONLINE_VALIDATED") setEloConnectivityState_(true, "backend_response");
+    return noted;
   }
 
   function noteEloChatTransportError_(error) {
@@ -8532,7 +8538,10 @@
   function requestEloOnlineAnswer(question, attachments, options) {
     const requestOptions = options && typeof options === "object" ? options : {};
     const isTechnicalContinuation = requestOptions.technicalContinuation === true;
-    if (!isEloOnline_()) {
+    // Android WebView can report navigator.onLine=false while the validated
+    // session and backend are reachable. Do not block a critical chat request
+    // on that weak browser hint; the response remains the source of truth.
+    if (!isEloOnline_() && window.ELO_AUTH_SESSION_VALIDATED !== true) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
       if (window.EloTelemetry) window.EloTelemetry.track("OFFLINE_COMMAND", { route: "chat", status: "OFFLINE", offline_used: true });
       return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
@@ -28738,6 +28747,22 @@ function isEloResidentialNewPipelineEnabled_() {
     return !ELO_UI.connectivity || ELO_UI.connectivity.online !== false;
   }
 
+  function reconcileEloCriticalAvailability_() {
+    if (window.ELO_AUTH_SESSION_VALIDATED !== true || !window.fetch || !ELO_CONFIG.criticalHealthEndpoint) {
+      return Promise.resolve(false);
+    }
+    return window.fetch(ELO_CONFIG.criticalHealthEndpoint, { method: "GET", cache: "no-store" }).then(function (response) {
+      const status = Number(response && response.status) || 0;
+      if (status >= 200 && status < 300) {
+        setEloConnectivityState_(true, "backend_health");
+        return true;
+      }
+      return false;
+    }).catch(function () {
+      return false;
+    });
+  }
+
   function ensureEloConnectivityBadge_() {
     if (ELO_UI.connectivityBadge || !window.document || !document.body) return ELO_UI.connectivityBadge;
     const badge = createElement("div", "elo-offline-badge");
@@ -28786,7 +28811,15 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.connectivity.initialized = true;
     if (window.addEventListener) {
       window.addEventListener("online", function () { setEloConnectivityState_(true, "online_event"); });
-      window.addEventListener("offline", function () { setEloConnectivityState_(false, "offline_event"); });
+      window.addEventListener("offline", function () {
+        if (window.ELO_AUTH_SESSION_VALIDATED === true) {
+          reconcileEloCriticalAvailability_().then(function (reachable) {
+            if (!reachable) setEloConnectivityState_(false, "offline_event");
+          });
+          return;
+        }
+        setEloConnectivityState_(false, "offline_event");
+      });
     }
     renderEloConnectivityBadge_();
     return ELO_UI.connectivity;
@@ -34882,6 +34915,7 @@ function isEloResidentialNewPipelineEnabled_() {
     getCanonicalSessionForTest: getCanonicalEloSession_,
     validateSupabaseTokenForTest: validateEloCoreSupabaseToken_,
     initCorePersistenceForTest: initEloCorePersistence_,
+    reconcileCriticalAvailabilityForTest: reconcileEloCriticalAvailability_,
     maybeShowProactiveAttentionForTest: maybeShowEloProactiveAttention_
   });
 

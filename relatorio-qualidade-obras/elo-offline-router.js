@@ -1,7 +1,7 @@
 (function attachEloOfflineRouter(global) {
   "use strict";
 
-  const RECOVERABLE_BACKEND_STATUSES = [0, 502, 503, 504];
+  const RECOVERABLE_BACKEND_STATUSES = [0, 500, 502, 503, 504];
   const NON_OFFLINE_STATUSES = [400, 401, 403, 404];
   const USER_PROFILE_KEY = "obrareport_elo_perfil_usuario_v1";
   const LONG_TERM_KEY = "elo_long_term_memory_v1";

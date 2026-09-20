@@ -95,7 +95,7 @@ test("service worker oficial cacheia shell offline sem cachear API", () => {
 
 test("roteador oficial classifica falhas recuperáveis sem mascarar 401 e 403", () => {
   const { window } = loadOfficialOffline();
-  for (const status of [0, 502, 503, 504]) {
+  for (const status of [0, 500, 502, 503, 504]) {
     assert.equal(window.EloOfflineRouter.classifyBackendResult({ status }), "BACKEND_UNAVAILABLE");
   }
   for (const status of [400, 401, 403, 404]) {
