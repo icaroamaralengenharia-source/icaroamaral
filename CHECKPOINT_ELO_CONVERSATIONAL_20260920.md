@@ -50,9 +50,9 @@ As suítes amplas da base `origin/main` foram executadas. Há falhas preexistent
 
 ## Estado de integração
 
-- Commit: pendente.
-- Push: pendente.
-- PR: pendente.
+- Commit: `90d14a2`.
+- Push: concluído em `feat/elo-conversational-behavior`.
+- PR: [#85](https://github.com/icaroamaralengenharia-source/icaroamaral/pull/85), aberto.
 - Merge: não realizado; gate bloqueado pelas falhas preexistentes da base.
 - Deploy: não realizado.
 - Dados apagados: não.
@@ -60,6 +60,7 @@ As suítes amplas da base `origin/main` foram executadas. Há falhas preexistent
 
 ## Pendências objetivas
 
-1. Corrigir ou reancorar as falhas preexistentes da suíte principal antes de integração.
-2. Após checks verdes, executar conjunto idêntico de prompts no Web e no Device A.
-3. Só então abrir PR para revisão e avaliar publicação.
+1. Aguardar os checks remotos do PR #85 e manter o merge bloqueado enquanto houver falhas.
+2. Corrigir ou reancorar as falhas preexistentes da suíte principal antes de integração.
+3. Após checks verdes, executar conjunto idêntico de prompts no Web e no Device A.
+4. Só então avaliar merge e publicação.
