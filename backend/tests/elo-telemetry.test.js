@@ -128,6 +128,7 @@ test("endpoint aceita lote sanitizado e dashboard exige token interno", async ()
     assert.equal(health.status, 200);
     const healthBody = await health.json();
     assert.equal(healthBody.health.event_count, 1);
+    assert.equal(healthBody.security.admin_token_configured, true);
     assert.equal(JSON.stringify(healthBody).includes("CANARY"), false);
   } finally {
     await new Promise((resolve) => running.server.close(resolve));

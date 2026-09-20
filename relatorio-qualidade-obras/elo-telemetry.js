@@ -1,11 +1,12 @@
 (function (window, document) {
   "use strict";
 
-  var ENDPOINT = "/api/elo/telemetry";
+  var ENDPOINT_PATH = "/api/elo/telemetry";
   var BUFFER_KEY = "elo_telemetry_buffer_v1";
   var MAX_BUFFER = 200;
   var BATCH_SIZE = 25;
   var FLUSH_INTERVAL = 15000;
+  var MAX_RETRY_DELAY = 60000;
   var SAFE_EVENTS = {
     APP_OPEN: 1, APP_READY: 1, AUTH_VALIDATED: 1, AUTH_FAILED: 1, AUTH_EXPIRED: 1, ONLINE: 1, OFFLINE: 1,
     BACKEND_UNAVAILABLE: 1, BACKEND_RECOVERED: 1, CHAT_SENT: 1, CHAT_RESPONSE: 1, CHAT_FAILED: 1,
@@ -18,6 +19,9 @@
   var SAFE_MODEL = { LOCAL: 1, CHEAP_REMOTE: 1, STANDARD: 1, HIGH_REASONING: 1 };
   var memoryQueue = [];
   var flushing = false;
+  var retryAttempt = 0;
+  var nextFlushAt = 0;
+  var lastFlushError = "";
   var sessionSeed = null;
   var sessionHashPromise = null;
 
@@ -114,8 +118,19 @@
       token_usage_bucket: text(input.token_usage_bucket, 20),
       estimated_cost_bucket: text(input.estimated_cost_bucket, 20)
     };
+    if (/^[a-f0-9]{32,128}$/i.test(text(input.response_event_hash, 128))) {
+      event.response_event_hash = text(input.response_event_hash, 128).toLowerCase();
+    }
     Object.keys(event).forEach(function (key) { if (event[key] === undefined || event[key] === "") delete event[key]; });
     return event;
+  }
+
+  function getEndpoint() {
+    if (window.EloRuntimeConfig && typeof window.EloRuntimeConfig.apiUrl === "function") {
+      return window.EloRuntimeConfig.apiUrl(ENDPOINT_PATH);
+    }
+    var base = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
+    return base + ENDPOINT_PATH;
   }
 
   function enqueue(event) {
@@ -133,20 +148,50 @@
     }).catch(function () { return null; });
   }
 
-  function flush() {
+  function getRetryAfterMs(response) {
+    var retryAfter = response && response.headers && response.headers.get ? response.headers.get("Retry-After") : "";
+    var seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(MAX_RETRY_DELAY, Math.max(1000, Math.round(seconds * 1000)));
+    return 0;
+  }
+
+  function scheduleRetry(response) {
+    var status = Number(response && response.status) || 0;
+    var retryAfter = status === 429 ? getRetryAfterMs(response) : 0;
+    var delay = retryAfter || (status === 404 || status === 405
+      ? MAX_RETRY_DELAY
+      : Math.min(MAX_RETRY_DELAY, FLUSH_INTERVAL * Math.pow(2, retryAttempt)));
+    retryAttempt = Math.min(retryAttempt + 1, 8);
+    nextFlushAt = Date.now() + delay;
+    lastFlushError = status ? String(status) : "network";
+  }
+
+  function resetRetry() {
+    retryAttempt = 0;
+    nextFlushAt = 0;
+    lastFlushError = "";
+  }
+
+  function flush(options) {
+    var force = options && options.force === true;
     if (flushing) return Promise.resolve(false);
     var queue = readQueue();
     if (!queue.length || !window.fetch) return Promise.resolve(false);
+    if (!force && Date.now() < nextFlushAt) return Promise.resolve(false);
     flushing = true;
     var batch = queue.slice(0, BATCH_SIZE);
-    return window.fetch(ENDPOINT, {
+    return window.fetch(getEndpoint(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ events: batch }),
       keepalive: true
     }).then(function (response) {
-      if (!response || !response.ok) throw new Error("telemetry_not_accepted");
+      if (!response || !response.ok) {
+        scheduleRetry(response);
+        throw new Error("telemetry_not_accepted");
+      }
       writeQueue(readQueue().slice(batch.length));
+      resetRetry();
       return true;
     }).catch(function () { return false; }).finally(function () { flushing = false; });
   }
@@ -157,20 +202,33 @@
     bucketLatency: bucketLatency,
     bucketBytes: bucketBytes,
     getPendingCount: function () { return readQueue().length; },
+    getRetryState: function () { return { retry_attempt: retryAttempt, next_flush_at: nextFlushAt, last_error: lastFlushError }; },
     clear: function () { writeQueue([]); }
   };
 
   function trackFeedback(button) {
     var type = text(button && button.getAttribute("data-elo-feedback"), 30);
     if (!type || !window.EloTelemetry) return;
-    window.EloTelemetry.track("FEEDBACK_SUBMITTED", { route: "chat", action_type: type, status: "SUCCESS" });
+    var container = button.closest ? button.closest("[data-elo-feedback-group]") : null;
+    if (container && container.getAttribute("data-elo-feedback-submitted") === "true") return;
+    if (container) container.setAttribute("data-elo-feedback-submitted", "true");
+    var rating = type === "THUMBS_DOWN" || type === "NOT_HELPFUL" ? "NOT_HELPFUL" : "HELPFUL";
+    var responseId = container && container.getAttribute("data-elo-response-id") || "";
+    makeHash("elo-response:" + responseId).then(function (responseEventHash) {
+      window.EloTelemetry.track("FEEDBACK_SUBMITTED", {
+        route: "chat",
+        action_type: rating,
+        response_event_hash: responseEventHash,
+        status: "SUCCESS"
+      });
+    });
   }
 
   document.addEventListener("click", function (event) {
     var target = event.target && event.target.closest ? event.target.closest("[data-elo-feedback]") : null;
     if (target) trackFeedback(target);
   });
-  window.addEventListener("online", function () { track("ONLINE", { status: "SUCCESS" }); flush(); });
+  window.addEventListener("online", function () { resetRetry(); track("ONLINE", { status: "SUCCESS" }); flush({ force: true }); });
   window.addEventListener("offline", function () { track("OFFLINE", { status: "OFFLINE", offline_used: true }); });
   document.addEventListener("DOMContentLoaded", function () { track("APP_READY", { status: "SUCCESS" }); flush(); });
   track("APP_OPEN", { status: "SUCCESS" });

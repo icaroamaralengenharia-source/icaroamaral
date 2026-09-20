@@ -22,13 +22,15 @@ export const ELO_TELEMETRY_FIELDS = Object.freeze([
   "backend_latency_ms", "model_latency_ms", "status", "http_status", "error_code", "fallback_used",
   "offline_used", "retry_count", "attachment_type", "attachment_size_bucket", "response_size_bucket",
   "context_turn_count_bucket", "memory_used", "project_context_used", "risk_detected", "missing_essential_count",
-  "action_type", "model_class", "token_usage_bucket", "estimated_cost_bucket"
+  "action_type", "response_event_hash", "model_class", "token_usage_bucket", "estimated_cost_bucket"
 ]);
 
 const MAX_BATCH = 50;
 const MAX_EVENT_BYTES = 4096;
 const MAX_BATCH_BYTES = 64 * 1024;
 const DEFAULT_CAPACITY = 500;
+const RETENTION_DAYS = 60;
+const RETENTION_MAX_DELETE_PER_RUN = 500;
 const SAFE_SURFACES = new Set(["WEB", "ANDROID_WEBVIEW"]);
 const SAFE_STATUSES = new Set(["SUCCESS", "ERROR", "OFFLINE", "FALLBACK", "PENDING"]);
 const SAFE_MODEL_CLASSES = new Set(["LOCAL", "CHEAP_REMOTE", "STANDARD", "HIGH_REASONING"]);
@@ -150,6 +152,9 @@ export function sanitizeTelemetryEvent(input, options = {}) {
     response_size_bucket: pick(asSafeString(source.response_size_bucket, 20), SAFE_SIZE_BUCKETS, undefined),
     context_turn_count_bucket: pick(asSafeString(source.context_turn_count_bucket, 20), SAFE_COUNT_BUCKETS, undefined),
     action_type: asSafeString(source.action_type, 40),
+    response_event_hash: /^[a-f0-9]{32,128}$/i.test(asSafeString(source.response_event_hash, 128) || "")
+      ? asSafeString(source.response_event_hash, 128).toLowerCase()
+      : undefined,
     model_class: pick(asSafeString(source.model_class, 30), SAFE_MODEL_CLASSES, undefined),
     token_usage_bucket: pick(asSafeString(source.token_usage_bucket, 20), SAFE_TOKEN_BUCKETS, undefined),
     estimated_cost_bucket: pick(asSafeString(source.estimated_cost_bucket, 20), SAFE_COST_BUCKETS, undefined)
@@ -234,10 +239,47 @@ export function createEloTelemetryService(options = {}) {
     try {
       const row = Object.assign({}, event, { occurred_at: event.timestamp });
       delete row.timestamp;
-      const { error } = await client.from("elo_telemetry_events").insert(row);
+      let { error } = await client.from("elo_telemetry_events").insert(row);
+      if (error && event.response_event_hash) {
+        delete row.response_event_hash;
+        ({ error } = await client.from("elo_telemetry_events").insert(row));
+      }
       if (error) throw error;
     } catch (_) {
       persistErrors += 1;
+    }
+  }
+
+  async function cleanupExpired({ days = RETENTION_DAYS, now = Date.now(), dryRun = false, maxPerRun = RETENTION_MAX_DELETE_PER_RUN } = {}) {
+    const retentionDays = Math.max(1, Math.min(3650, Number(days) || RETENTION_DAYS));
+    const deleteLimit = Math.max(1, Math.min(RETENTION_MAX_DELETE_PER_RUN, Number(maxPerRun) || RETENTION_MAX_DELETE_PER_RUN));
+    const cutoff = new Date(now - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    if (!useSupabase) return { ok: true, skipped: true, dry_run: dryRun, cutoff, matching: 0, deleted: 0, max_per_run: deleteLimit };
+    try {
+      if (dryRun) {
+        const { count, error } = await client.from("elo_telemetry_events").select("id", { count: "exact", head: true }).lt("occurred_at", cutoff);
+        if (error) throw error;
+        const matching = Number(count || 0);
+        return { ok: true, dry_run: true, cutoff, matching, deleted: 0, max_per_run: deleteLimit, capped: matching > deleteLimit };
+      }
+      const { data: candidates, error: candidateError } = await client.from("elo_telemetry_events")
+        .select("id", { count: "exact" })
+        .lt("occurred_at", cutoff)
+        .order("occurred_at", { ascending: true })
+        .limit(deleteLimit);
+      if (candidateError) throw candidateError;
+      const ids = Array.isArray(candidates) ? candidates.map((row) => row && row.id).filter(Boolean) : [];
+      if (!ids.length) return { ok: true, dry_run: false, cutoff, matching: 0, deleted: 0, max_per_run: deleteLimit, capped: false };
+      const { data, error } = await client.from("elo_telemetry_events")
+        .delete()
+        .lt("occurred_at", cutoff)
+        .in("id", ids)
+        .select("id");
+      if (error) throw error;
+      return { ok: true, dry_run: false, cutoff, matching: ids.length, deleted: Array.isArray(data) ? data.length : 0, max_per_run: deleteLimit, capped: ids.length >= deleteLimit };
+    } catch (_) {
+      persistErrors += 1;
+      return { ok: false, dry_run: dryRun, cutoff, matching: 0, deleted: 0, max_per_run: deleteLimit };
     }
   }
 
@@ -272,9 +314,10 @@ export function createEloTelemetryService(options = {}) {
     ingest,
     ingestBatch,
     snapshot,
+    cleanupExpired,
     getEvents: () => events.slice(),
     getStats: () => ({ buffered: events.length, capacity, persist_errors: persistErrors })
   };
 }
 
-export const ELO_TELEMETRY_LIMITS = Object.freeze({ MAX_BATCH, MAX_EVENT_BYTES, MAX_BATCH_BYTES });
+export const ELO_TELEMETRY_LIMITS = Object.freeze({ MAX_BATCH, MAX_EVENT_BYTES, MAX_BATCH_BYTES, RETENTION_DAYS, RETENTION_MAX_DELETE_PER_RUN });

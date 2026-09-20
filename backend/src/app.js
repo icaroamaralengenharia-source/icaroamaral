@@ -1238,9 +1238,36 @@ export function createApp(options = {}) {
     client: options.eloTelemetrySupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null),
     store: options.eloTelemetryStore
   });
+  const eloTelemetryRetentionDays = Math.max(1, Math.min(3650, Number(env.ELO_TELEMETRY_RETENTION_DAYS || 60) || 60));
+  const eloTelemetryRetentionIntervalMs = Math.max(60 * 60 * 1000, Number(options.eloTelemetryRetentionIntervalMs || env.ELO_TELEMETRY_RETENTION_INTERVAL_MS || 24 * 60 * 60 * 1000));
+  let eloTelemetryRetentionTimer = null;
+  if (options.enableEloTelemetryRetention !== false && eloTelemetry && typeof eloTelemetry.cleanupExpired === "function") {
+    let eloTelemetryRetentionDryRunComplete = false;
+    const runEloTelemetryRetention = () => eloTelemetry.cleanupExpired({
+      days: eloTelemetryRetentionDays,
+      dryRun: !eloTelemetryRetentionDryRunComplete
+    }).then((result) => {
+      if (result && result.dry_run) {
+        eloTelemetryRetentionDryRunComplete = true;
+        if (result.capped) console.warn("[ELO RETENTION] dry-run volume exceeds per-run deletion limit", { matching: result.matching, max_per_run: result.max_per_run });
+      } else if (result && result.capped) {
+        console.warn("[ELO RETENTION] deletion limited to per-run cap", { deleted: result.deleted, max_per_run: result.max_per_run });
+      }
+      return result;
+    }).catch(() => null);
+    runEloTelemetryRetention();
+    eloTelemetryRetentionTimer = setInterval(runEloTelemetryRetention, eloTelemetryRetentionIntervalMs);
+    if (eloTelemetryRetentionTimer && typeof eloTelemetryRetentionTimer.unref === "function") eloTelemetryRetentionTimer.unref();
+  }
   const eloTelemetryHashSalt = eloTelemetry.hashSalt;
   const eloTelemetryRate = new Map();
   app.locals.eloTelemetry = eloTelemetry;
+  app.locals.eloTelemetryRetention = {
+    days: eloTelemetryRetentionDays,
+    interval_ms: eloTelemetryRetentionIntervalMs,
+    max_delete_per_run: 500,
+    active: Boolean(eloTelemetryRetentionTimer)
+  };
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
@@ -1430,7 +1457,12 @@ export function createApp(options = {}) {
     }
     const requestedWindow = String(request.query.window || "24h").toLowerCase();
     const hours = requestedWindow === "7d" ? 168 : requestedWindow === "30d" ? 720 : 24;
-    response.json({ ok: true, health: await eloTelemetry.snapshot({ windowMs: hours * 60 * 60 * 1000 }), buffer: eloTelemetry.getStats() });
+    response.json({
+      ok: true,
+      health: await eloTelemetry.snapshot({ windowMs: hours * 60 * 60 * 1000 }),
+      buffer: eloTelemetry.getStats(),
+      security: { admin_token_configured: Boolean(expected) }
+    });
   });
 
   app.get("/api/health", (request, response) => {

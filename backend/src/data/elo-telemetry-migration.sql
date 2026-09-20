@@ -32,11 +32,14 @@ create table if not exists public.elo_telemetry_events (
   risk_detected boolean,
   missing_essential_count integer,
   action_type text,
+  response_event_hash text,
   model_class text,
   token_usage_bucket text,
   estimated_cost_bucket text,
   created_at timestamptz not null default now()
 );
+
+alter table public.elo_telemetry_events add column if not exists response_event_hash text;
 
 create index if not exists elo_telemetry_events_occurred_at_idx on public.elo_telemetry_events (occurred_at desc);
 create index if not exists elo_telemetry_events_type_idx on public.elo_telemetry_events (event_type, occurred_at desc);

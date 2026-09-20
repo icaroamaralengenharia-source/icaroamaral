@@ -1,8 +1,9 @@
-const ELO_CACHE_NAME = "elo-web-offline-v12-20260920-device-availability-fix-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v13-20260920-observability-final-v1";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
-  "./relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-v1",
+  "./relatorio-qualidade-obras/elo-runtime-config.js?v=20260920-observability-final-v1",
+  "./relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-final-v1",
   "./relatorio-qualidade-obras/elo-proactive-reasoning-policy.js?v=20260920-proactive-v1",
   "./relatorio-qualidade-obras/elo-communication-policy.js?v=20260920-conversational-v1",
   "./relatorio-qualidade-obras/elo-assistente.js?v=20260920-device-availability-fix-v1",
