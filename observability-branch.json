@@ -1,6 +1,6 @@
 {
   "ref": "feat/elo-product-observability",
-  "commit": "7ac2fbd plus local observability hardening changes",
+  "commit": "a2d1a96",
   "tests": 57,
   "passed": 56,
   "failed": 1,
