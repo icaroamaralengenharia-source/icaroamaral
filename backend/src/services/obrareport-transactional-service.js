@@ -165,6 +165,8 @@ function createDocument(database, institutionId, sourceType, sourceId, documentT
 
 const APARTMENT_HANDOVER_SOURCE_TYPE = "apartment_handover_inspection";
 const APARTMENT_HANDOVER_STATUSES = new Set(["draft", "completed", "final_pdf_generated", "archived"]);
+const APARTMENT_HANDOVER_ITEM_STATUSES = new Set(["C", "NC", "NA", "NV", "NI"]);
+const APARTMENT_HANDOVER_SEVERITIES = new Set(["critica", "alta", "media", "baixa"]);
 
 function normalizeInspectionStatus(value) {
   const status = clean(value || "draft");
@@ -181,9 +183,70 @@ function requireApartmentHandoverSourceType(value) {
   }
   return sourceType;
 }
+
+function inspectionIdempotencyKey(payload, inspectionData) {
+  const safe = objectOf(payload);
+  const data = objectOf(inspectionData);
+  return clean(safe.idempotencyKey || safe.idempotency_key || safe.operationId || safe.operation_id || data.idempotencyKey || data.idempotency_key || data.operationId || data.operation_id);
+}
+
+function normalizeApartmentHandoverItemStatus(value) {
+  const status = clean(value).toUpperCase();
+  if (status === "NAO_INSPECIONADO" || status === "NÃO INSPECIONADO" || status === "NÃO_VERIFICADO") return "NI";
+  if (status === "NAO_CONFORME" || status === "NÃO CONFORME" || status === "INCONFORME") return "NC";
+  if (!APARTMENT_HANDOVER_ITEM_STATUSES.has(status)) {
+    throw Object.assign(new Error("inspection_item_status_invalid"), { status: 400 });
+  }
+  return status;
+}
+
+function normalizeApartmentHandoverSeverity(value) {
+  const severity = clean(value).toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+  if (!severity) return "";
+  if (!APARTMENT_HANDOVER_SEVERITIES.has(severity)) {
+    throw Object.assign(new Error("inspection_item_severity_invalid"), { status: 400 });
+  }
+  return severity;
+}
+
+function inspectionItemsContainer(inspectionData) {
+  const data = inspectionData && typeof inspectionData === "object" && !Array.isArray(inspectionData) ? inspectionData : {};
+  if (Array.isArray(data.items)) return { parent: data, key: "items" };
+  if (data.inspection && Array.isArray(data.inspection.items)) return { parent: data.inspection, key: "items" };
+  if (data.report && data.report.inspection && Array.isArray(data.report.inspection.items)) return { parent: data.report.inspection, key: "items" };
+  return null;
+}
+
+function normalizeItemText(value) {
+  return clean(value).toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+}
+
+function resolveApartmentHandoverItem(inspectionData, payload) {
+  const container = inspectionItemsContainer(inspectionData);
+  if (!container) throw Object.assign(new Error("inspection_items_required"), { status: 400 });
+  const safe = objectOf(payload);
+  const itemId = clean(safe.itemId || safe.item_id || safe.inspectionItemId || safe.inspection_item_id);
+  const environment = normalizeItemText(safe.environment || safe.ambiente || safe.environmentId || safe.environment_id);
+  const system = normalizeItemText(safe.system || safe.sistema || safe.systemId || safe.system_id);
+  const itemText = normalizeItemText(safe.item || safe.itemName || safe.item_name || safe.title);
+  const matches = container.parent[container.key].map((item, index) => ({ item, index })).filter(({ item }) => {
+    if (itemId) return clean(item.id || item.itemId || item.inspectionItemId) === itemId;
+    if (environment && normalizeItemText(item.environment || item.ambiente || item.environmentId) !== environment) return false;
+    if (system && normalizeItemText(item.system || item.sistema || item.systemId) !== system) return false;
+    if (itemText) {
+      const candidate = normalizeItemText(item.item || item.title || item.name || item.descricao || item.id);
+      return candidate === itemText || candidate.includes(itemText) || itemText.includes(candidate);
+    }
+    return Boolean(environment || system);
+  });
+  if (!matches.length) throw Object.assign(new Error("inspection_item_not_found"), { status: 404 });
+  if (matches.length > 1) throw Object.assign(new Error("inspection_item_ambiguous"), { status: 409, matches: matches.map(({ item }) => item) });
+  return { container, ...matches[0] };
+}
 export function createObraReportTransactionalService(options = {}) {
   const dataPath = options.dataPath || DEFAULT_DATA_PATH;
   const rdoRepository = options.rdoRepository || null;
+  const apartmentHandoverRepository = options.apartmentHandoverRepository || null;
 
   function registerReportEvent(context, reportId, eventType, payload = {}) {
     const ctx = requireInstitution(context);
@@ -452,7 +515,15 @@ export function createObraReportTransactionalService(options = {}) {
     const safe = objectOf(payload);
     requireApartmentHandoverSourceType(safe.sourceType || safe.source_type);
     const inspectionData = requirePayloadObject(safe.inspectionData || safe.inspection_data || safe.inspection_data_json, "inspection_data_required");
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.create === "function") {
+      return apartmentHandoverRepository.create(ctx, safe);
+    }
     const database = readDatabase(dataPath);
+    const idempotencyKey = inspectionIdempotencyKey(safe, inspectionData);
+    if (idempotencyKey) {
+      const existing = Object.values(database.apartmentHandoverInspections).find((record) => record.institution_id === ctx.institutionId && record.idempotency_key === idempotencyKey);
+      if (existing) return clone(existing);
+    }
     const createdAt = now();
     const inspection = {
       id: newId("obr_ahi"),
@@ -468,6 +539,7 @@ export function createObraReportTransactionalService(options = {}) {
       updated_by: ctx.userId || null,
       created_at: createdAt,
       updated_at: createdAt,
+      idempotency_key: idempotencyKey || null,
       completed_at: clean(safe.completedAt || safe.completed_at || inspectionData.completedAt || inspectionData.completed_at) || null,
       reopened_at: clean(safe.reopenedAt || safe.reopened_at || inspectionData.reopenedAt || inspectionData.reopened_at) || null
     };
@@ -478,6 +550,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function listApartmentHandoverInspections(context = {}, filters = {}) {
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.list === "function") return apartmentHandoverRepository.list(context, filters);
     requireInstitution(context);
     const safe = objectOf(filters);
     const projectId = clean(safe.projectId || safe.project_id);
@@ -494,6 +567,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function getApartmentHandoverInspection(context = {}, id) {
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.getById === "function") return apartmentHandoverRepository.getById(context, id);
     const inspection = readDatabase(dataPath).apartmentHandoverInspections[clean(id)] || null;
     requireAccess(inspection, context, "inspection_not_found", "inspection_forbidden");
     return clone(inspection);
@@ -501,6 +575,7 @@ export function createObraReportTransactionalService(options = {}) {
 
   function updateApartmentHandoverInspection(context = {}, id, payload = {}) {
     const ctx = requireInstitution(context);
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.update === "function") return apartmentHandoverRepository.update(ctx, id, payload);
     const database = readDatabase(dataPath);
     const current = database.apartmentHandoverInspections[clean(id)] || null;
     requireAccess(current, context, "inspection_not_found", "inspection_forbidden");
@@ -521,7 +596,51 @@ export function createObraReportTransactionalService(options = {}) {
     return clone(updated);
   }
 
+  function updateApartmentHandoverInspectionItem(context = {}, id, payload = {}) {
+    const ctx = requireInstitution(context);
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.updateItem === "function") return apartmentHandoverRepository.updateItem(ctx, id, payload);
+    const current = getApartmentHandoverInspection(ctx, id);
+    const safe = objectOf(payload);
+    const currentData = objectOf(current.inspection_data_json);
+    const resolved = resolveApartmentHandoverItem(currentData, safe);
+    const item = Object.assign({}, resolved.item);
+    if (safe.status !== undefined) item.status = normalizeApartmentHandoverItemStatus(safe.status);
+    if (safe.severity !== undefined || safe.severidade !== undefined) item.severidade = normalizeApartmentHandoverSeverity(safe.severity || safe.severidade);
+    if (safe.notes !== undefined || safe.observation !== undefined || safe.observacao !== undefined || safe.descricaoTecnica !== undefined) item.descricaoTecnica = clean(safe.notes || safe.observation || safe.observacao || safe.descricaoTecnica);
+    if (safe.recommendation !== undefined || safe.recomendacaoAcao !== undefined) item.recomendacaoAcao = clean(safe.recommendation || safe.recomendacaoAcao);
+    if (safe.situacao !== undefined) item.situacao = clean(safe.situacao);
+    if (safe.photo || safe.foto || safe.evidence || safe.evidencia) {
+      const evidence = objectOf(safe.photo || safe.foto || safe.evidence || safe.evidencia);
+      item.fotos = Array.isArray(item.fotos) ? item.fotos.slice() : [];
+      if (evidence.id && !item.fotos.some((photo) => clean(photo && photo.id) === clean(evidence.id))) item.fotos.push(evidence);
+    }
+    const nextData = clone(currentData);
+    const nextContainer = inspectionItemsContainer(nextData);
+    const resolvedId = clean(resolved.item && (resolved.item.id || resolved.item.itemId || resolved.item.inspectionItemId));
+    const targetIndex = resolvedId
+      ? nextContainer.parent[nextContainer.key].findIndex((candidate) => clean(candidate && (candidate.id || candidate.itemId || candidate.inspectionItemId)) === resolvedId)
+      : resolved.index;
+    if (targetIndex < 0) throw Object.assign(new Error("inspection_item_not_found"), { status: 404 });
+    nextContainer.parent[nextContainer.key][targetIndex] = item;
+    const updated = updateApartmentHandoverInspection(ctx, id, { inspectionData: nextData, status: safe.status === "completed" ? "completed" : current.status });
+    registerApartmentHandoverInspectionEvent(ctx, id, safe.photo || safe.foto || safe.evidence || safe.evidencia ? "inspection_photo_attached" : "inspection_item_updated", {
+      itemId: clean(item.id || safe.itemId || safe.item_id),
+      status: item.status || "",
+      severity: item.severidade || ""
+    });
+    return updated;
+  }
+
+  function attachApartmentHandoverInspectionPhoto(context = {}, id, payload = {}) {
+    const safe = objectOf(payload);
+    const evidence = safe.photo || safe.foto || safe.evidence || safe.evidencia;
+    if (!evidence || !Object.keys(objectOf(evidence)).length) throw Object.assign(new Error("inspection_photo_required"), { status: 400 });
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.attachPhoto === "function") return apartmentHandoverRepository.attachPhoto(context, id, payload);
+    return updateApartmentHandoverInspectionItem(context, id, Object.assign({}, safe, { photo: evidence }));
+  }
+
   function createApartmentHandoverInspectionVersion(context = {}, id) {
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.createVersion === "function") return apartmentHandoverRepository.createVersion(context, id);
     const database = readDatabase(dataPath);
     const inspection = database.apartmentHandoverInspections[clean(id)] || null;
     requireAccess(inspection, context, "inspection_not_found", "inspection_forbidden");
@@ -554,6 +673,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function listApartmentHandoverInspectionEvents(context = {}, id) {
+    if (apartmentHandoverRepository && typeof apartmentHandoverRepository.listEvents === "function") return apartmentHandoverRepository.listEvents(context, id);
     getApartmentHandoverInspection(context, id);
     return Object.values(readDatabase(dataPath).apartmentHandoverInspectionEvents)
       .filter((event) => event.inspection_id === clean(id))
@@ -614,6 +734,8 @@ export function createObraReportTransactionalService(options = {}) {
     listApartmentHandoverInspections,
     getApartmentHandoverInspection,
     updateApartmentHandoverInspection,
+    updateApartmentHandoverInspectionItem,
+    attachApartmentHandoverInspectionPhoto,
     createApartmentHandoverInspectionVersion,
     generateApartmentHandoverInspectionDocument,
     listApartmentHandoverInspectionEvents,
