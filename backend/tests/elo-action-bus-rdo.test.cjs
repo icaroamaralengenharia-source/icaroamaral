@@ -47,6 +47,14 @@ function loadBridge(options = {}) {
           options.createdRdos.push(created);
           return { ok: true, status: 201, json: async () => ({ ok: true, rdo: created }) };
         }
+        if (target.pathname.startsWith("/api/obrareport/rdos/") && target.pathname.endsWith("/generate-document") && method === "POST") {
+          const id = decodeURIComponent(target.pathname.split("/").slice(-2, -1)[0] || "");
+          const existing = (options.rdos || []).find((item) => item.id === id && item.institution_id === tenant);
+          if (!existing) return { ok: false, status: 404, json: async () => ({ ok: false, error: "rdo_not_found" }) };
+          options.generatedDocuments = options.generatedDocuments || [];
+          options.generatedDocuments.push(id);
+          return { ok: true, status: 201, json: async () => ({ ok: true, document: { id: "doc_" + id, document_type: "rdo/daily_log", rdo_id: id } }) };
+        }
         if (target.pathname.startsWith("/api/obrareport/rdos/") && method === "PUT") {
           const id = decodeURIComponent(target.pathname.split("/").pop() || "");
           const allRdos = (options.rdos || []).concat(options.createdRdos || []);
@@ -106,6 +114,26 @@ test("EloActionBusRdo parseia intents list/get/problemsByPeriod", () => {
   assert.equal(window.EloActionBusRdo.parseIntent({ payload: { message: "quais problemas se repetiram nos ultimos 30 dias?" } }).action, "rdo.problemsByPeriod");
   assert.equal(window.EloActionBusRdo.parseIntent({ action: "preview_new_rdo", payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } }).action, "rdo.create.preview");
   assert.equal(window.EloActionBusRdo.parseIntent({ action: "preview_new_rdo", payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } }).targetDate, "2026-09-04");
+});
+
+test("EloActionBusRdo separa geração de documento do preenchimento de RDO", async () => {
+  const generatedDocuments = [];
+  const { window, calls } = loadBridge({ localStorage: { obrareport_access_token: "token-a" }, rdos: [rdo("obr_rdo_1721f1765e566e3a4d7a0f0b", "inst_a", "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2", "2026-09-14", "")], generatedDocuments });
+  const parsed = window.EloActionBusRdo.parseIntent({ payload: { message: "Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026" } });
+  assert.equal(parsed.action, "rdo.generateDocument");
+  assert.equal(parsed.targetDate, "2026-09-14");
+  assert.equal(parsed.workName, "OBRA TESTE ELO E2E");
+
+  const response = await window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: parsed.action, context: Object.assign({}, contextA, { projectId: "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2" }), payload: { message: "Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026" } });
+  assert.equal(response.ok, true);
+  assert.equal(response.action, "rdo.generateDocument");
+  assert.equal(response.data.rdo.id, "obr_rdo_1721f1765e566e3a4d7a0f0b");
+  assert.equal(response.data.document.document_type, "rdo/daily_log");
+  assert.deepEqual(generatedDocuments, ["obr_rdo_1721f1765e566e3a4d7a0f0b"]);
+  assert.equal(calls.filter((call) => call.init.method === "GET").length, 1);
+  assert.equal(calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/generate-document")).length, 1);
+  assert.equal(calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/api/obrareport/rdos")).length, 0);
+  assert.equal(calls.filter((call) => call.init.method === "PUT").length, 0);
 });
 
 test("rdo.list consulta backend real com auth, tenant, obra e periodo", async () => {

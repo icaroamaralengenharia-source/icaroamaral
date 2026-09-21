@@ -383,6 +383,13 @@ test('ELO conversa natural roteia sem fallback generico', () => {
   assert.equal(technical.brain, 'technical');
   assert.notEqual(technical.brain, 'budget');
 });
+
+test('ELO roteia PDF de RDO existente para generateDocument', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const request = elo.detectCommandBridgeRequestForTest('Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026');
+  assert.equal(request.module, 'obrareport_rdo');
+  assert.equal(request.action, 'rdo.generateDocument');
+});
 test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
   const calls = [];
   const makeStep = (name, result) => ({
@@ -4785,7 +4792,7 @@ test("ELO Action Bus RDO: confirmações explícitas priorizam pending, cancelam
     assert.equal(request.action, "rdo_confirm", phrase);
     const confirmed = await elo.buildCommandBridgeResponseForTest(phrase, { context });
     assert.equal(confirmed.commandBridge.action, "rdo.create.execute", phrase);
-    assert.equal(calls.filter((call) => call.method === "POST").length, 1, phrase);
+    assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 1, phrase);
   }
 
   for (const phrase of ["não", "nao", "cancelar", "cancela", "não prossiga"]) {
@@ -4793,14 +4800,14 @@ test("ELO Action Bus RDO: confirmações explícitas priorizam pending, cancelam
     const cancelRequest = cancelledCase.elo.detectCommandBridgeRequestForTest(phrase);
     assert.equal(cancelRequest.action, "rdo_cancel", phrase);
     const cancelled = await cancelledCase.elo.buildCommandBridgeResponseForTest(phrase, { context: cancelledCase.context });
-    assert.equal(cancelledCase.calls.filter((call) => call.method === "POST").length, 0, phrase);
+    assert.equal(cancelledCase.calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0, phrase);
     assert.equal(cancelledCase.localStorage.getItem("elo_action_bus_rdo_pending_v1"), null, phrase);
     assert.match(cancelled.fullAnswer, /cancelada/i, phrase);
   }
 
   const ambiguousCase = await prepare();
   assert.equal(ambiguousCase.elo.detectCommandBridgeRequestForTest("sim, pode criar porque revisei tudo"), null);
-  assert.equal(ambiguousCase.calls.filter((call) => call.method === "POST").length, 0);
+  assert.equal(ambiguousCase.calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0);
 });
 
 
