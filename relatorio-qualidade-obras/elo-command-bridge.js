@@ -1022,7 +1022,14 @@
   function extractRdoWorkName_(raw) {
     const text = clean(raw);
     if (!text) return "";
-    const inline = text.match(/\b(?:na|no|em)\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|[.!?]+\s*$|$)/i);
+    const explicitObra = text.match(/\b(?:da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    if (explicitObra) return clean(explicitObra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
+    const obra = text.match(/\bobra\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    if (obra) {
+      const obraCandidate = clean(obra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
+      if (obraCandidate && !/^(?:ela|ele)$/i.test(obraCandidate)) return obraCandidate;
+    }
+    const inline = text.match(/\b(?:na|no|em|da|do|das|dos)\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
     if (!inline) return "";
     const candidate = clean(inline[1]).replace(/^["“']|["”']$/g, "");
     return /^(?:obra|projeto|ela|ele)$/i.test(candidate) ? "" : candidate;
@@ -1035,7 +1042,7 @@
     const text = normalize(raw);
     const nowDate = payload.now ? new Date(payload.now) : new Date();
     const parsed = {
-      action: /^rdo\./.test(action) ? action : action === "rdo_confirm" ? "rdo.confirm" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
+      action: /^rdo\./.test(action) ? action : /^(?:close_rdo|generate_rdo_document|generate_document|rdo_generate_document)$/.test(action) ? "rdo.generateDocument" : action === "rdo_confirm" ? "rdo.confirm" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
       raw,
       rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
       projectId: clean(payload.projectId || payload.project_id),
@@ -1063,7 +1070,8 @@
       parsed.startDate = isoDate(addDays(nowDate, -Number(lastDays[1]) + 1));
     }
     if (!parsed.action) {
-      if (/\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*)\b/.test(text)) parsed.action = "rdo.problemsByPeriod";
+      if (/\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar)\b/.test(text)) parsed.action = "rdo.generateDocument";
+      else if (/\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*)\b/.test(text)) parsed.action = "rdo.problemsByPeriod";
       else if (/\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|\d{1,2}\/\d{1,2})\b/.test(text)) parsed.action = "rdo.get";
       else parsed.action = "rdo.list";
     }
@@ -1244,6 +1252,21 @@
       const summary = summarizeRdo(rdo);
       saveRdoContext(input, rdo);
       return rdoResult(input, { action: "rdo.get", mode: "read", humanAnswer: "Encontrei o RDO " + (summary.date ? "de " + summary.date + " " : "") + "(" + summary.title + ").", data: { rdo: summary, rawRdo: rdo } });
+    });
+  }
+  function executeRdoGenerateDocument(input, intent) {
+    return fetchRdos(input, intent).then(function (rdos) {
+      const rdo = resolveRdo(rdos, intent);
+      return generateRdoDocument(input, rdo).then(function (generated) {
+        const summary = summarizeRdo(rdo);
+        saveRdoContext(input, rdo);
+        return rdoResult(input, {
+          action: "rdo.generateDocument",
+          mode: "execute",
+          humanAnswer: "PDF do RDO " + (summary.date ? "de " + summary.date + " " : "") + "gerado com sucesso.",
+          data: { rdo: summary, document: generated.document || generated.generatedDocument || null }
+        });
+      });
     });
   }
   function executeRdoProblemsByPeriod(input, intent) {
@@ -1562,12 +1585,31 @@
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
       if (intent.invalidPeriod) return rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" });
-      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
+      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.generateDocument" ? executeRdoGenerateDocument : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
       return run(input, intent).catch(function (error) {
         const code = clean(error && error.message) || "rdo_error";
         if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
         if (code === "rdo_not_found") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse RDO no contexto autenticado. Nenhum RDO foi inventado.", error: code });
         return rdoResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de RDO. O backend retornou: " + code + ".", error: code });
+      });
+    });
+  }
+
+  function generateRdoDocument(input, rdo) {
+    const rdoId = clean(rdo && rdo.id);
+    if (!rdoId) return Promise.reject(new Error("rdo_not_found"));
+    return window.fetch(getStockEndpoint("/api/obrareport/rdos/" + encodeURIComponent(rdoId) + "/generate-document"), {
+      method: "POST",
+      headers: rdoHeaders(input)
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          const error = new Error(clean(data.error || data.code) || "rdo_document_generation_failed");
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+        return data;
       });
     });
   }

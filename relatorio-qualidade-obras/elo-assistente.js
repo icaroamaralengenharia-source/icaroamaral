@@ -895,13 +895,14 @@
     }
     const hasRdoTerm = /\b(?:rdo|rdos|diario\s+de\s+obra|diário\s+de\s+obra|diarios\s+de\s+obra|diários\s+de\s+obra)\b/.test(text);
     const wantsRdoUpdate = hasRdoTerm && /\b(?:atualize|atualizar|adicione|adicionar|inclua|incluir|registre|registrar)\b/.test(text);
-    const wantsRdoCreate = hasRdoTerm && !wantsRdoUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
+    const wantsRdoGenerateDocument = hasRdoTerm && /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar|gerar\s+documento|gere\s+documento|relat[oó]rio\s+pdf)\b/.test(text);
+    const wantsRdoCreate = hasRdoTerm && !wantsRdoGenerateDocument && !wantsRdoUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
     const wantsRdoList = hasRdoTerm && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|últimos|recentes|existem|cadastrados|registrados)\b/.test(text));
-    const wantsRdoGet = hasRdoTerm && /\b(?:abra|abrir|mostre|mostrar|ultimo|último|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text) && !wantsRdoList && !wantsRdoCreate;
+    const wantsRdoGet = hasRdoTerm && /\b(?:abra|abrir|mostre|mostrar|ultimo|último|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text) && !wantsRdoList && !wantsRdoCreate && !wantsRdoGenerateDocument;
     const wantsRdoProblems = /\b(?:problemas?|ocorrencias?|ocorrências?|pendencias?|pendências?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);
-    const wantsRdoClose = hasRdoTerm && /\b(?:feche|fechar|gere\s+o\s+pdf|gerar\s+pdf|exporte\s+pdf|exportar\s+pdf)\b/.test(text);
-    if (wantsRdoProblems || wantsRdoGet || wantsRdoCreate || wantsRdoClose || wantsRdoList) {
-      const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
+    const wantsRdoClose = hasRdoTerm && /\b(?:feche|fechar)\b/.test(text) && !wantsRdoGenerateDocument;
+    if (wantsRdoProblems || wantsRdoGet || wantsRdoCreate || wantsRdoGenerateDocument || wantsRdoClose || wantsRdoList) {
+      const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGenerateDocument ? "rdo.generateDocument" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
       return { module: "obrareport_rdo", action: action, payload: payload };
     }
     if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
@@ -933,7 +934,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.generateDocument$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;

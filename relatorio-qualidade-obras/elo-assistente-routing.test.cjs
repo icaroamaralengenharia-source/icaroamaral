@@ -360,6 +360,13 @@ test('ELO conversa natural roteia sem fallback generico', () => {
   assert.equal(technical.brain, 'technical');
   assert.notEqual(technical.brain, 'budget');
 });
+
+test('ELO roteia PDF de RDO existente para generateDocument', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const request = elo.detectCommandBridgeRequestForTest('Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026');
+  assert.equal(request.module, 'obrareport_rdo');
+  assert.equal(request.action, 'rdo.generateDocument');
+});
 test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
   const calls = [];
   const makeStep = (name, result) => ({
