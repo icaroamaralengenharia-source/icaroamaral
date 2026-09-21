@@ -20,6 +20,7 @@
     webSearchEndpoint: "",
     webSearchRequiresConfirmation: true,
     chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
+    criticalHealthEndpoint: getEloBackendEndpoint_("/api/health"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory"),
     budgetRecordsStorageKey: "elo_budget_records_v1",
     budgetCounterStorageKey: "elo_budget_counter_v1"
@@ -67,6 +68,9 @@
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
+    if (window.EloRuntimeConfig && typeof window.EloRuntimeConfig.apiUrl === "function") {
+      return window.EloRuntimeConfig.apiUrl(path);
+    }
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
     const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") ||
       window.location.protocol === "file:";
@@ -850,6 +854,16 @@
     const hasStockContext = /\b(?:estoque|stock|stock\s+full|almoxarifado|unidade|un\.?|kg|saco|sacos|m2|m3|m²|m³|metro|metros)\b/.test(text);
     return Boolean(hasProductTerm && hasStockContext && (hasCreateVerb || hasNewProduct));
   }
+  function isEloRdoConfirmationPositive_(text) {
+    return /^(?:sim|s|confirmo|confirmar|pode criar|pode prosseguir|prossiga|pode executar)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
+  }
+  function isEloRdoConfirmationNegative_(text) {
+    return /^(?:nao|cancelar|cancela|nao prossiga)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
+  }
+  function isEloRdoPendingConfirmation_(pending) {
+    if (!pending || !/^(?:pending|saving|saved)$/.test(String(pending.status || ""))) return false;
+    return /^(?:rdo\.(?:create|update)\.(?:preview|execute))$/.test(String(pending.action || ""));
+  }
   function detectEloCommandBridgeRequest_(message) {
     const raw = sanitizeUserText(message || "");
     const text = canonicalizeEloSemanticText_(raw);
@@ -857,10 +871,13 @@
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
-    if (pendingRdo && /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|ok|certo)$/.test(text) && /^rdo\.(?:create|update)\.execute$/.test(pendingRdo.action)) {
+    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
       return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
     }
-    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !/^(?:sim|confirmo|confirmar|pode confirmar|ok|certo|nao|não|cancelar|cancela|abortar)$/.test(text)) {
+    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationNegative_(text)) {
+      return { module: "obrareport_rdo", action: "rdo_cancel", payload: payload };
+    }
+    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !isEloRdoConfirmationPositive_(text) && !isEloRdoConfirmationNegative_(text)) {
       return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, { workName: raw }) };
     }
     if (isEloExplicitMemoryCommand_(raw)) {
@@ -934,7 +951,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.generateDocument$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.generateDocument$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;
@@ -1429,8 +1446,8 @@
     if (/\b(?:liste|listar|mostre|mostrar|abra|abrir|qual|quais|ultimo|ultimos|historico|consultar|consulta)\b[\s\S]{0,60}\b(?:relatorios?|relat.rios?|manifestacoes?|fotos?)\b/.test(text)) return false;
     const hasCreateVerb = /\b(?:faca|fazer|gere|gerar|crie|criar|monte|montar|transforme|transformar|elabore|elaborar|coloque|preparar|prepare)\b/.test(text);
     const hasReportNoun = /\b(?:relatorio|relat.rio|pdf|laudo|parecer|documento)\b/.test(text);
-    const hasAnaphora = /\b(?:isso|dessa\s+analise|desta\s+analise|essa\s+analise|esta\s+analise|o\s+que\s+voce\s+encontrou|o\s+que\s+encontrou|esses\s+problemas|dos\s+problemas\s+encontrados|isso\s+ai|arquivo\s+analisado|fotos\s+analisadas|com\s+isso|relatando\s+isso|dessa\s+avaliacao|deste\s+diagnostico)\b/.test(text);
-    return hasCreateVerb && hasReportNoun && hasAnaphora;
+    const hasAnaphora = /\b(?:isso|disso|dessa\s+analise|desta\s+analise|essa\s+analise|esta\s+analise|o\s+que\s+voce\s+encontrou|o\s+que\s+encontrou|esses\s+problemas|dos\s+problemas\s+encontrados|isso\s+ai|arquivo\s+analisado|fotos\s+analisadas|com\s+isso|relatando\s+isso|dessa\s+avaliacao|deste\s+diagnostico)\b/.test(text);
+    return hasCreateVerb && hasReportNoun && (hasAnaphora || /\b(?:de\s+qualidade|o\s+relatorio)\b/.test(text));
   }
 
   function formatEloAnalysisContextReport_(context) {
@@ -1449,7 +1466,7 @@
       return { shortAnswer: "Nao tenho uma analise recente para transformar em relatorio.", fullAnswer: "Nao tenho uma analise recente para transformar em relatorio. Envie ou cole a analise, ou anexe o arquivo/foto para eu analisar primeiro.", nextAction: "Analise um arquivo, foto, RDO ou vistoria antes de pedir o relatorio disso.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context_missing_context", action: "generate_report_from_context" };
     }
     const report = formatEloAnalysisContextReport_(context);
-    return { shortAnswer: "Preparei o relatorio com base na analise anterior.", fullAnswer: "Preparei o relatorio com base na analise anterior.\n\n" + report, nextAction: "Revise os dados ausentes antes de entregar ao cliente ou transformar em PDF formal.", canSave: true, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: "last_analysis", context: context, text: report } };
+    return { shortAnswer: "Vou gerar o relatorio real com base na analise anterior.", fullAnswer: "Vou gerar o relatorio real com base na analise anterior.\n\n" + report, nextAction: "Revise o arquivo gerado antes de entregar ao cliente.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: "last_analysis", context: context, text: report, realReportAction: true } };
   }
   function applyEloBudgetRouteContext_() {
     const context = getEloBudgetRouteContext_();
@@ -1815,7 +1832,32 @@
       }
     });
     actions.appendChild(pdfButton);
+    const feedback = createElement("div", "elo-message-actions elo-feedback-actions");
+    feedback.setAttribute("data-elo-feedback-group", "true");
+    const responseId = sanitizeUserText(message.dataset && message.dataset.eloResponseId || "").slice(0, 120);
+    if (responseId) feedback.setAttribute("data-elo-response-id", responseId);
+    const positiveFeedback = createElement("button", "elo-inline-button", "👍");
+    const negativeFeedback = createElement("button", "elo-inline-button", "👎");
+    positiveFeedback.type = "button";
+    negativeFeedback.type = "button";
+    positiveFeedback.title = "Resposta útil";
+    negativeFeedback.title = "Resposta precisa melhorar";
+    positiveFeedback.setAttribute("data-elo-feedback", "THUMBS_UP");
+    negativeFeedback.setAttribute("data-elo-feedback", "THUMBS_DOWN");
+    negativeFeedback.addEventListener("click", function () {
+      if (feedback.querySelector("[data-elo-feedback-reason]")) return;
+      ["ERRADA", "NÃO_ENTENDEU", "MUITO_LONGA", "MUITO_CURTA", "NÃO_USOU_CONTEXTO", "OUTRO"].forEach(function (reason) {
+        const reasonButton = createElement("button", "elo-inline-button", reason);
+        reasonButton.type = "button";
+        reasonButton.setAttribute("data-elo-feedback", "NEGATIVE_" + reason);
+        reasonButton.setAttribute("data-elo-feedback-reason", reason);
+        feedback.appendChild(reasonButton);
+      });
+    });
+    feedback.appendChild(positiveFeedback);
+    feedback.appendChild(negativeFeedback);
     message.appendChild(actions);
+    message.appendChild(feedback);
     scrollEloConversationToBottom_({ force: true });
     return true;
   }
@@ -2840,13 +2882,14 @@
   }
 
   function hasEloPendingActionForSocialFastPath_() {
+    const rdoPending = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     return !!(
       getEloMusicPendingCandidate_ && getEloMusicPendingCandidate_() ||
       isEloRdoPreviewActive_ && isEloRdoPreviewActive_() ||
       hasEloBudgetRoutePending_ && hasEloBudgetRoutePending_() ||
       ELO_SESSION_MEMORY.activeResidentialBudgetState ||
       ELO_SESSION_MEMORY.budgetOrchestratorV2 ||
-      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active || rdoPending && /^(?:rdo\.(?:create|update)\.execute)$/.test(String(rdoPending.action || ""))
     );
   }
 
@@ -3006,9 +3049,11 @@
         return data;
       });
     }).catch(function (error) {
-      if (error && error.status) throw error;
+      const status = Number(error && error.status) || 0;
+      if (status >= 400 && status < 500) throw error;
       const transient = new Error("sessao_validacao_indisponivel");
       transient.transient = true;
+      transient.status = status || 0;
       throw transient;
     });
   }
@@ -3103,7 +3148,7 @@
           ELO_UI.coreAuthMergePromise = null;
           renderEloCoreAuthPanel_();
           setEloCoreAuthStatus_("Usuario autenticado.", false);
-          return data;
+          return reconcileEloCriticalAvailability_().then(function () { return data; });
         });
       });
     }).catch(function (error) { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida.", true); throw error; }).then(function (data) {
@@ -3164,7 +3209,9 @@
       .then(function () {
         window.ELO_AUTH_SESSION_VALIDATED = true;
         ELO_UI.allowAuthContextChangeDuringBootstrap = true;
-        return ensureEloCoreAuthMerge_();
+        return reconcileEloCriticalAvailability_().then(function () {
+          return ensureEloCoreAuthMerge_();
+        });
       })
       .then(function () {
         ELO_UI.allowAuthContextChangeDuringBootstrap = false;
@@ -8465,7 +8512,7 @@
       return router.classifyBackendResult({ status: response && response.status });
     }
     const status = Number(response && response.status);
-    if (status === 0 || status === 502 || status === 503 || status === 504) return "BACKEND_UNAVAILABLE";
+    if (status === 0 || status === 500 || status === 502 || status === 503 || status === 504) return "BACKEND_UNAVAILABLE";
     if (status === 400 || status === 401 || status === 403 || status === 404) return "ONLINE_VALIDATED";
     if (status >= 200 && status < 500) return "ONLINE_VALIDATED";
     return "ONLINE_UNVERIFIED";
@@ -8480,10 +8527,13 @@
   }
 
   function noteEloChatTransportResponse_(response) {
-    return setEloChatTransportState_(classifyEloChatTransportResponse_(response), {
+    const state = classifyEloChatTransportResponse_(response);
+    const noted = setEloChatTransportState_(state, {
       status: Number(response && response.status) || 0,
       reason: response && response.ok ? "http_ok" : "http_not_ok"
     });
+    if (state === "ONLINE_VALIDATED") setEloConnectivityState_(true, "backend_response");
+    return noted;
   }
 
   function noteEloChatTransportError_(error) {
@@ -8495,11 +8545,16 @@
   function requestEloOnlineAnswer(question, attachments, options) {
     const requestOptions = options && typeof options === "object" ? options : {};
     const isTechnicalContinuation = requestOptions.technicalContinuation === true;
-    if (!isEloOnline_()) {
+    // Android WebView can report navigator.onLine=false while the validated
+    // session and backend are reachable. Do not block a critical chat request
+    // on that weak browser hint; the response remains the source of truth.
+    if (!isEloOnline_() && window.ELO_AUTH_SESSION_VALIDATED !== true) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
+      if (window.EloTelemetry) window.EloTelemetry.track("OFFLINE_COMMAND", { route: "chat", status: "OFFLINE", offline_used: true });
       return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
     }
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
+      if (window.EloTelemetry) window.EloTelemetry.track("BACKEND_UNAVAILABLE", { route: "chat", status: "ERROR", error_code: "BACKEND_5XX" });
       return Promise.resolve(null);
     }
 
@@ -8536,6 +8591,16 @@
     };
     logEloMemorySummaryEvent_("MEMORY_CONTEXT_SENT", { hasExplicit: Boolean(payload.context.memoriesSummary) });
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
+    const telemetryStartedAt = window.performance && typeof window.performance.now === "function" ? window.performance.now() : Date.now();
+    if (window.EloTelemetry) window.EloTelemetry.track("CHAT_SENT", {
+      route: "chat",
+      status: "PENDING",
+      attachment_type: files.length ? (files[0].type || "unknown") : "none",
+      attachment_size: files.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0),
+      context_turn_count: payload.history.length,
+      memory_used: Boolean(payload.context.memoriesSummary),
+      project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+    });
     if (!files.length) {
       applyEloActiveDocumentContextToPayload_(payload, payload.message);
     }
@@ -8562,6 +8627,13 @@
           body: formData
         }).then(function (response) {
           noteEloChatTransportResponse_(response);
+          if (window.EloTelemetry) window.EloTelemetry.track(response && response.ok ? "CHAT_RESPONSE" : "CHAT_FAILED", {
+            route: "chat", status: response && response.ok ? "SUCCESS" : "ERROR", http_status: response && response.status,
+            latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt,
+            attachment_type: files[0] && files[0].type || "unknown",
+            attachment_size: files.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0),
+            context_turn_count: payload.history.length, memory_used: Boolean(payload.context.memoriesSummary), project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+          });
               return response.json().catch(function () {
             return null;
           });
@@ -8583,6 +8655,7 @@
           return null;
         }).catch(function (error) {
           noteEloChatTransportError_(error);
+              if (window.EloTelemetry) window.EloTelemetry.track("CHAT_FAILED", { route: "chat", status: "ERROR", error_code: "NETWORK_TIMEOUT", latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt });
               return null;
         });
       }).catch(function () {
@@ -8598,6 +8671,11 @@
       body: JSON.stringify(payload)
     }).then(function (response) {
       noteEloChatTransportResponse_(response);
+      if (window.EloTelemetry) window.EloTelemetry.track(response && response.ok ? "CHAT_RESPONSE" : "CHAT_FAILED", {
+        route: "chat", status: response && response.ok ? "SUCCESS" : "ERROR", http_status: response && response.status,
+        latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt,
+        context_turn_count: payload.history.length, memory_used: Boolean(payload.context.memoriesSummary), project_context_used: Boolean(payload.context.projectId || payload.context.project_id)
+      });
       return response.json().catch(function () {
         return null;
       });
@@ -8619,6 +8697,7 @@
       return null;
     }).catch(function (error) {
       noteEloChatTransportError_(error);
+      if (window.EloTelemetry) window.EloTelemetry.track("CHAT_FAILED", { route: "chat", status: "ERROR", error_code: "NETWORK_TIMEOUT", latency_ms: (window.performance && window.performance.now ? window.performance.now() : Date.now()) - telemetryStartedAt });
       return null;
     });
   }
@@ -28149,9 +28228,13 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
       getEloBackendEndpoint_("/api/ai/analyze-image");
+    const authHeaders = getEloCoreAuthHeaders_();
+    if (!authHeaders.Authorization) {
+      throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+    }
     const response = await fetch(configuredEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
       body: JSON.stringify({ image: imagePayload, context: context })
     });
     const result = await response.json();
@@ -28161,16 +28244,24 @@ function isEloResidentialNewPipelineEnabled_() {
     return result;
   }
 
-  function buildEloReportPayload_(message, imagePayload, imageAnalysis) {
+  function buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext) {
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
     const promptContext = sanitizeUserText(message) || "Relatorio gerado pelo Elo com imagem anexada.";
-    const visualReport = imageAnalysis && imageAnalysis.reportText ? imageAnalysis.reportText : promptContext;
-    const photo = Object.assign({}, imagePayload, {
+    const contextReport = analysisContext ? formatEloAnalysisContextReport_(analysisContext) : "";
+    const visualReport = imageAnalysis && imageAnalysis.reportText ? imageAnalysis.reportText : contextReport || promptContext;
+    const photo = imagePayload ? Object.assign({}, imagePayload, {
       originalName: imagePayload.originalName || imagePayload.fileName || "imagem-elo.jpg",
       fileName: imagePayload.fileName || "imagem-elo.jpg",
       mimeType: imagePayload.mimeType || "image/jpeg"
-    });
+    }) : null;
+    const inconformidade = {
+      numero: "01",
+      descricaoTecnica: imageAnalysis && imageAnalysis.technicalDescription ? imageAnalysis.technicalDescription : visualReport,
+      solucaoRecomendada: imageAnalysis && imageAnalysis.recommendedAction ? imageAnalysis.recommendedAction : "Revisar tecnicamente o registro antes da entrega ao cliente.",
+      grauRisco: imageAnalysis && imageAnalysis.riskLevel ? imageAnalysis.riskLevel : "A avaliar"
+    };
+    if (photo) inconformidade.foto = photo;
 
     return {
       submittedAt: now.toISOString(),
@@ -28192,74 +28283,78 @@ function isEloResidentialNewPipelineEnabled_() {
         observacoes: visualReport,
         emailDestino: "icaroamaralengenharia@gmail.com"
       },
-      fotosUnidade: [
-        {
-          numero: "01",
-          descricao: visualReport,
-          foto: photo
-        }
-      ],
-      inconformidades: [
-        {
-          numero: "01",
-          descricaoTecnica: imageAnalysis && imageAnalysis.technicalDescription ? imageAnalysis.technicalDescription : visualReport,
-          solucaoRecomendada: imageAnalysis && imageAnalysis.recommendedAction ? imageAnalysis.recommendedAction : "Revisar tecnicamente o registro antes da entrega ao cliente.",
-          grauRisco: imageAnalysis && imageAnalysis.riskLevel ? imageAnalysis.riskLevel : "A avaliar",
-          foto: photo
-        }
-      ]
+      fotosUnidade: photo ? [{ numero: "01", descricao: visualReport, foto: photo }] : [],
+      inconformidades: [inconformidade]
     };
   }
-  async function generateEloReportPdfFromChat_(message, attachments) {
-    const appsScriptUrl = getEloReportAppsScriptUrl_();
+  async function generateEloReportPdfFromChat_(message, attachments, analysisContext) {
     const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
     const statusMessage = appendMessage("assistant", "Analisando imagem e gerando PDF real pelo ObraReport...");
 
     try {
-      if (!appsScriptUrl) {
-        throw new Error("Apps Script do ObraReport nao esta configurado nesta pagina.");
-      }
-      if (!imageFile) {
+      if (!imageFile && !analysisContext) {
         throw new Error("Anexe uma imagem JPG ou PNG e peca novamente para gerar o relatorio.");
       }
 
-      const imagePayload = await compressEloImageAttachment_(imageFile);
-      const rawAnalysis = await analyzeEloImageForReport_(imagePayload, message, imageFile);
-      if (rawAnalysis && rawAnalysis.mode === "error") {
-        throw new Error(rawAnalysis.suggestion || rawAnalysis.note || "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+      let imagePayload = null;
+      let imageAnalysis = null;
+      if (imageFile) {
+        imagePayload = await compressEloImageAttachment_(imageFile);
+        const rawAnalysis = await analyzeEloImageForReport_(imagePayload, message, imageFile);
+        if (rawAnalysis && rawAnalysis.mode === "error") {
+          throw new Error(rawAnalysis.suggestion || rawAnalysis.note || "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+        }
+        imageAnalysis = normalizeEloReportImageAnalysis_(rawAnalysis, message);
+      } else {
+        imageAnalysis = {
+          reportText: formatEloAnalysisContextReport_(analysisContext),
+          technicalDescription: (analysisContext.findings || []).join(" ") || analysisContext.summary || "Analise tecnica anterior do ELO.",
+          recommendedAction: (analysisContext.recommendations || []).join(" ") || "Revisar tecnicamente os achados antes da entrega.",
+          riskLevel: (analysisContext.risks || []).join(" ") || "A avaliar"
+        };
       }
-      const imageAnalysis = normalizeEloReportImageAnalysis_(rawAnalysis, message);
-      const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis);
-      const response = await fetch(appsScriptUrl, {
+      const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis, analysisContext);
+      const surfaceScope = typeof getEloObraSnapshotScope_ === "function" ? getEloObraSnapshotScope_() : {};
+      const sourceType = analysisContext ? "analysis" : "image_analysis";
+      const sourceId = analysisContext && (analysisContext.id || analysisContext.sourceId)
+        ? sanitizeUserText(analysisContext.id || analysisContext.sourceId)
+        : "elo-image-" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sanitizeUserText(imageFile && imageFile.name));
+      const idempotencyKey = "elo-report:" + sourceType + ":" + simpleEloChecksum_(sanitizeUserText(message) + "|" + sourceId + "|" + sanitizeUserText(imageAnalysis && imageAnalysis.reportText));
+      const registry = await eloCoreFetch_("/api/obrareport/documents/generate", {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          sourceType: sourceType,
+          sourceId: sourceId,
+          workId: sanitizeUserText(surfaceScope && surfaceScope.workId || window.ELO_WORK_ID || ""),
+          idempotencyKey: idempotencyKey,
+          title: "Relatorio gerado pelo Elo",
+          documentType: "technical_report_pdf",
+          generatorPayload: payload,
+          metadata: { source: "elo-assistente", sourceSurface: "shared-elo" }
+        })
       });
-      const text = await response.text();
-      let result = null;
-
-      try {
-        result = JSON.parse(text);
-      } catch (error) {
-        throw new Error("O Apps Script respondeu em formato inesperado.");
-      }
-
-      if (!response.ok || !result || !result.ok || !result.pdfUrl) {
-        throw new Error((result && result.error) || "Nao foi possivel gerar o PDF agora.");
+      const registryDocument = registry && registry.document || {};
+      const result = {
+        ok: registry && registry.ok === true,
+        openUrl: sanitizeUserText(registry && (registry.openUrl || registry.open_url) || registryDocument.open_url),
+        requestId: sanitizeUserText(registry && registry.requestId || registryDocument.request_id)
+      };
+      if (!result.ok || !result.openUrl) {
+        throw new Error((registry && registry.error) || "Nao foi possivel registrar o PDF agora.");
       }
 
       const answer = [
-        "PDF real gerado pelo ObraReport com base na analise visual da imagem.",
+        analysisContext ? "PDF real gerado pelo ObraReport com base na analise anterior." : "PDF real gerado pelo ObraReport com base na analise visual da imagem.",
         "",
         imageAnalysis.reportText,
         "",
-        "Link do PDF: " + result.pdfUrl,
+        "Abra o PDF pelo ELO.",
         result.requestId ? "Request ID: " + result.requestId : "",
         "",
         "Revise o arquivo antes de enviar ao cliente."
       ].filter(Boolean).join("\n");
       updateEloMessage_(statusMessage, answer);
-      appendEloPdfDownloadAction_(statusMessage, result.pdfUrl);
+      appendEloPdfDownloadAction_(statusMessage, result.openUrl, true);
       saveConversation(message, answer);
       rememberSessionTurn(message, {
         sessionTheme: "obrareport_pdf_real",
@@ -28270,6 +28365,7 @@ function isEloResidentialNewPipelineEnabled_() {
       updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui gerar o PDF agora.");
     } finally {
       clearProductAttachmentPreview();
+      removeTypingIndicator();
     }
   }
   const ELO_RDO_PREVIEW_MAX_PHOTOS = 12;
@@ -28658,6 +28754,22 @@ function isEloResidentialNewPipelineEnabled_() {
     return !ELO_UI.connectivity || ELO_UI.connectivity.online !== false;
   }
 
+  function reconcileEloCriticalAvailability_() {
+    if (window.ELO_AUTH_SESSION_VALIDATED !== true || !window.fetch || !ELO_CONFIG.criticalHealthEndpoint) {
+      return Promise.resolve(false);
+    }
+    return window.fetch(ELO_CONFIG.criticalHealthEndpoint, { method: "GET", cache: "no-store" }).then(function (response) {
+      const status = Number(response && response.status) || 0;
+      if (status >= 200 && status < 300) {
+        setEloConnectivityState_(true, "backend_health");
+        return true;
+      }
+      return false;
+    }).catch(function () {
+      return false;
+    });
+  }
+
   function ensureEloConnectivityBadge_() {
     if (ELO_UI.connectivityBadge || !window.document || !document.body) return ELO_UI.connectivityBadge;
     const badge = createElement("div", "elo-offline-badge");
@@ -28706,7 +28818,15 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.connectivity.initialized = true;
     if (window.addEventListener) {
       window.addEventListener("online", function () { setEloConnectivityState_(true, "online_event"); });
-      window.addEventListener("offline", function () { setEloConnectivityState_(false, "offline_event"); });
+      window.addEventListener("offline", function () {
+        if (window.ELO_AUTH_SESSION_VALIDATED === true) {
+          reconcileEloCriticalAvailability_().then(function (reachable) {
+            if (!reachable) setEloConnectivityState_(false, "offline_event");
+          });
+          return;
+        }
+        setEloConnectivityState_(false, "offline_event");
+      });
     }
     renderEloConnectivityBadge_();
     return ELO_UI.connectivity;
@@ -28830,7 +28950,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const tokens = normalized.split(/\s+/).filter(Boolean);
     if (tokens.length < 2) return false;
     if (/\b(?:oi|ola|olá|estou|tenho|quero|como|qual|quanto|porque|por que|compare|analise|análise|crie|gere|faca|faça|continue|valeu|obrigado|obrigada|e se)\b/i.test(normalized)) return false;
-    return ELO_MUSIC_ARTIST_HINTS_.some(function (hint) { return normalized.indexOf(hint) >= 0; }) || /\b(?:do|da|de|by)\b/i.test(normalized) || /^(?:faixa|musica|música)\b/i.test(normalized);
+    return ELO_MUSIC_ARTIST_HINTS_.some(function (hint) { return normalized.indexOf(hint) >= 0; }) || /^(?:faixa|musica|música)\b/i.test(normalized);
   }
 
   function readEloWakeAliasForRouting_(message) {
@@ -29992,6 +30112,21 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const priorityCommandBridgeRequest = detectEloCommandBridgeRequest_(cleanQuestion);
       if (isEloCommandBridgePriorityRequest_(priorityCommandBridgeRequest)) {
+        if (priorityCommandBridgeRequest.module === "obrareport_report" && priorityCommandBridgeRequest.action === "generate_report_from_context") {
+          const reportContextResponse = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
+          const reportContext = getEloActiveAnalysisContext_();
+          if (!reportContext) {
+            const missingContextAnswer = formatResponse(reportContextResponse);
+            appendAssistantMessage(cleanQuestion, missingContextAnswer, false, reportContextResponse);
+            saveConversation(cleanQuestion, missingContextAnswer);
+            rememberSessionTurn(cleanQuestion, reportContextResponse, missingContextAnswer);
+            clearProductAttachmentPreview();
+            removeTypingIndicator();
+            return;
+          }
+          generateEloReportPdfFromChat_(cleanQuestion, [], reportContext);
+          return;
+        }
         const priorityCommandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (priorityCommandBridgeResponse) {
           if (isEloAsyncResponse_(priorityCommandBridgeResponse)) {
@@ -30571,6 +30706,12 @@ function isEloResidentialNewPipelineEnabled_() {
     input.addEventListener("change", function () {
       ELO_UI.attachments = Array.prototype.slice.call(input.files || []).slice(0, getEloAttachmentLimit_());
       renderProductAttachmentStatus();
+      if (window.EloTelemetry) window.EloTelemetry.track("ATTACHMENT_SELECTED", {
+        route: "chat",
+        status: "SUCCESS",
+        attachment_type: ELO_UI.attachments[0] && ELO_UI.attachments[0].type || "unknown",
+        attachment_size: ELO_UI.attachments.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0)
+      });
     });
 
     return { button: button, input: input };
@@ -31550,6 +31691,30 @@ function isEloResidentialNewPipelineEnabled_() {
     scrollEloConversationToBottom_({ force: shouldStick });
   }
 
+  function appendEloFeedbackActions_(message) {
+    if (!message || !message.classList || !message.classList.contains("assistant")) return false;
+    if (message.querySelector && message.querySelector("[data-elo-feedback-group]")) return false;
+    if (message.classList.contains("is-analyzing") || message.classList.contains("is-error")) return false;
+    const responseId = sanitizeUserText(message.dataset && message.dataset.eloResponseId || "").slice(0, 120);
+    const feedback = createElement("div", "elo-message-actions elo-feedback-actions");
+    feedback.setAttribute("data-elo-feedback-group", "true");
+    if (responseId) feedback.setAttribute("data-elo-response-id", responseId);
+    const positive = createElement("button", "elo-inline-button", "👍");
+    const negative = createElement("button", "elo-inline-button", "👎");
+    positive.type = "button";
+    negative.type = "button";
+    positive.title = "Resposta útil";
+    negative.title = "Resposta precisa melhorar";
+    positive.setAttribute("aria-label", "Resposta útil");
+    negative.setAttribute("aria-label", "Resposta precisa melhorar");
+    positive.setAttribute("data-elo-feedback", "THUMBS_UP");
+    negative.setAttribute("data-elo-feedback", "THUMBS_DOWN");
+    feedback.appendChild(positive);
+    feedback.appendChild(negative);
+    message.appendChild(feedback);
+    return true;
+  }
+
   function appendEloPdfDownloadAction_(message, pdfUrl) {
     if (!message || !pdfUrl) {
       return;
@@ -31557,9 +31722,40 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const actions = createElement("div", "elo-library-actions");
     const openButton = createElement("a", "elo-inline-button", "Abrir / baixar PDF");
-    openButton.href = pdfUrl;
-    openButton.target = "_blank";
-    openButton.rel = "noopener noreferrer";
+    if (arguments.length >= 3 && arguments[2] === true) {
+      openButton.href = "#";
+      openButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        if (openButton.dataset && openButton.dataset.loading === "true") return;
+        if (openButton.dataset) openButton.dataset.loading = "true";
+        openButton.textContent = "Abrindo PDF...";
+        fetch(getEloBackendEndpoint_(pdfUrl), { headers: getEloCoreAuthHeaders_() })
+          .then(function (response) {
+            if (!response.ok) throw new Error("Nao foi possivel abrir o PDF agora.");
+            return response.blob();
+          })
+          .then(function (blob) {
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.target = "_blank";
+            anchor.rel = "noopener noreferrer";
+            anchor.click();
+            window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+          })
+          .catch(function (error) {
+            openButton.textContent = error && error.message ? error.message : "Nao foi possivel abrir o PDF agora.";
+          })
+          .finally(function () {
+            if (openButton.dataset) openButton.dataset.loading = "false";
+            if (openButton.textContent === "Abrindo PDF...") openButton.textContent = "Abrir / baixar PDF";
+          });
+      });
+    } else {
+      openButton.href = pdfUrl;
+      openButton.target = "_blank";
+      openButton.rel = "noopener noreferrer";
+    }
     actions.appendChild(openButton);
     message.appendChild(actions);
     scrollEloConversationToBottom_({ force: true });
@@ -31592,12 +31788,25 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
         getEloBackendEndpoint_("/api/ai/analyze-image");
+      const authHeaders = getEloCoreAuthHeaders_();
+      if (!authHeaders.Authorization) {
+        throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+      }
       if (configuredEndpoint && window.fetch) {
         const response = await fetch(configuredEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
           body: JSON.stringify({ image: imagePayload, context: context })
         });
+        if (!response.ok) {
+          const error = new Error(response.status === 401
+            ? "Sua sessão expirou ou não foi validada. Entre novamente para analisar a imagem."
+            : response.status === 403
+              ? "Sua sessão não tem autorização para analisar esta imagem."
+              : "A análise visual não respondeu agora.");
+          error.status = response.status;
+          throw error;
+        }
         result = await response.json();
       } else if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
         result = await window.ObraReportAI.analyzeImage(imagePayload, context);
@@ -31641,11 +31850,24 @@ function isEloResidentialNewPipelineEnabled_() {
       } else {
         const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
           getEloBackendEndpoint_("/api/ai/analyze-image");
+        const authHeaders = getEloCoreAuthHeaders_();
+        if (!authHeaders.Authorization) {
+          throw new Error("Entre no ELO para analisar imagens com a IA visual.");
+        }
         const response = await fetch(configuredEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
           body: JSON.stringify({ image: imagePayload, context: context })
         });
+        if (!response.ok) {
+          const error = new Error(response.status === 401
+            ? "Sua sessão expirou ou não foi validada. Entre novamente para analisar a imagem."
+            : response.status === 403
+              ? "Sua sessão não tem autorização para analisar esta imagem."
+              : "A análise visual não respondeu agora.");
+          error.status = response.status;
+          throw error;
+        }
         result = await response.json();
       }
 
@@ -32065,7 +32287,8 @@ function isEloResidentialNewPipelineEnabled_() {
 
     rememberEloActiveAnalysisContext_(question, response, cleanAnswer);
     const responseId = createEloAssistantResponseId_(question, cleanAnswer, response);
-    const message = appendMessage("assistant", cleanAnswer, Object.assign({ responseLifecycle: "new", responseId: responseId }, buildEloSpeechMetadataFromResponse_(response)));
+    const message = appendMessage("assistant", cleanAnswer, Object.assign({ responseLifecycle: "new", responseId: responseId, feedbackEligible: true }, buildEloSpeechMetadataFromResponse_(response)));
+    appendEloFeedbackActions_(message);
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {
@@ -34409,6 +34632,12 @@ function isEloResidentialNewPipelineEnabled_() {
       attachmentInput.addEventListener("change", function () {
         ELO_UI.attachments = Array.prototype.slice.call(attachmentInput.files || []).slice(0, getEloAttachmentLimit_());
         renderProductAttachmentStatus();
+        if (window.EloTelemetry) window.EloTelemetry.track("ATTACHMENT_SELECTED", {
+          route: "chat",
+          status: "SUCCESS",
+          attachment_type: ELO_UI.attachments[0] && ELO_UI.attachments[0].type || "unknown",
+          attachment_size: ELO_UI.attachments.reduce(function (total, file) { return total + Number(file && file.size || 0); }, 0)
+        });
       });
     }
 
@@ -34592,6 +34821,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectReportFromAnalysisContextForTest: isEloReportFromAnalysisContextRequest_,
     buildReportFromAnalysisContextForTest: buildEloReportFromAnalysisContextResponse_,
+    generateReportFromAnalysisContextForTest: function (message) { return generateEloReportPdfFromChat_(message, [], getEloActiveAnalysisContext_()); },
     rememberActiveAnalysisForTest: rememberEloActiveAnalysisContext_,
     getActiveAnalysisForTest: getEloActiveAnalysisContext_,
     detectExplicitMemoryCommandForTest: isEloExplicitMemoryCommand_,
@@ -34717,6 +34947,7 @@ function isEloResidentialNewPipelineEnabled_() {
     getCanonicalSessionForTest: getCanonicalEloSession_,
     validateSupabaseTokenForTest: validateEloCoreSupabaseToken_,
     initCorePersistenceForTest: initEloCorePersistence_,
+    reconcileCriticalAvailabilityForTest: reconcileEloCriticalAvailability_,
     maybeShowProactiveAttentionForTest: maybeShowEloProactiveAttention_
   });
 

@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
 
-  var state = { topic: "", lastAnswer: "", lastResult: null };
+  var state = { topic: "", lastAnswer: "", lastResult: null, recentMessages: [] };
   var technical = {
     impermeabilizacao: "Impermeabilização é o conjunto de técnicas e produtos que impede a passagem de água para proteger a edificação. A base é preparar o substrato, tratar fissuras e encontros, aplicar o sistema especificado e testar antes de proteger.",
     alvenaria: "Uma sequência básica de alvenaria é: conferir locação e prumo; preparar a base; marcar vãos; assentar blocos com juntas controladas; conferir alinhamento, prumo e nível; executar vergas/contravergas; e liberar para instalações e revestimento após a cura necessária.",
@@ -95,5 +95,26 @@
     return null;
   }
   function response(text, intent) { return { shortAnswer: text, fullAnswer: text, nextAction: "", canSave: false, sessionTheme: "elo_offline_core_v2", sessionIntent: intent, offline: true, backendRequests: 0 }; }
-  root.EloOfflineCoreV2 = { version: "2.0.0", resolve: resolve, getState: function () { return JSON.parse(JSON.stringify(state)); }, intentCount: rules.reduce(function (n, rule) { return n + rule[1].length; }, 0), knowledgeCount: Object.keys(technical).length, reset: function () { state = { topic: "", lastAnswer: "", lastResult: null }; } };
+  function buildProactivePlan(message) {
+    var policy = root.EloProactiveReasoningPolicy;
+    if (!policy || typeof policy.buildResponsePlan !== "function") return null;
+    return policy.buildResponsePlan(message, { history: state.recentMessages.map(function (item) { return { role: "user", content: item }; }) }, {});
+  }
+  function applyProactiveOfflineGuard(message) {
+    var policy = root.EloProactiveReasoningPolicy;
+    var plan = buildProactivePlan(message);
+    var answer = policy && typeof policy.buildOfflineResponse === "function" ? policy.buildOfflineResponse(plan) : "";
+    if (!answer) return null;
+    var result = response(answer, "offline_proactive_" + String(plan && plan.intent || "guard").toLowerCase());
+    if (policy && typeof policy.getObservability === "function") result.observability = policy.getObservability(plan);
+    return result;
+  }
+  var originalResolve = resolve;
+  resolve = function (text) {
+    var raw = clean(text);
+    if (raw) state.recentMessages = state.recentMessages.concat([raw]).slice(-8);
+    var guarded = applyProactiveOfflineGuard(raw);
+    return guarded || originalResolve(raw);
+  };
+  root.EloOfflineCoreV2 = { version: "2.0.0", resolve: resolve, getState: function () { return JSON.parse(JSON.stringify(state)); }, intentCount: rules.reduce(function (n, rule) { return n + rule[1].length; }, 0), knowledgeCount: Object.keys(technical).length, reset: function () { state = { topic: "", lastAnswer: "", lastResult: null, recentMessages: [] }; } };
 })(typeof window !== "undefined" ? window : globalThis);

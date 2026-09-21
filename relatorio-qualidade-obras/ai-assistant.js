@@ -338,12 +338,22 @@
       return null;
     }
 
+    const authHeaders = getEloImageAuthHeaders_();
+    if (!authHeaders.Authorization) {
+      return {
+        mode: "auth_required",
+        title: "Autenticação necessária",
+        suggestion: "Entre no ELO para analisar imagens com a IA visual.",
+        note: "A análise visual exige uma sessão autenticada.",
+        authRequired: true,
+        analysis: null
+      };
+    }
+
     try {
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
         body: JSON.stringify(payload)
       });
       const result = await response.json().catch(function () {
@@ -369,6 +379,7 @@
       };
     } catch (error) {
       const isHttpError = error && error.message === "visual_http_error";
+      const isAuthError = isHttpError && (error.status === 401 || error.status === 403);
       const isNetworkError = error instanceof TypeError || /failed to fetch|network|fetch/i.test(error && error.message ? error.message : "");
       if (window.console && typeof window.console.warn === "function") {
         window.console.warn("Falha na IA visual", {
@@ -376,6 +387,19 @@
           status: isHttpError ? error.status : 0,
           message: error && error.message ? String(error.message).slice(0, 120) : "visual_error"
         });
+      }
+      if (isAuthError) {
+        return {
+          mode: error.status === 403 ? "authorization_error" : "auth_error",
+          title: error.status === 403 ? "Acesso não autorizado" : "Sessão necessária",
+          suggestion: error.status === 403
+            ? "Sua sessão não tem autorização para analisar esta imagem."
+            : "Sua sessão expirou ou não foi validada. Entre novamente para analisar a imagem.",
+          note: "A análise visual não foi executada.",
+          authRequired: error.status === 401,
+          authorizationDenied: error.status === 403,
+          analysis: null
+        };
       }
       if (payload.context && payload.context.source === "elo") {
         return {
@@ -391,6 +415,14 @@
 
       return buildLocalImageFallback_(payload, "O backend de IA visual não respondeu. O ObraReport manteve o fluxo seguro sem alterar o upload ou o PDF.");
     }
+  }
+
+  function getEloImageAuthHeaders_() {
+    const session = window.EloCanonicalSession;
+    const token = session && typeof session.getAccessToken === "function"
+      ? String(session.getAccessToken() || "").trim()
+      : "";
+    return token ? { Authorization: "Bearer " + token } : {};
   }
   function buildLocalImageFallback_(payload, note) {
     const image = payload.image || {};

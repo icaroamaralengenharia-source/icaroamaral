@@ -183,6 +183,7 @@ function requireApartmentHandoverSourceType(value) {
 }
 export function createObraReportTransactionalService(options = {}) {
   const dataPath = options.dataPath || DEFAULT_DATA_PATH;
+  const rdoRepository = options.rdoRepository || null;
 
   function registerReportEvent(context, reportId, eventType, payload = {}) {
     const ctx = requireInstitution(context);
@@ -337,6 +338,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function createRdo(context = {}, payload = {}) {
+    if (rdoRepository) return rdoRepository.create(context, payload);
     const ctx = requireInstitution(context);
     const safe = objectOf(payload);
     const rdoData = requirePayloadObject(safe.rdoData || safe.rdo_data || safe.rdo_data_json, "rdo_data_required");
@@ -362,6 +364,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function listRdos(context = {}, filters = {}) {
+    if (rdoRepository) return rdoRepository.list(context, filters);
     requireInstitution(context);
     const safe = objectOf(filters);
     return Object.values(readDatabase(dataPath).rdos)
@@ -373,12 +376,14 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function getRdo(context = {}, id) {
+    if (rdoRepository) return rdoRepository.getById(context, id);
     const rdo = readDatabase(dataPath).rdos[clean(id)] || null;
     requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
     return clone(rdo);
   }
 
   function updateRdo(context = {}, id, payload = {}) {
+    if (rdoRepository) return rdoRepository.update(context, id, payload);
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
     const current = database.rdos[clean(id)] || null;
@@ -400,6 +405,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function createRdoVersion(context = {}, id) {
+    if (rdoRepository) return rdoRepository.createVersion(context, id);
     const database = readDatabase(dataPath);
     const rdo = database.rdos[clean(id)] || null;
     requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
@@ -420,6 +426,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function generateRdoDocument(context = {}, id) {
+    if (rdoRepository) throw Object.assign(new Error("rdo_document_store_not_configured"), { status: 503 });
     const database = readDatabase(dataPath);
     const rdo = database.rdos[clean(id)] || null;
     requireAccess(rdo, context, "rdo_not_found", "rdo_forbidden");
@@ -432,6 +439,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function listRdoEvents(context = {}, id) {
+    if (rdoRepository) return rdoRepository.listEvents(context, id);
     getRdo(context, id);
     return Object.values(readDatabase(dataPath).rdoEvents)
       .filter((event) => event.rdo_id === clean(id))
@@ -554,6 +562,7 @@ export function createObraReportTransactionalService(options = {}) {
   }
 
   function prepareDocumentEmail(context = {}, documentId, payload = {}) {
+    if (rdoRepository) throw Object.assign(new Error("document_store_not_configured"), { status: 503 });
     const ctx = requireInstitution(context);
     const database = readDatabase(dataPath);
     const document = database.generatedDocuments[clean(documentId)] || null;

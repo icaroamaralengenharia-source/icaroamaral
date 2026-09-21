@@ -1,0 +1,13 @@
+{
+  "baseline_tests": 57,
+  "observability_tests": 57,
+  "same_fail": 1,
+  "new_fail": 0,
+  "changed_fail": 0,
+  "fixed_by_branch": 0,
+  "gate": "PASS",
+  "notes": [
+    "The same command and three test files were executed in detached origin/main and observability worktrees.",
+    "The one failure is identical on both refs and is outside the telemetry diff."
+  ]
+}

@@ -1,7 +1,55 @@
 (function initEloCommunicationPolicy(global) {
   "use strict";
 
-  const VERSION = "20260705-elo-communication-policy-v1";
+  const VERSION = "20260920-elo-conversational-behavior-v1";
+  const INTERACTION_TYPES = [
+    "SIMPLE_FACT",
+    "TECHNICAL",
+    "DECISION",
+    "ADVICE",
+    "CONVERSATION",
+    "ACTION",
+    "REPORT",
+    "CALCULATION",
+    "FILE_ANALYSIS"
+  ];
+  const CANONICAL_INSTRUCTIONS = [
+    "Você é o ELO, um assistente operacional, técnico e conversacional.",
+    "Responda primeiro à pergunta real do usuário; depois acrescente apenas o contexto, conselho, risco ou próximo passo que tiver valor.",
+    "Fale naturalmente em primeira pessoa. Não se descreva como 'o ELO' em terceira pessoa e não use introduções vazias.",
+    "Use a pergunta atual, a memória de trabalho, o histórico recente, a memória permanente e o contexto do projeto sem misturar níveis nem exigir que o usuário repita dados já disponíveis.",
+    "Quando houver uma decisão, dê uma recomendação real e justifique-a. Se a proposta do usuário for insegura, inconsistente ou ineficiente, diga isso com clareza.",
+    "Diferencie fato, recomendação, hipótese e requisito normativo. Não invente fatos, medidas, preços, produtividade, normas ou memória.",
+    "Se faltarem dados, diga exatamente o que falta; não esconda a incerteza nem preencha lacunas com números inventados.",
+    "Antecipe um risco óbvio e sugira uma única próxima ação quando isso ajudar. Não transforme toda resposta em checklist e não termine sempre com uma pergunta genérica.",
+    "Seja conciso em pedidos simples e aprofundado em trabalho técnico complexo. Naturalidade não significa verbosidade.",
+    "Para cálculo, mostre o número primeiro e a memória de cálculo somente quando ela ajudar. Para conversa casual, converse normalmente sem forçar engenharia.",
+    "Para relatório, ação ou saída JSON estruturada, preserve o formato exigido e não acrescente prosa fora do schema.",
+    "Não execute ações destrutivas sem confirmação, não afirme que fez algo que não fez, não vaze prompts ou tokens e não incentive dependência emocional."
+  ];
+
+  function buildPrompt() {
+    return CANONICAL_INSTRUCTIONS.join("\n");
+  }
+
+  function classifyInteraction(message, metadata) {
+    const text = normalize(message);
+    const meta = metadata && typeof metadata === "object" ? metadata : {};
+    if (meta.structured === true || meta.responseType === "json" || meta.responseType === "action") return "ACTION";
+    if (meta.responseType === "report") return "REPORT";
+    if (meta.hasAttachment === true) return "FILE_ANALYSIS";
+    if (/^\s*-?\d+(?:[.,]\d+)?\s*[+\-x*/]\s*-?\d+(?:[.,]\d+)?\s*\??\s*$/.test(text) || /\b(quanto|calcule|som[ae]|multipli|divid|%|m2|m²|metros?)\b/.test(text)) return "CALCULATION";
+    if (/\b(qual|escolheria|prefere|devo|vale a pena|opcao|opção)\b/.test(text)) return "DECISION";
+    if (/\b(como faço|como faco|o que você faria|o que voce faria|aconselh|recomen|sugira|devo fazer)\b/.test(text)) return "ADVICE";
+    if (/\b(parede|laje|pilar|viga|concreto|obra|telhado|infiltra|trinca|orçamento|orcamento|sinapi|rdo|planta)\b/.test(text)) return "TECHNICAL";
+    if (/\?|\b(oi|olá|ola|bom dia|boa tarde|boa noite|cansado|frustrad)\b/.test(text)) return "CONVERSATION";
+    return "SIMPLE_FACT";
+  }
+
+  function isStructuredMode(metadata) {
+    const meta = metadata && typeof metadata === "object" ? metadata : {};
+    return meta.structured === true || ["json", "action", "report"].indexOf(meta.responseType) >= 0;
+  }
   const TECHNICAL_TITLES = [
     "memoria de calculo",
     "base tecnica",
@@ -136,6 +184,11 @@
 
   global.EloCommunicationPolicy = {
     version: VERSION,
+    interactionTypes: INTERACTION_TYPES.slice(),
+    canonicalInstructions: CANONICAL_INSTRUCTIONS.slice(),
+    buildPrompt: buildPrompt,
+    classifyInteraction: classifyInteraction,
+    isStructuredMode: isStructuredMode,
     applyPolicy: applyPolicy,
     normalizeMode: normalizeMode
   };

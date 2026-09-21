@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import vm from "node:vm";
 import { createApp } from "../src/app.js";
 import { createEloCoreStore } from "../src/elo-core-store.js";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const TEST_SUPABASE_ISSUER = "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1";
 const TEST_JWT_EXP = 4102444800;
@@ -128,7 +131,7 @@ function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_0
   sandbox.window = Object.assign(sandbox.window, sandbox);
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
-  vm.runInContext(readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8"), sandbox, { filename: "elo-assistente.js" });
+  vm.runInContext(readFileSync(join(REPO_ROOT, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
   return { elo: sandbox.window.EloAssistente, localStorage, sessionStorage };
 }
 

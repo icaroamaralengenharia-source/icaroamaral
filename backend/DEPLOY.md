@@ -17,7 +17,14 @@ Cadastre no painel da plataforma:
 ```text
 OPENAI_API_KEY=sua_chave_da_openai
 NODE_ENV=production
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=chave_privilegiada_apenas_no_backend
+ELO_TELEMETRY_ADMIN_TOKEN=segredo_privado_apenas_no_backend
+ELO_RDO_STORE=supabase
 ```
+Para produção, mantenha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `ELO_RDO_STORE=supabase` configurados. O backend falha no startup se o armazenamento Supabase do RDO não estiver disponível; o JSON local só é usado em testes ou quando `ELO_RDO_STORE=file` é escolhido explicitamente.
+
+Para a observabilidade do ELO Oficial, aplique `src/data/elo-telemetry-migration.sql` no mesmo projeto Supabase de produção e configure `ELO_TELEMETRY_ADMIN_TOKEN` somente no serviço backend. O dashboard usa a sessão Bearer de uma role interna no navegador; o segredo administrativo não é enviado ao cliente. Não há job de retenção criado por esta migration: a política deve ser definida e automatizada separadamente antes de declarar retenção ativa.
 
 Opcionalmente, ajuste:
 

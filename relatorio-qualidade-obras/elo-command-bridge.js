@@ -19,6 +19,7 @@
   const STOCK_PENDING_KEY = "elo_action_bus_stock_full_pending_v1";
   const RDO_PENDING_KEY = "elo_action_bus_rdo_pending_v1";
   const RDO_CONTEXT_KEY = "elo_action_bus_rdo_context_v1";
+  const ELO_CORE_SUPABASE_AUTH_STORAGE_KEY = "sb-elo-core-auth-token";
   const OBRAREPORT_STATE_KEY = "obrareport-saas-v1";
   const STOCK_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
   const NUMBER_WORDS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
@@ -980,10 +981,10 @@
     return { ok: true, identity };
   }
 
-  function rdoHeaders(input) {
+  function rdoHeaders(input, accessToken) {
     const auth = requireRdoAccess(input);
     const headers = { "Content-Type": "application/json" };
-    const token = getAuthToken(input.context || {});
+    const token = clean(accessToken || getAuthToken(input.context || {}));
     if (token) headers.Authorization = /^Bearer\s+/i.test(token) ? token : "Bearer " + token;
     if (auth.identity && auth.identity.institutionId) headers["x-institution-id"] = auth.identity.institutionId;
     if (auth.identity && auth.identity.companyId) headers["x-company-id"] = auth.identity.companyId;
@@ -1042,7 +1043,7 @@
     const text = normalize(raw);
     const nowDate = payload.now ? new Date(payload.now) : new Date();
     const parsed = {
-      action: /^rdo\./.test(action) ? action : /^(?:close_rdo|generate_rdo_document|generate_document|rdo_generate_document)$/.test(action) ? "rdo.generateDocument" : action === "rdo_confirm" ? "rdo.confirm" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
+      action: /^rdo\./.test(action) ? action : /^(?:close_rdo|generate_rdo_document|generate_document|rdo_generate_document)$/.test(action) ? "rdo.generateDocument" : action === "rdo_confirm" ? "rdo.confirm" : action === "rdo_cancel" ? "rdo.cancel" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
       raw,
       rdoId: clean(payload.rdoId || payload.rdo_id || payload.id),
       projectId: clean(payload.projectId || payload.project_id),
@@ -1476,6 +1477,106 @@
     return Promise.resolve(rdoResult(input, { action: "rdo.update.preview", mode: "preview", requiresConfirmation: true, preview: ["Preview de atualização de RDO:", "MODULE: obrareport_rdo", "ACTION: rdo.update", "RDO ID: " + pending.draft.rdoId, "PROJECT ID: " + pending.draft.projectId, "DATE: " + pending.draft.rdoDate, "OBSERVATION: " + pending.draft.updateNote, "CONFIRMATION REQUIRED: SIM", "WRITE EXECUTED: 0", "/api/obrareport/rdos PUT: 0"].join("\n"), data: { draft: pending.draft, pending } }));
   }
 
+  function decodeRdoJwtPayload_(token) {
+    const parts = clean(token).split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    try {
+      const encoded = parts[1].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((parts[1].length + 3) % 4);
+      const decoded = typeof window.atob === 'function' ? window.atob(encoded) : '';
+      const payload = JSON.parse(decoded);
+      return payload && typeof payload === 'object' ? payload : null;
+    } catch (error) { return null; }
+  }
+
+  function isUsableRdoAccessToken_(token) {
+    const payload = decodeRdoJwtPayload_(token);
+    return Boolean(payload && Number(payload.exp) > Math.floor(Date.now() / 1000));
+  }
+
+  function normalizeRdoAuthSession_(value) {
+    const source = value && value.data && value.data.session ? value.data.session : value && (value.session || value.currentSession) || value;
+    if (!source || typeof source !== 'object') return null;
+    const accessToken = clean(source.access_token || source.accessToken || value && value.access_token || value && value.accessToken);
+    const refreshToken = clean(source.refresh_token || source.refreshToken || value && value.refresh_token || value && value.refreshToken);
+    return accessToken || refreshToken ? { session: source, accessToken, refreshToken } : null;
+  }
+
+  function readStoredRdoAuthSession_() {
+    const stores = [window.sessionStorage, window.localStorage].filter(Boolean);
+    for (let index = 0; index < stores.length; index += 1) {
+      try {
+        const raw = stores[index].getItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY);
+        if (!raw) continue;
+        const normalized = normalizeRdoAuthSession_(JSON.parse(raw));
+        if (normalized) return normalized;
+      } catch (error) {}
+    }
+    return null;
+  }
+
+  function readCanonicalRdoAuthSession_() {
+    const provider = window.EloCanonicalSession;
+    if (provider && typeof provider.getSession === 'function') {
+      try { return Promise.resolve(provider.getSession()).then(normalizeRdoAuthSession_).catch(function () { return null; }); }
+      catch (error) { return Promise.resolve(null); }
+    }
+    if (provider && typeof provider.getAccessToken === 'function') {
+      try { return Promise.resolve(provider.getAccessToken()).then(function (token) { return normalizeRdoAuthSession_({ access_token: token }); }).catch(function () { return null; }); }
+      catch (error) { return Promise.resolve(null); }
+    }
+    if (window.supabase && window.supabase.auth && typeof window.supabase.auth.getSession === 'function') {
+      try { return Promise.resolve(window.supabase.auth.getSession()).then(normalizeRdoAuthSession_).catch(function () { return null; }); }
+      catch (error) { return Promise.resolve(null); }
+    }
+    return Promise.resolve(null);
+  }
+
+  function getRdoSupabaseConfig_() {
+    const relatorioConfig = window.RELATORIO_QUALIDADE_CONFIG || {};
+    return {
+      url: clean(window.ELO_SUPABASE_URL || relatorioConfig.eloSupabaseUrl).replace(/\/+$/g, ''),
+      anonKey: clean(window.ELO_SUPABASE_ANON_KEY || relatorioConfig.eloSupabaseAnonKey)
+    };
+  }
+
+  function saveRdoRefreshedSession_(data, refreshToken) {
+    const normalized = normalizeRdoAuthSession_(data);
+    if (!normalized || !isUsableRdoAccessToken_(normalized.accessToken)) throw new Error('invalid_session');
+    const session = normalized.session;
+    const payload = Object.assign({}, data, { currentSession: session, session, access_token: normalized.accessToken, refresh_token: normalized.refreshToken || refreshToken });
+    [window.sessionStorage, window.localStorage].filter(Boolean).forEach(function (store) {
+      try { store.setItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY, JSON.stringify(payload)); } catch (error) {}
+    });
+    window.ELO_AUTH_TOKEN = normalized.accessToken;
+    return normalized.accessToken;
+  }
+
+  function refreshRdoSupabaseSession_(refreshToken) {
+    const config = getRdoSupabaseConfig_();
+    if (!config.url || !config.anonKey || !refreshToken || typeof window.fetch !== 'function') return Promise.reject(new Error('invalid_session'));
+    return window.fetch(config.url + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: config.anonKey, Authorization: 'Bearer ' + config.anonKey },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) throw new Error('invalid_session');
+        return saveRdoRefreshedSession_(data, refreshToken);
+      });
+    }).catch(function () { throw new Error('invalid_session'); });
+  }
+
+  function resolveCurrentRdoAccessToken_() {
+    const stored = readStoredRdoAuthSession_();
+    return readCanonicalRdoAuthSession_().then(function (canonical) {
+      const candidates = [canonical, stored].filter(Boolean);
+      const current = candidates.find(function (item) { return isUsableRdoAccessToken_(item.accessToken); });
+      if (current) return current.accessToken;
+      const refreshToken = candidates.map(function (item) { return item.refreshToken; }).find(Boolean);
+      if (refreshToken) return refreshRdoSupabaseSession_(refreshToken);
+      throw new Error('invalid_session');
+    });
+  }
   function postRdoJson(input, pending) {
     const draft = pending && pending.draft || {};
     const payload = {
@@ -1486,7 +1587,7 @@
       status: "draft",
       rdoData: Object.assign({}, draft.rdoData || {}, { date: draft.rdoDate, operationId: pending.operationId })
     };
-    return window.fetch(getStockEndpoint("/api/obrareport/rdos"), { method: "POST", headers: rdoHeaders(input), body: JSON.stringify(payload) }).then(function (response) {
+    return resolveCurrentRdoAccessToken_().then(function (accessToken) { return window.fetch(getStockEndpoint("/api/obrareport/rdos"), { method: "POST", headers: rdoHeaders(input, accessToken), body: JSON.stringify(payload) }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false) {
           const error = new Error(clean(data.error) || "rdo_create_failed");
@@ -1496,6 +1597,7 @@
         }
         return data;
       });
+    });
     });
   }
 
@@ -1576,6 +1678,14 @@
     if (pending && pending.action === "rdo.update.execute") return executePendingRdoUpdate(input, pending);
     return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.confirm", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para confirmar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
   }
+  function executeRdoCancel(input) {
+    const pending = readRdoPending();
+    if (!pending || !/^rdo\.(?:create|update)\.execute$/.test(String(pending.action || "")) || pending.status !== "pending") {
+      return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.cancel", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para cancelar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
+    }
+    clearRdoPending();
+    return Promise.resolve(rdoResult(input, { action: "rdo.cancel", mode: "cancel", humanAnswer: "A ação de RDO foi cancelada. Nenhum RDO foi criado ou atualizado.", data: { pending } }));
+  }
   function executeRdo(input) {
     input = Object.assign({}, input || {}, { context: Object.assign({}, input && input.context || {}) });
     return getCanonicalRdoSession_(input).then(function (session) {
@@ -1585,7 +1695,7 @@
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
       if (intent.invalidPeriod) return rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" });
-      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.generateDocument" ? executeRdoGenerateDocument : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
+      const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.cancel" ? executeRdoCancel : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.generateDocument" ? executeRdoGenerateDocument : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;
       return run(input, intent).catch(function (error) {
         const code = clean(error && error.message) || "rdo_error";
         if (code === "rdo_ambiguous") return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um RDO compatível. Informe o ID ou uma data mais específica.", error: code, data: { matches: (error.rdos || []).map(summarizeRdo) } });
