@@ -26,6 +26,7 @@ import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { createObraReportTransactionalService, defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repository.js";
+import { createSupabaseApartmentHandoverRepository } from "./services/obrareport-apartment-handover-repository.js";
 import { createSupabaseObraReportDocumentRepository } from "./services/obrareport-document-repository.js";
 import { createObraReportReportOrchestrator } from "./services/obrareport-report-orchestrator.js";
 import { createObraReportArtifactBroker } from "./services/obrareport-artifact-broker.js";
@@ -1214,7 +1215,13 @@ export function createApp(options = {}) {
   const rdoSupabaseClient = options.rdoSupabaseClient || (!options.obraReportTransactionalService && rdoStoreMode === "supabase" ? getSupabaseClient(env) : null);
   if (rdoStoreMode === "supabase" && !options.obraReportTransactionalService && !options.rdoRepository && !rdoSupabaseClient) throw new Error("rdo_supabase_store_not_configured");
   const rdoRepository = options.rdoRepository || (rdoStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseRdoRepository({ client: rdoSupabaseClient }) : null);
-  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
+  const configuredInspectionStore = clean_(env.ELO_APARTMENT_HANDOVER_STORE).toLowerCase();
+  if (configuredInspectionStore && !["supabase", "file"].includes(configuredInspectionStore)) throw new Error("apartment_handover_store_mode_invalid");
+  const inspectionStoreMode = configuredInspectionStore || "file";
+  const inspectionSupabaseClient = options.apartmentHandoverSupabaseClient || (inspectionStoreMode === "supabase" ? (rdoSupabaseClient || getSupabaseClient(env)) : null);
+  if (inspectionStoreMode === "supabase" && !options.obraReportTransactionalService && !options.apartmentHandoverRepository && !inspectionSupabaseClient) throw new Error("apartment_handover_supabase_store_not_configured");
+  const apartmentHandoverRepository = options.apartmentHandoverRepository || (inspectionStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseApartmentHandoverRepository({ client: inspectionSupabaseClient }) : null);
+  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository || apartmentHandoverRepository ? createObraReportTransactionalService({ rdoRepository, apartmentHandoverRepository }) : defaultObraReportTransactionalService);
   const documentSupabaseClient = options.documentSupabaseClient || rdoSupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null);
   const documentRepository = options.documentRepository || (documentSupabaseClient ? createSupabaseObraReportDocumentRepository({ client: documentSupabaseClient }) : null);
   const documentOrchestrator = options.documentOrchestrator || (documentRepository
@@ -2022,6 +2029,8 @@ export function createApp(options = {}) {
     }
   });
 
+  app.use("/api/obrareport/apartment-handover-inspections", requireCanonicalObraReportAuth_);
+
   app.post("/api/obrareport/apartment-handover-inspections", async (request, response) => {
     try {
       const inspection = obraReportTransactionalService.createApartmentHandoverInspection(buildObraReportContext_(request), request.body || {});
@@ -2051,7 +2060,13 @@ export function createApp(options = {}) {
 
   app.put("/api/obrareport/apartment-handover-inspections/:id", async (request, response) => {
     try {
-      const inspection = obraReportTransactionalService.updateApartmentHandoverInspection(buildObraReportContext_(request), request.params.id, request.body || {});
+      const context = buildObraReportContext_(request);
+      const body = request.body || {};
+      const inspection = body.itemUpdate && typeof obraReportTransactionalService.updateApartmentHandoverInspectionItem === "function"
+        ? obraReportTransactionalService.updateApartmentHandoverInspectionItem(context, request.params.id, body.itemUpdate)
+        : body.photoAttachment && typeof obraReportTransactionalService.attachApartmentHandoverInspectionPhoto === "function"
+          ? obraReportTransactionalService.attachApartmentHandoverInspectionPhoto(context, request.params.id, body.photoAttachment)
+          : obraReportTransactionalService.updateApartmentHandoverInspection(context, request.params.id, body);
       response.json({ ok: true, inspection });
     } catch (error) {
       handleObraReportError_(response, error);
