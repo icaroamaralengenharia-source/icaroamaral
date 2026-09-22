@@ -4,7 +4,8 @@ const path = require("node:path");
 const test = require("node:test");
 
 const repo = path.resolve(__dirname, "..", "..");
-const CACHE_VERSION = "20260921-rdo-cache-v1";
+const ASSET_VERSION = "20260921-rdo-cache-v1";
+const SW_VERSION = "20260921-sw-optional-media-v1";
 
 function read(file) {
   return fs.readFileSync(path.join(repo, file), "utf8");
@@ -17,13 +18,13 @@ test("ELO WebView versiona os assets do shell sem apagar o cache compartilhado",
   const assistant = read(path.join("relatorio-qualidade-obras", "elo-assistente.js"));
   const bridge = read(path.join("relatorio-qualidade-obras", "elo-command-bridge.js"));
 
-  assert.match(html, new RegExp("elo-command-bridge\\.js\\?v=" + CACHE_VERSION));
-  assert.match(html, new RegExp("elo-assistente\\.js\\?v=" + CACHE_VERSION));
-  assert.match(html, new RegExp("elo-sw\\.js\\?v=" + CACHE_VERSION));
-  assert.match(sw, new RegExp("elo-command-bridge\\.js\\?v=" + CACHE_VERSION));
-  assert.match(sw, new RegExp("elo-assistente\\.js\\?v=" + CACHE_VERSION));
-  assert.match(standalone, new RegExp("elo-command-bridge\\.js\\?v=" + CACHE_VERSION));
-  assert.match(standalone, new RegExp("elo-assistente\\.js\\?v=" + CACHE_VERSION));
+  assert.match(html, new RegExp("elo-command-bridge\\.js\\?v=" + ASSET_VERSION));
+  assert.match(html, new RegExp("elo-assistente\\.js\\?v=" + ASSET_VERSION));
+  assert.match(html, new RegExp("elo-sw\\.js\\?v=" + SW_VERSION));
+  assert.match(sw, new RegExp("elo-command-bridge\\.js\\?v=" + ASSET_VERSION));
+  assert.match(sw, new RegExp("elo-assistente\\.js\\?v=" + ASSET_VERSION));
+  assert.match(standalone, new RegExp("elo-command-bridge\\.js\\?v=" + ASSET_VERSION));
+  assert.match(standalone, new RegExp("elo-assistente\\.js\\?v=" + ASSET_VERSION));
 
   assert.match(sw, /const ELO_CACHE_NAME = "elo-web-offline-v13-20260920-observability-final-v1"/);
   assert.match(sw, /name\.indexOf\("elo-web-offline-"\) === 0/);
