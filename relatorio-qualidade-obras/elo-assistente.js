@@ -270,7 +270,9 @@
     const percentageMath = /\d+(?:[,.]\d+)?\s*%\s*(?:de|do|da)\s*\d+(?:[,.]\d+)?/.test(text);
     const meterConversionMath = /\d+(?:[,.]\d+)?\s*(?:m|metro|metros)\b/.test(text) && /\b(?:em|para)\s+(?:cm|centimetro|centimetros|centímetro|centímetros)\b/.test(text);
     const slabVolumeMath = /\blaje\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) && /\bcom\s+\d+(?:[,.]\d+)?\s*cm\b/.test(text);
-    if (!operationalReleaseMath && (percentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
+    const isDomainCommand = /\b(?:rdo|diario\s+de\s+obra|diario)\b/.test(text) &&
+      /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar|gerar\s+documento|gere\s+documento|relatorio\s+pdf|gere|gerar)\b/.test(text);
+    if (!isDomainCommand && !operationalReleaseMath && (percentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
     if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
@@ -993,6 +995,87 @@
     }));
     if (isEloAsyncResponse_(result)) return result.then(buildEloCommandBridgeAnswer_);
     return buildEloCommandBridgeAnswer_(result);
+  }
+
+  function classifyEloRoutingInput_(message, request) {
+    if (request && request.module === "obrareport_rdo") return "rdo_document";
+    if (request && request.module === "inspection") return "inspection_document";
+    if (request && request.module === "stock_full") return "stock_command";
+    const text = normalizeText(message || "");
+    if (/\bpdf\b/.test(text) && /\b(?:gere|gerar|faca|fazer|crie|criar|mont[eé]|produza|emit[aá])\b/.test(text)) return "ambiguous_document";
+    if (/\b(?:calcule|calcular|quanto e|quanto é|soma|subtraia|multiplique|divida)\b/.test(text)) return "calculator";
+    if (/\b(?:toque|toca|tocar|coloque|reproduza|play|musica|música)\b/.test(text)) return "music";
+    return "conversation";
+  }
+
+  function logEloRoutingTrace_(message, fields) {
+    const data = fields || {};
+    try {
+      if (window.console && typeof window.console.info === "function") {
+        window.console.info("ELO_ROUTE_TRACE", {
+          ROUTE_TRACE_INPUT_CLASS: sanitizeUserText(data.inputClass || classifyEloRoutingInput_(message, data.request)).slice(0, 40),
+          ROUTE_TRACE_NORMALIZED: normalizeEloRoutingLogText_(message).slice(0, 180),
+          ROUTE_TRACE_STAGE: sanitizeUserText(data.stage || "unknown").slice(0, 60),
+          ROUTE_TRACE_MATCHER: sanitizeUserText(data.matcher || "none").slice(0, 80),
+          ROUTE_TRACE_MATCH_RESULT: data.matchResult === true,
+          ROUTE_TRACE_SELECTED_ACTION: sanitizeUserText(data.selectedAction || "none").slice(0, 80),
+          ROUTE_TRACE_EARLY_RETURN: data.earlyReturn === true,
+          ROUTE_TRACE_RESPONSE_SOURCE: sanitizeUserText(data.responseSource || "none").slice(0, 80)
+        });
+      }
+    } catch (error) {}
+  }
+
+  function isEloAmbiguousPdfRequest_(message) {
+    const text = normalizeText(message || "");
+    if (!/\bpdf\b/.test(text)) return false;
+    if (!/\b(?:gere|gerar|faca|fazer|crie|criar|monte|montar|produza|produzir|emita|emitir)\b/.test(text)) return false;
+    return !/\b(?:rdo|diario de obra|diario|vistoria|inspecao|inspeção|relatorio|relatório|laudo|orcamento|orçamento|planta|dxf|dwg)\b/.test(text);
+  }
+
+  function buildEloAmbiguousPdfResponse_() {
+    const answer = "Qual documento devo gerar em PDF? Informe, por exemplo, RDO, vistoria, relatório técnico, orçamento ou planta.";
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "Informe o tipo de documento e, se aplicável, a obra ou unidade.",
+      canSave: false,
+      sessionTheme: "elo_command_clarification",
+      sessionIntent: "document_type_required",
+      route: "elo_command_clarification"
+    };
+  }
+
+  function handleEloDomainCommandFastPath_(cleanQuestion) {
+    const request = detectEloCommandBridgeRequest_(cleanQuestion);
+    if (!isEloCommandBridgePriorityRequest_(request)) return false;
+    logEloRoutingTrace_(cleanQuestion, {
+      request: request,
+      stage: "domain_guard",
+      matcher: "command_bridge",
+      matchResult: true,
+      selectedAction: request.action,
+      earlyReturn: false,
+      responseSource: "command_bridge"
+    });
+    const response = buildEloCommandBridgeResponse_(cleanQuestion, {});
+    if (!response) {
+      logEloRoutingTrace_(cleanQuestion, { request: request, stage: "domain_guard", matcher: "command_bridge", matchResult: true, selectedAction: request.action, earlyReturn: true, responseSource: "command_bridge_unavailable" });
+      return false;
+    }
+    appendMessage("user", cleanQuestion);
+    if (isEloAsyncResponse_(response)) {
+      appendTypingIndicator();
+      resolveEloAsyncResponseForChat_(cleanQuestion, response).finally(function () { removeTypingIndicator(); });
+      return true;
+    }
+    const answer = formatResponse(response);
+    appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
+    saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
+    clearProductAttachmentPreview();
+    logEloRoutingTrace_(cleanQuestion, { request: request, stage: "domain_guard", matcher: "command_bridge", matchResult: true, selectedAction: request.action, earlyReturn: true, responseSource: "command_bridge_response" });
+    return true;
   }
 
   function normalizeEloAutopilotTopic_(value) {
@@ -29859,11 +29942,21 @@ function isEloResidentialNewPipelineEnabled_() {
     const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
     const routeQuestion = stripEloWakePrefixForRouting_(cleanQuestion);
     const musicIntent = parseEloMusicPlayIntent_(routeQuestion);
+    const domainCommandRequest = !attachedFiles.length ? detectEloCommandBridgeRequest_(routeQuestion) : null;
     logEloMusicEvent_("SUBMIT_SOURCE", { source: submitSource });
     logEloMusicEvent_("SUBMIT_NORMALIZED", { text: normalizeEloRoutingLogText_(normalizedSubmit) });
     logEloMusicEvent_("WAKE_PREFIX_STRIPPED", { text: normalizeEloRoutingLogText_(routeQuestion) });
     logEloMusicEvent_("ROUTER_ENTER", { source: submitSource, hasAttachments: attachedFiles.length > 0 });
     logEloMusicEvent_("MUSIC_INTENT_MATCH", { matched: !!musicIntent, query: musicIntent && musicIntent.query });
+    logEloRoutingTrace_(routeQuestion, {
+      request: domainCommandRequest,
+      stage: "submit",
+      matcher: "command_bridge",
+      matchResult: isEloCommandBridgePriorityRequest_(domainCommandRequest),
+      selectedAction: domainCommandRequest && domainCommandRequest.action,
+      earlyReturn: false,
+      responseSource: "pending"
+    });
     const explicitAskMemoryResponse = !attachedFiles.length ? buildEloExplicitMemoryCommandResponse_(cleanQuestion) : null;
     if (explicitAskMemoryResponse) {
       appendMessage("user", cleanQuestion);
@@ -29872,6 +29965,20 @@ function isEloResidentialNewPipelineEnabled_() {
       saveConversation(cleanQuestion, memoryAnswer);
       rememberSessionTurn(cleanQuestion, explicitAskMemoryResponse, memoryAnswer);
       clearProductAttachmentPreview();
+      return;
+    }
+    if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest)) {
+      if (handleEloDomainCommandFastPath_(routeQuestion)) return;
+    }
+    if (!attachedFiles.length && isEloAmbiguousPdfRequest_(routeQuestion)) {
+      const clarification = buildEloAmbiguousPdfResponse_();
+      const clarificationAnswer = formatResponse(clarification);
+      appendMessage("user", cleanQuestion);
+      appendAssistantMessage(cleanQuestion, clarificationAnswer, false, clarification);
+      saveConversation(cleanQuestion, clarificationAnswer);
+      rememberSessionTurn(cleanQuestion, clarification, clarificationAnswer);
+      clearProductAttachmentPreview();
+      logEloRoutingTrace_(routeQuestion, { stage: "document_guard", matcher: "ambiguous_pdf", matchResult: true, selectedAction: "clarify_document_type", earlyReturn: true, responseSource: "clarification" });
       return;
     }
     if (!attachedFiles.length && musicIntent && !isEloOnline_()) {
