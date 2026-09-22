@@ -390,6 +390,72 @@ test('ELO roteia PDF de RDO existente para generateDocument', () => {
   assert.equal(request.module, 'obrareport_rdo');
   assert.equal(request.action, 'rdo.generateDocument');
 });
+
+test('ELO routing guard: RDO com data nao cai no calculador', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const question = 'Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026';
+  const intents = elo.classifyIntentForTest(question).map((item) => item.type);
+  assert.equal(intents.includes('math'), false);
+  assert.equal(elo.buildLocalToolFastPathResponseForTest(question), null);
+  assert.equal(elo.detectCommandBridgeRequestForTest(question).action, 'rdo.generateDocument');
+});
+
+test('ELO routing guard: ask despacha RDO antes do calculador', () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    window: {
+      EloCommandBridge: {
+        execute(request) {
+          calls.push(request);
+          return { handled: true, humanAnswer: 'RDO roteado para generate-document.' };
+        }
+      }
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026', [], 'manual');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].action, 'rdo.generateDocument');
+  const bubble = messages.children.at(-1).children.find((child) => String(child.className || '').includes('elo-message-bubble'));
+  assert.match(bubble.textContent, /RDO roteado/i);
+  assert.doesNotMatch(bubble.textContent, /Resultado:/i);
+});
+
+test('ELO routing guard: PDF sem tipo pede esclarecimento', () => {
+  const { elo } = loadEloContext();
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Gere o PDF', [], 'manual');
+  const bubble = messages.children.at(-1).children.find((child) => String(child.className || '').includes('elo-message-bubble'));
+  assert.match(bubble.textContent, /Qual documento devo gerar em PDF/i);
+  assert.doesNotMatch(bubble.textContent, /Resultado:/i);
+});
+
+test('ELO routing stress: 100 entradas mistas sem cruzamento de dominio', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const rdo = 'Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026';
+  const music = 'Toque Sultans of Swing';
+  const calculator = '17% de 850';
+  const greeting = 'Oi ELO';
+  for (let index = 0; index < 25; index += 1) {
+    const domainRequest = elo.detectCommandBridgeRequestForTest(rdo);
+    assert.equal(domainRequest.action, 'rdo.generateDocument');
+    assert.equal(elo.detectMusicPlayIntentForTest(rdo), null, `domain->music ${index}`);
+    assert.equal(elo.buildLocalToolFastPathResponseForTest(rdo), null, `domain->calculator ${index}`);
+
+    const musicIntent = elo.detectMusicPlayIntentForTest(music);
+    assert.equal(musicIntent.intent, 'PLAY', `music intent ${index}`);
+    assert.equal(elo.detectCommandBridgeRequestForTest(music), null, `music->rdo ${index}`);
+
+    const calculatorResponse = elo.buildLocalToolFastPathResponseForTest(calculator);
+    assert.match(calculatorResponse.sessionIntent, /math/);
+    assert.equal(elo.detectCommandBridgeRequestForTest(calculator), null, `calculator->rdo ${index}`);
+
+    const greetingResponse = elo.buildResponseForTest(greeting);
+    assert.equal(greetingResponse.brain, 'conversational', `greeting ${index}`);
+  }
+});
 test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
   const calls = [];
   const makeStep = (name, result) => ({
