@@ -30802,6 +30802,10 @@ function isEloResidentialNewPipelineEnabled_() {
       "application/vnd.ms-excel",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "text/csv",
+      ".txt",
+      ".md",
+      "text/plain",
+      "text/markdown",
       "image/*"
     ].join(",");
     ELO_UI.attachmentInput = input;
