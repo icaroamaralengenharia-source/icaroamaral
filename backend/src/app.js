@@ -4515,6 +4515,9 @@ export function createApp(options = {}) {
       const bodyParseStartedAt = nowMs_();
       chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics, attachmentAuthContext);
       latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
+      // Multipart requests are parsed above instead of by express.json(). Keep the
+      // normalized body available to identity/auth-aware downstream helpers.
+      request.body = chatRequest.body || {};
       if (chatRequest.documents.length || chatRequest.attachmentErrors.length) {
         request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, {
           attachmentType: chatRequest.documents[0] && chatRequest.documents[0].mimeType || "unknown"
@@ -4586,12 +4589,16 @@ export function createApp(options = {}) {
       const target = getEloCoreMemoryTargetForChat_(request);
       if (target) {
         try {
-          const memory = await target.store.upsertMemory(Object.assign({}, target.identity, {
-            category: inferEloCanonicalMemoryCategory_(explicitMemoryText),
-            memory_key: buildEloCanonicalMemoryKey_(explicitMemoryText),
-            memory_value: explicitMemoryText,
-            confidence: 0.9
-          }));
+          const memories = [];
+          for (const fact of parseEloExplicitMemoryFacts_(explicitMemoryText)) {
+            memories.push(await target.store.upsertMemory(Object.assign({}, target.identity, {
+              category: inferEloCanonicalMemoryCategory_(fact),
+              memory_key: buildEloCanonicalMemoryKey_(fact),
+              memory_value: fact,
+              confidence: 0.9
+            })));
+          }
+          const memory = memories[0] || null;
           setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
           response.status(201).json({
             ok: true,
@@ -4600,6 +4607,7 @@ export function createApp(options = {}) {
             answer: "Guardei essa informação na memória permanente do ELO.",
             savePrompt: buildEloSavePromptMeta_({ show: false, reason: "explicit_memory_saved", suggestedTarget: "none" }),
             memory,
+            memories,
             interpretation: validation.payload.interpretation,
             eloIntent: validation.payload.eloIntent
           });
@@ -6141,7 +6149,8 @@ async function buildEloChatRequest_(request, env, memoryStore, metrics = null, a
     history: parseJsonField_(parsed.fields.history, []),
     context: trustedContext
   };
-  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore);
+  const explicitMemoryCommand = extractEloExplicitMemoryCommandText_(body.message);
+  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore, { persist: !explicitMemoryCommand });
   return {
     body,
     documents: attachmentResult.documents,
@@ -6778,7 +6787,7 @@ function validateEloAttachmentType_(file) {
   return { ok: true, extension, mimeType };
 }
 
-async function processEloAttachments_(files, context, env, memoryStore) {
+async function processEloAttachments_(files, context, env, memoryStore, options = {}) {
   const documents = [];
   const errors = [];
   const safeFiles = Array.isArray(files) ? files.slice(0, 4) : [];
@@ -6817,7 +6826,7 @@ async function processEloAttachments_(files, context, env, memoryStore) {
         text: text.slice(0, MAX_ELO_ATTACHMENT_TEXT_LENGTH)
       };
       documents.push(document);
-      if (ownerId) {
+      if (ownerId && options.persist !== false) {
         await saveEloDocumentChunks_(memoryStore, document, ownerId);
       }
     } catch (error) {
@@ -7083,8 +7092,27 @@ export function buildConversationSummary_(history = []) {
 
 function extractEloExplicitMemoryCommandText_(message) {
   const raw = clean_(message).replace(/^elo[,\s]+/i, "");
-  const match = raw.match(/^(?:memorize\s*:|memorize\s+que\s+|lembre\s+que\s+|guarde\s+que\s+|guarde\s+isso\s*:?)\s*(.+)$/i);
-  return match && match[1] ? clean_(match[1]).slice(0, 1200) : "";
+  const prefixes = [
+    /^memorize\s*:\s*/i,
+    /^memorize\s+(?:que\s+|isso\s*:?[\s]*)?/i,
+    /^lembre\s+(?:que\s+|:?[\s]*)/i,
+    /^guarde\s+(?:que\s+|isso\s*:?[\s]*)/i
+  ];
+  for (const prefix of prefixes) {
+    const match = raw.match(prefix);
+    if (match) return clean_(raw.slice(match[0].length)).slice(0, 1200);
+  }
+  return "";
+}
+
+function parseEloExplicitMemoryFacts_(text) {
+  const value = clean_(text).slice(0, 1200);
+  if (!value) return [];
+  const facts = value
+    .split(/,\s*(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)|\s+e\s+(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)/i)
+    .map(clean_)
+    .filter(Boolean);
+  return facts.length ? facts : [value];
 }
 
 function inferEloCanonicalMemoryCategory_(text) {
@@ -7102,7 +7130,9 @@ function buildEloCanonicalMemoryKey_(text) {
   const normalized = normalizeEloSearchText_(text)
     .replace(/^(na verdade|corrigindo|correcao|correção)\s+/, "")
     .trim();
-  const tokens = normalized
+  const field = normalized.match(/^(.+?)\s+(?:e|eh|sao|se chama|chama)\s+.+$/i);
+  const keySource = field && field[1] ? field[1].trim() : normalized;
+  const tokens = keySource
     .split(/\s+/)
     .filter((token) => token && !ELO_VECTOR_STOPWORDS_.has(token))
     .slice(0, 8)
