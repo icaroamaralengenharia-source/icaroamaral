@@ -286,7 +286,6 @@
   const RDO_DRAFT_STORAGE_PREFIX = "obrareport:rdo:draft:v1";
   const RDO_DRAFT_INDEX_KEY = "obrareport:rdo:draft:index:v1";
   const RDO_DRAFT_LAST_KEY_PREFIX = "obrareport:rdo:draft:last:v1";
-  const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
   let stockFullRuntimeMode = "local";
@@ -385,7 +384,7 @@
 
   if (openReportButton && homePanel && reportPanel) {
     openReportButton.addEventListener("click", function () {
-      if (currentUser && hasLocalAccessSession_()) {
+      if (hasRouteAccess_()) {
         showDashboardPanel_("dashboard");
         return;
       }
@@ -659,6 +658,21 @@
     }
 
     return Boolean(storage && storage.getItem(localAccessSessionKey) === "granted");
+  }
+
+  function hasAuthenticatedSession_() {
+    return Boolean(
+      currentUser &&
+      appState.session &&
+      appState.session.token &&
+      appState.session.localOnly !== true
+    );
+  }
+
+  function hasRouteAccess_() {
+    return isStockAiPublicDemo_() ||
+      (isStockFullContext_() && !isStockFullIsolatedApp_) ||
+      hasAuthenticatedSession_();
   }
 
   function grantLocalAccessSession_() {
@@ -1289,7 +1303,10 @@
       if (appState.session && appState.session.token) {
         refreshCloudState_();
       } else {
-        setCloudStatus_("Modo local ativo", "info");
+        revokeLocalAccessSession_();
+        setCloudStatus_("Sessão autenticada não encontrada. Entre novamente.", "info");
+        setLoginAccessStatus_("Entre com a conta real para acessar os dados da obra.", "info");
+        showLoginPanel_();
       }
       return;
     }
@@ -1880,25 +1897,11 @@
         const informedName = clean(formData.get("userName"));
         const informedEmail = clean(formData.get("userEmail")).toLowerCase();
         const name = informedName || "Usuário ObraReport";
-        const email = informedEmail || "local@obrareport.app";
         const password = clean(formData.get("userPassword"));
 
-        if (!password) {
-          setLoginAccessStatus_("Informe a senha para entrar.", "error");
-          return;
-        }
-
-        if (!isLocalAccessPasswordValid_(password)) {
-          setCloudStatus_("Senha incorreta para acesso local.", "error");
-          setLoginAccessStatus_("Senha incorreta para acesso local.", "error");
-          return;
-        }
-
-        if (!informedName || !informedEmail) {
-          loginLocalFallback_(name, email);
-          setCloudStatus_("Modo local ativo", "info");
-          setLoginAccessStatus_("", "");
-          runPendingHomeAction_();
+        if (!informedEmail || !password) {
+          setCloudStatus_("Informe e-mail e senha para autenticar na nuvem.", "error");
+          setLoginAccessStatus_("Informe e-mail e senha para entrar.", "error");
           return;
         }
 
@@ -1907,11 +1910,18 @@
           setCloudStatus_("Conectando à nuvem...", "info");
           const result = await cloudApi_("auth.login", {
             name: name,
-            email: email,
+            email: informedEmail,
             password: password
           });
 
           await applyCloudLogin_(result);
+          const verifiedSession = await cloudApi_("sync.get", {
+            token: appState.session && appState.session.token
+          });
+          if (!verifiedSession || !verifiedSession.user || !verifiedSession.state) {
+            throw new Error("A sessão retornada não foi validada pelo backend.");
+          }
+          await applyCloudState_(verifiedSession.state, appState.session.token);
           grantLocalAccessSession_();
           loginForm.reset();
           renderSaasState_();
@@ -1921,10 +1931,18 @@
           runPendingHomeAction_();
         } catch (error) {
           console.error(error);
-          loginLocalFallback_(name, email);
-          setCloudStatus_("Modo local ativo. Publique o Apps Script novo para sincronizar na nuvem.", "error");
-          setLoginAccessStatus_("", "");
-          runPendingHomeAction_();
+          const message = error && error.message ? error.message : "Não foi possível autenticar na nuvem.";
+          const passwordInput = loginForm.querySelector("[name='userPassword']");
+          if (passwordInput) {
+            passwordInput.value = "";
+          }
+          appState.session = null;
+          currentUser = null;
+          saveLocalData({ syncCloud: false });
+          revokeLocalAccessSession_();
+          setCloudStatus_(message, "error");
+          setLoginAccessStatus_(message, "error");
+          showLoginPanel_();
         }
       });
     }
@@ -2518,7 +2536,7 @@
     bindAlmoxHistoryControls_();
 
     window.addEventListener("hashchange", function () {
-      if (hasLocalAccessSession_() && window.location.hash.indexOf("#app/") === 0) {
+      if (hasRouteAccess_() && window.location.hash.indexOf("#app/") === 0) {
         currentUser = currentUser || getCurrentUser_();
         if (currentUser) {
           showDashboardPanel_(getRouteFromHash_());
@@ -2526,7 +2544,7 @@
         }
       }
 
-      if (isRestrictedRouteHash_() && !hasLocalAccessSession_()) {
+      if (isRestrictedRouteHash_() && !hasRouteAccess_()) {
         const accessMessage = getRestrictedAccessMessage_();
         setCloudStatus_(accessMessage, "info");
         setLoginAccessStatus_(accessMessage, "info");
@@ -2709,7 +2727,7 @@
       return;
     }
 
-    if (!currentUser || !hasLocalAccessSession_()) {
+    if (!hasRouteAccess_()) {
       pendingHomeAction = action;
       setHomeActionStatus_("Faça login para abrir essa ação diretamente no sistema.");
       showLoginPanel_();
@@ -3713,10 +3731,6 @@
     return hash.indexOf("#app/") === 0 || hash.indexOf("#report/") === 0;
   }
 
-  function isLocalAccessPasswordValid_(password) {
-    return clean(password).toLowerCase() === localAccessPassword.toLowerCase();
-  }
-
   function getReportIdFromHash_() {
     const hash = String(window.location.hash || "");
     return hash.indexOf("#report/") === 0 ? hash.replace("#report/", "") : "";
@@ -3772,7 +3786,7 @@
   }
 
   function showDashboardPanel_(route) {
-    if (!hasLocalAccessSession_()) {
+    if (!hasRouteAccess_()) {
       const accessMessage = getRestrictedAccessMessage_();
       setCloudStatus_(accessMessage, "info");
       setLoginAccessStatus_(accessMessage, "info");
