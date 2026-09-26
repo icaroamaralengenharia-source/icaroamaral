@@ -185,8 +185,11 @@ test("rota legada de geração de RDO delega para o registro documental canônic
       generatorCalls += 1;
       const payload = JSON.parse(request.body);
       assert.equal(payload.source, "rdo");
+      assert.equal(payload.documentType, "rdo");
       assert.equal(payload.tipoRelatorio, "RDO");
-      assert.equal(payload.report.obra, "ObraReport");
+      assert.equal(payload.workId, "work-a");
+      assert.equal(payload.rdoId, "rdo-a");
+      assert.equal(payload.report.workName, "OBRA TESTE ELO E2E");
       assert.equal(payload.report.date, "2026-09-14");
       return { ok: true, async json() { return generatorResponse(); } };
     }
