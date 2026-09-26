@@ -12,22 +12,58 @@ function httpError(code, status = 400, cause = null) {
   return Object.assign(new Error(code), { status, cause });
 }
 
-function generatorPayloadForRdo(rdo, input = {}) {
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && clean(value) !== "");
+}
+
+export function buildRdoGeneratorPayload(rdo, input = {}, work = null, context = {}) {
   const data = objectOf(rdo && (rdo.rdo_data_json || rdo.rdoData));
-  const workName = clean(input.workName || data.workName || data.obra || data.projectName || "ObraReport");
+  const workRecord = objectOf(work);
+  const safeInput = objectOf(input);
+  const safeContext = objectOf(context);
+  const workName = clean(firstValue(
+    safeInput.workName,
+    data.workName,
+    data.work_name,
+    data.obra,
+    data.projectName,
+    workRecord.name,
+    workRecord.title,
+    workRecord.project_name
+  ));
+  const date = clean(firstValue(rdo && rdo.rdo_date, data.date, data.rdoDate, data.rdo_date));
+  const photos = Array.isArray(data.photos) ? data.photos : Array.isArray(data.fotos) ? data.fotos : [];
   return {
     submittedAt: new Date().toISOString(),
     source: "rdo",
+    documentType: "rdo",
     tipoRelatorio: "RDO",
+    workId: clean(safeInput.workId || safeInput.work_id || rdo && (rdo.project_id || rdo.projectId)),
+    rdoId: clean(safeInput.rdoId || safeInput.rdo_id || rdo && rdo.id),
+    institutionId: clean(safeContext.institutionId || safeContext.institution_id || safeContext.profile && (safeContext.profile.institution_id || safeContext.profile.institutionId)),
     report: {
-      obra: workName,
-      date: clean(rdo.rdo_date || data.date),
-      observacoes: clean(data.observation || data.observations || data.observacoes || data.summary || ""),
-      atividades: Array.isArray(data.activities) ? data.activities : [],
-      dadosRdo: data
+      date,
+      workName,
+      responsible: firstValue(data.responsible, data.responsavel, data.responsavelTecnico, data.responsiblePerson),
+      climate: firstValue(data.climate, data.clima),
+      impact: firstValue(data.impact, data.impacts, data.interferencias, data.interferências),
+      hours: firstValue(data.hours, data.horario, data.jornada),
+      team: firstValue(data.team, data.equipe),
+      workers: firstValue(data.workers, data.workerCount, data.trabalhadores, data.funcionarios),
+      services: firstValue(data.services, data.activities, data.atividades, data.servicos, data.serviços),
+      physicalProgress: firstValue(data.physicalProgress, data.progress, data.avancoFisico, data.avanco_fisico),
+      production: firstValue(data.production, data.producao, data.produção),
+      materials: firstValue(data.materials, data.materiais),
+      requests: firstValue(data.requests, data.solicitacoes, data.solicitações),
+      tools: firstValue(data.tools, data.equipment, data.ferramentas, data.equipamentos),
+      safety: firstValue(data.safety, data.seguranca, data.segurança),
+      occurrences: firstValue(data.occurrences, data.ocorrencias, data.ocorrências),
+      observations: firstValue(data.observations, data.observation, data.observacoes, data.observações),
+      photos,
+      summary: firstValue(data.summary, data.resumo),
+      sourceData: data
     },
-    fotosUnidade: [],
-    inconformidades: []
+    fotosRdo: photos
   };
 }
 
@@ -51,8 +87,9 @@ export function createObraReportReportOrchestrator({ documentRepository, rdoRepo
     if (sourceType === "rdo" && (!rdoId || !rdoRepository || typeof rdoRepository.getById !== "function")) {
       throw httpError("rdo_repository_not_configured", 503);
     }
+    let work = null;
     if (workId && typeof documentRepository.validateWork === "function") {
-      await documentRepository.validateWork(context, workId);
+      work = await documentRepository.validateWork(context, workId);
     }
     let rdo = null;
     if (sourceType === "rdo") {
@@ -67,7 +104,7 @@ export function createObraReportReportOrchestrator({ documentRepository, rdoRepo
     if (typeof fetchImpl !== "function" || !clean(appsScriptUrl)) throw httpError("report_generator_not_configured", 503);
     const generatorPayload = Object.keys(objectOf(safe.generatorPayload || safe.generator_payload)).length
       ? objectOf(safe.generatorPayload || safe.generator_payload)
-      : (rdo ? generatorPayloadForRdo(rdo, safe) : {});
+      : (rdo ? buildRdoGeneratorPayload(rdo, safe, work, context) : {});
     const response = await fetchImpl(appsScriptUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -80,8 +117,8 @@ export function createObraReportReportOrchestrator({ documentRepository, rdoRepo
       sourceId,
       workId,
       rdoId: sourceType === "rdo" ? rdoId : clean(safe.rdoId || safe.rdo_id),
-      documentType: clean(safe.documentType || safe.document_type) || "technical_report_pdf",
-      title: clean(safe.title) || clean(generatorPayload.report && generatorPayload.report.obra) || "Relatório técnico",
+      documentType: clean(safe.documentType || safe.document_type) || (sourceType === "rdo" ? "rdo_pdf" : "technical_report_pdf"),
+      title: clean(safe.title) || clean(generatorPayload.report && (generatorPayload.report.workName || generatorPayload.report.obra)) || "RDO",
       provider: "google_drive_apps_script",
       externalFileId: generated.pdfFileId,
       artifactUrl: generated.pdfUrl,
