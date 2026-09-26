@@ -1888,6 +1888,26 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos/:id/generate-document", async (request, response) => {
     try {
+      const context = buildCanonicalRdoContext_(request);
+      if (documentOrchestrator) {
+        const rdo = await obraReportTransactionalService.getRdo(context, request.params.id);
+        const body = request.body && typeof request.body === "object" ? request.body : {};
+        const workId = clean_(body.workId || body.work_id || rdo.project_id);
+        const idempotencyKey = clean_(body.idempotencyKey || body.idempotency_key) || "rdo:" + clean_(rdo.id) + ":pdf:v1";
+        const result = await documentOrchestrator.generate(context, Object.assign({}, body, {
+          sourceType: "rdo",
+          sourceId: clean_(rdo.id || request.params.id),
+          rdoId: clean_(rdo.id || request.params.id),
+          workId,
+          idempotencyKey,
+          title: clean_(body.title || rdo.title || "RDO"),
+          documentType: clean_(body.documentType || body.document_type) || "rdo_pdf"
+        }));
+        const document = safeGeneratedDocumentForClient_(result.document);
+        await safeEmitOperationalTimeline_(request, { record: Object.assign({}, result.document, { project_id: workId }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Documento PDF de RDO gerado pelo registro documental canônico.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, request_id: document.request_id } });
+        response.status(result.duplicate ? 200 : 201).json({ ok: true, duplicate: result.duplicate, document, openUrl: document.open_url, requestId: document.request_id });
+        return;
+      }
       const document = await obraReportTransactionalService.generateRdoDocument(buildCanonicalRdoContext_(request), request.params.id);
       const rdoForTimeline = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
       await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: rdoForTimeline.project_id }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Referencia de documento de RDO gerado.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
