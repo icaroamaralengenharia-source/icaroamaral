@@ -168,6 +168,62 @@ test("content endpoint é autenticado, tenant-scoped e não expõe URL bruta", a
     const crossTenant = await fetch(base + "/api/obrareport/documents/" + id + "/content", { headers: { Authorization: "Bearer b" } });
     assert.equal(crossTenant.status, 404);
   } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("rota legada de geração de RDO delega para o registro documental canônico", async () => {
+  const store = createStore();
+  let generatorCalls = 0;
+  const rdoRepository = createRdoRepository();
+  const orchestrator = createObraReportReportOrchestrator({
+    documentRepository: store,
+    rdoRepository,
+    appsScriptUrl: "https://script.example.test/exec",
+    fetchImpl: async (_url, request) => {
+      generatorCalls += 1;
+      const payload = JSON.parse(request.body);
+      assert.equal(payload.source, "rdo");
+      assert.equal(payload.tipoRelatorio, "RDO");
+      assert.equal(payload.report.obra, "ObraReport");
+      assert.equal(payload.report.date, "2026-09-14");
+      return { ok: true, async json() { return generatorResponse(); } };
+    }
+  });
+  const app = createApp({
+    authContextSupabaseClient: createAuthClient(),
+    obraReportTransactionalService: { async getRdo(context, id) { return rdoRepository.getById(context, id); } },
+    documentRepository: store,
+    documentOrchestrator: orchestrator,
+    env: { AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500" }
+  });
+  const server = await new Promise((resolve) => { const instance = app.listen(0, () => resolve(instance)); });
+  const base = "http://127.0.0.1:" + server.address().port;
+  try {
+    const generated = await fetch(base + "/api/obrareport/rdos/rdo-a/generate-document", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer a" },
+      body: "{}"
+    });
+    assert.equal(generated.status, 201);
+    const body = await generated.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.document.rdo_id, "rdo-a");
+    assert.equal(body.document.work_id, "work-a");
+    assert.match(body.openUrl, /\/api\/obrareport\/documents\//);
+    assert.equal(generatorCalls, 1);
+
+    const duplicate = await fetch(base + "/api/obrareport/rdos/rdo-a/generate-document", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer a" },
+      body: "{}"
+    });
+    assert.equal(duplicate.status, 200);
+    assert.equal((await duplicate.json()).duplicate, true);
+    assert.equal(generatorCalls, 1);
+  } finally {
+    server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
   }
 });
