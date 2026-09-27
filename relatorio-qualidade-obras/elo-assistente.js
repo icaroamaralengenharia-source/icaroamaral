@@ -888,6 +888,22 @@
     if (isEloReportFromAnalysisContextRequest_(raw)) {
       return { module: "obrareport_report", action: "generate_report_from_context", payload: payload };
     }
+    if (/^\s*(?:elo[, ]*)?(?:abra|abrir|mostre|mostrar|acesse|acessar)\s+(?:o\s+)?(?:modulo\s+)?prefeitura\b/.test(text) || /\b(?:modulo|contexto)\s+prefeitura\b/.test(text)) {
+      return { module: "municipal", action: "municipal.context", payload: payload };
+    }
+    const municipalUnitMatch = raw.match(/\b(?:abra|abrir|selecione|selecionar|mude\s+para|troque\s+para)\s+(?:a\s+)?(?:unidade|almoxarifado)\s+(.+)$/i);
+    if (municipalUnitMatch) {
+      return { module: "municipal", action: "unit.select", payload: Object.assign({}, payload, { unitName: municipalUnitMatch[1].trim() }) };
+    }
+    if (/\b(?:mostre|mostrar|liste|listar|quais|consultar|consulte)\b[\s\S]{0,60}\b(?:unidades|almoxarifados)\b/.test(text)) {
+      return { module: "municipal", action: "units.list", payload: payload };
+    }
+    if (/\b(?:estoque|saldo)\b[\s\S]{0,60}\b(?:desta|da|na|nesta)\s+(?:unidade|almoxarifado)\b/.test(text)) {
+      return { module: "municipal", action: "unit.stock", payload: payload };
+    }
+    if (/\b(?:documentos?|acervo)\b[\s\S]{0,60}\b(?:desta|da|na|nesta)\s+(?:unidade|almoxarifado)\b/.test(text)) {
+      return { module: "municipal", action: "archive.documents.list", payload: payload };
+    }
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
     if (/\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|documentos?|notifica[cç][oõ]es)\b/.test(text) || /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text)) {
       if (/aprove\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "approved" }) };
@@ -953,7 +969,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.generateDocument$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.generateDocument$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_|municipal\.context$|units\.|unit\.)/.test(request.action);
   }
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;

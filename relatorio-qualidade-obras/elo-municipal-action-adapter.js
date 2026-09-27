@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const MUNICIPAL_CONTEXT_KEY = "elo_municipal_working_context_v1";
+
   function clean(value) {
     return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
   }
@@ -28,6 +30,60 @@
     return clean(window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
   }
 
+  function normalize(value) {
+    return clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  function readWorkingContext() {
+    if (window.ELO_MUNICIPAL_WORKING_CONTEXT && typeof window.ELO_MUNICIPAL_WORKING_CONTEXT === "object") {
+      return window.ELO_MUNICIPAL_WORKING_CONTEXT;
+    }
+    try {
+      const raw = window.localStorage && window.localStorage.getItem(MUNICIPAL_CONTEXT_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function workingContext(input) {
+    const currentInstitutionId = institutionId(input);
+    const stored = readWorkingContext();
+    const storedInstitution = clean(stored.currentInstitution && (stored.currentInstitution.id || stored.currentInstitution.institution_id));
+    if (!currentInstitutionId || storedInstitution !== currentInstitutionId) {
+      return {
+        currentInstitution: currentInstitutionId ? { id: currentInstitutionId } : null,
+        currentMunicipalUnit: null
+      };
+    }
+    return {
+      currentInstitution: stored.currentInstitution || { id: currentInstitutionId },
+      currentMunicipalUnit: stored.currentMunicipalUnit || null
+    };
+  }
+
+  function saveWorkingContext(input, institution, unit) {
+    const context = {
+      version: 1,
+      currentInstitution: { id: clean(institution && (institution.id || institution.institution_id)) },
+      currentMunicipalUnit: unit ? {
+        id: clean(unit.id),
+        institution_id: clean(unit.institution_id),
+        name: clean(unit.name),
+        code: clean(unit.code),
+        address: clean(unit.address),
+        status: clean(unit.status || "active")
+      } : null,
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      if (window.localStorage) window.localStorage.setItem(MUNICIPAL_CONTEXT_KEY, JSON.stringify(context));
+    } catch (_) {}
+    window.ELO_MUNICIPAL_WORKING_CONTEXT = context;
+    return context;
+  }
+
   function authToken(input) {
     return clean(input && input.context && input.context.authToken || window.MUNICIPAL_ADMIN_AUTH_TOKEN || window.ELO_AUTH_TOKEN || window.ELO_SENTINEL_AUTH_TOKEN);
   }
@@ -43,7 +99,12 @@
 
   function unitId(input) {
     const ctx = identity(input);
-    return clean(ctx.unitId || ctx.unit_id || input && input.payload && (input.payload.unitId || input.payload.unit_id));
+    const explicitContext = input && input.context && (input.context.unitId || input.context.unit_id || input.context.identity && (input.context.identity.unitId || input.context.identity.unit_id));
+    const explicitPayload = input && input.payload && (input.payload.unitId || input.payload.unit_id);
+    const explicit = clean(explicitContext || explicitPayload);
+    if (explicit) return explicit;
+    const current = workingContext(input).currentMunicipalUnit;
+    return clean(current && current.id || ctx.unitId || ctx.unit_id);
   }
 
   function requireMunicipalContext(input) {
@@ -65,6 +126,10 @@
   function municipalUrl(path, query) {
     const suffix = qs(query);
     return apiBase() + "/api/municipal-admin" + path + (suffix ? "?" + suffix : "");
+  }
+
+  function municipalContextResult(input, values) {
+    return actionResult(input, Object.assign({ municipalContext: workingContext(input) }, values || {}));
   }
 
   function request(input, path, options, query) {
@@ -93,6 +158,73 @@
 
   function endpointQuery(input, extra) {
     return Object.assign({ institution_id: institutionId(input), unit_id: unitId(input) }, extra || {});
+  }
+
+  function listUnits(input) {
+    const blocked = requireMunicipalContext(input);
+    if (blocked) return Promise.resolve(blocked);
+    const path = "/institutions/" + encodeURIComponent(institutionId(input)) + "/units";
+    return request(input, path).then(function (data) {
+      const units = (data.units || []).filter(function (unit) {
+        return clean(unit.institution_id) === institutionId(input) && clean(unit.status || "active") !== "inactive";
+      });
+      return municipalContextResult(input, {
+        humanAnswer: units.length ? "Encontrei " + units.length + " unidade(s) municipais autorizada(s)." : "Não encontrei unidades municipais autorizadas.",
+        data: { units: units }
+      });
+    }).catch(function (error) {
+      return safeError(input, "Não consegui consultar as unidades municipais: " + clean(error.message) + ".", "units_query_failed");
+    });
+  }
+
+  function selectUnit(input) {
+    const blocked = requireMunicipalContext(input);
+    if (blocked) return Promise.resolve(blocked);
+    const payload = input.payload || {};
+    return listUnits(input).then(function (listed) {
+      if (!listed.ok) return listed;
+      const units = listed.data && listed.data.units || [];
+      const requestedId = clean(payload.unitId || payload.unit_id);
+      const requestedName = normalize(payload.unitName || payload.unit_name || payload.name || (payload.message || "").replace(/^.*?(?:unidade|almoxarifado)\s+/i, ""));
+      const matches = units.filter(function (unit) {
+        if (requestedId) return clean(unit.id) === requestedId;
+        return [unit.name, unit.code].some(function (value) { return normalize(value) === requestedName; });
+      });
+      if (matches.length !== 1) {
+        return safeError(input, matches.length > 1 ? "Encontrei mais de uma unidade com esse nome. Informe o código da unidade." : "Não encontrei essa unidade no escopo autorizado.", matches.length > 1 ? "unit_ambiguous" : "unit_not_found");
+      }
+      const context = saveWorkingContext(input, { id: institutionId(input) }, matches[0]);
+      return actionResult(input, {
+        humanAnswer: "Unidade municipal ativa: " + clean(matches[0].name || matches[0].code) + ".",
+        data: { unit: matches[0] },
+        municipalContext: context
+      });
+    });
+  }
+
+  function currentUnit(input) {
+    const context = workingContext(input);
+    return municipalContextResult(input, {
+      humanAnswer: context.currentMunicipalUnit ? "Unidade municipal ativa: " + clean(context.currentMunicipalUnit.name || context.currentMunicipalUnit.code) + "." : "Nenhuma unidade municipal foi selecionada.",
+      data: { institution: context.currentInstitution, unit: context.currentMunicipalUnit }
+    });
+  }
+
+  function unitStock(input) {
+    const blocked = requireMunicipalContext(input);
+    if (blocked) return Promise.resolve(blocked);
+    const current = workingContext(input).currentMunicipalUnit;
+    const selectedId = unitId(input);
+    if (!selectedId || !current || clean(current.id) !== selectedId) return Promise.resolve(safeError(input, "Selecione uma unidade municipal autorizada antes de consultar o estoque.", "unit_id_required"));
+    return request(input, "/units/" + encodeURIComponent(selectedId) + "/operational-dashboard").then(function (data) {
+      const dashboard = data.dashboard || {};
+      return municipalContextResult(input, {
+        humanAnswer: "Estoque da unidade " + clean(current.name || current.code) + ": " + Number(dashboard.metrics && dashboard.metrics.total_items || 0) + " item(ns) cadastrado(s).",
+        data: { dashboard: dashboard }
+      });
+    }).catch(function (error) {
+      return safeError(input, "Não consegui consultar o estoque da unidade: " + clean(error.message) + ".", "unit_stock_query_failed");
+    });
   }
 
   function listAssets(input) {
@@ -188,6 +320,10 @@
 
   function execute(input) {
     const action = clean(input && input.action);
+    if (action === "municipal.context") return currentUnit(input);
+    if (action === "units.list") return listUnits(input);
+    if (action === "unit.select") return selectUnit(input);
+    if (action === "unit.stock") return unitStock(input);
     if (action === "municipal.attention") return attention(input);
     if (action === "assets.list") return listAssets(input);
     if (action === "archive.documents.list") return listDocuments(input);
@@ -199,6 +335,9 @@
 
   window.EloMunicipalActionAdapter = Object.assign({}, window.EloMunicipalActionAdapter || {}, {
     execute: execute,
+    readWorkingContext: readWorkingContext,
+    workingContext: workingContext,
+    saveWorkingContext: saveWorkingContext,
     version: "elo-municipal-action-adapter-v1"
   });
 })();

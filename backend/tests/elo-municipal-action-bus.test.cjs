@@ -40,6 +40,12 @@ function loadBridge(options = {}) {
         const body = init.body ? JSON.parse(init.body) : null;
         calls.push({ url, path: parsed.pathname, search: parsed.searchParams, method: init.method || "GET", body, headers: init.headers || {} });
         if (url.includes("/assets")) return Promise.resolve(createResponse({ assets: [{ id: "asset-a", asset_tag: "PAT-001" }] }));
+        if (url.includes("/institutions/inst-a/units")) return Promise.resolve(createResponse({ units: [
+          { id: "unit-a", institution_id: "inst-a", name: "Almoxarifado Central", code: "CENTRAL", status: "active" },
+          { id: "unit-b", institution_id: "inst-a", name: "Unidade Saude", code: "SAUDE", status: "active" }
+        ] }));
+        if (url.includes("/units/unit-a/operational-dashboard")) return Promise.resolve(createResponse({ dashboard: { metrics: { total_items: 2 }, items: [{ id: "cimento", current_quantity: 10 }] } }));
+        if (url.includes("/units/unit-b/operational-dashboard")) return Promise.resolve(createResponse({ dashboard: { metrics: { total_items: 1 }, items: [{ id: "papel", current_quantity: 5 }] } }));
         if (url.includes("/documents")) return Promise.resolve(createResponse({ documents: [{ id: "doc-a", title: "Relatorio" }] }));
         if (url.includes("/notifications")) return Promise.resolve(createResponse({ notifications: [{ id: "notif-a", title: "Alerta" }] }));
         if (url.includes("/sentinel/alerts")) return Promise.resolve(createResponse({ alerts: [{ id: "alert-a", severity: "high" }] }));
@@ -90,6 +96,40 @@ test("municipal read actions chamam endpoints reais com tenant", async () => {
   assert.ok(calls.some((call) => call.path === "/api/municipal-admin/documents"));
   assert.ok(calls.some((call) => call.path === "/api/municipal-admin/notifications"));
   assert.ok(calls.every((call) => call.search.get("institution_id") === "inst-a"));
+});
+
+test("municipal context lista, seleciona e troca unidade sem misturar institution", async () => {
+  const { window, calls } = loadBridge();
+  const listed = await window.EloCommandBridge.execute({ module: "municipal", action: "units.list", context: { authToken: "token-a" } });
+  assert.equal(listed.ok, true);
+  assert.equal(listed.data.units.length, 2);
+
+  const selected = await window.EloCommandBridge.execute({ module: "municipal", action: "unit.select", context: { authToken: "token-a" }, payload: { unitName: "Almoxarifado Central" } });
+  assert.equal(selected.ok, true);
+  assert.equal(selected.municipalContext.currentInstitution.id, "inst-a");
+  assert.equal(selected.municipalContext.currentMunicipalUnit.id, "unit-a");
+
+  const stock = await window.EloCommandBridge.execute({ module: "municipal", action: "unit.stock", context: { authToken: "token-a" } });
+  assert.equal(stock.ok, true);
+  assert.equal(stock.data.dashboard.metrics.total_items, 2);
+  assert.equal(calls.some((call) => call.path === "/api/municipal-admin/units/unit-a/operational-dashboard"), true);
+
+  const switched = await window.EloCommandBridge.execute({ module: "municipal", action: "unit.select", context: { authToken: "token-a" }, payload: { unitName: "Unidade Saude" } });
+  assert.equal(switched.ok, true);
+  assert.equal(switched.municipalContext.currentMunicipalUnit.id, "unit-b");
+  const switchedStock = await window.EloCommandBridge.execute({ module: "municipal", action: "unit.stock", context: { authToken: "token-a" } });
+  assert.equal(switchedStock.ok, true);
+  assert.equal(switchedStock.data.dashboard.metrics.total_items, 1);
+  assert.equal(calls.some((call) => call.path === "/api/municipal-admin/units/unit-b/operational-dashboard"), true);
+
+  const otherInstitution = await window.EloCommandBridge.execute({
+    module: "municipal",
+    action: "unit.select",
+    context: { authToken: "token-a", identity: { institutionId: "inst-b" } },
+    payload: { unitId: "unit-a" }
+  });
+  assert.equal(otherInstitution.ok, false);
+  assert.equal(otherInstitution.error, "unit_not_found");
 });
 
 test("reports preview e archive respeitam dry-run confirmacao e operation_id", async () => {
