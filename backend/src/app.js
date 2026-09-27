@@ -26,6 +26,7 @@ import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { createObraReportTransactionalService, defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repository.js";
+import { createSupabaseApartmentHandoverRepository } from "./services/obrareport-apartment-handover-repository.js";
 import { createSupabaseObraReportDocumentRepository } from "./services/obrareport-document-repository.js";
 import { createObraReportReportOrchestrator } from "./services/obrareport-report-orchestrator.js";
 import { createObraReportArtifactBroker } from "./services/obrareport-artifact-broker.js";
@@ -47,6 +48,16 @@ const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
 const MAX_ELO_DOCUMENT_CONTEXT_LENGTH = 5000;
 const ELO_DOCUMENT_CHUNK_LENGTH = 1200;
 const MAX_ELO_VECTOR_TEXT_LENGTH = 2000;
+const ELO_ATTACHMENT_MIME_BY_EXTENSION = Object.freeze({
+  txt: Object.freeze(["text/plain"]),
+  csv: Object.freeze(["text/csv", "application/csv", "application/vnd.ms-excel"]),
+  md: Object.freeze(["text/markdown", "text/plain"]),
+  pdf: Object.freeze(["application/pdf"]),
+  jpg: Object.freeze(["image/jpeg", "image/jpg"]),
+  jpeg: Object.freeze(["image/jpeg", "image/jpg"]),
+  png: Object.freeze(["image/png"]),
+  webp: Object.freeze(["image/webp"])
+});
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const ELO_LOCAL_VECTOR_DIMENSIONS = 96;
 const ELO_OPENAI_VECTOR_DIMENSIONS = 1536;
@@ -1214,7 +1225,13 @@ export function createApp(options = {}) {
   const rdoSupabaseClient = options.rdoSupabaseClient || (!options.obraReportTransactionalService && rdoStoreMode === "supabase" ? getSupabaseClient(env) : null);
   if (rdoStoreMode === "supabase" && !options.obraReportTransactionalService && !options.rdoRepository && !rdoSupabaseClient) throw new Error("rdo_supabase_store_not_configured");
   const rdoRepository = options.rdoRepository || (rdoStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseRdoRepository({ client: rdoSupabaseClient }) : null);
-  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
+  const configuredInspectionStore = clean_(env.ELO_APARTMENT_HANDOVER_STORE).toLowerCase();
+  if (configuredInspectionStore && !["supabase", "file"].includes(configuredInspectionStore)) throw new Error("apartment_handover_store_mode_invalid");
+  const inspectionStoreMode = configuredInspectionStore || "file";
+  const inspectionSupabaseClient = options.apartmentHandoverSupabaseClient || (inspectionStoreMode === "supabase" ? (rdoSupabaseClient || getSupabaseClient(env)) : null);
+  if (inspectionStoreMode === "supabase" && !options.obraReportTransactionalService && !options.apartmentHandoverRepository && !inspectionSupabaseClient) throw new Error("apartment_handover_supabase_store_not_configured");
+  const apartmentHandoverRepository = options.apartmentHandoverRepository || (inspectionStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseApartmentHandoverRepository({ client: inspectionSupabaseClient }) : null);
+  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository || apartmentHandoverRepository ? createObraReportTransactionalService({ rdoRepository, apartmentHandoverRepository }) : defaultObraReportTransactionalService);
   const documentSupabaseClient = options.documentSupabaseClient || rdoSupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null);
   const documentRepository = options.documentRepository || (documentSupabaseClient ? createSupabaseObraReportDocumentRepository({ client: documentSupabaseClient }) : null);
   const documentOrchestrator = options.documentOrchestrator || (documentRepository
@@ -2022,6 +2039,8 @@ export function createApp(options = {}) {
     }
   });
 
+  app.use("/api/obrareport/apartment-handover-inspections", requireCanonicalObraReportAuth_);
+
   app.post("/api/obrareport/apartment-handover-inspections", async (request, response) => {
     try {
       const inspection = obraReportTransactionalService.createApartmentHandoverInspection(buildObraReportContext_(request), request.body || {});
@@ -2051,7 +2070,13 @@ export function createApp(options = {}) {
 
   app.put("/api/obrareport/apartment-handover-inspections/:id", async (request, response) => {
     try {
-      const inspection = obraReportTransactionalService.updateApartmentHandoverInspection(buildObraReportContext_(request), request.params.id, request.body || {});
+      const context = buildObraReportContext_(request);
+      const body = request.body || {};
+      const inspection = body.itemUpdate && typeof obraReportTransactionalService.updateApartmentHandoverInspectionItem === "function"
+        ? obraReportTransactionalService.updateApartmentHandoverInspectionItem(context, request.params.id, body.itemUpdate)
+        : body.photoAttachment && typeof obraReportTransactionalService.attachApartmentHandoverInspectionPhoto === "function"
+          ? obraReportTransactionalService.attachApartmentHandoverInspectionPhoto(context, request.params.id, body.photoAttachment)
+          : obraReportTransactionalService.updateApartmentHandoverInspection(context, request.params.id, body);
       response.json({ ok: true, inspection });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -4103,6 +4128,24 @@ export function createApp(options = {}) {
       throw error;
     }
   }
+  function getEloAttachmentAuthContext_(request) {
+    const auth = request && request.eloAuthContext;
+    const profile = auth && auth.profile && typeof auth.profile === "object" ? auth.profile : {};
+    const userId = clean_(auth && auth.userId || profile.id);
+    const institutionId = clean_(auth && auth.institutionId || profile.institution_id || profile.institutionId);
+    if (!auth || auth.ok !== true || !userId || !institutionId) {
+      return null;
+    }
+    const projectId = clean_(auth.projectId || profile.project_id || profile.projectId);
+    const workId = clean_(auth.workId || profile.work_id || profile.workId);
+    return {
+      userId,
+      institutionId,
+      projectId,
+      workId,
+      ownerId: sanitizeEloDeviceId_("elo_dev_auth_" + institutionId + "_" + userId)
+    };
+  }
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
   }
@@ -4456,11 +4499,25 @@ export function createApp(options = {}) {
     const latencyStartedAt = nowMs_();
     const latencyMetrics = createEloLatencyMetrics_();
     let chatRequest;
+    const isMultipartAttachmentRequest = /^multipart\/form-data/i.test(String(request.headers["content-type"] || ""));
+    const attachmentAuthContext = isMultipartAttachmentRequest ? getEloAttachmentAuthContext_(request) : null;
+
+    if (isMultipartAttachmentRequest && !attachmentAuthContext) {
+      response.status(401).json({
+        ok: false,
+        error: "authentication_required",
+        attachmentErrors: ["Entre no ELO antes de enviar um anexo privado."]
+      });
+      return;
+    }
 
     try {
       const bodyParseStartedAt = nowMs_();
-      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics);
+      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics, attachmentAuthContext);
       latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
+      // Multipart requests are parsed above instead of by express.json(). Keep the
+      // normalized body available to identity/auth-aware downstream helpers.
+      request.body = chatRequest.body || {};
       if (chatRequest.documents.length || chatRequest.attachmentErrors.length) {
         request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, {
           attachmentType: chatRequest.documents[0] && chatRequest.documents[0].mimeType || "unknown"
@@ -4532,12 +4589,16 @@ export function createApp(options = {}) {
       const target = getEloCoreMemoryTargetForChat_(request);
       if (target) {
         try {
-          const memory = await target.store.upsertMemory(Object.assign({}, target.identity, {
-            category: inferEloCanonicalMemoryCategory_(explicitMemoryText),
-            memory_key: buildEloCanonicalMemoryKey_(explicitMemoryText),
-            memory_value: explicitMemoryText,
-            confidence: 0.9
-          }));
+          const memories = [];
+          for (const fact of parseEloExplicitMemoryFacts_(explicitMemoryText)) {
+            memories.push(await target.store.upsertMemory(Object.assign({}, target.identity, {
+              category: inferEloCanonicalMemoryCategory_(fact),
+              memory_key: buildEloCanonicalMemoryKey_(fact),
+              memory_value: fact,
+              confidence: 0.9
+            })));
+          }
+          const memory = memories[0] || null;
           setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
           response.status(201).json({
             ok: true,
@@ -4546,6 +4607,7 @@ export function createApp(options = {}) {
             answer: "Guardei essa informação na memória permanente do ELO.",
             savePrompt: buildEloSavePromptMeta_({ show: false, reason: "explicit_memory_saved", suggestedTarget: "none" }),
             memory,
+            memories,
             interpretation: validation.payload.interpretation,
             eloIntent: validation.payload.eloIntent
           });
@@ -6056,7 +6118,7 @@ function validateImageRequest_(body) {
   };
 }
 
-async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
+async function buildEloChatRequest_(request, env, memoryStore, metrics = null, attachmentAuthContext = null) {
   if (!/^multipart\/form-data/i.test(String(request.headers["content-type"] || ""))) {
     return {
       body: request.body || {},
@@ -6069,13 +6131,26 @@ async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
   const multipartStartedAt = nowMs_();
   const parsed = await parseEloMultipartFormData_(request, env);
   if (metrics) metrics.bodyParseMs += nowMs_() - multipartStartedAt;
+  const context = parseJsonField_(parsed.fields.context, {});
+  const trustedContext = attachmentAuthContext
+    ? Object.assign({}, context, {
+      institutionId: attachmentAuthContext.institutionId,
+      userId: attachmentAuthContext.userId,
+      projectId: attachmentAuthContext.projectId || clean_(context.projectId || context.project_id),
+      workId: attachmentAuthContext.workId || clean_(context.workId || context.work_id),
+      attachmentOwnerId: attachmentAuthContext.ownerId,
+      attachmentScope: "private",
+      deviceId: attachmentAuthContext.ownerId
+    })
+    : context;
   const body = {
     message: parsed.fields.message || "",
     eloContext: parsed.fields.eloContext || "",
     history: parseJsonField_(parsed.fields.history, []),
-    context: parseJsonField_(parsed.fields.context, {})
+    context: trustedContext
   };
-  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore);
+  const explicitMemoryCommand = extractEloExplicitMemoryCommandText_(body.message);
+  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore, { persist: !explicitMemoryCommand });
   return {
     body,
     documents: attachmentResult.documents,
@@ -6626,7 +6701,7 @@ function parseEloMultipartFormData_(request, env) {
     });
 
     busboy.on("file", (fieldName, stream, info) => {
-      const fileName = clean_(info && info.filename ? info.filename : "").slice(0, 180);
+      const fileName = normalizeEloAttachmentFileName_(info && info.filename ? info.filename : "");
       const mimeType = clean_(info && info.mimeType ? info.mimeType : "application/octet-stream").slice(0, 120);
       const chunks = [];
       let total = 0;
@@ -6680,7 +6755,39 @@ function parseEloMultipartFormData_(request, env) {
   });
 }
 
-async function processEloAttachments_(files, context, env, memoryStore) {
+function normalizeEloAttachmentFileName_(value) {
+  const normalized = String(value || "").replace(/\\/g, "/");
+  const baseName = normalized.slice(normalized.lastIndexOf("/") + 1);
+  return clean_(baseName).replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 180) || "anexo";
+}
+
+function validateEloAttachmentType_(file) {
+  const fileName = normalizeEloAttachmentFileName_(file && file.fileName);
+  const extensionMatch = fileName.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const extension = extensionMatch ? extensionMatch[1] : "";
+  const mimeType = clean_(file && file.mimeType || "").toLowerCase();
+  const knownMimes = new Set(Object.values(ELO_ATTACHMENT_MIME_BY_EXTENSION).flat());
+
+  if (extension && !Object.prototype.hasOwnProperty.call(ELO_ATTACHMENT_MIME_BY_EXTENSION, extension)) {
+    return { ok: false, message: "tipo de arquivo ainda nao suportado para leitura automatica." };
+  }
+
+  if (!extension) {
+    if (!knownMimes.has(mimeType)) {
+      return { ok: false, message: "tipo de arquivo ainda nao suportado para leitura automatica." };
+    }
+    return { ok: true, extension: "", mimeType };
+  }
+
+  const allowedMimes = ELO_ATTACHMENT_MIME_BY_EXTENSION[extension];
+  if (mimeType && mimeType !== "application/octet-stream" && !allowedMimes.includes(mimeType)) {
+    return { ok: false, message: "extensao e MIME do arquivo nao sao compativeis." };
+  }
+
+  return { ok: true, extension, mimeType };
+}
+
+async function processEloAttachments_(files, context, env, memoryStore, options = {}) {
   const documents = [];
   const errors = [];
   const safeFiles = Array.isArray(files) ? files.slice(0, 4) : [];
@@ -6695,6 +6802,11 @@ async function processEloAttachments_(files, context, env, memoryStore) {
       errors.push(file.fileName + ": arquivo grande demais para esta versao do Elo.");
       continue;
     }
+    const typeValidation = validateEloAttachmentType_(file);
+    if (!typeValidation.ok) {
+      errors.push(file.fileName + ": " + typeValidation.message);
+      continue;
+    }
     try {
       const text = await extractEloAttachmentText_(file);
       if (!text) {
@@ -6702,12 +6814,19 @@ async function processEloAttachments_(files, context, env, memoryStore) {
         continue;
       }
       const document = {
+        attachmentId: createStableId_("elo_attachment_" + (context && context.attachmentOwnerId || context && context.deviceId || "unknown") + "_" + file.fileName + "_" + file.buffer.length + "_" + text.slice(0, 80)),
         fileName: file.fileName,
         mimeType: file.mimeType,
+        kind: typeValidation.extension || typeValidation.mimeType,
+        createdAt: new Date().toISOString(),
+        institutionId: clean_(context && context.institutionId),
+        userId: clean_(context && context.userId),
+        projectId: clean_(context && (context.projectId || context.project_id)),
+        workId: clean_(context && (context.workId || context.work_id)),
         text: text.slice(0, MAX_ELO_ATTACHMENT_TEXT_LENGTH)
       };
       documents.push(document);
-      if (ownerId) {
+      if (ownerId && options.persist !== false) {
         await saveEloDocumentChunks_(memoryStore, document, ownerId);
       }
     } catch (error) {
@@ -6719,7 +6838,8 @@ async function processEloAttachments_(files, context, env, memoryStore) {
 }
 
 async function extractEloAttachmentText_(file) {
-  const extension = String(file.fileName || "").toLowerCase().split(".").pop();
+  const fileName = normalizeEloAttachmentFileName_(file && file.fileName);
+  const extension = String(fileName || "").toLowerCase().split(".").pop();
   const mimeType = String(file.mimeType || "").toLowerCase();
 
   if (extension === "txt" || extension === "csv" || extension === "md" || mimeType.startsWith("text/")) {
@@ -6788,8 +6908,14 @@ async function saveEloDocumentChunks_(memoryStore, document, ownerId) {
       type: "document_chunk",
       source: "upload_elo",
       metadata: {
+        attachmentId: document.attachmentId,
         fileName: document.fileName,
         mimeType: document.mimeType,
+        kind: document.kind,
+        institutionId: document.institutionId,
+        userId: document.userId,
+        projectId: document.projectId,
+        workId: document.workId,
         uploadedAt: new Date().toISOString(),
         chunkIndex: index
       }
@@ -6966,8 +7092,27 @@ export function buildConversationSummary_(history = []) {
 
 function extractEloExplicitMemoryCommandText_(message) {
   const raw = clean_(message).replace(/^elo[,\s]+/i, "");
-  const match = raw.match(/^(?:memorize\s*:|memorize\s+que\s+|lembre\s+que\s+|guarde\s+que\s+|guarde\s+isso\s*:?)\s*(.+)$/i);
-  return match && match[1] ? clean_(match[1]).slice(0, 1200) : "";
+  const prefixes = [
+    /^memorize\s*:\s*/i,
+    /^memorize\s+(?:que\s+|isso\s*:?[\s]*)?/i,
+    /^lembre\s+(?:que\s+|:?[\s]*)/i,
+    /^guarde\s+(?:que\s+|isso\s*:?[\s]*)/i
+  ];
+  for (const prefix of prefixes) {
+    const match = raw.match(prefix);
+    if (match) return clean_(raw.slice(match[0].length)).slice(0, 1200);
+  }
+  return "";
+}
+
+function parseEloExplicitMemoryFacts_(text) {
+  const value = clean_(text).slice(0, 1200);
+  if (!value) return [];
+  const facts = value
+    .split(/,\s*(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)|\s+e\s+(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)/i)
+    .map(clean_)
+    .filter(Boolean);
+  return facts.length ? facts : [value];
 }
 
 function inferEloCanonicalMemoryCategory_(text) {
@@ -6985,7 +7130,9 @@ function buildEloCanonicalMemoryKey_(text) {
   const normalized = normalizeEloSearchText_(text)
     .replace(/^(na verdade|corrigindo|correcao|correção)\s+/, "")
     .trim();
-  const tokens = normalized
+  const field = normalized.match(/^(.+?)\s+(?:e|eh|sao|se chama|chama)\s+.+$/i);
+  const keySource = field && field[1] ? field[1].trim() : normalized;
+  const tokens = keySource
     .split(/\s+/)
     .filter((token) => token && !ELO_VECTOR_STOPWORDS_.has(token))
     .slice(0, 8)

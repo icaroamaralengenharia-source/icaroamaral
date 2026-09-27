@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="120" viewBox="0 0 320 120" role="img" aria-label="Fixture visual da obra demonstrativa">
+  <rect width="320" height="120" fill="#eef4fb"/>
+  <rect x="24" y="24" width="272" height="72" rx="8" fill="#ffffff" stroke="#1f6feb"/>
+  <text x="160" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#17324d">Obra Demo — Horizonte</text>
+</svg>
