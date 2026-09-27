@@ -4337,18 +4337,25 @@
     const raw = sanitizeUserText(message || "").replace(/^\s*(?:elo|ellen)\s*,?\s*/i, "");
     const text = normalizeText(raw);
     if (!text) return false;
-    return /^(?:memorize\s*:|memorize\s+que\b|lembre\s+que\b|guarde\s+que\b|guarde\s+isso\b|salve\s+na\s+memoria\b|salve\s+na\s+memória\b|quero\s+que\s+voce\s+lembre\b|quero\s+que\s+você\s+lembre\b)/.test(text);
+    return /^(?:memorize\s*:|memorize\s+isso\b|memorize\s+(?!(?:que|isso)\b)|lembre\s+que\b|guarde\s+que\b|guarde\s+isso\b|salve\s+na\s+memoria\b|salve\s+na\s+memória\b|quero\s+que\s+voce\s+lembre\b|quero\s+que\s+você\s+lembre\b)/.test(text);
   }
 
   function extractEloExplicitMemoryText_(message) {
     const raw = sanitizeUserText(message || "").replace(/^\s*(?:elo|ellen)\s*,?\s*/i, "").trim();
-    return raw.replace(/^memorize\s*:\s*/i, "").replace(/^memorize\s+que\s+/i, "").replace(/^lembre\s+que\s+/i, "").replace(/^guarde\s+que\s+/i, "").replace(/^guarde\s+isso\s*:?\s*/i, "").replace(/^salve\s+na\s+mem[oó]ria\s*:?\s*/i, "").replace(/^quero\s+que\s+voc[eê]\s+lembre\s+(?:que\s+)?/i, "").trim();
+    return raw.replace(/^memorize\s*:\s*/i, "").replace(/^memorize\s+que\s+/i, "").replace(/^memorize\s+isso\s*:?\s*/i, "").replace(/^memorize\s+(?!(?:que|isso)\b)\s*/i, "").replace(/^lembre\s+que\s+/i, "").replace(/^guarde\s+que\s+/i, "").replace(/^guarde\s+isso\s*:?\s*/i, "").replace(/^salve\s+na\s+mem[oó]ria\s*:?\s*/i, "").replace(/^quero\s+que\s+voc[eê]\s+lembre\s+(?:que\s+)?/i, "").trim();
+  }
+
+  function splitEloExplicitMemoryFacts_(text) {
+    const value = sanitizeUserText(text || "").slice(0, 1200);
+    if (!value) return [];
+    const facts = value.split(/,\s*(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)|\s+e\s+(?=(?:meu|minha|meus|minhas|o meu|a minha)\b)/i).map(function (item) { return sanitizeUserText(item).trim(); }).filter(Boolean);
+    return facts.length ? facts : [value];
   }
 
   function buildEloExplicitCanonicalMemoryKey_(text) {
     let normalized = normalizeText(text || "").replace(/^(?:na verdade|corrigindo|correcao|correção)\s+/i, "").replace(/[.;:!?]+$/g, "").trim();
-    const possessiveMatch = normalized.match(/^(meu|minha|meus|minhas)\s+(.+?)(?:\s+(?:e|eh|é|se chama|chama|preferido|preferida|sao|são)\b|$)/);
-    if (possessiveMatch && possessiveMatch[2]) normalized = possessiveMatch[1] + " " + possessiveMatch[2];
+    const assignmentMatch = normalized.match(/^(.+?)\s+(?:e|eh|se chama|chama)\s+.+$/);
+    if (assignmentMatch && assignmentMatch[1]) normalized = assignmentMatch[1];
     const compact = normalized.split(/\s+/).filter(function (term) { return term && !/^(que|para|quando|onde|como|com|sem|uma|um|o|a|os|as|de|do|da|dos|das)$/i.test(term); }).slice(0, 8).join("_").replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
     return compact ? "explicit_" + compact.slice(0, 140) : "explicit_" + simpleEloChecksum_(text || "");
   }
@@ -4367,12 +4374,15 @@
     const raw = sanitizeUserText(text || "").slice(0, 1200);
     if (!raw || typeof window.fetch !== "function" || isEloCoreMemoryDisabled_()) return Promise.resolve(false);
     try {
-      const category = mapEloLocalMemoryCategoryToCanonical_(localMemoryItem && localMemoryItem.category || inferEloMemoryCategory(raw));
-      const payload = Object.assign({}, getEloCoreIdentity_(), { category: category, memory_key: buildEloExplicitCanonicalMemoryKey_(raw), memory_value: raw, confidence: 0.9 });
-      return eloCoreFetch_("/api/elo/memories", { method: "POST", body: JSON.stringify(payload) }).then(function (data) {
-        if (data && data.memory) { cacheEloCoreMemory_(data.memory); recordEloCoreReliabilityEvent_("memory_saved", { category: data.memory.category, memory_key: data.memory.memory_key, source: "explicit_memorize" }); return true; }
-        return false;
-      }).catch(function (error) { recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "explicit_memorize_failed" }); return false; });
+      const facts = splitEloExplicitMemoryFacts_(raw);
+      return Promise.all(facts.map(function (fact) {
+        const category = mapEloLocalMemoryCategoryToCanonical_(inferEloMemoryCategory(fact));
+        const payload = Object.assign({}, getEloCoreIdentity_(), { category: category, memory_key: buildEloExplicitCanonicalMemoryKey_(fact), memory_value: fact, confidence: 0.9 });
+        return eloCoreFetch_("/api/elo/memories", { method: "POST", body: JSON.stringify(payload) }).then(function (data) {
+          if (data && data.memory) { cacheEloCoreMemory_(data.memory); recordEloCoreReliabilityEvent_("memory_saved", { category: data.memory.category, memory_key: data.memory.memory_key, source: "explicit_memorize" }); return true; }
+          return false;
+        });
+      })).then(function (results) { return results.every(Boolean); }).catch(function (error) { recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "explicit_memorize_failed" }); return false; });
     } catch (error) {
       recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "explicit_memorize_failed" });
       return Promise.resolve(false);
@@ -4391,21 +4401,24 @@
       return { shortAnswer: blockedAnswer, fullAnswer: blockedAnswer, nextAction: "Reenvie apenas a informação não sensível que deseja guardar.", canSave: false, sessionTheme: "memoria_explicit", sessionIntent: "explicit_memory_save_blocked", route: "memory" };
     }
     const raw = sanitizeUserText(memoryText);
-    let longTermSaved = null;
+    const facts = splitEloExplicitMemoryFacts_(raw);
+    let longTermSaved = [];
     try {
-      const now = new Date().toISOString();
-      const longTermItem = normalizeEloLongTermMemoryItem({ id: createEloLongTermMemoryId(), text: raw, category: inferEloMemoryCategory(raw), importance: Math.max(7, inferEloMemoryImportance(raw)), createdAt: now, updatedAt: now });
-      if (longTermItem) {
+      let localMemories = getEloLongTermMemories();
+      facts.slice().reverse().forEach(function (fact) {
+        const now = new Date().toISOString();
+        const longTermItem = normalizeEloLongTermMemoryItem({ id: createEloLongTermMemoryId(), text: fact, category: inferEloMemoryCategory(fact), importance: Math.max(7, inferEloMemoryImportance(fact)), createdAt: now, updatedAt: now });
+        if (!longTermItem) return;
         const normalizedText = normalizeText(longTermItem.text);
-        const localMemories = getEloLongTermMemories().filter(function (item) { return normalizeText(item.text) !== normalizedText; });
+        localMemories = localMemories.filter(function (item) { return normalizeText(item.text) !== normalizedText; });
         localMemories.unshift(longTermItem);
-        setEloLongTermMemories(localMemories);
-        longTermSaved = longTermItem;
-      }
+        longTermSaved.push(longTermItem);
+      });
+      setEloLongTermMemories(localMemories);
     } catch (error) { longTermSaved = null; }
     const canonicalMemoryPromise = persistEloExplicitCanonicalMemory_(raw, longTermSaved);
     const answer = "Guardei essa informação na memória local do ELO.";
-    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "memoria_explicit", sessionIntent: "explicit_memory_save", route: "memory", memorySaved: !!longTermSaved, canonicalMemoryPromise: canonicalMemoryPromise, savedMemoryLabels: [] };
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "memoria_explicit", sessionIntent: "explicit_memory_save", route: "memory", memorySaved: longTermSaved.length > 0, canonicalMemoryPromise: canonicalMemoryPromise, savedMemoryLabels: [] };
   }
   function detectEloLongTermMemoryCommand(message) {
     const cleanMessage = sanitizeUserText(message);
@@ -29957,7 +29970,7 @@ function isEloResidentialNewPipelineEnabled_() {
       earlyReturn: false,
       responseSource: "pending"
     });
-    const explicitAskMemoryResponse = !attachedFiles.length ? buildEloExplicitMemoryCommandResponse_(cleanQuestion) : null;
+    const explicitAskMemoryResponse = buildEloExplicitMemoryCommandResponse_(cleanQuestion);
     if (explicitAskMemoryResponse) {
       appendMessage("user", cleanQuestion);
       const memoryAnswer = formatResponse(explicitAskMemoryResponse);

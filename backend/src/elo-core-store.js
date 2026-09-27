@@ -12,6 +12,9 @@ const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 function clean(value, max = 4000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
 }
+function cleanMemoryValue(value, max = 2000) {
+  return clean(value, max).replace(/<[^>]*>/g, "").trim().slice(0, max);
+}
 function now() { return new Date().toISOString(); }
 function clone(value) { return JSON.parse(JSON.stringify(value || null)); }
 function newId(prefix) { return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
@@ -36,7 +39,7 @@ function normalizeAttachments(value) {
   })).slice(0, 12);
 }
 function normalizeMemory(input = {}, identity) {
-  const value = clean(input.memory_value || input.memoryValue || input.value, 2000);
+  const value = cleanMemoryValue(input.memory_value || input.memoryValue || input.value, 2000);
   if (!value) throw Object.assign(new Error("memory_value_required"), { status: 400 });
   if (SENSITIVE_RE.test(value) || EMAIL_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
   const category = clean(input.category, 80) || "preference";
@@ -182,7 +185,7 @@ export function createEloCoreStore(options = {}) {
     const memory = db.memories[key];
     if (!memory || !matchesIdentity(memory, identity)) throw Object.assign(new Error("memory_not_found"), { status: 404 });
     if (patch.memory_value !== undefined || patch.memoryValue !== undefined || patch.value !== undefined) {
-      const value = clean(patch.memory_value || patch.memoryValue || patch.value, 2000);
+      const value = cleanMemoryValue(patch.memory_value || patch.memoryValue || patch.value, 2000);
       if (!value) throw Object.assign(new Error("memory_value_required"), { status: 400 });
       if (SENSITIVE_RE.test(value) || EMAIL_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
       memory.memory_value = value;
