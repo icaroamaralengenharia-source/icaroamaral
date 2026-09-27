@@ -25,10 +25,13 @@
   let wakeAckTimer = null;
   let wakeRestartTimer = null;
   let recognitionStartWatchdog = null;
+  let recognitionEpoch = 0;
   let commandDelivered = false;
   let manualStop = false;
   let lastError = "";
   let pendingWakeCommand = "";
+  let pausedBy = "";
+  let resumeAfterPause = false;
   const debugEvents = [];
 
   function recordDebug(event, details) {
@@ -397,19 +400,25 @@
   function createRecognition() {
     const Recognition = getRecognitionConstructor();
     if (!Recognition) return null;
+    const epoch = ++recognitionEpoch;
     const instance = new Recognition();
     instance.lang = "pt-BR";
     instance.continuous = true;
     instance.interimResults = true;
     instance.onstart = function () {
+      if (epoch !== recognitionEpoch) return;
       recognitionActive = true;
       recognitionStarted = true;
       stopPending = false;
       clearRecognitionStartWatchdog();
       recordDebug("onstart", { mode: recognitionMode });
     };
-    instance.onresult = handleResult;
+    instance.onresult = function (event) {
+      if (epoch !== recognitionEpoch) return;
+      handleResult(event);
+    };
     instance.onerror = function (event) {
+      if (epoch !== recognitionEpoch) return;
       lastError = event && event.error ? String(event.error) : "speech_recognition_error";
       recordDebug("onerror", { error: lastError });
       if (lastError === "not-allowed" || lastError === "service-not-allowed") {
@@ -417,7 +426,10 @@
         setStatus("Permissao do microfone necessaria para ativar o ELO por voz.");
       }
     };
-    instance.onend = handleRecognitionEnd;
+    instance.onend = function () {
+      if (epoch !== recognitionEpoch) return;
+      handleRecognitionEnd();
+    };
     return instance;
   }
 
@@ -439,6 +451,8 @@
 
   function stop() {
     manualStop = true;
+    pausedBy = "";
+    resumeAfterPause = false;
     clearCommandTimer();
     clearWakeAckTimer();
     clearWakeRestartTimer();
@@ -448,6 +462,7 @@
     pendingWakeCommand = "";
     commandDelivered = false;
     safeRecognitionStop("manual");
+    recognitionEpoch += 1;
     recognition = null;
     recognitionActive = false;
     recognitionStarted = false;
@@ -456,6 +471,51 @@
     recognitionStopReason = "";
     setStatus("");
     updateToggle();
+  }
+
+  function pauseFor(reason) {
+    const pauseReason = String(reason || "external");
+    if (state === STATE_OFF) return false;
+    if (pausedBy) return true;
+    pausedBy = pauseReason;
+    resumeAfterPause = true;
+    manualStop = false;
+    clearCommandTimer();
+    clearWakeAckTimer();
+    clearWakeRestartTimer();
+    clearRecognitionStartWatchdog();
+    safeRecognitionStop("pause:" + pauseReason);
+    recognitionEpoch += 1;
+    recognition = null;
+    recognitionActive = false;
+    recognitionStarted = false;
+    stopPending = false;
+    state = STATE_OFF;
+    pendingCommandStart = false;
+    pendingWakeCommand = "";
+    commandDelivered = false;
+    setStatus(pauseReason === "speech" ? "ELO falando..." : "Microfone reservado para a entrada atual.");
+    updateToggle();
+    recordDebug("paused", { reason: pauseReason });
+    return true;
+  }
+
+  function resumeFrom(reason) {
+    const resumeReason = String(reason || "external");
+    if (!pausedBy || pausedBy !== resumeReason || !resumeAfterPause) return false;
+    pausedBy = "";
+    resumeAfterPause = false;
+    manualStop = false;
+    recognition = createRecognition();
+    if (!recognition) {
+      lastError = "Reconhecimento de voz indisponivel neste navegador.";
+      setStatus(lastError);
+      updateToggle();
+      return false;
+    }
+    recordDebug("resumed", { reason: resumeReason });
+    enterWakeListening();
+    return true;
   }
 
   function isActive() { return state !== STATE_OFF; }
@@ -475,13 +535,17 @@
   window.EloWakeWord = {
     start: start,
     stop: stop,
+    pauseForSpeech: function () { return pauseFor("speech"); },
+    resumeAfterSpeech: function () { return resumeFrom("speech"); },
+    pauseForManualInput: function () { return pauseFor("manual"); },
+    resumeAfterManualInput: function () { return resumeFrom("manual"); },
     isActive: isActive,
     isListeningForCommand: isListeningForCommand,
     getLastErrorForTest: function () { return lastError; },
     getStateForTest: function () { return state; },
     getRecognitionModeForTest: function () { return recognitionMode; },
     getDebugForTest: function () { return debugEvents.slice(); },
-    getRuntimeForTest: function () { return { state: state, recognitionExists: !!recognition, recognitionActive: recognitionActive, recognitionStarted: recognitionStarted, recognitionMode: recognitionMode, stopPending: stopPending, pendingWakeCommand: pendingWakeCommand, lastError: lastError }; },
+    getRuntimeForTest: function () { return { state: state, recognitionExists: !!recognition, recognitionActive: recognitionActive, recognitionStarted: recognitionStarted, recognitionMode: recognitionMode, stopPending: stopPending, pendingWakeCommand: pendingWakeCommand, pausedBy: pausedBy, resumeAfterPause: resumeAfterPause, lastError: lastError }; },
     extractCommandAfterWakeForTest: extractCommandAfterWake,
     handleTranscriptForTest: handleTranscript,
     normalizeTranscriptForTest: normalizeTranscript,
