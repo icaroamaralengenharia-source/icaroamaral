@@ -95,6 +95,8 @@
         }
         return raw;
       }
+      const compatibilityToken = context && (context.authToken || context.token);
+      if (compatibilityToken) return clean(compatibilityToken);
       return "";
     } catch (error) {
       const compatibilityToken = context && (context.authToken || context.token);
@@ -790,11 +792,39 @@
     const text = normalize(raw);
     const unitMatch = text.match(/(?:apartamento|apto|unidade)\s*([a-z0-9-]+)/) || text.match(/\b([0-9]{2,5}[a-z]?)\b/);
     const parsed = { action: action || "inspection.list", raw, unit: clean(input && input.payload && (input.payload.unit || input.payload.apartment || input.payload.apartamento)) || (unitMatch && unitMatch[1] || ""), inspectionId: clean(input && input.payload && (input.payload.inspectionId || input.payload.inspection_id) || input && input.context && (input.context.activeInspectionId || input.context.inspectionId || input.context.inspection_id)) };
-    if (/openNCs|open_ncs|nc|nao conform|não conform|inconform/.test(action + " " + text)) parsed.action = "inspection.openNCs";
-    else if (/generatePdf|generate_pdf|pdf|laudo/.test(action + " " + text)) parsed.action = "inspection.generatePdf";
+    if (/create|criar|crie|inicie|iniciar|comec|comece|nova vistoria/.test(action + " " + text)) parsed.action = "inspection.create";
+    else if (/attachPhoto|attach_photo|photo|foto|anex|adicione.*foto|coloque.*foto/.test(action + " " + text)) parsed.action = "inspection.attachPhoto";
+    else if (/updateItem|update_item|registre|registrar|marque|marcar|severidade|gravidade|status|fissura|não conforme|nao conforme|inconform/.test(action + " " + text) && !/quais.*(?:nc|inconform)|nc[s]?\s+(?:aberta|exist|pend)/.test(text)) parsed.action = "inspection.updateItem";
+    else if (/openNCs|open_ncs|quais.*(?:nc|inconform|nao conform)|nc[s]?\s+(?:aberta|exist|pend)/.test(action + " " + text)) parsed.action = "inspection.openNCs";
+    else if (/generatePdf|generate_pdf|pdf|laudo|relatorio|relatório/.test(action + " " + text)) parsed.action = "inspection.generatePdf";
     else if (/get|open|abrir|abra|apto|apartamento|unidade/.test(action + " " + text)) parsed.action = "inspection.get";
     else if (/list|listar|liste|quais vistorias|vistorias/.test(action + " " + text)) parsed.action = "inspection.list";
     return parsed;
+  }
+
+  function inspectionOperationKey(input, intent) {
+    const identity = getInspectionIdentity(input);
+    const payload = input && input.payload || {};
+    return clean(payload.operationKey || payload.operation_id || ["inspection.create", identity.institutionId, identity.projectId, intent.unit || "unit", normalize(intent.raw)].join(":"));
+  }
+
+  function inspectionItemPayload(input, intent) {
+    const payload = input && input.payload || {};
+    const raw = clean(intent.raw);
+    const colon = raw.indexOf(":");
+    const before = colon >= 0 ? clean(raw.slice(0, colon)) : "";
+    const after = colon >= 0 ? clean(raw.slice(colon + 1)) : "";
+    const environment = clean(payload.environment || payload.ambiente || payload.environmentId || payload.environment_id || (before && !/^(?:elo|vistoria|apartamento|apto|unidade)/i.test(before) ? before : ""));
+    return {
+      itemId: clean(payload.itemId || payload.item_id || payload.inspectionItemId || payload.inspection_item_id),
+      item: clean(payload.item || payload.itemName || payload.item_name),
+      environment,
+      system: clean(payload.system || payload.sistema || payload.systemId || payload.system_id),
+      status: clean(payload.status || (/\b(?:não conform|nao conform|inconform)/i.test(raw) ? "NC" : /\bconforme\b/i.test(raw) ? "C" : "")),
+      severity: clean(payload.severity || payload.severidade || payload.gravidade || (/(?:grave|critica|crítica)/i.test(raw) ? "critica" : /\balta\b/i.test(raw) ? "alta" : /\bm[eé]dia\b/i.test(raw) ? "media" : /\bbaixa\b/i.test(raw) ? "baixa" : "")),
+      notes: clean(payload.notes || payload.observation || payload.observacao || payload.descricaoTecnica || (after && after.replace(/\b(?:não conform|nao conforme|inconform|severidade|gravidade|grave|m[eé]dia|alta|baixa)\b/ig, "").replace(/^[,;\s]+|[,;\s]+$/g, ""))),
+      recommendation: clean(payload.recommendation || payload.recomendacaoAcao)
+    };
   }
 
   function inspectionData(record) {
@@ -904,6 +934,43 @@
     });
   }
 
+  function executeInspectionCreate(input, intent) {
+    const identity = getInspectionIdentity(input);
+    const payload = input && input.payload || {};
+    const projectId = clean(payload.projectId || payload.project_id || payload.workId || payload.work_id || identity.projectId);
+    if (!projectId) return Promise.resolve(inspectionResult(input, { ok: false, action: "inspection.create", mode: "blocked", humanAnswer: "Para iniciar a vistoria, informe a obra/projeto ativo. Nenhuma vistoria foi criada.", error: "project_required" }));
+    const unit = clean(payload.unit || payload.unidade || intent.unit);
+    const metadata = Object.assign({}, payload.metadata || {}, { projectName: clean(payload.projectName || payload.obra || payload.empreendimento || (payload.metadata && payload.metadata.projectName)), unitName: unit, inspectionDate: clean(payload.inspectionDate || payload.inspection_date || new Date().toISOString().slice(0, 10)), technicalResponsible: clean(payload.technicalResponsible || payload.responsavelTecnico), professionalRegistry: clean(payload.professionalRegistry || payload.creaCau) });
+    const inspectionData = Object.assign({ type: "apartment_handover_inspection", metadata, items: [], status: "draft", startedAt: new Date().toISOString() }, payload.inspectionData || payload.inspection_data || {});
+    inspectionData.metadata = Object.assign({}, metadata, inspectionData.metadata || {});
+    return fetchInspectionJson(input, getStockEndpoint("/api/obrareport/apartment-handover-inspections"), { method: "POST", body: JSON.stringify({ sourceType: "apartment_handover_inspection", projectId, clientId: clean(payload.clientId || payload.client_id || identity.clientId), unit, title: clean(payload.title || metadata.projectName || "Vistoria de Entrega"), status: "draft", idempotencyKey: inspectionOperationKey(input, intent), inspectionData }) }).then(function (data) {
+      return inspectionResult(input, { action: "inspection.create", mode: "execute", humanAnswer: "Vistoria criada pelo ELO: " + clean(data.inspection && data.inspection.id) + ".", data: { inspection: data.inspection, idempotencyKey: inspectionOperationKey(input, intent) } });
+    });
+  }
+
+  function executeInspectionUpdateItem(input, intent) {
+    const item = inspectionItemPayload(input, intent);
+    if (!item.itemId && !item.item && !item.environment && !item.system) return Promise.resolve(inspectionResult(input, { ok: false, action: "inspection.updateItem", mode: "blocked", humanAnswer: "Informe o ambiente e o item exato da vistoria. Nenhum item foi alterado.", error: "inspection_item_clarification_required" }));
+    return resolveInspection(input, intent).then(function (inspection) {
+      return fetchInspectionJson(input, getStockEndpoint("/api/obrareport/apartment-handover-inspections/" + encodeURIComponent(inspection.id)), { method: "PUT", body: JSON.stringify({ itemUpdate: item }) }).then(function (data) {
+        return inspectionResult(input, { action: "inspection.updateItem", mode: "execute", humanAnswer: "Item da vistoria atualizado pelo ELO.", data: { inspection: data.inspection, item } });
+      });
+    });
+  }
+
+  function executeInspectionAttachPhoto(input, intent) {
+    const payload = input && input.payload || {};
+    const photo = payload.photo || payload.foto || payload.evidence || payload.evidencia;
+    if (!photo || typeof photo !== "object") return Promise.resolve(inspectionResult(input, { ok: false, action: "inspection.attachPhoto", mode: "blocked", humanAnswer: "Envie a referência da foto/evidência e indique a inconformidade. Nenhuma foto foi associada.", error: "inspection_photo_clarification_required" }));
+    const item = inspectionItemPayload(input, intent);
+    if (!item.itemId && !item.item && !item.environment && !item.system) return Promise.resolve(inspectionResult(input, { ok: false, action: "inspection.attachPhoto", mode: "blocked", humanAnswer: "Informe o ambiente e o item exato ao qual a foto deve ser associada.", error: "inspection_item_clarification_required" }));
+    return resolveInspection(input, intent).then(function (inspection) {
+      return fetchInspectionJson(input, getStockEndpoint("/api/obrareport/apartment-handover-inspections/" + encodeURIComponent(inspection.id)), { method: "PUT", body: JSON.stringify({ photoAttachment: Object.assign({}, item, { photo }) }) }).then(function (data) {
+        return inspectionResult(input, { action: "inspection.attachPhoto", mode: "execute", humanAnswer: "Foto associada à inconformidade da vistoria.", data: { inspection: data.inspection, photo, item } });
+      });
+    });
+  }
+
   function executeInspectionGet(input, intent) {
     return resolveInspection(input, intent).then(function (inspection) {
       return inspectionResult(input, { action: "inspection.get", mode: "read", humanAnswer: "Encontrei a vistoria " + inspectionTitle(inspection) + (inspectionUnit(inspection) ? " da unidade " + inspectionUnit(inspection) : "") + ".", data: { inspection: summarizeInspection(inspection), rawInspection: inspection } });
@@ -952,11 +1019,13 @@
     const auth = requireInspectionAccess(input);
     if (!auth.ok) return Promise.resolve(inspectionAuthBlocked(input, auth));
     const intent = parseInspectionIntent(input);
-    const run = intent.action === "inspection.get" ? executeInspectionGet : intent.action === "inspection.openNCs" ? executeInspectionOpenNcs : intent.action === "inspection.generatePdf" ? executeInspectionGeneratePdf : executeInspectionList;
+    const run = intent.action === "inspection.create" ? executeInspectionCreate : intent.action === "inspection.updateItem" ? executeInspectionUpdateItem : intent.action === "inspection.attachPhoto" ? executeInspectionAttachPhoto : intent.action === "inspection.get" ? executeInspectionGet : intent.action === "inspection.openNCs" ? executeInspectionOpenNcs : intent.action === "inspection.generatePdf" ? executeInspectionGeneratePdf : executeInspectionList;
     return run(input, intent).catch(function (error) {
       const code = clean(error && error.message) || "inspection_error";
       if (code === "inspection_ambiguous") return inspectionResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de uma vistoria possível para esse apartamento. Informe o ID ou detalhe a obra antes de continuar.", error: code, data: { matches: (error.inspections || []).map(summarizeInspection) } });
       if (code === "inspection_not_found") return inspectionResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei essa vistoria no contexto autenticado. Nenhuma NC ou PDF foi inventado.", error: code });
+      if (code === "inspection_item_not_found") return inspectionResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse item no checklist da vistoria. Informe o item exato; nenhuma escrita foi feita.", error: code });
+      if (code === "inspection_item_ambiguous") return inspectionResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um item possível. Informe o ambiente, sistema ou ID exato.", error: code });
       return inspectionResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de vistoria. O backend retornou: " + code + ".", error: code });
     });
   }

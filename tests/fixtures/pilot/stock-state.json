@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "id": "cemento-001", "name": "Cimento CP-II", "nome": "Cimento CP-II", "unit": "saco", "quantity": 42, "minimum": 20, "projectId": "pilot-work-residencial-horizonte" },
+    { "id": "steel-001", "name": "Aço CA-50 10 mm", "nome": "Aço CA-50 10 mm", "unit": "barra", "quantity": 18, "minimum": 10, "projectId": "pilot-work-residencial-horizonte" },
+    { "id": "block-001", "name": "Bloco cerâmico baiano", "nome": "Bloco cerâmico baiano", "unit": "un", "quantity": 320, "minimum": 200, "projectId": "pilot-work-residencial-horizonte" }
+  ],
+  "movements": [],
+  "alertsMuted": false,
+  "approvalRequests": [],
+  "stockEnvironments": [],
+  "activeStockEnvironmentId": "pilot-work-residencial-horizonte"
+}

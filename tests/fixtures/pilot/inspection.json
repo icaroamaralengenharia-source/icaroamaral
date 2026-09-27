@@ -1,0 +1,17 @@
+{
+  "title": "Vistoria de entrega — Residencial Horizonte",
+  "sourceType": "apartment_handover_inspection",
+  "inspectionData": {
+    "metadata": {
+      "projectName": "Residencial Horizonte",
+      "unitName": "Casa Demo 01",
+      "technicalResponsible": "Equipe de Engenharia"
+    },
+    "items": [
+      { "id": "paint-room", "ambiente": "Sala", "item": "Pintura", "status": "C", "descricaoTecnica": "Acabamento conforme." },
+      { "id": "sink-kitchen", "ambiente": "Cozinha", "item": "Cuba", "status": "NC", "severidade": "media", "descricaoTecnica": "Vedação pendente.", "recomendacaoAcao": "Refazer vedação." },
+      { "id": "note-bathroom", "ambiente": "Banheiro", "item": "Registro", "status": "NI", "observacao": "Verificar durante a visita." }
+    ]
+  },
+  "fictional": true
+}

@@ -231,6 +231,89 @@ test("rota legada de geração de RDO delega para o registro documental canônic
   }
 });
 
+test("produção sem registry canônico falha fechado antes de gerar PDF ou tocar o store local", async () => {
+  let rdoReads = 0;
+  let localGenerationCalls = 0;
+  const app = createApp({
+    authContextSupabaseClient: createAuthClient(),
+    obraReportTransactionalService: {
+      async getRdo() {
+        rdoReads += 1;
+        return { id: "rdo-a", project_id: "work-a", title: "RDO" };
+      },
+      async generateRdoDocument() {
+        localGenerationCalls += 1;
+        throw new Error("local_store_must_not_be_called");
+      }
+    },
+    env: {
+      NODE_ENV: "production",
+      ELO_RDO_STORE: "file",
+      AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
+    }
+  });
+  const server = await new Promise((resolve) => { const instance = app.listen(0, () => resolve(instance)); });
+  const base = "http://127.0.0.1:" + server.address().port;
+  try {
+    const response = await fetch(base + "/api/obrareport/rdos/rdo-a/generate-document", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer a" },
+      body: "{}"
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { ok: false, error: "document_registry_not_configured" });
+    assert.equal(rdoReads, 0);
+    assert.equal(localGenerationCalls, 0);
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("document store indisponível bloqueia o Apps Script antes da geração", async () => {
+  let generatorCalls = 0;
+  const orchestrator = createObraReportReportOrchestrator({
+    documentRepository: {
+      async findByIdempotencyKey() { return null; },
+      async ensureReady() { throw Object.assign(new Error("document_store_not_configured"), { status: 503 }); },
+      async insert() { throw new Error("must_not_persist"); }
+    },
+    appsScriptUrl: "https://script.example.test/exec",
+    fetchImpl: async () => { generatorCalls += 1; return { ok: true, async json() { return generatorResponse(); } }; }
+  });
+  await assert.rejects(
+    orchestrator.generate({ institutionId: "tenant-a", userId: "user-a" }, {
+      sourceType: "analysis",
+      sourceId: "analysis-a",
+      workId: "work-a",
+      idempotencyKey: "analysis-store-down",
+      generatorPayload: { report: { obra: "OBRA TESTE ELO E2E" } }
+    }),
+    (error) => error && error.status === 503 && error.message === "document_store_not_configured"
+  );
+  assert.equal(generatorCalls, 0);
+});
+
+test("Apps Script sem identificador estável falha sem criar registro", async () => {
+  const store = createStore();
+  const orchestrator = createObraReportReportOrchestrator({
+    documentRepository: store,
+    appsScriptUrl: "https://script.example.test/exec",
+    fetchImpl: async () => ({ ok: true, async json() { return { ok: true, requestId: "request-no-id", pdfUrl: "https://drive.google.com/file/d/missing-id/view" }; } })
+  });
+  await assert.rejects(
+    orchestrator.generate({ institutionId: "tenant-a", userId: "user-a" }, {
+      sourceType: "analysis",
+      sourceId: "analysis-no-id",
+      workId: "work-a",
+      idempotencyKey: "analysis-no-id",
+      generatorPayload: { report: { obra: "OBRA TESTE ELO E2E" } }
+    }),
+    (error) => error && error.status === 502 && error.message === "report_generator_invalid_response"
+  );
+  assert.equal(store.documents.length, 0);
+});
+
 test("broker fail-closed e migration são auditáveis sem live migration/Drive ACL", async () => {
   const broker = createObraReportArtifactBroker({ brokerUrl: "", brokerSecret: "", fetchImpl: async () => { throw new Error("must_not_call"); } });
   await assert.rejects(broker.open({ externalFileId: "fixture" }), (error) => error && error.status === 503 && error.message === "artifact_broker_not_configured");

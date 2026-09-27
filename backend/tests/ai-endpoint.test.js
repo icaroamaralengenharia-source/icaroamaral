@@ -5027,7 +5027,7 @@ test("elo chat com anexo txt indexa documento sem quebrar fallback", async () =>
     ]
   });
   const data = await response.json();
-  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
+  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_auth_inst_auth_auth_user_1");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);
@@ -5054,7 +5054,7 @@ test("documento anexado preserva chunk maior que 800 caracteres na memoria vetor
     ]
   });
   const data = await response.json();
-  const indexedChunk = eloVectorMemoryStore.list().find((item) => item.ownerId === "elo_dev_doc_longo" && item.source === "upload_elo");
+  const indexedChunk = eloVectorMemoryStore.list().find((item) => item.ownerId === "elo_dev_auth_inst_auth_auth_user_1" && item.source === "upload_elo");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);
@@ -5127,7 +5127,7 @@ test("elo chat com pdf valido extrai e indexa texto", async () => {
     ]
   });
   const data = await response.json();
-  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_pdf_valido");
+  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_auth_inst_auth_auth_user_1");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);
@@ -5136,6 +5136,7 @@ test("elo chat com pdf valido extrai e indexa texto", async () => {
 
 test("upload acima do limite retorna JSON amigavel", async () => {
   await withTemporaryEloServer_({
+    authContextSupabaseClient: createMockStockSaudeSupabase_(),
     env: {
       PORT: "0",
       AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
@@ -5183,6 +5184,7 @@ test("falha da OpenAI preserva attachmentErrors", async () => {
 
   try {
     await withTemporaryEloServer_({
+      authContextSupabaseClient: createMockStockSaudeSupabase_(),
       env: {
         PORT: "0",
         AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
@@ -5240,6 +5242,7 @@ test("payload enviado ao LLM contem resumo do documento", async () => {
 
   try {
     await withTemporaryEloServer_({
+      authContextSupabaseClient: createMockStockSaudeSupabase_(),
       env: {
         PORT: "0",
         AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
@@ -7701,11 +7704,11 @@ function postEloChat_(body) {
   });
 }
 
-function postEloChatMultipart_({ message, history = [], context = {}, eloContext = "", files = [] }) {
-  return postEloChatMultipartTo_(baseUrl, { message, history, context, eloContext, files });
+function postEloChatMultipart_({ message, history = [], context = {}, eloContext = "", files = [], authorization = "Bearer valid-token" }) {
+  return postEloChatMultipartTo_(baseUrl, { message, history, context, eloContext, files, authorization });
 }
 
-function postEloChatMultipartTo_(url, { message, history = [], context = {}, eloContext = "", files = [] }) {
+function postEloChatMultipartTo_(url, { message, history = [], context = {}, eloContext = "", files = [], authorization = "Bearer valid-token" }) {
   const formData = new FormData();
   formData.append("message", message);
   if (eloContext) {
@@ -7718,9 +7721,7 @@ function postEloChatMultipartTo_(url, { message, history = [], context = {}, elo
   });
   return fetch(url + "/api/elo/chat", {
     method: "POST",
-    headers: {
-      Origin: "http://127.0.0.1:5500"
-    },
+    headers: Object.assign({ Origin: "http://127.0.0.1:5500" }, authorization ? { Authorization: authorization } : {}),
     body: formData
   });
 }

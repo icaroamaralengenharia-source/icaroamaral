@@ -1878,6 +1878,36 @@ test('ELO Action Bus Municipal: comandos da demo roteiam antes dos fallbacks gen
   assert.equal(today.module, 'municipal');
   assert.equal(today.action, 'municipal.attention');
 });
+test('ELO Step 09: Prefeitura usa contexto de unidade e não sequestra obra', () => {
+  const { elo } = loadEloContext({
+    preloadScripts: [
+      'elo-command-bridge.js',
+      'elo-municipal-action-adapter.js',
+      'elo-municipal-sentinel-adapter.js'
+    ]
+  });
+
+  const municipal = elo.detectCommandBridgeRequestForTest('ELO, abra prefeitura');
+  assert.equal(municipal.module, 'municipal');
+  assert.equal(municipal.action, 'municipal.context');
+
+  const units = elo.detectCommandBridgeRequestForTest('mostre as unidades');
+  assert.equal(units.module, 'municipal');
+  assert.equal(units.action, 'units.list');
+
+  const select = elo.detectCommandBridgeRequestForTest('abra a unidade Almoxarifado Central');
+  assert.equal(select.module, 'municipal');
+  assert.equal(select.action, 'unit.select');
+  assert.equal(select.payload.unitName, 'Almoxarifado Central');
+
+  const unitStock = elo.detectCommandBridgeRequestForTest('qual o estoque desta unidade?');
+  assert.equal(unitStock.module, 'municipal');
+  assert.equal(unitStock.action, 'unit.stock');
+
+  const work = elo.detectCommandBridgeRequestForTest('abra o RDO da obra atual');
+  assert.equal(work.module, 'obrareport_rdo');
+  assert.notEqual(work.module, 'municipal');
+});
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Qual Ã© o link do CADISTA?');
