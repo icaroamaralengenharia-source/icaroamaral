@@ -1970,7 +1970,11 @@ export function createApp(options = {}) {
       }
     };
   }
-
+  app.use("/api/obrareport", (request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    next();
+  });
+  app.use("/api/obrareport/reports", requireCanonicalObraReportAuth_);
 
   app.post("/api/obrareport/reports", async (request, response) => {
     try {
@@ -4831,6 +4835,11 @@ export function createApp(options = {}) {
         attachmentErrors: chatRequest.attachmentErrors
       });
     }
+  });
+
+  app.use("/api/municipal-admin", (request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    next();
   });
 
   registerMunicipalAdminRoutes(app, {

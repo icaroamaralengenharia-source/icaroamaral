@@ -159,6 +159,7 @@ test("relatorios de obra permanecem em rota separada", async () => {
   await withServer(async (base) => {
     const obra = await json(base, "/api/obrareport/reports", { headers: { "x-institution-id": "inst-a", "x-user-id": "user-a" } });
     assert.notEqual(obra.response.status, 404);
-    assert.equal(obra.data.error, undefined);
+    assert.equal(obra.response.status, 401);
+    assert.equal(obra.data.error, "authentication_required");
   });
 });
