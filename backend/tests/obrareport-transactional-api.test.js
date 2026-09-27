@@ -81,7 +81,7 @@ test("ObraReport API cria, lista, busca, atualiza, versiona, documenta e audita 
     });
     assert.equal(created.response.status, 201);
     assert.equal(created.data.report.institution_id, "inst_a");
-    assert.equal(created.data.report.created_by, "user_a");
+    assert.equal(created.data.report.created_by, "profile-a");
 
     const id = created.data.report.id;
     const list = await json(base + "/api/obrareport/reports", { headers: headersA });
