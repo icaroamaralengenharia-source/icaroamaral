@@ -29,29 +29,52 @@ async function close_(server) {
 }
 
 function postChat_(url, body) {
+  const options = arguments[2] || {};
   return fetch(url + "/api/elo/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: ORIGIN },
+    headers: Object.assign({ "Content-Type": "application/json", Origin: ORIGIN }, options.authorization ? { Authorization: options.authorization } : {}),
     body: JSON.stringify(body)
   });
 }
 
-async function postMultipart_(url, message, anonymousId) {
+async function postMultipart_(url, message, anonymousId, authorization = "") {
   const form = new FormData();
   form.append("message", message);
   form.append("anonymousId", anonymousId);
   form.append("context", JSON.stringify({ source: "elo", mode: "standalone", anonymousId, deviceId: "elo_dev_step08" }));
   form.append("history", "[]");
   form.append("files", new Blob(["Documento de fixture do Step 07."], { type: "text/plain" }), "fixture.txt");
-  return fetch(url + "/api/elo/chat", { method: "POST", headers: { Origin: ORIGIN }, body: form });
+  return fetch(url + "/api/elo/chat", { method: "POST", headers: Object.assign({ Origin: ORIGIN }, authorization ? { Authorization: authorization } : {}), body: form });
 }
 
-function createAppHarness_(dataPath, env = {}, vectorStore = null) {
-  return createApp({
+function createAuthSupabase_() {
+  return {
+    auth: {
+      async getUser(token) {
+        return token === "valid-token-a"
+          ? { data: { user: { id: "step08-auth-user-a", email: "step08@example.test" } }, error: null }
+          : { data: { user: null }, error: { message: "invalid token" } };
+      }
+    },
+    from(table) {
+      assert.equal(table, "profiles");
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() {
+          return { data: { id: "step08-profile-a", auth_user_id: "step08-auth-user-a", institution_id: "step08-tenant-a", email: "step08@example.test" }, error: null };
+        }
+      };
+    }
+  };
+}
+
+function createAppHarness_(dataPath, env = {}, vectorStore = null, appOptions = {}) {
+  return createApp(Object.assign({
     env: createEnv_(env),
     eloCoreStore: createEloCoreStore({ dataPath }),
     eloVectorMemoryStore: vectorStore || createEloVectorMemoryStore_({ memoryOnly: true })
-  });
+  }, appOptions));
 }
 
 test("memória explícita tem precedência, separa múltiplos fatos e atualiza por campo", async () => {
@@ -133,7 +156,8 @@ test("memória explícita aceita formas autorizadas, vence calculadora/RDO e nã
   const tempDir = mkdtempSync(join(tmpdir(), "elo-step08-precedence-"));
   const dataPath = join(tempDir, "elo-core.json");
   const vectorStore = createEloVectorMemoryStore_({ memoryOnly: true });
-  const app = createAppHarness_(dataPath, { OPENAI_API_KEY: "" }, vectorStore);
+  const authorization = "Bearer valid-token-a";
+  const app = createAppHarness_(dataPath, { OPENAI_API_KEY: "" }, vectorStore, { authContextSupabaseClient: createAuthSupabase_() });
   const harness = await listen_(app);
   try {
     for (const message of [
@@ -141,18 +165,18 @@ test("memória explícita aceita formas autorizadas, vence calculadora/RDO e nã
       "lembre que minha meta de teste é 14/09/2026",
       "guarde que meu código de RDO de teste é RDO-123"
     ]) {
-      const response = await postChat_(harness.url, { anonymousId: "step08-user-a", message, context: { anonymousId: "step08-user-a" }, history: [] });
+      const response = await postChat_(harness.url, { anonymousId: "step08-user-a", message, context: { anonymousId: "step08-user-a" }, history: [] }, { authorization });
       assert.equal(response.status, 201);
       assert.equal((await response.json()).mode, "memory_saved");
     }
 
-    const attachmentResponse = await postMultipart_(harness.url, "memorize: meu projeto de teste se chama Aurora", "step08-user-a");
+    const attachmentResponse = await postMultipart_(harness.url, "memorize: meu projeto de teste se chama Aurora", "step08-user-a", authorization);
     const attachmentData = await attachmentResponse.json();
     assert.equal(attachmentResponse.status, 201);
     assert.equal(attachmentData.mode, "memory_saved");
     assert.equal(vectorStore.list().length, 0);
 
-    const memories = await createEloCoreStore({ dataPath }).listMemories({ anonymousId: "step08-user-a" });
+    const memories = await createEloCoreStore({ dataPath }).listMemories({ userId: "step08-auth-user-a" });
     assert.equal(memories.length, 4);
     assert.ok(memories.some((item) => /14\/09\/2026/.test(item.memory_value)));
     assert.ok(memories.some((item) => /RDO-123/.test(item.memory_value)));
