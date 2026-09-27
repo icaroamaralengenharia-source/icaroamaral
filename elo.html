@@ -137,6 +137,7 @@
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar arquivo" title="Anexar arquivo">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
+            <button type="button" class="elo-wake-toggle" data-elo-wake-toggle aria-pressed="false">○ ELO inativo</button>
             <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO CORE..."></textarea>
             <button type="submit" class="elo-send-button">Enviar</button>
           </form>
@@ -451,7 +452,9 @@
   <script src="relatorio-qualidade-obras/elo-offline-memory-adapter.js?v=20260906-p0-offline-v1"></script>
   <script src="relatorio-qualidade-obras/elo-offline-router.js?v=20260906-p0-offline-v1"></script>
   <script src="relatorio-qualidade-obras/elo-offline-core-v2.js?v=20260920-offline-core-v2-proactive-v1"></script>
+  <script src="elo-voice-client.js?v=20260927-step13-voice-client-v1"></script>
   <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260922-rdo-routing-v2"></script>
+  <script src="elo-wake-word.js?v=20260927-step13-wake-v1"></script>
   <script src="relatorio-qualidade-obras/elo-pause-game.js?v=20260907-edu-rex-v20"></script>
   <script src="./relatorio-qualidade-obras/elo-native-diagnostics.js?v=20260907-native-diagnostics-v1"></script>
   <script>

@@ -285,6 +285,18 @@ test("stop desliga reconhecimento e atualiza estado visual", () => {
   assert.equal(button.attrs["aria-pressed"], "false");
 });
 
+test("wake pausa para entrada manual e retoma sem segundo reconhecedor", () => {
+  const harness = createHarness();
+  harness.startAndOnstart();
+  assert.equal(harness.context.window.EloWakeWord.pauseForManualInput(), true);
+  assert.equal(harness.context.window.EloWakeWord.getStateForTest(), "OFF");
+  assert.equal(harness.context.window.EloWakeWord.getRuntimeForTest().pausedBy, "manual");
+  assert.equal(harness.context.window.EloWakeWord.resumeAfterManualInput(), true);
+  assert.equal(harness.context.window.EloWakeWord.getStateForTest(), "WAKE_LISTENING");
+  assert.equal(harness.context.window.EloWakeWord.getRuntimeForTest().pausedBy, "");
+  assert.equal(harness.calls.starts, 2);
+});
+
 test("pagina real carrega wake word depois do assistente e mostra microfone ativo", () => {
   const assistantIndex = eloPage.indexOf("relatorio-qualidade-obras/elo-assistente.js");
   const wakeIndex = eloPage.indexOf("elo-wake-word.js");
