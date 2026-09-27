@@ -49,9 +49,11 @@
 
   function workingContext(input) {
     const currentInstitutionId = institutionId(input);
+    const currentUserId = userId(input);
     const stored = readWorkingContext();
     const storedInstitution = clean(stored.currentInstitution && (stored.currentInstitution.id || stored.currentInstitution.institution_id));
-    if (!currentInstitutionId || storedInstitution !== currentInstitutionId) {
+    const storedUserId = clean(stored.userId || stored.user_id);
+    if (!currentInstitutionId || storedInstitution !== currentInstitutionId || (currentUserId && storedUserId !== currentUserId)) {
       return {
         currentInstitution: currentInstitutionId ? { id: currentInstitutionId } : null,
         currentMunicipalUnit: null
@@ -66,6 +68,7 @@
   function saveWorkingContext(input, institution, unit) {
     const context = {
       version: 1,
+      userId: userId(input),
       currentInstitution: { id: clean(institution && (institution.id || institution.institution_id)) },
       currentMunicipalUnit: unit ? {
         id: clean(unit.id),
@@ -90,6 +93,11 @@
 
   function identity(input) {
     return Object.assign({}, window.ELO_MUNICIPAL_CONTEXT || {}, input && input.context && input.context.identity || {}, input && input.context && input.context.municipal || {});
+  }
+
+  function userId(input) {
+    const ctx = identity(input);
+    return clean(ctx.userId || ctx.user_id || input && input.context && (input.context.userId || input.context.user_id));
   }
 
   function institutionId(input) {

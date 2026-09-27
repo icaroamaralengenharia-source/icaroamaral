@@ -2,6 +2,8 @@
   "use strict";
 
   const STORAGE_KEY = "elo_work_session_v1";
+  const STORAGE_VERSION = 2;
+  const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
   const SESSION_TYPES = {
     pathology: {
@@ -96,25 +98,78 @@
       .trim();
   }
 
-  function loadSession() {
+  function cleanIdentity(value) {
+    return String(value == null ? "" : value).trim().slice(0, 180);
+  }
+
+  function getContinuityBinding(input) {
+    const source = input && typeof input === "object" ? input : {};
+    const context = source.context && typeof source.context === "object" ? source.context : {};
+    const identity = context.identity && typeof context.identity === "object" ? context.identity : {};
+    const auth = source.auth && typeof source.auth === "object" ? source.auth : {};
+    const globalContext = global.ELO_AUTH_CONTEXT && typeof global.ELO_AUTH_CONTEXT === "object" ? global.ELO_AUTH_CONTEXT : {};
+    const userId = cleanIdentity(source.userId || source.user_id || context.userId || context.user_id || identity.userId || identity.user_id || auth.userId || auth.user_id || global.ELO_AUTH_USER_ID || globalContext.userId || globalContext.user_id);
+    const tenantId = cleanIdentity(source.tenantId || source.tenant_id || context.tenantId || context.tenant_id || identity.tenantId || identity.tenant_id || auth.tenantId || auth.tenant_id || globalContext.tenantId || globalContext.tenant_id);
+    const institutionId = cleanIdentity(source.institutionId || source.institution_id || context.institutionId || context.institution_id || identity.institutionId || identity.institution_id || auth.institutionId || auth.institution_id || globalContext.institutionId || globalContext.institution_id);
+    const companyId = cleanIdentity(source.companyId || source.company_id || context.companyId || context.company_id || identity.companyId || identity.company_id || auth.companyId || auth.company_id || globalContext.companyId || globalContext.company_id);
+    const workId = cleanIdentity(source.workId || source.work_id || source.projectId || source.project_id || context.workId || context.work_id || context.projectId || context.project_id || identity.workId || identity.work_id || identity.projectId || identity.project_id || auth.workId || auth.work_id || auth.projectId || auth.project_id || globalContext.projectId || globalContext.project_id);
+    const unitId = cleanIdentity(source.unitId || source.unit_id || context.unitId || context.unit_id || identity.unitId || identity.unit_id || auth.unitId || auth.unit_id || globalContext.unitId || globalContext.unit_id);
+    const explicitLocal = source.localOnly === true || source.mode === "local" || context.localOnly === true || context.mode === "local";
+    return { userId, tenantId, institutionId, companyId, workId, unitId, explicitLocal };
+  }
+
+  function canPersistBinding(binding) {
+    return !!(binding && (binding.explicitLocal || (binding.userId && (binding.tenantId || binding.institutionId || binding.companyId))));
+  }
+
+  function bindingScope(binding) {
+    const safe = binding || {};
+    return [safe.userId || "anonymous", safe.tenantId || safe.institutionId || safe.companyId || "default", safe.workId || "workless", safe.unitId || "unitless"]
+      .map(function (value) { return encodeURIComponent(value); })
+      .join("::");
+  }
+
+  function storageKey(binding) {
+    return STORAGE_KEY + "::" + bindingScope(binding);
+  }
+
+  function isValidStoredSession(session) {
+    if (!session || typeof session !== "object" || !session.id || !session.type) return false;
+    const updatedAt = Date.parse(session.updatedAt || session.createdAt || "");
+    return Number.isFinite(updatedAt) && Date.now() - updatedAt <= SESSION_TTL_MS;
+  }
+
+  function loadSession(input) {
+    const binding = getContinuityBinding(input || {});
+    if (!canPersistBinding(binding)) return null;
     try {
-      const raw = global.localStorage && global.localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      const raw = global.localStorage && global.localStorage.getItem(storageKey(binding));
+      if (!raw) return null;
+      const envelope = JSON.parse(raw);
+      if (!envelope || envelope.version !== STORAGE_VERSION || !envelope.binding || !isValidStoredSession(envelope.session)) return null;
+      if (bindingScope(envelope.binding) !== bindingScope(binding)) return null;
+      return envelope.session;
     } catch (_) {
       return null;
     }
   }
 
-  function saveSession(session) {
+  function saveSession(session, input) {
+    const binding = getContinuityBinding(input || session || {});
+    if (!canPersistBinding(binding) || !session) return false;
     try {
-      if (global.localStorage) global.localStorage.setItem(STORAGE_KEY, JSON.stringify(session || null));
-    } catch (_) {}
+      if (global.localStorage) global.localStorage.setItem(storageKey(binding), JSON.stringify({ version: STORAGE_VERSION, binding: binding, session: session }));
+      return true;
+    } catch (_) { return false; }
   }
 
-  function resetSession() {
+  function resetSession(input) {
+    const binding = getContinuityBinding(input || {});
+    if (!canPersistBinding(binding)) return false;
     try {
-      if (global.localStorage) global.localStorage.removeItem(STORAGE_KEY);
-    } catch (_) {}
+      if (global.localStorage) global.localStorage.removeItem(storageKey(binding));
+      return true;
+    } catch (_) { return false; }
   }
 
   function inferSessionType(input) {
@@ -195,17 +250,18 @@
   }
 
   function startOrUpdateSession(input) {
-    const previous = loadSession();
+    const currentInput = input || {};
+    const previous = loadSession(currentInput);
     const incomingType = inferSessionType(input);
     let session = previous;
     const message = normalize(input && input.message || "");
 
     const shouldStartNew = !session || message.indexOf("nova sessao") >= 0 || message.indexOf("outro caso") >= 0 || (session.type !== incomingType && incomingType !== "generic");
 
-    if (shouldStartNew) session = createSession(input || {});
-    else session = updateSessionProgress(session, input || {});
+    if (shouldStartNew) session = createSession(currentInput);
+    else session = updateSessionProgress(session, currentInput);
 
-    saveSession(session);
+    saveSession(session, currentInput);
     return session;
   }
 
@@ -267,6 +323,8 @@
     enhanceWithSession: enhanceWithSession,
     loadSession: loadSession,
     saveSession: saveSession,
-    resetSession: resetSession
+    resetSession: resetSession,
+    getContinuityBindingForTest: getContinuityBinding,
+    getStorageKeyForTest: function (input) { return storageKey(getContinuityBinding(input || {})); }
   };
 })(typeof window !== "undefined" ? window : globalThis);
