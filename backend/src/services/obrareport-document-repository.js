@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 const TABLE = "obrareport_generated_documents";
+const FILES_TABLE = "obrareport_document_files";
 const WORKS_TABLE = "obrareport_projects";
 
 function clean(value) {
@@ -79,7 +80,7 @@ function rowFromInput(context, input = {}) {
     source_id: sourceId,
     document_type: clean(safe.documentType || safe.document_type) || "technical_report_pdf",
     status: clean(safe.status) || "generated",
-    file_id: clean(safe.externalFileId || safe.external_file_id) || null,
+    file_id: clean(safe.fileId || safe.file_id) || null,
     file_url: clean(safe.artifactUrl || safe.artifact_url) || null,
     hash: clean(safe.hash) || null,
     metadata_json: metadata,
@@ -92,6 +93,26 @@ function rowFromInput(context, input = {}) {
     external_file_id: clean(safe.externalFileId || safe.external_file_id) || null,
     artifact_url: clean(safe.artifactUrl || safe.artifact_url) || null,
     idempotency_key: idempotencyKey
+  };
+}
+
+function fileRowFromInput(context, input = {}) {
+  const ctx = requireInstitution(context);
+  const safe = objectOf(input);
+  const externalFileId = clean(safe.externalFileId || safe.external_file_id);
+  if (!externalFileId) throw Object.assign(new Error("document_external_file_id_required"), { status: 502 });
+  const now = new Date().toISOString();
+  const title = clean(safe.title || safe.documentType || safe.document_type) || "Relatório técnico";
+  return {
+    id: clean(safe.fileId || safe.file_id) || `obr_file_${randomUUID()}`,
+    institution_id: ctx.institutionId,
+    filename: clean(safe.filename || safe.fileName || safe.file_name) || `${title}.pdf`,
+    mime_type: clean(safe.mimeType || safe.mime_type) || "application/pdf",
+    storage_path: clean(safe.storagePath || safe.storage_path) || `google_drive:${externalFileId}`,
+    public_url: clean(safe.artifactUrl || safe.artifact_url) || "",
+    size_bytes: Number.isFinite(Number(safe.sizeBytes || safe.size_bytes)) ? Number(safe.sizeBytes || safe.size_bytes) : null,
+    hash: clean(safe.hash) || null,
+    created_at: safe.createdAt || now
   };
 }
 
@@ -114,8 +135,32 @@ export function createSupabaseObraReportDocumentRepository({ client } = {}) {
     return normalize(result.data);
   }
 
+  async function ensureReady(context) {
+    const ctx = requireInstitution(context);
+    const registry = await client.from(TABLE).select("id").eq("institution_id", ctx.institutionId).limit(1);
+    if (registry.error) throw databaseError("document_store_not_configured", registry.error);
+    const files = await client.from(FILES_TABLE).select("id").eq("institution_id", ctx.institutionId).limit(1);
+    if (files.error) throw databaseError("document_file_store_not_configured", files.error);
+    return true;
+  }
+
+  async function insertFile(context, input) {
+    const ctx = requireInstitution(context);
+    const row = fileRowFromInput(ctx, input);
+    const result = await client.from(FILES_TABLE).insert(row).select("*").single();
+    if (result.error) throw databaseError("document_file_persistence_failed", result.error);
+    return result.data || row;
+  }
+
+  async function removeFile(context, fileId) {
+    const ctx = requireInstitution(context);
+    const result = await client.from(FILES_TABLE).delete().eq("id", clean(fileId)).eq("institution_id", ctx.institutionId);
+    if (result.error) throw databaseError("document_file_rollback_failed", result.error);
+  }
+
   return {
     mode: "supabase",
+    ensureReady,
     async findById(context, id) {
       return findById(context, id);
     },
@@ -124,10 +169,12 @@ export function createSupabaseObraReportDocumentRepository({ client } = {}) {
     },
     async insert(context, input) {
       const ctx = requireInstitution(context);
-      const row = rowFromInput(ctx, input);
+      const file = await insertFile(ctx, input);
+      const row = rowFromInput(ctx, Object.assign({}, input, { fileId: file.id }));
       const result = await client.from(TABLE).insert(row).select("*").single();
       if (result.error) {
         const raced = await findByIdempotencyKey(ctx, row.idempotency_key);
+        await removeFile(ctx, file.id);
         if (raced) return { document: raced, duplicate: true };
         throw databaseError("document_persistence_failed", result.error);
       }

@@ -71,7 +71,7 @@ function validateGeneratorResponse(response, body) {
   const pdfUrl = clean(body && body.pdfUrl);
   const pdfFileId = clean(body && (body.pdfFileId || body.fileId));
   if (!response || !response.ok) throw httpError("report_generator_failed", 502);
-  if (!body || body.ok !== true || !pdfUrl) throw httpError("report_generator_invalid_response", 502);
+  if (!body || body.ok !== true || !pdfUrl || !pdfFileId) throw httpError("report_generator_invalid_response", 502);
   return { pdfUrl, pdfFileId };
 }
 
@@ -101,6 +101,7 @@ export function createObraReportReportOrchestrator({ documentRepository, rdoRepo
     if (!idempotencyKey) throw httpError("document_idempotency_key_required", 400);
     const existing = await documentRepository.findByIdempotencyKey(context, idempotencyKey);
     if (existing) return { document: existing, duplicate: true, generatorCalled: false };
+    if (typeof documentRepository.ensureReady === "function") await documentRepository.ensureReady(context);
     if (typeof fetchImpl !== "function" || !clean(appsScriptUrl)) throw httpError("report_generator_not_configured", 503);
     const generatorPayload = Object.keys(objectOf(safe.generatorPayload || safe.generator_payload)).length
       ? objectOf(safe.generatorPayload || safe.generator_payload)
