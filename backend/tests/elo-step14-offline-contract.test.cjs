@@ -64,6 +64,36 @@ test("identidade e calculadora são locais mesmo com backend degradado", async (
   assert.equal(calc.chatCalls, 0);
 });
 
+test("datas relativas usam o relógio local sem chamar provider ou chat", async () => {
+  const window = load({ navigator: { onLine: true } });
+  for (const [now, command, expected] of [
+    ["2026-09-27T23:13:00-03:00", "que dia é amanhã?", "28/09/2026"],
+    ["2026-09-27T23:13:00-03:00", "que dia foi ontem?", "26/09/2026"],
+    ["2026-09-27T23:13:00-03:00", "depois de amanhã", "29/09/2026"],
+    ["2026-09-27T23:13:00-03:00", "daqui a 7 dias", "04/10/2026"],
+    ["2026-12-31T12:00:00-03:00", "amanhã", "01/01/2027"],
+    ["2028-02-28T12:00:00-03:00", "amanha", "29/02/2028"]
+  ]) {
+    const router = window.EloOfflineRouter.createRouter({
+      storage: window.localStorage,
+      now: () => new Date(now)
+    });
+    const result = await router.route(command, { navigator: { onLine: true }, backendState: "ONLINE" });
+    assert.equal(result.handled, true);
+    assert.match(result.message, new RegExp(expected));
+    assert.equal(result.providerCalls, 0);
+    assert.equal(result.chatCalls, 0);
+  }
+});
+
+test("chat usa o fast path de data relativa antes do backend", () => {
+  const source = fs.readFileSync(path.join(relatorio, "elo-assistente.js"), "utf8");
+  assert.match(source, /function isEloRelativeDateCommand_\(/);
+  assert.match(source, /function handleEloRelativeDateFastPath_\(/);
+  assert.match(source, /handleEloRelativeDateFastPath_\(routeQuestion\)/);
+  assert.match(source, /requestEloOfflineRoute_\(cleanQuestion, \{ backendState: "ONLINE" \}\)/);
+});
+
 test("store local é escopado por usuário e tenant e drafts não fingem sync", () => {
   const shared = storage();
   const window = load({ storage: shared });

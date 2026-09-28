@@ -29952,6 +29952,34 @@ function isEloResidentialNewPipelineEnabled_() {
     return response;
   }
 
+  function isEloRelativeDateCommand_(message) {
+    const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    return /\b(?:que dia e amanha|que dia foi ontem|amanha|ontem|depois de amanha|anteontem|daqui a \d+ dias|ha \d+ dias)\b/.test(text);
+  }
+
+  function handleEloRelativeDateFastPath_(cleanQuestion) {
+    if (!isEloRelativeDateCommand_(cleanQuestion)) return false;
+    const router = getEloOfflineRouter_();
+    if (!router || typeof router.route !== "function") return false;
+    appendMessage("user", cleanQuestion);
+    appendTypingIndicator();
+    requestEloOfflineRoute_(cleanQuestion, { backendState: "ONLINE" }).then(function (routeResult) {
+      removeTypingIndicator();
+      if (appendEloOfflineRouteResponse_(cleanQuestion, routeResult)) return;
+      requestEloOnlineAnswer(cleanQuestion, []).then(function (onlineAnswer) {
+        if (onlineAnswer) appendEloOnlineAnswer_(cleanQuestion, onlineAnswer);
+        else appendEloOfflineChatResponse_(cleanQuestion);
+      });
+    }).catch(function () {
+      removeTypingIndicator();
+      requestEloOnlineAnswer(cleanQuestion, []).then(function (onlineAnswer) {
+        if (onlineAnswer) appendEloOnlineAnswer_(cleanQuestion, onlineAnswer);
+        else appendEloOfflineChatResponse_(cleanQuestion);
+      });
+    });
+    return true;
+  }
+
   function handleEloLocalToolFastPath_(cleanQuestion) {
     const response = buildEloLocalToolFastPathResponse_(cleanQuestion);
     if (!response) return false;
@@ -30084,6 +30112,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (!attachedFiles.length && handleEloLocalToolFastPath_(routeQuestion)) {
+      return;
+    }
+    if (!attachedFiles.length && handleEloRelativeDateFastPath_(routeQuestion)) {
       return;
     }
     if (!attachedFiles.length && handleEloStockCommandBridgeFastPath_(routeQuestion)) {
