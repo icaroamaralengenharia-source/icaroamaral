@@ -43,11 +43,30 @@
     try {
       if (document && document.body) document.body.dataset.eloMediaState = state;
     } catch (error) {}
+    updateControlState_();
     log("MEDIA_PLAYER_STATE", {
       state: state,
       videoId: currentMedia && currentMedia.videoId,
       source: currentMedia && currentMedia.source,
       title: currentMedia && currentMedia.title
+    });
+  }
+
+  function updateControlState_() {
+    const controls = document && document.getElementById ? document.getElementById(CONTROLS_ID) : null;
+    if (!controls || !controls.children) return;
+    const active = !!currentMedia && (state === STATE_BUFFERING || state === STATE_PLAYING || state === STATE_PAUSED);
+    const visibleActions = state === STATE_PAUSED
+      ? ["resume", "next", "stop"]
+      : active
+        ? ["pause", "next", "stop"]
+        : [];
+    Array.prototype.forEach.call(controls.children, function (button) {
+      const action = button && button.dataset && button.dataset.eloMediaAction;
+      const visible = visibleActions.indexOf(action) >= 0;
+      button.hidden = !visible;
+      button.disabled = !visible;
+      if (button.setAttribute) button.setAttribute("aria-hidden", visible ? "false" : "true");
     });
   }
 
@@ -308,7 +327,7 @@
     controls.style.gap = "8px";
     controls.style.padding = "10px 12px 12px";
 
-    [["play", "Tocar"], ["pause", "Pausar"], ["resume", "Continuar"], ["stop", "Parar"]].forEach(function (item) {
+    [["play", "Tocar"], ["pause", "Pausar"], ["resume", "Continuar"], ["next", "Próxima"], ["stop", "Parar"]].forEach(function (item) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = item[1];
@@ -333,6 +352,7 @@
     controls.querySelector('[data-elo-media-action="play"]').onclick = function () { return resume(); };
     controls.querySelector('[data-elo-media-action="pause"]').onclick = function () { return pause(); };
     controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
+    controls.querySelector('[data-elo-media-action="next"]').onclick = function () { return next(); };
     controls.querySelector('[data-elo-media-action="stop"]').onclick = function () { return stop(); };
     minimizeButton.onclick = function () { return togglePlayerMinimized_(); };
     bindPlayerMovement_(root, header);
@@ -637,8 +657,17 @@
   }
 
   function next(media) {
-    if (!media || !isLocalClassicalMedia(media)) return Promise.resolve(false);
-    return playLocalMedia(media);
+    if (media) {
+      if (!isLocalClassicalMedia(media)) return Promise.resolve(false);
+      return playLocalMedia(media);
+    }
+    if (!isLocalClassicalMedia(currentMedia)) return Promise.resolve(false);
+    const library = window.EloOfflineMediaLibrary;
+    if (!library || typeof library.next !== "function") return Promise.resolve(false);
+    const query = [currentMedia.artist, currentMedia.title].filter(Boolean).join(" ");
+    const nextMedia = library.next(query || null, "next");
+    if (!isLocalClassicalMedia(nextMedia)) return Promise.resolve(false);
+    return playLocalMedia(nextMedia);
   }
 
   window.EloMediaPlayer = {

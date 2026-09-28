@@ -3189,6 +3189,7 @@ function installMediaButtonControls(context, calls) {
     createMediaButtonControl('▶ Tocar', 'play', 'PLAYING', calls, context.document),
     createMediaButtonControl('Ⅱ Pausar', 'pause', 'PAUSED', calls, context.document),
     createMediaButtonControl('▶ Continuar', 'resume', 'PLAYING', calls, context.document),
+    createMediaButtonControl('⏭ Próxima', 'next', 'PLAYING', calls, context.document),
     createMediaButtonControl('■ Parar', 'stop', 'IDLE', calls, context.document)
   ];
   context.document.querySelectorAll = function () { return controls; };
@@ -3230,6 +3231,24 @@ test('ELO media command: pause continue pare e tocar usam onclick dos botoes rea
   assert.equal(playResult.state, 'PLAYING');
 
   assert.deepEqual(calls, ['Ⅱ Pausar', '▶ Continuar', '■ Parar', '▶ Tocar']);
+  assert.equal(backendCalls, 0);
+});
+
+test('ELO media command: proxima usa o controle real sem backend', () => {
+  const calls = [];
+  let backendCalls = 0;
+  const { elo, context } = loadEloContext({
+    fetch() { backendCalls += 1; return Promise.reject(new Error('backend should not be called')); }
+  });
+  installMediaButtonControls(context, calls);
+
+  assert.equal(elo.detectMediaCommandForTest('ELO, próxima faixa'), 'next');
+  const result = elo.handleMediaCommandForTest('Próxima faixa');
+  assert.equal(result.handled, true);
+  assert.equal(result.action, 'next');
+  assert.equal(result.handler, 'button.onclick');
+  assert.equal(result.state, 'PLAYING');
+  assert.deepEqual(calls, ['⏭ Próxima']);
   assert.equal(backendCalls, 0);
 });
 

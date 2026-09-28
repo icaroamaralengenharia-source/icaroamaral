@@ -8,13 +8,16 @@ function load() {
   const calls = [];
   const window = {
     EloOfflineMediaLibrary: {
-      find() { return { title: "Für Elise", source: "LOCAL_CLASSICAL", offline: true, files: [{ path: "offline-media/classical/beethoven/fur-elise.ogg", url: "./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg" }] }; }
+      find() { return { title: "Für Elise", artist: "Ludwig van Beethoven", source: "LOCAL_CLASSICAL", offline: true, files: [{ path: "offline-media/classical/beethoven/fur-elise.ogg", url: "./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg" }] }; },
+      next(query) { calls.push(["library-next", query]); return { title: "Clair de Lune", artist: "Claude Debussy", source: "LOCAL_CLASSICAL", offline: true, files: [{ path: "offline-media/classical/debussy/clair-de-lune.ogg", url: "./relatorio-qualidade-obras/offline-media/classical/debussy/clair-de-lune.ogg" }] }; }
     },
     EloMediaPlayer: {
       play(item) { calls.push(["play", item.title]); return Promise.resolve(true); },
       pause() { calls.push(["pause"]); return true; },
       resume() { calls.push(["resume"]); return true; },
-      stop() { calls.push(["stop"]); return true; }
+      stop() { calls.push(["stop"]); return true; },
+      next(item) { calls.push(["next", item.title]); return true; },
+      getCurrentMedia() { return { title: "Für Elise", artist: "Ludwig van Beethoven" }; }
     }
   };
   const context = { window, console, Date, Intl, JSON, Number, String, Math, Promise };
@@ -53,4 +56,11 @@ test("offline core plays local Für Elise and controls it without URL", () => {
   core.resolve("Pause");
   core.resolve("Continue");
   assert.deepEqual(calls.slice(1), [["pause"], ["resume"]]);
+});
+
+test("offline core advances local music without backend", () => {
+  const { core, calls } = load();
+  const result = core.resolve("Próxima faixa");
+  assert.match(result.fullAnswer, /Clair de Lune/);
+  assert.deepEqual(calls, [["library-next", "Ludwig van Beethoven Für Elise"], ["next", "Clair de Lune"]]);
 });
