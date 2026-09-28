@@ -80,10 +80,10 @@ test("elo.html oficial carrega módulos offline antes do assistente", () => {
 
 test("service worker oficial cacheia shell offline sem cachear API", () => {
   const sw = fs.readFileSync(path.join(repoRoot, "elo-sw.js"), "utf8");
-  assert.match(sw, /elo-web-offline-v5-20260906-p0-offline-v1/);
+  assert.match(sw, /elo-web-offline-v15-20260927-step14-real-v1/);
   assert.match(sw, /elo-offline-memory-adapter\.js/);
   assert.match(sw, /elo-offline-router\.js/);
-  const assetsBlock = sw.match(/const ELO_SHELL_ASSETS = \[[\s\S]*?\];/)[0];
+  const assetsBlock = sw.match(/const ELO_CORE_ASSETS = \[[\s\S]*?\];/)[0];
   assert.doesNotMatch(assetsBlock, /"\.\/api\//);
   assert.match(sw, /\/api\/elo\//);
   for (const track of library) {
@@ -169,7 +169,7 @@ test("backend indisponível bloqueia comando sem suporte offline", async () => {
   assert.equal(result.connectivity, "BACKEND_UNAVAILABLE");
   assert.equal(result.providerCalls, 0);
   assert.equal(result.chatCalls, 0);
-  assert.match(result.message, /precisa de conexão/i);
+  assert.match(result.message, /serviço online.*indisponível/i);
 });
 
 test("pare offline aciona stop local e invalida execução antiga", async () => {

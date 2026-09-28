@@ -1,7 +1,10 @@
 (function () {
   "use strict";
 
-  const LIBRARY_URL = "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json";
+  const LIBRARY_URLS = [
+    "./relatorio-qualidade-obras/offline-media/classical/library.json",
+    "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json"
+  ];
   const ASSET_BASE_URL = "./relatorio-qualidade-obras/";
   let library = [];
   let initPromise = null;
@@ -107,6 +110,14 @@
     return list();
   }
 
+  function fetchLibrary(url) {
+    return window.fetch(url, { method: "GET", headers: { Accept: "application/json" } })
+      .then(function (response) {
+        if (!response || !response.ok) throw new Error("offline_library_http_" + (response && response.status || 0));
+        return response.json();
+      });
+  }
+
   function init() {
     if (library.length) return Promise.resolve(list());
     if (initPromise) return initPromise;
@@ -114,10 +125,20 @@
       initPromise = Promise.resolve(list());
       return initPromise;
     }
-    initPromise = window.fetch(LIBRARY_URL, { method: "GET", headers: { Accept: "application/json" } })
-      .then(function (response) {
-        if (!response || !response.ok) throw new Error("offline_library_http_" + (response && response.status || 0));
-        return response.json();
+    const urls = window.navigator && window.navigator.onLine === false ? [LIBRARY_URLS[0]] : LIBRARY_URLS;
+    initPromise = Promise.all(urls.map(function (url) {
+      return fetchLibrary(url).catch(function () { return []; });
+    }))
+      .then(function (catalogs) {
+        const seen = {};
+        return catalogs.reduce(function (items, catalog) {
+          return items.concat((Array.isArray(catalog) ? catalog : []).filter(function (item) {
+            const id = clean(item && item.id);
+            if (!id || seen[id]) return false;
+            seen[id] = true;
+            return true;
+          }));
+        }, []);
       })
       .then(loadFromJson)
       .catch(function (error) {

@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v14-20260922-routing-v2";
+const ELO_CACHE_NAME = "elo-web-offline-v15-20260927-step14-real-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css",
@@ -13,6 +13,9 @@ const ELO_CORE_ASSETS = [
   "./relatorio-qualidade-obras/elo-media-player.js",
   "./relatorio-qualidade-obras/elo-offline-media-library.js",
   "./relatorio-qualidade-obras/elo-offline-memory-adapter.js",
+  "./relatorio-qualidade-obras/elo-offline-state.js",
+  "./relatorio-qualidade-obras/elo-offline-local-store.js",
+  "./relatorio-qualidade-obras/elo-offline-capability-registry.js",
   "./relatorio-qualidade-obras/elo-offline-router.js",
   "./relatorio-qualidade-obras/offline-media/classical/library.json",
   "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json"

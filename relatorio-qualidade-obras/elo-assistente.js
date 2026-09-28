@@ -8615,6 +8615,9 @@
       reason: "",
       at: Date.now()
     }, detail || {});
+    if (window.EloOfflineState && typeof window.EloOfflineState.normalizeState === "function") {
+      ELO_UI.lastChatTransportState.connectivityState = window.EloOfflineState.normalizeState(state) || "ONLINE";
+    }
     return ELO_UI.lastChatTransportState;
   }
 
@@ -8644,15 +8647,33 @@
       status: Number(response && response.status) || 0,
       reason: response && response.ok ? "http_ok" : "http_not_ok"
     });
-    if (state === "ONLINE_VALIDATED") setEloConnectivityState_(true, "backend_response");
+    if (state === "ONLINE_VALIDATED") {
+      setEloConnectivityState_(true, "backend_response");
+    } else if (noted.connectivityState) {
+      ELO_UI.connectivity = Object.assign({}, ELO_UI.connectivity || {}, {
+        online: noted.connectivityState !== "OFFLINE",
+        state: noted.connectivityState,
+        lastChangedAt: Date.now(),
+        reason: noted.reason || "backend_response"
+      });
+      renderEloConnectivityBadge_();
+    }
     return noted;
   }
 
   function noteEloChatTransportError_(error) {
-    return setEloChatTransportState_(classifyEloChatTransportError_(error), {
+    const noted = setEloChatTransportState_(classifyEloChatTransportError_(error), {
       status: Number(error && error.status) || 0,
       reason: sanitizeUserText(error && (error.name || error.message) || "network_error").slice(0, 80)
     });
+    ELO_UI.connectivity = Object.assign({}, ELO_UI.connectivity || {}, {
+      online: noted.connectivityState !== "OFFLINE",
+      state: noted.connectivityState || "DEGRADED_BACKEND",
+      lastChangedAt: Date.now(),
+      reason: noted.reason || "transport_error"
+    });
+    renderEloConnectivityBadge_();
+    return noted;
   }
   function requestEloOnlineAnswer(question, attachments, options) {
     const requestOptions = options && typeof options === "object" ? options : {};
@@ -28898,12 +28919,17 @@ function isEloResidentialNewPipelineEnabled_() {
   function renderEloConnectivityBadge_(message) {
     const badge = ensureEloConnectivityBadge_();
     if (!badge) return;
-    const online = isEloOnline_();
-    badge.hidden = online && !message;
-    badge.textContent = sanitizeUserText(message || (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis."));
-    badge.classList.toggle("is-offline", !online);
-    badge.classList.toggle("is-online", online);
-    if (online && message) {
+    const transport = ELO_UI.lastChatTransportState || {};
+    const state = transport.connectivityState || (ELO_UI.connectivity && ELO_UI.connectivity.state) || (isEloOnline_() ? "ONLINE" : "OFFLINE");
+    const online = state !== "OFFLINE";
+    const stateMessage = window.EloOfflineState && typeof window.EloOfflineState.messageForState === "function"
+      ? window.EloOfflineState.messageForState(state)
+      : (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis.");
+    badge.hidden = state === "ONLINE" && !message;
+    badge.textContent = sanitizeUserText(message || stateMessage);
+    badge.classList.toggle("is-offline", state === "OFFLINE");
+    badge.classList.toggle("is-online", state === "ONLINE");
+    if (state === "ONLINE" && message) {
       window.setTimeout(function () {
         if (ELO_UI.connectivity && ELO_UI.connectivity.online === true) {
           badge.hidden = true;
@@ -28917,6 +28943,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const nextOnline = online !== false;
     ELO_UI.connectivity = {
       online: nextOnline,
+      state: nextOnline ? "ONLINE" : "OFFLINE",
       lastChangedAt: Date.now(),
       reason: sanitizeUserText(reason || (nextOnline ? "online" : "offline"))
     };
@@ -28947,15 +28974,19 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendEloOfflineChatResponse_(question) {
     removeTypingIndicator();
+    const fallbackState = ELO_UI.lastChatTransportState && ELO_UI.lastChatTransportState.connectivityState;
+    const fallbackMessage = window.EloOfflineState && typeof window.EloOfflineState.messageForState === "function"
+      ? window.EloOfflineState.messageForState(fallbackState || (isEloOnline_() ? "DEGRADED_BACKEND" : "OFFLINE"))
+      : ELO_OFFLINE_CHAT_MESSAGE;
     const response = {
-      shortAnswer: ELO_OFFLINE_CHAT_MESSAGE,
-      fullAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      shortAnswer: fallbackMessage,
+      fullAnswer: fallbackMessage,
       nextAction: "Tente novamente quando a conexão voltar.",
       canSave: false,
       sessionTheme: "offline"
     };
     logEloMusicEvent_("OFFLINE_RESPONSE", { kind: "chat", fetchCalls: 0, question: sanitizeUserText(question).slice(0, 120) });
-    appendAssistantMessage(question, ELO_OFFLINE_CHAT_MESSAGE, false, response);
+    appendAssistantMessage(question, fallbackMessage, false, response);
     clearProductAttachmentPreview();
     return response;
   }
