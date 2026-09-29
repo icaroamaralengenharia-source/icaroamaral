@@ -518,3 +518,165 @@ test('ELO media player: local classical toca fila pausa continua e para', async 
   assert.equal(context.window.EloMediaPlayer.getState(), 'IDLE');
   assert.ok(events.some((event) => event.name === 'MEDIA_PLAYER_START' && event.payload.source === 'LOCAL_CLASSICAL'));
 });
+
+function createOfflinePlayerHarness() {
+  class Element {
+    constructor(tagName) {
+      this.tagName = tagName.toUpperCase();
+      this.children = [];
+      this.parentNode = null;
+      this.style = {};
+      this.dataset = {};
+      this.attributes = {};
+      this.hidden = false;
+      this.disabled = false;
+      this.textContent = '';
+      this.onclick = null;
+      this.listeners = {};
+    }
+
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+      if (name === 'id') this.id = String(value);
+      if (name === 'data-elo-media-action') this.dataset.eloMediaAction = String(value);
+    }
+
+    getAttribute(name) {
+      return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null;
+    }
+
+    appendChild(child) {
+      child.parentNode = this;
+      this.children.push(child);
+      return child;
+    }
+
+    addEventListener(name) {
+      this.listeners[name] = (this.listeners[name] || 0) + 1;
+    }
+
+    getBoundingClientRect() {
+      return { left: 0, top: 0, width: 360, height: 280 };
+    }
+
+    closest() {
+      return null;
+    }
+
+    find(predicate) {
+      for (const child of this.children) {
+        if (predicate(child)) return child;
+        if (typeof child.find === 'function') {
+          const nested = child.find(predicate);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    }
+
+    all(predicate, result = []) {
+      for (const child of this.children) {
+        if (predicate(child)) result.push(child);
+        if (typeof child.all === 'function') child.all(predicate, result);
+      }
+      return result;
+    }
+
+    querySelector(selector) {
+      const action = selector.match(/data-elo-media-action="([^"]+)"/);
+      if (action) return this.find((node) => node && node.dataset && node.dataset.eloMediaAction === action[1]) || null;
+      if (selector === '[data-elo-media-title]') return this.find((node) => node && node.attributes && node.attributes['data-elo-media-title'] === 'true') || null;
+      return null;
+    }
+  }
+
+  const body = new Element('body');
+  const head = new Element('head');
+  const fetchCalls = [];
+  const audioInstances = [];
+  const libraryItems = [
+    { id: 'beethoven-fur-elise', title: 'Für Elise', artist: 'Ludwig van Beethoven', source: 'LOCAL_CLASSICAL', files: [{ url: './fur-elise.ogg' }] },
+    { id: 'debussy-clair-de-lune', title: 'Clair de Lune', artist: 'Claude Debussy', source: 'LOCAL_CLASSICAL', files: [{ url: './clair-de-lune.ogg' }] }
+  ];
+  const storage = new Map();
+  const window = {
+    navigator: { onLine: false },
+    innerWidth: 1024,
+    innerHeight: 768,
+    location: { origin: 'http://localhost' },
+    console: { info() {}, log() {}, warn() {}, error() {} },
+    localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, String(value)) },
+    fetch(url) { fetchCalls.push(String(url)); return Promise.reject(new Error('external_fetch_must_not_run')); },
+    setTimeout,
+    clearTimeout,
+    addEventListener() {},
+    Audio: function Audio(url) {
+      this.url = url;
+      this.play = () => Promise.resolve(true);
+      this.pause = () => {};
+      this.removeAttribute = () => {};
+      this.load = () => {};
+      this.setAttribute = () => {};
+      audioInstances.push(this);
+    },
+    EloOfflineMediaLibrary: {
+      next(query, direction) {
+        const isFurElise = String(query || '').includes('Für Elise');
+        if (direction === 'back') return isFurElise ? libraryItems[1] : libraryItems[0];
+        return isFurElise ? libraryItems[1] : libraryItems[0];
+      }
+    }
+  };
+  const document = {
+    body,
+    head,
+    documentElement: { clientWidth: 1024, clientHeight: 768 },
+    createElement(tagName) { return new Element(tagName); },
+    getElementById(id) { return body.find((node) => node && node.id === id) || null; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; }
+  };
+  window.window = window;
+  window.document = document;
+  const context = { console: window.console, window, document, setTimeout, clearTimeout, globalThis: window };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'elo-media-player.js'), 'utf8'), context, { filename: 'elo-media-player.js' });
+  return { window, document, fetchCalls, audioInstances };
+}
+
+test('ELO offline player: controls follow state and previous/next stay local', async () => {
+  const { window, document, fetchCalls, audioInstances } = createOfflinePlayerHarness();
+  const media = {
+    id: 'beethoven-fur-elise',
+    title: 'Für Elise',
+    artist: 'Ludwig van Beethoven',
+    source: 'LOCAL_CLASSICAL',
+    files: [{ url: './fur-elise.ogg' }]
+  };
+  const visibleActions = () => document.getElementById('elo-real-media-controls').all((node) => node.tagName === 'BUTTON' && !node.hidden).map((node) => node.dataset.eloMediaAction);
+
+  await window.EloMediaPlayer.play(media);
+  assert.deepEqual(visibleActions(), ['previous', 'pause', 'next', 'stop']);
+  assert.equal(audioInstances.length, 1);
+  assert.equal(document.getElementById('elo-real-media-controls').children.filter((button) => button.hidden === false && button.disabled === false).length, 4);
+
+  document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="pause"]').onclick();
+  assert.deepEqual(visibleActions(), ['previous', 'resume', 'next', 'stop']);
+
+  document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="resume"]').onclick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(visibleActions(), ['previous', 'pause', 'next', 'stop']);
+
+  await document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="next"]').onclick();
+  assert.equal(window.EloMediaPlayer.getCurrentMedia().title, 'Clair de Lune');
+  assert.equal(audioInstances.length, 2);
+
+  await document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="previous"]').onclick();
+  assert.equal(window.EloMediaPlayer.getCurrentMedia().title, 'Für Elise');
+  assert.equal(audioInstances.length, 3);
+
+  document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="stop"]').onclick();
+  assert.deepEqual(visibleActions(), []);
+  assert.equal(window.EloMediaPlayer.getState(), 'IDLE');
+  assert.equal(fetchCalls.length, 0);
+});

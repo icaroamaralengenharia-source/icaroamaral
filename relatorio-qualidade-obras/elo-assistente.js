@@ -8615,6 +8615,9 @@
       reason: "",
       at: Date.now()
     }, detail || {});
+    if (window.EloOfflineState && typeof window.EloOfflineState.normalizeState === "function") {
+      ELO_UI.lastChatTransportState.connectivityState = window.EloOfflineState.normalizeState(state) || "ONLINE";
+    }
     return ELO_UI.lastChatTransportState;
   }
 
@@ -8644,15 +8647,33 @@
       status: Number(response && response.status) || 0,
       reason: response && response.ok ? "http_ok" : "http_not_ok"
     });
-    if (state === "ONLINE_VALIDATED") setEloConnectivityState_(true, "backend_response");
+    if (state === "ONLINE_VALIDATED") {
+      setEloConnectivityState_(true, "backend_response");
+    } else if (noted.connectivityState) {
+      ELO_UI.connectivity = Object.assign({}, ELO_UI.connectivity || {}, {
+        online: noted.connectivityState !== "OFFLINE",
+        state: noted.connectivityState,
+        lastChangedAt: Date.now(),
+        reason: noted.reason || "backend_response"
+      });
+      renderEloConnectivityBadge_();
+    }
     return noted;
   }
 
   function noteEloChatTransportError_(error) {
-    return setEloChatTransportState_(classifyEloChatTransportError_(error), {
+    const noted = setEloChatTransportState_(classifyEloChatTransportError_(error), {
       status: Number(error && error.status) || 0,
       reason: sanitizeUserText(error && (error.name || error.message) || "network_error").slice(0, 80)
     });
+    ELO_UI.connectivity = Object.assign({}, ELO_UI.connectivity || {}, {
+      online: noted.connectivityState !== "OFFLINE",
+      state: noted.connectivityState || "DEGRADED_BACKEND",
+      lastChangedAt: Date.now(),
+      reason: noted.reason || "transport_error"
+    });
+    renderEloConnectivityBadge_();
+    return noted;
   }
   function requestEloOnlineAnswer(question, attachments, options) {
     const requestOptions = options && typeof options === "object" ? options : {};
@@ -28898,12 +28919,17 @@ function isEloResidentialNewPipelineEnabled_() {
   function renderEloConnectivityBadge_(message) {
     const badge = ensureEloConnectivityBadge_();
     if (!badge) return;
-    const online = isEloOnline_();
-    badge.hidden = online && !message;
-    badge.textContent = sanitizeUserText(message || (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis."));
-    badge.classList.toggle("is-offline", !online);
-    badge.classList.toggle("is-online", online);
-    if (online && message) {
+    const transport = ELO_UI.lastChatTransportState || {};
+    const state = transport.connectivityState || (ELO_UI.connectivity && ELO_UI.connectivity.state) || (isEloOnline_() ? "ONLINE" : "OFFLINE");
+    const online = state !== "OFFLINE";
+    const stateMessage = window.EloOfflineState && typeof window.EloOfflineState.messageForState === "function"
+      ? window.EloOfflineState.messageForState(state)
+      : (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis.");
+    badge.hidden = state === "ONLINE" && !message;
+    badge.textContent = sanitizeUserText(message || stateMessage);
+    badge.classList.toggle("is-offline", state === "OFFLINE");
+    badge.classList.toggle("is-online", state === "ONLINE");
+    if (state === "ONLINE" && message) {
       window.setTimeout(function () {
         if (ELO_UI.connectivity && ELO_UI.connectivity.online === true) {
           badge.hidden = true;
@@ -28917,6 +28943,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const nextOnline = online !== false;
     ELO_UI.connectivity = {
       online: nextOnline,
+      state: nextOnline ? "ONLINE" : "OFFLINE",
       lastChangedAt: Date.now(),
       reason: sanitizeUserText(reason || (nextOnline ? "online" : "offline"))
     };
@@ -28947,15 +28974,19 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendEloOfflineChatResponse_(question) {
     removeTypingIndicator();
+    const fallbackState = ELO_UI.lastChatTransportState && ELO_UI.lastChatTransportState.connectivityState;
+    const fallbackMessage = window.EloOfflineState && typeof window.EloOfflineState.messageForState === "function"
+      ? window.EloOfflineState.messageForState(fallbackState || (isEloOnline_() ? "DEGRADED_BACKEND" : "OFFLINE"))
+      : ELO_OFFLINE_CHAT_MESSAGE;
     const response = {
-      shortAnswer: ELO_OFFLINE_CHAT_MESSAGE,
-      fullAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      shortAnswer: fallbackMessage,
+      fullAnswer: fallbackMessage,
       nextAction: "Tente novamente quando a conexão voltar.",
       canSave: false,
       sessionTheme: "offline"
     };
     logEloMusicEvent_("OFFLINE_RESPONSE", { kind: "chat", fetchCalls: 0, question: sanitizeUserText(question).slice(0, 120) });
-    appendAssistantMessage(question, ELO_OFFLINE_CHAT_MESSAGE, false, response);
+    appendAssistantMessage(question, fallbackMessage, false, response);
     clearProductAttachmentPreview();
     return response;
   }
@@ -29696,7 +29727,9 @@ function isEloResidentialNewPipelineEnabled_() {
     const expected = action === "resume" ? ["continuar", "continue", "retomar", "retome"] :
       action === "pause" ? ["pausar", "pause", "pausa"] :
         action === "stop" ? ["parar", "pare", "stop"] :
-          ["tocar", "play"];
+          action === "next" ? ["proxima", "next", "seguinte", "pular"] :
+            action === "previous" ? ["anterior", "voltar", "previous", "back"] :
+              ["tocar", "play"];
     if (dataAction === action || (action === "resume" && dataAction === "continue")) return 100;
     for (let index = 0; index < expected.length; index += 1) {
       if (text === expected[index]) return 90;
@@ -29766,13 +29799,19 @@ function isEloResidentialNewPipelineEnabled_() {
       __eloControlBridgeApi: true,
       getSource: function () { return ELO_MEDIA_PLAYER_SOURCE_; },
       getState: readEloExistingMediaState_,
+      getCurrentMedia: function () {
+        const source = ELO_MEDIA_PLAYER_SOURCE_;
+        return source && typeof source.getCurrentMedia === "function" ? source.getCurrentMedia() : null;
+      },
       isActive: function () {
         const state = readEloExistingMediaState_();
-        return state === ELO_MEDIA_STATE_PLAYING || state === ELO_MEDIA_STATE_PAUSED || state === ELO_MEDIA_STATE_BUFFERING || !!(findEloMediaControl_("pause") || findEloMediaControl_("resume") || findEloMediaControl_("stop") || findEloMediaControl_("play"));
+        return state === ELO_MEDIA_STATE_PLAYING || state === ELO_MEDIA_STATE_PAUSED || state === ELO_MEDIA_STATE_BUFFERING || !!(findEloMediaControl_("pause") || findEloMediaControl_("resume") || findEloMediaControl_("previous") || findEloMediaControl_("next") || findEloMediaControl_("stop") || findEloMediaControl_("play"));
       },
       play: function () { return executeEloMediaControl_("play"); },
       pause: function () { return executeEloMediaControl_("pause"); },
       resume: function () { return executeEloMediaControl_("resume"); },
+      previous: function () { return executeEloMediaControl_("previous"); },
+      next: function () { return executeEloMediaControl_("next"); },
       stop: function () { return executeEloMediaControl_("stop"); }
     };
     window.EloMediaPlayer = api;
@@ -29795,6 +29834,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (/^(?:pause|pausa|pausar|da uma pausa|de uma pausa)$/.test(text)) return "pause";
     if (/^(?:continue|continua|continuar|retome|retoma|volte|volta)$/.test(text)) return "resume";
     if (/^(?:tocar|toca|toque)$/.test(text)) return "play";
+    if (/^(?:proxima|proxima faixa|seguinte|pular|pular musica|pular faixa|next)$/.test(text)) return "next";
+    if (/^(?:anterior|faixa anterior|voltar|voltar faixa|previous|back)$/.test(text)) return "previous";
     if (/^(?:pare|para|parar|pare a musica|para a musica)$/.test(text)) return "stop";
     return null;
   }
@@ -29899,7 +29940,9 @@ function isEloResidentialNewPipelineEnabled_() {
     const result = action === "pause" ? player.pause() :
       action === "resume" ? player.resume() :
         action === "play" ? player.play() :
-          player.stop();
+          action === "previous" ? player.previous() :
+            action === "next" ? player.next() :
+              player.stop();
     logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: result.executed === true, handler: result.handler });
     if (!result.executed) {
       logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "handler_not_executed", state: result.state });
@@ -29919,6 +29962,34 @@ function isEloResidentialNewPipelineEnabled_() {
     response.skipAutoTts = true;
     response.skipRemoteTts = true;
     return response;
+  }
+
+  function isEloRelativeDateCommand_(message) {
+    const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    return /\b(?:que dia e amanha|que dia foi ontem|amanha|ontem|depois de amanha|anteontem|daqui a \d+ dias|ha \d+ dias)\b/.test(text);
+  }
+
+  function handleEloRelativeDateFastPath_(cleanQuestion) {
+    if (!isEloRelativeDateCommand_(cleanQuestion)) return false;
+    const router = getEloOfflineRouter_();
+    if (!router || typeof router.route !== "function") return false;
+    appendMessage("user", cleanQuestion);
+    appendTypingIndicator();
+    requestEloOfflineRoute_(cleanQuestion, { backendState: "ONLINE" }).then(function (routeResult) {
+      removeTypingIndicator();
+      if (appendEloOfflineRouteResponse_(cleanQuestion, routeResult)) return;
+      requestEloOnlineAnswer(cleanQuestion, []).then(function (onlineAnswer) {
+        if (onlineAnswer) appendEloOnlineAnswer_(cleanQuestion, onlineAnswer);
+        else appendEloOfflineChatResponse_(cleanQuestion);
+      });
+    }).catch(function () {
+      removeTypingIndicator();
+      requestEloOnlineAnswer(cleanQuestion, []).then(function (onlineAnswer) {
+        if (onlineAnswer) appendEloOnlineAnswer_(cleanQuestion, onlineAnswer);
+        else appendEloOfflineChatResponse_(cleanQuestion);
+      });
+    });
+    return true;
   }
 
   function handleEloLocalToolFastPath_(cleanQuestion) {
@@ -30053,6 +30124,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (!attachedFiles.length && handleEloLocalToolFastPath_(routeQuestion)) {
+      return;
+    }
+    if (!attachedFiles.length && handleEloRelativeDateFastPath_(routeQuestion)) {
       return;
     }
     if (!attachedFiles.length && handleEloStockCommandBridgeFastPath_(routeQuestion)) {

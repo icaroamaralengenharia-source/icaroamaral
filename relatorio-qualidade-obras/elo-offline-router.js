@@ -8,13 +8,22 @@
   const IMPORTANT_MEMORY_KEY = "obrareport_elo_memorias_importantes_v1";
   const CORE_MEMORY_KEY = "obrareport_elo_memoria_v1";
   const NAME_MEMORY_KEY = "nome";
+  const STATE_MODEL = global.EloOfflineState || null;
+  const STATES = STATE_MODEL ? STATE_MODEL.STATES : {
+    ONLINE: "ONLINE",
+    DEGRADED_BACKEND: "DEGRADED_BACKEND",
+    AUTH_REQUIRED: "AUTH_REQUIRED",
+    REMOTE_CAPABILITY_UNAVAILABLE: "REMOTE_CAPABILITY_UNAVAILABLE",
+    OFFLINE: "OFFLINE",
+    LOCAL_ONLY: "LOCAL_ONLY"
+  };
 
   function normalize(value) {
     return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .replace(/[^a-z0-9+\-*/x÷,.:\s]/g, " ")
+      .replace(/[^a-z0-9+\-*/x÷,.:%\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -26,6 +35,25 @@
   function detectBrowserState(navigatorLike) {
     const nav = navigatorLike || global.navigator || {};
     return nav.onLine === false ? "BROWSER_OFFLINE" : "ONLINE_UNVERIFIED";
+  }
+
+  function resolveConnectivityState(config, routeOptions) {
+    const options = Object.assign({}, config || {}, routeOptions || {});
+    if (STATE_MODEL && typeof STATE_MODEL.resolveConnectivityState === "function") return STATE_MODEL.resolveConnectivityState(options);
+    if (options.backendState === "BROWSER_OFFLINE" || (options.navigator && options.navigator.onLine === false)) return STATES.OFFLINE;
+    if (options.backendState === "BACKEND_UNAVAILABLE" || options.backendState === "DEGRADED_BACKEND") return STATES.DEGRADED_BACKEND;
+    return STATES.ONLINE;
+  }
+
+  function legacyConnectivityState(state) {
+    switch (state) {
+      case STATES.OFFLINE: return "BROWSER_OFFLINE";
+      case STATES.DEGRADED_BACKEND: return "BACKEND_UNAVAILABLE";
+      case STATES.AUTH_REQUIRED: return "AUTH_INVALID";
+      case STATES.REMOTE_CAPABILITY_UNAVAILABLE: return "REMOTE_CAPABILITY_UNAVAILABLE";
+      case STATES.LOCAL_ONLY: return "LOCAL_ONLY";
+      default: return "ONLINE_VALIDATED";
+    }
   }
 
   function classifyBackendResult(result) {
@@ -42,6 +70,11 @@
     if (!error) return "ONLINE_UNVERIFIED";
     if (typeof error.status !== "undefined") return classifyBackendResult({ status: error.status });
     return "BACKEND_UNAVAILABLE";
+  }
+
+  function classifyConnectivityResult(result) {
+    if (STATE_MODEL && typeof STATE_MODEL.classifyConnectivityResult === "function") return STATE_MODEL.classifyConnectivityResult(result);
+    return resolveConnectivityState({}, result || {});
   }
 
   function isConfirmationYes(text) {
@@ -77,7 +110,7 @@
 
   function isDateCommand(text) {
     const lower = normalize(text);
-    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje)\b/.test(lower);
+    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje|que dia e amanha|que dia foi ontem|amanha|ontem|depois de amanha|anteontem|qual o dia da semana|qual o mes atual|qual o ano atual|daqui a \d+ dias|ha \d+ dias)\b/.test(lower);
   }
 
   function isTimeCommand(text) {
@@ -95,8 +128,19 @@
     return /\b(?:qual meu nome|qual e meu nome|como eu me chamo|voce sabe meu nome)\b/.test(lower);
   }
 
+  function isEloIdentityCommand(text) {
+    const lower = normalize(text);
+    return /\b(?:quem e voce|quem e o elo|voce e o elo|o que voce e|qual e seu nome|qual seu nome)\b/.test(lower);
+  }
+
   function parseMathExpression(text) {
     const lower = normalize(text).replace(/,/g, ".");
+    const percent = lower.match(/(-?\d+(?:\.\d+)?)\s*%\s*(?:de|do|da)\s*(-?\d+(?:\.\d+)?)/);
+    if (percent) {
+      const rate = Number(percent[1]);
+      const base = Number(percent[2]);
+      return { left: rate, right: base, operator: "% de", result: rate * base / 100 };
+    }
     const match = lower.match(/(-?\d+(?:\.\d+)?)\s*(\+|\-|\*|x|\/|÷)\s*(-?\d+(?:\.\d+)?)/);
     if (!match) return null;
     const left = Number(match[1]);
@@ -116,7 +160,7 @@
 
   function isMathCommand(text) {
     const lower = normalize(text);
-    return /\b(?:quanto e|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(lower) && !!parseMathExpression(lower);
+    return (/\b(?:quanto e|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(lower) || /\d+(?:[.,]\d+)?\s*%\s*(?:de|do|da)\s*\d+/.test(lower)) && !!parseMathExpression(lower);
   }
 
   function detectIntent(text, state) {
@@ -125,6 +169,7 @@
     if (isMusicSuggestionCommand(text)) return "MUSIC_SUGGESTION";
     if (isMusicPlayCommand(text)) return "MUSIC_PLAY";
     if (isMemoryWriteCommand(text)) return "MEMORY_WRITE";
+    if (isEloIdentityCommand(text)) return "ELO_IDENTITY_LOCAL";
     if (isIdentityCommand(text)) return "IDENTITY_LOCAL";
     if (isMemoryReadCommand(text)) return "MEMORY_READ";
     if (isDateCommand(text)) return "DATE_LOCAL";
@@ -136,9 +181,7 @@
   }
 
   function getConnectivityState(config, routeOptions) {
-    const explicit = routeOptions && routeOptions.backendState || config.backendState;
-    if (explicit) return explicit;
-    return detectBrowserState((routeOptions && routeOptions.navigator) || config.navigator);
+    return resolveConnectivityState(config, routeOptions);
   }
 
   function safeParse(raw) {
@@ -237,13 +280,24 @@
   }
 
   function createBase(intent, connectivity) {
-    return { handled: true, intent, providerCalls: 0, chatCalls: 0, connectivity };
+    return {
+      handled: true,
+      intent,
+      providerCalls: 0,
+      chatCalls: 0,
+      connectivity: legacyConnectivityState(connectivity),
+      connectivityState: connectivity,
+      localOnly: connectivity === STATES.LOCAL_ONLY || connectivity === STATES.OFFLINE
+    };
   }
 
   function createRouter(options) {
     const config = options || {};
     const memory = config.memoryAdapter || global.EloOfflineMemoryAdapter;
     const storage = config.storage || global.localStorage;
+    const localStore = config.localStore || (global.EloOfflineLocalStore && global.EloOfflineLocalStore.create
+      ? global.EloOfflineLocalStore.create({ storage, identity: config.identity, seed: config.localSeed })
+      : null);
     const state = { pendingLocalMedia: null };
 
     async function route(text, routeOptions) {
@@ -330,9 +384,28 @@
         });
       }
 
+      if (intent === "ELO_IDENTITY_LOCAL") {
+        return Object.assign(createBase(intent, connectivity), {
+          identityAvailable: true,
+          message: "Sou o ELO, assistente da plataforma ELO. Continuo com recursos locais quando a rede ou o serviço online não estiver disponível."
+        });
+      }
+
       if (intent === "DATE_LOCAL") {
         const now = getNow(config);
-        return Object.assign(createBase(intent, connectivity), { message: "Hoje é " + formatDate(now) + "." });
+        const lower = normalize(command);
+        let offset = 0;
+        const future = lower.match(/daqui a (\d+) dias/);
+        const past = lower.match(/ha (\d+) dias/);
+        if (/depois de amanha/.test(lower)) offset = 2;
+        else if (/amanha/.test(lower)) offset = 1;
+        else if (/ontem/.test(lower)) offset = -1;
+        else if (/anteontem/.test(lower)) offset = -2;
+        else if (future) offset = Number(future[1]);
+        else if (past) offset = -Number(past[1]);
+        const date = new Date(now.getTime());
+        date.setDate(date.getDate() + offset);
+        return Object.assign(createBase(intent, connectivity), { message: (offset === 0 ? "Hoje é " : "A data é ") + formatDate(date) + "." });
       }
 
       if (intent === "TIME_LOCAL") {
@@ -352,16 +425,41 @@
       }
 
       if (intent === "OFFLINE_CAPABILITIES") {
+        const categories = global.EloOfflineCapabilityRegistry && typeof global.EloOfflineCapabilityRegistry.categories === "function"
+          ? global.EloOfflineCapabilityRegistry.categories().join(", ")
+          : "identidade, data, hora, matemática, memória e música";
         return Object.assign(createBase(intent, connectivity), {
-          message: "Offline, consigo responder saudações simples, data e hora locais, matemática simples, algumas memórias salvas neste navegador e tocar músicas clássicas já disponíveis no cache local."
+          message: "Offline, consigo usar recursos locais do ELO como " + categories.toLowerCase() + ". Recursos remotos continuam sujeitos à conexão e à sessão."
         });
       }
 
       if (intent === "OFFLINE_STATUS") {
         return Object.assign(createBase(intent, connectivity), {
-          message: connectivity === "ONLINE_VALIDATED" ? "Estou online." : "Estou em modo local. Recursos online podem estar indisponíveis."
+          message: STATE_MODEL && typeof STATE_MODEL.messageForState === "function" ? STATE_MODEL.messageForState(connectivity) : (connectivity === STATES.ONLINE ? "Estou online." : "Estou usando recursos locais.")
         });
       }
+
+      if (localStore && /\b(?:rdo|diario de obra|vistoria|estoque|stock|documento|anexo|memoria)\b/.test(normalize(command))) {
+        const snapshot = localStore.getState && localStore.getState();
+        if (snapshot) {
+          const lower = normalize(command);
+          if (/rdo|diario de obra/.test(lower)) return Object.assign(createBase("RDO_LOCAL", connectivity), { localData: true, data: localStore.listRdo(), message: "RDO disponível no cache local. Status: salvo localmente; não sincronizado." });
+          if (/vistoria/.test(lower)) return Object.assign(createBase("VISTORIA_LOCAL", connectivity), { localData: true, data: localStore.listVistoria(), message: "Vistoria disponível no cache local. Status: salvo localmente; não sincronizado." });
+          if (/estoque|stock/.test(lower)) return Object.assign(createBase("STOCK_LOCAL", connectivity), { localData: true, data: localStore.stockSnapshot(), message: "Snapshot de estoque disponível localmente. O saldo oficial não foi alterado." });
+          if (/documento|anexo/.test(lower)) return Object.assign(createBase("DOCUMENT_LOCAL", connectivity), { localData: true, data: localStore.listDocuments(), attachments: localStore.listAttachments(), message: "Documentos disponíveis no cache local." });
+          if (/memoria/.test(lower)) return Object.assign(createBase("MEMORY_LOCAL", connectivity), { localData: true, data: localStore.listMemory(), message: "Memória local disponível nesta sessão." });
+        }
+      }
+
+      const fallbackMessage = STATE_MODEL && typeof STATE_MODEL.messageForState === "function"
+        ? STATE_MODEL.messageForState(connectivity)
+        : connectivity === STATES.DEGRADED_BACKEND
+          ? "O serviço online do ELO está indisponível no momento."
+          : connectivity === STATES.AUTH_REQUIRED
+            ? "Sua sessão precisa ser renovada."
+            : connectivity === STATES.OFFLINE
+              ? "Estou sem acesso à rede, mas posso continuar com recursos locais."
+              : "Estou usando recursos locais do ELO.";
 
       return {
         handled: false,
@@ -369,8 +467,9 @@
         localOnly: false,
         providerCalls: 0,
         chatCalls: 0,
-        connectivity,
-        message: "Estou offline. Esse comando precisa de conexão."
+        connectivity: legacyConnectivityState(connectivity),
+        connectivityState: connectivity,
+        message: fallbackMessage + " Esse comando não possui execução local disponível."
       };
     }
 
@@ -380,6 +479,8 @@
   global.EloOfflineRouter = {
     classifyBackendFailure,
     classifyBackendResult,
+    classifyConnectivityResult,
+    resolveConnectivityState,
     createRouter,
     detectBrowserState,
     detectIntent: function (text) { return detectIntent(text, {}); },

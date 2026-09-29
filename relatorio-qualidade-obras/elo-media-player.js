@@ -43,11 +43,30 @@
     try {
       if (document && document.body) document.body.dataset.eloMediaState = state;
     } catch (error) {}
+    updateControlState_();
     log("MEDIA_PLAYER_STATE", {
       state: state,
       videoId: currentMedia && currentMedia.videoId,
       source: currentMedia && currentMedia.source,
       title: currentMedia && currentMedia.title
+    });
+  }
+
+  function updateControlState_() {
+    const controls = document && document.getElementById ? document.getElementById(CONTROLS_ID) : null;
+    if (!controls || !controls.children) return;
+    const active = !!currentMedia && (state === STATE_BUFFERING || state === STATE_PLAYING || state === STATE_PAUSED);
+    const visibleActions = state === STATE_PAUSED
+      ? ["previous", "resume", "next", "stop"]
+      : active
+        ? ["previous", "pause", "next", "stop"]
+        : [];
+    Array.prototype.forEach.call(controls.children, function (button) {
+      const action = button && button.dataset && button.dataset.eloMediaAction;
+      const visible = visibleActions.indexOf(action) >= 0;
+      button.hidden = !visible;
+      button.disabled = !visible;
+      if (button.setAttribute) button.setAttribute("aria-hidden", visible ? "false" : "true");
     });
   }
 
@@ -308,11 +327,13 @@
     controls.style.gap = "8px";
     controls.style.padding = "10px 12px 12px";
 
-    [["play", "Tocar"], ["pause", "Pausar"], ["resume", "Continuar"], ["stop", "Parar"]].forEach(function (item) {
+    [["play", "Tocar"], ["previous", "Anterior"], ["pause", "Pausar"], ["resume", "Continuar"], ["next", "Próxima"], ["stop", "Parar"]].forEach(function (item) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = item[1];
       button.setAttribute("data-elo-media-action", item[0]);
+      button.setAttribute("aria-label", item[0] === "previous" ? "Voltar para a faixa anterior" : item[1]);
+      button.title = item[0] === "previous" ? "Voltar para a faixa anterior" : item[1];
       button.style.flex = "1";
       button.style.minWidth = "0";
       button.style.border = "1px solid rgba(255,255,255,.22)";
@@ -331,8 +352,10 @@
     document.body.appendChild(root);
 
     controls.querySelector('[data-elo-media-action="play"]').onclick = function () { return resume(); };
+    controls.querySelector('[data-elo-media-action="previous"]').onclick = function () { return previous(); };
     controls.querySelector('[data-elo-media-action="pause"]').onclick = function () { return pause(); };
     controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
+    controls.querySelector('[data-elo-media-action="next"]').onclick = function () { return next(); };
     controls.querySelector('[data-elo-media-action="stop"]').onclick = function () { return stop(); };
     minimizeButton.onclick = function () { return togglePlayerMinimized_(); };
     bindPlayerMovement_(root, header);
@@ -637,8 +660,31 @@
   }
 
   function next(media) {
-    if (!media || !isLocalClassicalMedia(media)) return Promise.resolve(false);
-    return playLocalMedia(media);
+    if (media) {
+      if (!isLocalClassicalMedia(media)) return Promise.resolve(false);
+      return playLocalMedia(media);
+    }
+    if (!isLocalClassicalMedia(currentMedia)) return Promise.resolve(false);
+    const library = window.EloOfflineMediaLibrary;
+    if (!library || typeof library.next !== "function") return Promise.resolve(false);
+    const query = [currentMedia.artist, currentMedia.title].filter(Boolean).join(" ");
+    const nextMedia = library.next(query || null, "next");
+    if (!isLocalClassicalMedia(nextMedia)) return Promise.resolve(false);
+    return playLocalMedia(nextMedia);
+  }
+
+  function previous(media) {
+    if (media) {
+      if (!isLocalClassicalMedia(media)) return Promise.resolve(false);
+      return playLocalMedia(media);
+    }
+    if (!isLocalClassicalMedia(currentMedia)) return Promise.resolve(false);
+    const library = window.EloOfflineMediaLibrary;
+    if (!library || typeof library.next !== "function") return Promise.resolve(false);
+    const query = [currentMedia.artist, currentMedia.title].filter(Boolean).join(" ");
+    const previousMedia = library.next(query || null, "back");
+    if (!isLocalClassicalMedia(previousMedia)) return Promise.resolve(false);
+    return playLocalMedia(previousMedia);
   }
 
   window.EloMediaPlayer = {
@@ -648,6 +694,7 @@
     resume: resume,
     stop: stop,
     next: next,
+    previous: previous,
     getState: function () { return state; },
     getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
     getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },
