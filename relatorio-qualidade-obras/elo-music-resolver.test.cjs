@@ -620,8 +620,10 @@ function createOfflinePlayerHarness() {
       audioInstances.push(this);
     },
     EloOfflineMediaLibrary: {
-      next(query) {
-        return String(query || '').includes('Für Elise') ? libraryItems[1] : libraryItems[0];
+      next(query, direction) {
+        const isFurElise = String(query || '').includes('Für Elise');
+        if (direction === 'back') return isFurElise ? libraryItems[1] : libraryItems[0];
+        return isFurElise ? libraryItems[1] : libraryItems[0];
       }
     }
   };
@@ -642,7 +644,7 @@ function createOfflinePlayerHarness() {
   return { window, document, fetchCalls, audioInstances };
 }
 
-test('ELO offline player: controls follow state and next stays local', async () => {
+test('ELO offline player: controls follow state and previous/next stay local', async () => {
   const { window, document, fetchCalls, audioInstances } = createOfflinePlayerHarness();
   const media = {
     id: 'beethoven-fur-elise',
@@ -654,20 +656,24 @@ test('ELO offline player: controls follow state and next stays local', async () 
   const visibleActions = () => document.getElementById('elo-real-media-controls').all((node) => node.tagName === 'BUTTON' && !node.hidden).map((node) => node.dataset.eloMediaAction);
 
   await window.EloMediaPlayer.play(media);
-  assert.deepEqual(visibleActions(), ['pause', 'next', 'stop']);
+  assert.deepEqual(visibleActions(), ['previous', 'pause', 'next', 'stop']);
   assert.equal(audioInstances.length, 1);
-  assert.equal(document.getElementById('elo-real-media-controls').children.filter((button) => button.hidden === false && button.disabled === false).length, 3);
+  assert.equal(document.getElementById('elo-real-media-controls').children.filter((button) => button.hidden === false && button.disabled === false).length, 4);
 
   document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="pause"]').onclick();
-  assert.deepEqual(visibleActions(), ['resume', 'next', 'stop']);
+  assert.deepEqual(visibleActions(), ['previous', 'resume', 'next', 'stop']);
 
   document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="resume"]').onclick();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(visibleActions(), ['pause', 'next', 'stop']);
+  assert.deepEqual(visibleActions(), ['previous', 'pause', 'next', 'stop']);
 
   await document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="next"]').onclick();
   assert.equal(window.EloMediaPlayer.getCurrentMedia().title, 'Clair de Lune');
   assert.equal(audioInstances.length, 2);
+
+  await document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="previous"]').onclick();
+  assert.equal(window.EloMediaPlayer.getCurrentMedia().title, 'Für Elise');
+  assert.equal(audioInstances.length, 3);
 
   document.getElementById('elo-real-media-controls').querySelector('[data-elo-media-action="stop"]').onclick();
   assert.deepEqual(visibleActions(), []);

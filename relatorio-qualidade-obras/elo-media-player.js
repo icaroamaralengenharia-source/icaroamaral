@@ -57,9 +57,9 @@
     if (!controls || !controls.children) return;
     const active = !!currentMedia && (state === STATE_BUFFERING || state === STATE_PLAYING || state === STATE_PAUSED);
     const visibleActions = state === STATE_PAUSED
-      ? ["resume", "next", "stop"]
+      ? ["previous", "resume", "next", "stop"]
       : active
-        ? ["pause", "next", "stop"]
+        ? ["previous", "pause", "next", "stop"]
         : [];
     Array.prototype.forEach.call(controls.children, function (button) {
       const action = button && button.dataset && button.dataset.eloMediaAction;
@@ -327,11 +327,13 @@
     controls.style.gap = "8px";
     controls.style.padding = "10px 12px 12px";
 
-    [["play", "Tocar"], ["pause", "Pausar"], ["resume", "Continuar"], ["next", "Próxima"], ["stop", "Parar"]].forEach(function (item) {
+    [["play", "Tocar"], ["previous", "Anterior"], ["pause", "Pausar"], ["resume", "Continuar"], ["next", "Próxima"], ["stop", "Parar"]].forEach(function (item) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = item[1];
       button.setAttribute("data-elo-media-action", item[0]);
+      button.setAttribute("aria-label", item[0] === "previous" ? "Voltar para a faixa anterior" : item[1]);
+      button.title = item[0] === "previous" ? "Voltar para a faixa anterior" : item[1];
       button.style.flex = "1";
       button.style.minWidth = "0";
       button.style.border = "1px solid rgba(255,255,255,.22)";
@@ -350,6 +352,7 @@
     document.body.appendChild(root);
 
     controls.querySelector('[data-elo-media-action="play"]').onclick = function () { return resume(); };
+    controls.querySelector('[data-elo-media-action="previous"]').onclick = function () { return previous(); };
     controls.querySelector('[data-elo-media-action="pause"]').onclick = function () { return pause(); };
     controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
     controls.querySelector('[data-elo-media-action="next"]').onclick = function () { return next(); };
@@ -670,6 +673,20 @@
     return playLocalMedia(nextMedia);
   }
 
+  function previous(media) {
+    if (media) {
+      if (!isLocalClassicalMedia(media)) return Promise.resolve(false);
+      return playLocalMedia(media);
+    }
+    if (!isLocalClassicalMedia(currentMedia)) return Promise.resolve(false);
+    const library = window.EloOfflineMediaLibrary;
+    if (!library || typeof library.next !== "function") return Promise.resolve(false);
+    const query = [currentMedia.artist, currentMedia.title].filter(Boolean).join(" ");
+    const previousMedia = library.next(query || null, "back");
+    if (!isLocalClassicalMedia(previousMedia)) return Promise.resolve(false);
+    return playLocalMedia(previousMedia);
+  }
+
   window.EloMediaPlayer = {
     provider: "youtube_iframe_api",
     play: play,
@@ -677,6 +694,7 @@
     resume: resume,
     stop: stop,
     next: next,
+    previous: previous,
     getState: function () { return state; },
     getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
     getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },
