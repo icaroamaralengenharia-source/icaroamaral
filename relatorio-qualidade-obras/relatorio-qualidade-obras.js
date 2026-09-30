@@ -1333,7 +1333,7 @@
     setCloudStatus_("Verificando sessão autenticada...", "info");
 
     try {
-      const identity = await cloudApiWithTransientRetry_("auth.me", { token: token }, 3);
+      const identity = await cloudApiWithTransientRetry_("auth.me", { token: token }, 5);
       if (
         !identity ||
         identity.authenticated !== true ||
@@ -1341,10 +1341,12 @@
         identity.user.id !== appState.session.userId ||
         !hasExplicitAuthRole_(identity.user)
       ) {
-        throw new Error("A sessão persistida não possui identidade válida.");
+        const authError = new Error("A sessão persistida não possui identidade válida.");
+        authError.code = identity && identity.authenticated === false ? "AUTH_DENIED" : "SESSION_IDENTITY_INVALID";
+        throw authError;
       }
 
-      const result = await cloudApiWithTransientRetry_("sync.get", { token: token }, 3);
+      const result = await cloudApiWithTransientRetry_("sync.get", { token: token }, 5);
       if (!result || !result.user || !result.state) {
         throw new Error("A sessão persistida não retornou estado válido.");
       }
@@ -1357,6 +1359,12 @@
       setLoginAccessStatus_("", "");
     } catch (error) {
       console.error(error);
+      if (!isConfirmedAuthFailure_(error)) {
+        setCloudStatus_("Falha temporária ao validar a sessão. A sessão persistida foi preservada.", "error");
+        setLoginAccessStatus_("A validação será tentada novamente automaticamente na próxima abertura.", "error");
+        return;
+      }
+
       appState.session = null;
       currentUser = null;
       saveLocalData({ syncCloud: false });
@@ -1414,6 +1422,25 @@
       message.indexOf("typeerror") !== -1 ||
       message.indexOf("tempo excedido") !== -1 ||
       message.indexOf("resposta inválida da nuvem") !== -1
+    );
+  }
+
+  function isConfirmedAuthFailure_(error) {
+    if (!error) {
+      return false;
+    }
+
+    if (String(error.code || "").toUpperCase() === "AUTH_DENIED") {
+      return true;
+    }
+
+    const message = String(error.message || error).toLowerCase();
+    return (
+      message.indexOf("sessão inválida") !== -1 ||
+      message.indexOf("sessao invalida") !== -1 ||
+      message.indexOf("token inválido") !== -1 ||
+      message.indexOf("token invalido") !== -1 ||
+      message.indexOf("authenticated=false") !== -1
     );
   }
 
@@ -3673,7 +3700,9 @@
     }
 
     if (!response.ok || !result.ok) {
-      throw new Error(result.error || "Falha na API do ObraReport.");
+      const apiError = new Error(result.error || "Falha na API do ObraReport.");
+      apiError.code = result.errorCode || (response.status === 401 || response.status === 403 ? "AUTH_DENIED" : "");
+      throw apiError;
     }
 
     return result;

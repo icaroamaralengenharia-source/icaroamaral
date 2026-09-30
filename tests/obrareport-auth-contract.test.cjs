@@ -62,3 +62,15 @@ test("sessão ObraReport persistida restaura o gate por auth.me e sync.get", () 
   assert.doesNotMatch(restore, /loginLocalFallback_\(/);
   assert.match(script, /appState\.session\.token && appState\.session\.localOnly !== true/);
 });
+
+test("falha transitória de restauração preserva a sessão e só AUTH_DENIED revoga", () => {
+  const start = script.indexOf("async function restoreAuthenticatedCloudSession_()");
+  const end = script.indexOf("function getCurrentUrlParams_()", start);
+  const restore = script.slice(start, end);
+  assert.match(restore, /cloudApiWithTransientRetry_\("auth\.me", \{ token: token \}, 5\)/);
+  assert.match(restore, /cloudApiWithTransientRetry_\("sync\.get", \{ token: token \}, 5\)/);
+  assert.match(restore, /if \(!isConfirmedAuthFailure_\(error\)\)/);
+  assert.match(restore, /sessão persistida foi preservada/);
+  assert.match(script, /function isConfirmedAuthFailure_\(error\)/);
+  assert.match(script, /apiError\.code = result\.errorCode/);
+});
