@@ -57,6 +57,7 @@ test("sessão ObraReport persistida restaura o gate por auth.me e sync.get", () 
   const restore = script.slice(start, end);
   assert.match(restore, /cloudApiWithTransientRetry_\("auth\.me"/);
   assert.match(restore, /cloudApiWithTransientRetry_\("sync\.get"/);
+  assert.match(restore, /cloudApiWithTimeout_\(action, payload, 30000\)/);
   assert.match(restore, /grantLocalAccessSession_\(\)/);
   assert.doesNotMatch(restore, /loginLocalFallback_\(/);
   assert.match(script, /appState\.session\.token && appState\.session\.localOnly !== true/);

@@ -1373,7 +1373,7 @@
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
-        return await cloudApi_(action, payload);
+        return await cloudApiWithTimeout_(action, payload, 30000);
       } catch (error) {
         lastError = error;
         if (attempt >= attempts || !isTransientCloudError_(error)) {
@@ -1389,12 +1389,30 @@
     throw lastError;
   }
 
+  function cloudApiWithTimeout_(action, payload, timeoutMs) {
+    let timer = null;
+    const timeout = Math.max(1000, Number(timeoutMs) || 30000);
+    const request = cloudApi_(action, payload);
+    const deadline = new Promise(function (_, reject) {
+      timer = window.setTimeout(function () {
+        reject(new Error("Tempo excedido ao validar a sessão na nuvem."));
+      }, timeout);
+    });
+
+    return Promise.race([request, deadline]).finally(function () {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    });
+  }
+
   function isTransientCloudError_(error) {
     const message = String(error && error.message ? error.message : error).toLowerCase();
     return (
       message.indexOf("failed to fetch") !== -1 ||
       message.indexOf("networkerror") !== -1 ||
       message.indexOf("typeerror") !== -1 ||
+      message.indexOf("tempo excedido") !== -1 ||
       message.indexOf("resposta inválida da nuvem") !== -1
     );
   }
