@@ -48,3 +48,16 @@ test("frontend não infere admin por ausência ou role desconhecida", () => {
   assert.doesNotMatch(resolver, /role === "client"\s*\?\s*"client"\s*:\s*"admin"/);
   assert.match(html, /O acesso é validado pelo backend/);
 });
+
+test("sessão ObraReport persistida restaura o gate por auth.me e sync.get", () => {
+  const start = script.indexOf("async function restoreAuthenticatedCloudSession_()");
+  const end = script.indexOf("function getCurrentUrlParams_()", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const restore = script.slice(start, end);
+  assert.match(restore, /cloudApiWithTransientRetry_\("auth\.me"/);
+  assert.match(restore, /cloudApiWithTransientRetry_\("sync\.get"/);
+  assert.match(restore, /grantLocalAccessSession_\(\)/);
+  assert.doesNotMatch(restore, /loginLocalFallback_\(/);
+  assert.match(script, /appState\.session\.token && appState\.session\.localOnly !== true/);
+});

@@ -1281,6 +1281,11 @@
     }
 
     if (!hasLocalAccessSession_()) {
+      if (appState.session && appState.session.token && appState.session.localOnly !== true) {
+        restoreAuthenticatedCloudSession_();
+        return;
+      }
+
       if (isRestrictedRouteHash_()) {
         const accessMessage = getRestrictedAccessMessage_();
         setCloudStatus_(accessMessage, "info");
@@ -1321,6 +1326,77 @@
     }
 
     showHomePanel_();
+  }
+
+  async function restoreAuthenticatedCloudSession_() {
+    const token = appState.session && appState.session.token;
+    setCloudStatus_("Verificando sessão autenticada...", "info");
+
+    try {
+      const identity = await cloudApiWithTransientRetry_("auth.me", { token: token }, 3);
+      if (
+        !identity ||
+        identity.authenticated !== true ||
+        !identity.user ||
+        identity.user.id !== appState.session.userId ||
+        !hasExplicitAuthRole_(identity.user)
+      ) {
+        throw new Error("A sessão persistida não possui identidade válida.");
+      }
+
+      const result = await cloudApiWithTransientRetry_("sync.get", { token: token }, 3);
+      if (!result || !result.user || !result.state) {
+        throw new Error("A sessão persistida não retornou estado válido.");
+      }
+
+      await applyCloudState_(result.state, token);
+      grantLocalAccessSession_();
+      renderSaasState_();
+      showDashboardPanel_(getRouteFromHash_());
+      setCloudStatus_("Sincronizado na nuvem", "success");
+      setLoginAccessStatus_("", "");
+    } catch (error) {
+      console.error(error);
+      appState.session = null;
+      currentUser = null;
+      saveLocalData({ syncCloud: false });
+      revokeLocalAccessSession_();
+      setCloudStatus_(error.message || "Sessão expirada. Entre novamente.", "error");
+      setLoginAccessStatus_(error.message || "Entre com a conta real para acessar os dados da obra.", "error");
+      showLoginPanel_();
+    }
+  }
+
+  async function cloudApiWithTransientRetry_(action, payload, maxAttempts) {
+    let lastError;
+    const attempts = Math.max(1, Number(maxAttempts) || 1);
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await cloudApi_(action, payload);
+      } catch (error) {
+        lastError = error;
+        if (attempt >= attempts || !isTransientCloudError_(error)) {
+          throw error;
+        }
+
+        await new Promise(function (resolve) {
+          window.setTimeout(resolve, 1200);
+        });
+      }
+    }
+
+    throw lastError;
+  }
+
+  function isTransientCloudError_(error) {
+    const message = String(error && error.message ? error.message : error).toLowerCase();
+    return (
+      message.indexOf("failed to fetch") !== -1 ||
+      message.indexOf("networkerror") !== -1 ||
+      message.indexOf("typeerror") !== -1 ||
+      message.indexOf("resposta inválida da nuvem") !== -1
+    );
   }
 
   function getCurrentUrlParams_() {
