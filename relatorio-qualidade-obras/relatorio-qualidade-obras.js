@@ -3554,6 +3554,10 @@
       throw new Error("Configure a URL do Apps Script para usar a nuvem.");
     }
 
+    if (action === "sync.save") {
+      return cloudApiSyncSaveWithRetry_(payload);
+    }
+
     const response = await fetch(config.appsScriptUrl, {
       method: "POST",
       headers: {
@@ -3579,6 +3583,60 @@
     }
 
     return result;
+  }
+
+  async function cloudApiSyncSaveWithRetry_(payload) {
+    const requestBody = JSON.stringify(Object.assign({
+      app: "ObraReport",
+      action: "sync.save"
+    }, payload || {}));
+    let lastError;
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const response = await fetch(config.appsScriptUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: requestBody
+        });
+        const text = await response.text();
+        let result;
+
+        try {
+          result = JSON.parse(text);
+        } catch (error) {
+          throw new Error("Resposta inválida da nuvem: " + text.slice(0, 160));
+        }
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || "Falha na API do ObraReport.");
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2 || !isTransientSyncSaveError_(error)) {
+          throw error;
+        }
+
+        await new Promise(function (resolve) {
+          window.setTimeout(resolve, 1200);
+        });
+      }
+    }
+
+    throw lastError;
+  }
+
+  function isTransientSyncSaveError_(error) {
+    const message = String(error && error.message ? error.message : error).toLowerCase();
+    return (
+      message.indexOf("failed to fetch") !== -1 ||
+      message.indexOf("networkerror") !== -1 ||
+      message.indexOf("resposta inválida da nuvem") !== -1
+    );
   }
 
   async function applyCloudLogin_(result) {
