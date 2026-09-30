@@ -331,6 +331,81 @@ function saveAppStore_(store) {
   getAppDataFile_().setContent(JSON.stringify(store, null, 2));
 }
 
+/**
+ * TEMPORARY OPERATOR-ONLY BOOTSTRAP.
+ * Run manually from the existing Apps Script editor, never through doPost.
+ * The password is read only from Script Properties and is never logged or returned.
+ */
+function operatorResetCanonicalAdmin_() {
+  const propertyKey = "OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD";
+  const canonicalEmail = "local@obrareport.app";
+  const properties = PropertiesService.getScriptProperties();
+  const password = String(properties.getProperty(propertyKey) || "");
+
+  if (
+    password.length < 20 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    throw new Error("A Script Property do bootstrap deve conter uma senha forte.");
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const store = getAppStore_();
+    const matches = store.users.filter(function (item) {
+      return normalizeEmail_(item && item.email) === canonicalEmail;
+    });
+
+    if (matches.length > 1) {
+      throw new Error("Mais de um registro para o admin canônico; revisão manual necessária.");
+    }
+
+    const now = new Date().toISOString();
+    let user = matches[0];
+    const created = !user;
+
+    if (!user) {
+      user = {
+        id: createAppId_("usr"),
+        name: "Administrador ObraReport",
+        email: canonicalEmail,
+        role: "admin",
+        passwordSalt: "",
+        passwordHash: "",
+        createdAt: now,
+        updatedAt: now
+      };
+      store.users.push(user);
+    }
+
+    user.role = "admin";
+    user.passwordSalt = Utilities.getUuid();
+    user.passwordHash = hashPassword_(password, user.passwordSalt);
+    user.updatedAt = now;
+    saveAppStore_(store);
+
+    return {
+      ok: true,
+      user: canonicalEmail,
+      role: "admin",
+      created: created
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Temporary operator cleanup; run immediately after verifying the reset. */
+function operatorClearCanonicalAdminBootstrapPassword_() {
+  PropertiesService.getScriptProperties().deleteProperty("OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD");
+  return { ok: true, propertyRemoved: true };
+}
+
 function getAppDataFile_() {
   const folder = getOrCreateAppDataFolder_();
   const fileName = "obrareport-store.json";
