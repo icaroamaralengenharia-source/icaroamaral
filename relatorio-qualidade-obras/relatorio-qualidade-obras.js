@@ -663,6 +663,7 @@
   function hasAuthenticatedSession_() {
     return Boolean(
       currentUser &&
+      hasExplicitAuthRole_(currentUser) &&
       appState.session &&
       appState.session.token &&
       appState.session.localOnly !== true
@@ -1920,6 +1921,18 @@
           });
           if (!verifiedSession || !verifiedSession.user || !verifiedSession.state) {
             throw new Error("A sessão retornada não foi validada pelo backend.");
+          }
+          const identity = await cloudApi_("auth.me", {
+            token: appState.session && appState.session.token
+          });
+          if (
+            !identity ||
+            identity.authenticated !== true ||
+            !identity.user ||
+            identity.user.id !== verifiedSession.user.id ||
+            !hasExplicitAuthRole_(identity.user)
+          ) {
+            throw new Error("A identidade autenticada não possui role explícita válida.");
           }
           await applyCloudState_(verifiedSession.state, appState.session.token);
           grantLocalAccessSession_();
@@ -3458,6 +3471,12 @@
 
     try {
       setCloudStatus_("Atualizando dados da nuvem...", "info");
+      const identity = await cloudApi_("auth.me", {
+        token: appState.session.token
+      });
+      if (!identity || identity.authenticated !== true || !identity.user || !hasExplicitAuthRole_(identity.user)) {
+        throw new Error("Sessão sem identidade ou permissão válida. Entre novamente.");
+      }
       const result = await cloudApi_("sync.get", {
         token: appState.session.token
       });
@@ -3466,6 +3485,11 @@
       setCloudStatus_("Sincronizado na nuvem", "success");
     } catch (error) {
       console.warn("Não foi possível atualizar a nuvem.", error);
+      appState.session = null;
+      currentUser = null;
+      saveLocalData({ syncCloud: false });
+      revokeLocalAccessSession_();
+      showLoginPanel_();
       setCloudStatus_(error.message || "Nuvem indisponível.", "error");
     }
   }
@@ -3560,6 +3584,10 @@
   async function applyCloudLogin_(result) {
     if (!result || !result.user || !result.token) {
       throw new Error("Login em nuvem retornou dados incompletos.");
+    }
+
+    if (!hasExplicitAuthRole_(result.user)) {
+      throw new Error("Usuário sem role explícita ou sem permissão válida.");
     }
 
     await applyCloudState_(result.state, result.token);
@@ -3748,9 +3776,23 @@
     return ["cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
   }
 
+  function normalizeAuthRole_(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function hasExplicitAuthRole_(user) {
+    return ["admin", "fiscal", "viewer", "user", "client"].indexOf(normalizeAuthRole_(user && user.role)) >= 0;
+  }
+
   function getUserRole_(user) {
-    const role = String(user && user.role || "").toLowerCase();
-    return role === "client" ? "client" : "admin";
+    const role = normalizeAuthRole_(user && user.role);
+    if (role === "admin") {
+      return "admin";
+    }
+    if (["fiscal", "viewer", "user", "client"].indexOf(role) >= 0) {
+      return "client";
+    }
+    return "";
   }
 
   function isAdminUser_() {

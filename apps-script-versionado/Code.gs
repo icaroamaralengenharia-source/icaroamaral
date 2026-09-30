@@ -46,7 +46,8 @@ function doPost(e) {
     return json_({
       ok: false,
       requestId: requestId,
-      error: error.message || String(error)
+      error: error.message || String(error),
+      errorCode: error.code || "REQUEST_FAILED"
     });
   }
 }
@@ -80,6 +81,8 @@ function processAppApi_(payload, requestId) {
     } else if (action === "auth.login") {
       result = handleAuthLogin_(payload, store, requestId);
       saveAppStore_(store);
+    } else if (action === "auth.me") {
+      result = handleAuthMe_(payload, store, requestId);
     } else if (action === "sync.get") {
       result = handleSyncGet_(payload, store, requestId);
     } else if (action === "sync.save") {
@@ -104,32 +107,21 @@ function handleAuthLogin_(payload, store, requestId) {
     throw new Error("Informe e-mail e senha.");
   }
 
-  let user = store.users.find(function (item) {
+  const user = store.users.find(function (item) {
     return item.email === email;
   });
 
   if (!user) {
-    user = {
-      id: createAppId_("usr"),
-      name: name || email,
-      email: email,
-      role: "Responsavel tecnico",
-      passwordSalt: Utilities.getUuid(),
-      passwordHash: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    user.passwordHash = hashPassword_(password, user.passwordSalt);
-    store.users.push(user);
-  } else {
-    if (user.passwordHash && user.passwordHash !== hashPassword_(password, user.passwordSalt)) {
-      throw new Error("E-mail ou senha invalidos.");
-    }
+    throw createAuthError_("AUTH_DENIED", "E-mail ou senha invalidos.");
+  }
 
-    if (name) {
-      user.name = name;
-      user.updatedAt = new Date().toISOString();
-    }
+  if (!isSupportedRole_(user.role) || !user.passwordHash || user.passwordHash !== hashPassword_(password, user.passwordSalt)) {
+    throw createAuthError_("AUTH_DENIED", "E-mail ou senha invalidos.");
+  }
+
+  if (name && name !== user.name) {
+    user.name = name;
+    user.updatedAt = new Date().toISOString();
   }
 
   const token = createAuthToken_(user.id);
@@ -141,6 +133,37 @@ function handleAuthLogin_(payload, store, requestId) {
     user: publicUser_(user),
     state: buildUserState_(store, user.id)
   };
+}
+
+function handleAuthMe_(payload, store, requestId) {
+  if (!payload || !payload.token) {
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: false,
+      user: null,
+      role: null
+    };
+  }
+
+  try {
+    const user = requireUser_(payload.token, store);
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: true,
+      user: publicUser_(user),
+      role: normalizeRole_(user.role)
+    };
+  } catch (error) {
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: false,
+      user: null,
+      role: null
+    };
+  }
 }
 
 function handleSyncGet_(payload, store, requestId) {
@@ -246,7 +269,7 @@ function publicUser_(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role || "Responsavel tecnico",
+    role: normalizeRole_(user.role),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
@@ -258,11 +281,25 @@ function requireUser_(token, store) {
     return item.id === tokenData.userId;
   });
 
-  if (!user) {
-    throw new Error("Sessao invalida. Entre novamente.");
+  if (!user || !isSupportedRole_(user.role)) {
+    throw createAuthError_("AUTH_DENIED", "Sessao invalida. Entre novamente.");
   }
 
   return user;
+}
+
+function normalizeRole_(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isSupportedRole_(value) {
+  return ["admin", "fiscal", "viewer", "user", "client"].indexOf(normalizeRole_(value)) >= 0;
+}
+
+function createAuthError_(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
 }
 
 function getAppStore_() {
@@ -292,6 +329,81 @@ function saveAppStore_(store) {
   store.version = 1;
   store.updatedAt = new Date().toISOString();
   getAppDataFile_().setContent(JSON.stringify(store, null, 2));
+}
+
+/**
+ * TEMPORARY OPERATOR-ONLY BOOTSTRAP.
+ * Run manually from the existing Apps Script editor, never through doPost.
+ * The password is read only from Script Properties and is never logged or returned.
+ */
+function operatorResetCanonicalAdmin_() {
+  const propertyKey = "OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD";
+  const canonicalEmail = "local@obrareport.app";
+  const properties = PropertiesService.getScriptProperties();
+  const password = String(properties.getProperty(propertyKey) || "");
+
+  if (
+    password.length < 20 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    throw new Error("A Script Property do bootstrap deve conter uma senha forte.");
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const store = getAppStore_();
+    const matches = store.users.filter(function (item) {
+      return normalizeEmail_(item && item.email) === canonicalEmail;
+    });
+
+    if (matches.length > 1) {
+      throw new Error("Mais de um registro para o admin canônico; revisão manual necessária.");
+    }
+
+    const now = new Date().toISOString();
+    let user = matches[0];
+    const created = !user;
+
+    if (!user) {
+      user = {
+        id: createAppId_("usr"),
+        name: "Administrador ObraReport",
+        email: canonicalEmail,
+        role: "admin",
+        passwordSalt: "",
+        passwordHash: "",
+        createdAt: now,
+        updatedAt: now
+      };
+      store.users.push(user);
+    }
+
+    user.role = "admin";
+    user.passwordSalt = Utilities.getUuid();
+    user.passwordHash = hashPassword_(password, user.passwordSalt);
+    user.updatedAt = now;
+    saveAppStore_(store);
+
+    return {
+      ok: true,
+      user: canonicalEmail,
+      role: "admin",
+      created: created
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Temporary operator cleanup; run immediately after verifying the reset. */
+function operatorClearCanonicalAdminBootstrapPassword_() {
+  PropertiesService.getScriptProperties().deleteProperty("OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD");
+  return { ok: true, propertyRemoved: true };
 }
 
 function getAppDataFile_() {
