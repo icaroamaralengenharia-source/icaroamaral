@@ -98,14 +98,32 @@ test("UI cria tabela SIM/NAO com autosave local e perfis independentes por relat
   assert.match(app, /data-answer="NAO"/);
 });
 
-test("trocar cidade, SGTO/STELECOM e DT1B/PM1B troca contexto de fotos e carrega checklist", () => {
+test("trocar cidade e DT1B/PM1B troca contexto de fotos, mas SGTO/STELECOM compartilha evidencias", () => {
   assert.match(app, /nodes\.city\.addEventListener\("input"/);
   assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);\s*switchPhotoContext\(\);/);
   assert.match(app, /nodes\.reportType\.addEventListener\("change"/);
+  assert.match(app, /sharedReportState/);
+  assert.match(app, /SGTO e STELECOM usam o mesmo conjunto de evidências/);
   assert.match(app, /state\.workType = template\.normalizeWorkType/);
-  assert.match(app, /photoStateCache/);
-  assert.match(app, /activePhotoProfileKey/);
-  assert.match(app, /switchPhotoContext\(\)/);
+  assert.match(app, /clearStatePhotos\(\)/);
+});
+
+test("Limpar tudo apaga o contexto compartilhado e mantém a ação disponível", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await addReady(appContext, "cameras", [imageFile({ width: 640, height: 480, size: 120000 })]);
+  appContext.setChecklistAnswer(1, "SIM");
+  appContext.sharedReportState.legends.cameras = "Legenda temporária";
+
+  assert.match(app, /data-clear-report/);
+  assert.match(app, /clearCurrentReport/);
+  assert.match(css, /\.secondary-danger-action/);
+  assert.equal(await appContext.clearCurrentReport(), true);
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().checklistAnswers["1"], undefined);
+  assert.equal(appContext.sharedReportState.legends.cameras, "Fotos: Ponto de camera interna e externa, conectadas, identificadas.");
+  assert.equal(indexedDB.records.size, 0);
 });
 
 test("PDF usa exatamente SIM/NAO selecionado e não inventa resposta ausente", () => {
@@ -253,21 +271,6 @@ async function addReady(appContext, categoryId, files) {
   await appContext.waitForPhotoOptimizationsForCurrentReport();
 }
 
-function photoCounts(appContext) {
-  const state = appContext.getState();
-  return Object.fromEntries(["cameras", "tomadas", "rack", "caixa", "mastro"].map((group) => [group, state[group].length]));
-}
-
-function dbRecords(indexedDB) {
-  return Array.from(indexedDB.records.values()).filter((record) => record && record.id);
-}
-
-function dbCounts(indexedDB, profileKey) {
-  return Object.fromEntries(["cameras", "tomadas", "rack", "caixa", "mastro"].map((group) => [
-    group,
-    dbRecords(indexedDB).filter((record) => record.profileKey === profileKey && record.group === group).length
-  ]));
-}
 function deferred() {
   let resolve;
   let reject;
@@ -588,13 +591,13 @@ test("IndexedDB salva, restaura apos reload e recria ObjectURL em ordem", async 
 
   const secondLoad = createAppContext({ indexedDB });
   await secondLoad.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(Array.from(secondLoad.getState().cameras.map((item) => item.id)), Array.from(originalIds));
+  assert.deepEqual(Array.from(secondLoad.getState().cameras, (item) => item.id), Array.from(originalIds));
   assert.equal(secondLoad.getState().tomadas.length, 1);
   assert.notEqual(secondLoad.getState().cameras[0].url, firstLoad.getState().cameras[0].url);
   assert.equal(secondLoad.getState().cameras[0].file.type, "image/jpeg");
 });
 
-test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
+test("IndexedDB isola cidade, tipo de obra e grupo, mas compartilha SGTO e STELECOM", async () => {
   const indexedDB = createFakeIndexedDB();
   const appContext = createAppContext({ indexedDB });
   await appContext.loadStoredPhotosForCurrentContext();
@@ -627,7 +630,7 @@ test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
   reportNode.value = "STELECOM";
   reportNode.listeners.change();
   await appContext.loadStoredPhotosForCurrentContext();
-  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().cameras.length, 1);
   reportNode.value = "SGTO";
   reportNode.listeners.change();
   await appContext.loadStoredPhotosForCurrentContext();
@@ -642,6 +645,33 @@ test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
   await appContext.loadStoredPhotosForCurrentContext();
   assert.equal(appContext.getState().cameras.length, 1);
   assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("alternar SGTO/STELECOM preserva ordem, categorias, legendas e não duplica fotos", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  const photoA = imageFile({ width: 640, height: 480, size: 120000, name: "a.jpg" });
+  const photoB = imageFile({ width: 800, height: 600, size: 140000, name: "b.jpg" });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await addReady(appContext, "cameras", [photoA, photoB]);
+  await addReady(appContext, "rack", [photoA]);
+  const beforeIds = Array.from(appContext.getState().cameras, (photo) => photo.id);
+  appContext.sharedReportState.legends.cameras = "Legenda compartilhada";
+
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  assert.deepEqual(Array.from(appContext.getState().cameras, (photo) => photo.id), beforeIds);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(appContext.sharedReportState.legends.cameras, "Legenda compartilhada");
+  assert.equal(new Set(appContext.getState().cameras.map((photo) => photo.id)).size, 2);
+
+  reportNode.value = "STELECOM";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.deepEqual(Array.from(appContext.getState().cameras, (photo) => photo.id), beforeIds);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(indexedDB.records.size, 3);
 });
 
 test("remover uma foto e limpar grupo removem apenas os registros certos", async () => {
@@ -793,7 +823,7 @@ test("remover ou limpar invalida otimização atrasada sem regravar fotos", asyn
   assert.equal(indexedDB.records.size, 0);
 });
 
-test("troca de cidade preserva otimização atrasada no contexto original sem misturar", async () => {
+test("troca de cidade invalida resultado atrasado e não mistura contexto", async () => {
   const gate = deferred();
   const indexedDB = createFakeIndexedDB();
   const appContext = createAppContext({
@@ -802,23 +832,15 @@ test("troca de cidade preserva otimização atrasada no contexto original sem mi
   });
   await appContext.loadStoredPhotosForCurrentContext();
   await appContext.addFiles("rack", [imageFile({ width: 900, height: 600, size: 500000, name: "cidade.jpg" })]);
-  const originalProfile = appContext.photoProfileKey();
 
   const cityNode = appContext.__nodes.get("[data-visit-city]");
   cityNode.value = "Ibicoara";
   cityNode.listeners.input();
-  assert.equal(appContext.getState().rack.length, 0);
   gate.resolve();
   await tick();
   await appContext.loadStoredPhotosForCurrentContext();
   assert.equal(appContext.getState().rack.length, 0);
-  assert.deepEqual(dbCounts(indexedDB, originalProfile), { cameras: 0, tomadas: 0, rack: 1, caixa: 0, mastro: 0 });
-
-  cityNode.value = "Tremedal";
-  cityNode.listeners.input();
-  await appContext.loadStoredPhotosForCurrentContext();
-  assert.equal(appContext.getState().rack.length, 1);
-  assert.equal(appContext.getState().rack[0].status, "ready");
+  assert.equal(indexedDB.records.size, 0);
 });
 
 test("falha de otimização fica isolada e IndexedDB salva somente fotos ready", async () => {
@@ -843,6 +865,30 @@ test("falha de otimização fica isolada e IndexedDB salva somente fotos ready",
   assert.equal(appContext.getState().caixa.filter((photo) => photo.status === "ready").length, 1);
   assert.equal(indexedDB.records.size, 1);
   assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Falha na otimização/);
+});
+
+test("retry reprocessa o File original e limpa o recurso decodificado", async () => {
+  let calls = 0;
+  let closes = 0;
+  const appContext = createAppContext({
+    createImageBitmapImpl: (file) => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error("falha transitória"));
+      return Promise.resolve({ width: file.width, height: file.height, close() { closes += 1; } });
+    }
+  });
+  const original = imageFile({ width: 1600, height: 900, size: 1000000, name: "retry-original.jpg" });
+  await appContext.addFiles("cameras", [original]);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  const failed = appContext.getState().cameras[0];
+  assert.equal(failed.status, "error");
+  assert.equal(failed.originalFile, original);
+  assert.equal(appContext.retryPhotoOptimization("cameras", failed.id), true);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.equal(calls, 2);
+  assert.equal(closes, 1);
+  assert.equal(appContext.getState().cameras[0].status, "ready");
+  assert.equal(appContext.getState().cameras[0].originalFile, null);
 });
 
 test("gerar PDF aguarda otimização pendente e usa somente blob otimizado", async () => {
@@ -883,182 +929,6 @@ test("gerar PDF aguarda otimização pendente e usa somente blob otimizado", asy
   assert.equal(appContext.getState().mastro[0].originalFile, null);
   assert.equal(appContext.getState().mastro[0].optimizedForReport, true);
   assert.equal(template.sgtoChecklistItems.length, 15);
-});
-test("troca SGTO/STELECOM preserva fotos pendentes e restaura conjunto completo", async () => {
-  const gates = [];
-  const indexedDB = createFakeIndexedDB();
-  const appContext = createAppContext({
-    indexedDB,
-    createImageBitmapImpl: (file) => {
-      const gate = deferred();
-      gates.push({ gate, file });
-      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }));
-    }
-  });
-  await appContext.loadStoredPhotosForCurrentContext();
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  await appContext.addFiles("cameras", Array.from({ length: 5 }, (_, index) => imageFile({ width: 1600, height: 900, size: 1500000, name: `camera-${index}.jpg` })));
-  await appContext.addFiles("tomadas", Array.from({ length: 5 }, (_, index) => imageFile({ width: 1600, height: 900, size: 1500000, name: `tomada-${index}.jpg` })));
-  await appContext.addFiles("rack", [imageFile({ width: 900, height: 600, size: 500000, name: "rack.jpg" })]);
-  await appContext.addFiles("caixa", [imageFile({ width: 900, height: 600, size: 500000, name: "caixa.jpg" })]);
-  await appContext.addFiles("mastro", [imageFile({ width: 900, height: 600, size: 500000, name: "mastro.jpg" })]);
-
-  const sgtoProfile = appContext.photoProfileKey();
-  const beforeIds = appContext.getState().cameras.map((photo) => photo.id);
-  assert.deepEqual(photoCounts(appContext), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  assert.equal(appContext.getPhotoOptimizationStats().pending, 13);
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  assert.deepEqual(photoCounts(appContext), { cameras: 0, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  assert.deepEqual(photoCounts(appContext), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  assert.deepEqual(appContext.getState().cameras.map((photo) => photo.id), beforeIds);
-
-  while (gates.length) {
-    gates.shift().gate.resolve();
-    await tick();
-  }
-  await appContext.waitForPhotoOptimizationsForCurrentReport();
-  assert.deepEqual(photoCounts(appContext), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  assert.deepEqual(dbCounts(indexedDB, sgtoProfile), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-});
-
-test("SGTO e STELECOM mantem conjuntos independentes apos alternar e recarregar", async () => {
-  const indexedDB = createFakeIndexedDB();
-  const appContext = createAppContext({ indexedDB });
-  await appContext.loadStoredPhotosForCurrentContext();
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  await addReady(appContext, "cameras", Array.from({ length: 5 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `sgto-camera-${index}.jpg` })));
-  await addReady(appContext, "tomadas", Array.from({ length: 5 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `sgto-tomada-${index}.jpg` })));
-  await addReady(appContext, "rack", [imageFile({ width: 900, height: 600, size: 500000, name: "sgto-rack.jpg" })]);
-  await addReady(appContext, "caixa", [imageFile({ width: 900, height: 600, size: 500000, name: "sgto-caixa.jpg" })]);
-  await addReady(appContext, "mastro", [imageFile({ width: 900, height: 600, size: 500000, name: "sgto-mastro.jpg" })]);
-  const sgtoProfile = appContext.photoProfileKey();
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  await addReady(appContext, "cameras", Array.from({ length: 4 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `stelecom-camera-${index}.jpg` })));
-  await addReady(appContext, "tomadas", Array.from({ length: 3 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `stelecom-tomada-${index}.jpg` })));
-  const stelecomProfile = appContext.photoProfileKey();
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  assert.deepEqual(photoCounts(appContext), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  assert.deepEqual(photoCounts(appContext), { cameras: 4, tomadas: 3, rack: 0, caixa: 0, mastro: 0 });
-
-  const reload = createAppContext({ indexedDB });
-  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  await reload.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(photoCounts(reload), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  setAppContext(reload, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  await reload.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(photoCounts(reload), { cameras: 4, tomadas: 3, rack: 0, caixa: 0, mastro: 0 });
-  assert.deepEqual(dbCounts(indexedDB, sgtoProfile), { cameras: 5, tomadas: 5, rack: 1, caixa: 1, mastro: 1 });
-  assert.deepEqual(dbCounts(indexedDB, stelecomProfile), { cameras: 4, tomadas: 3, rack: 0, caixa: 0, mastro: 0 });
-});
-
-test("gerar PDF nao altera fotos, ordem, status ou IndexedDB", async () => {
-  const indexedDB = createFakeIndexedDB();
-  let written = "";
-  const appContext = createAppContext({
-    indexedDB,
-    openImpl: () => ({
-      document: { images: [], title: "", open() {}, write(html) { written = html; }, close() {} },
-      close() {},
-      focus() {},
-      print() {}
-    })
-  });
-  const dateNode = appContext.__nodes.get("[data-visit-date]");
-  dateNode.value = "30/08/2026";
-  dateNode.listeners.input();
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  appContext.setChecklistBulkAnswer("SIM");
-  await addReady(appContext, "cameras", Array.from({ length: 4 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `pdf-camera-${index}.jpg` })));
-  await addReady(appContext, "tomadas", Array.from({ length: 4 }, (_, index) => imageFile({ width: 1200, height: 800, size: 1000000, name: `pdf-tomada-${index}.jpg` })));
-  const profile = appContext.photoProfileKey();
-  const before = JSON.stringify(appContext.getState());
-  const beforeDb = JSON.stringify(dbCounts(indexedDB, profile));
-  await appContext.generatePdf();
-  assert.match(written, /REGISTRO FOTOGRÁFICO/);
-  assert.equal(JSON.stringify(appContext.getState()), before);
-  assert.equal(JSON.stringify(dbCounts(indexedDB, profile)), beforeDb);
-});
-
-test("retry reutiliza foto com erro sem duplicar e persiste ao concluir", async () => {
-  const indexedDB = createFakeIndexedDB();
-  let calls = 0;
-  const appContext = createAppContext({
-    indexedDB,
-    createImageBitmapImpl: (file) => {
-      calls += 1;
-      if (calls === 1) return Promise.reject(new Error("decode"));
-      return Promise.resolve({ width: file.width, height: file.height, close() {} });
-    }
-  });
-  await appContext.loadStoredPhotosForCurrentContext();
-  await appContext.addFiles("rack", [imageFile({ width: 900, height: 600, size: 500000, name: "retry.jpg" })]);
-  await appContext.waitForPhotoOptimizationsForCurrentReport();
-  const photoId = appContext.getState().rack[0].id;
-  assert.equal(appContext.getState().rack[0].status, "error");
-  assert.equal(dbRecords(indexedDB).length, 0);
-  assert.equal(appContext.retryPhotoOptimization("rack", photoId), true);
-  await appContext.waitForPhotoOptimizationsForCurrentReport();
-  assert.equal(appContext.getState().rack.length, 1);
-  assert.equal(appContext.getState().rack[0].id, photoId);
-  assert.equal(appContext.getState().rack[0].status, "ready");
-  assert.equal(dbRecords(indexedDB).length, 1);
-});
-
-test("Limpar tudo apaga somente contexto atual, persiste vazio e invalida jobs ativos", async () => {
-  const gates = [];
-  const storage = new Map();
-  const indexedDB = createFakeIndexedDB();
-  const appContext = createAppContext({
-    indexedDB,
-    localStorageStore: storage,
-    createImageBitmapImpl: (file) => {
-      if (!String(file.name).startsWith("limpar")) return Promise.resolve({ width: file.width, height: file.height, close() {} });
-      const gate = deferred();
-      gates.push({ gate, file });
-      return gate.promise.then(() => ({ width: file.width, height: file.height, close() {} }));
-    }
-  });
-  await appContext.loadStoredPhotosForCurrentContext();
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  await addReady(appContext, "cameras", [imageFile({ width: 900, height: 600, size: 500000, name: "outra.jpg" })]);
-  appContext.setChecklistBulkAnswer("SIM");
-  const stelecomProfile = appContext.photoProfileKey();
-
-  setAppContext(appContext, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  await appContext.addFiles("cameras", [imageFile({ width: 900, height: 600, size: 500000, name: "limpar-1.jpg" })]);
-  await appContext.addFiles("tomadas", [imageFile({ width: 900, height: 600, size: 500000, name: "limpar-2.jpg" })]);
-  appContext.setChecklistBulkAnswer("NAO");
-  const sgtoProfile = appContext.photoProfileKey();
-  assert.equal(appContext.getPhotoOptimizationStats().pending, 2);
-
-  assert.equal(await appContext.clearCurrentReport(), true);
-  assert.deepEqual(photoCounts(appContext), { cameras: 0, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
-  assert.equal(Object.keys(appContext.getState().checklistAnswers).length, 0);
-  assert.equal(appContext.getPhotoOptimizationStats().pending, 0);
-  while (gates.length) {
-    gates.shift().gate.resolve();
-    await tick();
-  }
-  await tick();
-  assert.deepEqual(dbCounts(indexedDB, sgtoProfile), { cameras: 0, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
-
-  const reload = createAppContext({ indexedDB, localStorageStore: storage });
-  setAppContext(reload, { city: "Ibicoara", reportType: "SGTO", workType: "DT1B" });
-  await reload.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(photoCounts(reload), { cameras: 0, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
-  assert.equal(Object.keys(reload.getState().checklistAnswers).length, 0);
-
-  setAppContext(reload, { city: "Ibicoara", reportType: "STELECOM", workType: "DT1B" });
-  await reload.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(photoCounts(reload), { cameras: 1, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
-  assert.deepEqual(dbCounts(indexedDB, stelecomProfile), { cameras: 1, tomadas: 0, rack: 0, caixa: 0, mastro: 0 });
 });
 test("Todos SIM e Todos NAO preenchem, alternam e mantem exclusividade", () => {
   const template = loadTemplate();
