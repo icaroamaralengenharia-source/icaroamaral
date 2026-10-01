@@ -115,13 +115,15 @@ test('ELO music catalog unit: carrega exatamente 100 faixas sem videoId inventad
     return acc;
   }, {});
   assert.equal(items.filter((item) => item.videoId !== null).length, 98);
-  assert.equal(byStatus.ACTIVE, 92);
-  assert.equal(byStatus.REJECTED_PHYSICAL, 6);
+  assert.equal(byStatus.ACTIVE, 93);
+  assert.equal(byStatus.REJECTED_PHYSICAL, 5);
   assert.equal(byStatus.PENDING, 2);
   assert.equal(byStatus.ACTIVE + byStatus.REJECTED_PHYSICAL + byStatus.PENDING, 100);
-  assert.equal(items.filter((item) => item.playConfirmed === true).length, 2);
+  assert.equal(items.filter((item) => item.playConfirmed === true).length, 4);
   assert.equal(catalog.get('aerosmith-dream-on').validationStatus, 'REJECTED_PHYSICAL');
-  assert.equal(catalog.get('dire-straits-sultans-of-swing').validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(catalog.get('dire-straits-sultans-of-swing').validationStatus, 'ACTIVE');
+  assert.equal(catalog.get('dire-straits-sultans-of-swing').videoId, 'eqxpQA5etd4');
+  assert.equal(catalog.get('dire-straits-sultans-of-swing').playConfirmed, true);
   assert.equal(catalog.get('eagles-hotel-california').validationStatus, 'REJECTED_PHYSICAL');
   assert.equal(catalog.get('a-ha-take-on-me').validationStatus, 'ACTIVE');
   assert.equal(catalog.get('a-ha-take-on-me').playConfirmed, true);
@@ -269,6 +271,42 @@ test('ELO music resolver unit: rejected physical nao retorna videoId direto nem 
   assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Aerosmith Dream On');
 });
 
+test('ELO music resolver unit: rejected physical usa web fallback pendente de validacao fisica', async () => {
+  const requestedUrls = [];
+  const { resolver, context } = loadResolver({
+    fetch(url) {
+      requestedUrls.push(url);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          ok: true,
+          provider: 'youtube-web-search',
+          candidates: [
+            { title: 'Eagles - Hotel California', artist: 'Eagles', channel: 'Eagles', videoId: 'hotelA1', source: 'web_search', provider: 'youtube-web-search', playable: null, embeddable: null },
+            { title: 'Hotel California Live', artist: 'Eagles', channel: 'Eagles', videoId: 'hotelB2', source: 'web_search', provider: 'youtube-web-search', playable: null, embeddable: null }
+          ]
+        })
+      });
+    }
+  });
+
+  const result = await resolver.resolve('toque Hotel California do Eagles');
+  const cache = JSON.parse(context.window.localStorage.getItem('elo_music_catalog_cache_v1') || '{}');
+
+  assert.equal(result.found, true);
+  assert.equal(result.catalogId, 'eagles-hotel-california');
+  assert.equal(result.catalogMatch.validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(result.source, 'web_search');
+  assert.equal(result.videoId, 'hotelA1');
+  assert.equal(result.playable, true);
+  assert.equal(result.embeddable, true);
+  assert.equal(result.requiresPhysicalPlayback, true);
+  assert.equal(result.fallbackCandidates.length, 1);
+  assert.equal(result.fallbackCandidates[0].videoId, 'hotelB2');
+  assert.equal(cache['eagles-hotel-california'], undefined);
+  assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Eagles Hotel California');
+});
 test('ELO music resolver unit: offline nao chama provider nem toca catalogo active', async () => {
   const requestedUrls = [];
   let playCalls = 0;
@@ -387,7 +425,7 @@ test('ELO offline classical: miss offline nao inventa musica online', async () =
   assert.equal(playCalls.length, 0);
 });
 
-test('ELO service worker: cache v3 inclui modulo local library.json e 7 audios', () => {
+test('ELO service worker: cache v5 inclui router, adapter, library.json e 7 audios', () => {
   const sw = fs.readFileSync(path.join(__dirname, '..', 'elo-sw.js'), 'utf8');
   const audioPaths = [
     'beethoven/fur-elise.ogg',
@@ -399,8 +437,10 @@ test('ELO service worker: cache v3 inclui modulo local library.json e 7 audios',
     'chopin/nocturne-op-9-no-2.ogg'
   ];
 
-  assert.match(sw, /elo-web-offline-v3-20260826-web-parity-v1/);
+  assert.match(sw, /elo-web-offline-v9-20260911-p0-config-v2/);
   assert.match(sw, /elo-offline-media-library\.js/);
+  assert.match(sw, /elo-offline-memory-adapter\.js/);
+  assert.match(sw, /elo-offline-router\.js/);
   assert.match(sw, /offline-media\/classical\/library\.json/);
   for (const audioPath of audioPaths) assert.match(sw, new RegExp(audioPath.replace(/[./-]/g, '\\$&')));
 });

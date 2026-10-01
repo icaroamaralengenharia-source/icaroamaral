@@ -185,22 +185,30 @@
     return clean(candidate && (candidate.artist || candidate.author || candidate.channel || candidate.channelTitle || candidate.creator || ""));
   }
 
+  function isWebSearchCandidate(candidate, source) {
+    const provider = clean(candidate && candidate.provider).toLowerCase();
+    return source.toLowerCase() === "web_search" || provider === "youtube-web-search";
+  }
+
   function normalizeCandidate(candidate, index) {
     const videoId = getVideoId(candidate);
     const title = getCandidateLabel(candidate);
     if (!videoId || !title) return null;
-    const playable = candidate.playable === true;
-    const embeddable = candidate.embeddable === true;
+    const source = clean(candidate.source || candidate.provider || "youtube");
+    const requiresPhysicalPlayback = isWebSearchCandidate(candidate, source) && (candidate.playable == null || candidate.embeddable == null);
+    const playable = candidate.playable === true || (requiresPhysicalPlayback && candidate.playable !== false);
+    const embeddable = candidate.embeddable === true || (requiresPhysicalPlayback && candidate.embeddable !== false);
     const normalized = {
       id: candidate.id || "youtube:" + videoId,
       title: title,
       artist: getCandidateArtist(candidate),
       channel: clean(candidate.channel || candidate.channelTitle || candidate.author || ""),
       videoId: videoId,
-      source: clean(candidate.source || candidate.provider || "youtube"),
+      source: source,
       relevance: typeof candidate.relevance === "number" ? candidate.relevance : (typeof candidate.score === "number" ? candidate.score : Math.max(0.4, 1 - index * 0.04)),
       playable: playable,
       embeddable: embeddable,
+      requiresPhysicalPlayback: requiresPhysicalPlayback,
       official: candidate.official === true,
       url: candidate.url || "https://www.youtube.com/watch?v=" + videoId
     };
@@ -218,7 +226,8 @@
       videoId: normalized.videoId,
       method: "provider_status_embeddable",
       playable: normalized.playable,
-      embeddable: normalized.embeddable
+      embeddable: normalized.embeddable,
+      requiresPhysicalPlayback: normalized.requiresPhysicalPlayback
     });
     if (!playable || !embeddable) {
       log("MEDIA_CANDIDATE_REJECTED", {
@@ -243,6 +252,15 @@
     return [];
   }
 
+  function scoreProviderCandidate(query, candidate) {
+    const queryTokens = normalize(query).split(/\s+/).filter(Boolean);
+    const titleTokens = normalize(candidate && candidate.title).split(/\s+/).filter(Boolean);
+    const artistTokens = normalize(candidate && candidate.artist).split(/\s+/).filter(Boolean);
+    if (!queryTokens.length) return 0;
+    const overlap = function (tokens) { return queryTokens.filter(function (token) { return tokens.indexOf(token) >= 0; }).length / Math.max(1, tokens.length); };
+    return overlap(titleTokens) * 0.68 + overlap(artistTokens) * 0.32;
+  }
+
   function normalizeProviderResult(data, query, requestUrl, httpStatus, catalogItem) {
     const rawCandidates = collectRawCandidates(data);
     const playableCandidates = rawCandidates.map(normalizeCandidate).filter(Boolean);
@@ -262,6 +280,11 @@
         catalogMatch: catalogItem || null
       };
     }
+    playableCandidates.sort(function (a, b) {
+      const scoreDiff = scoreProviderCandidate(query, b) - scoreProviderCandidate(query, a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return Number(Boolean(b.official)) - Number(Boolean(a.official));
+    });
     const best = Object.assign({}, playableCandidates[0], {
       found: true,
       query: query,
@@ -269,9 +292,10 @@
       providerStatus: "OK",
       requestUrl: requestUrl,
       httpStatus: httpStatus,
+      catalogMatch: catalogItem || null,
       fallbackCandidates: playableCandidates.slice(1)
     });
-    rememberCatalogResolution(catalogItem, best);
+    if (!best.requiresPhysicalPlayback) rememberCatalogResolution(catalogItem, best);
     log("MEDIA_RESOLVE_RESULT", {
       found: true,
       provider: data && data.provider || best.source,

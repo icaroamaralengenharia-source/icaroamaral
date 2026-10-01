@@ -6,6 +6,7 @@ const state = {
   noticias: [],
   oportunidades: [],
   licitacoes: [],
+  dicasAtualizadoEm: null,
   licitacoesAtualizadoEm: null,
   filters: {
     dicas: { busca: "", categoria: "", nivel: "", buscaAberta: false },
@@ -115,8 +116,9 @@ function syncSubjectSelect(tabName) {
 }
 
 function setTab(tabName, updateHash = true) {
-  const allowed = ["dicas", "noticias", "licitacoes", "oportunidades"];
-  const safeTab = allowed.includes(tabName) ? tabName : "dicas";
+  const allowed = ["dicas", "licitacoes"];
+  const requestedTab = String(tabName || "");
+  const safeTab = allowed.includes(requestedTab) ? requestedTab : "dicas";
   state.activeTab = safeTab;
   syncSubjectSelect(safeTab);
   elements.tabs.forEach((tab) => {
@@ -126,6 +128,7 @@ function setTab(tabName, updateHash = true) {
   });
   elements.panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== safeTab; });
   if (updateHash && window.location.hash !== `#${safeTab}`) window.location.hash = safeTab;
+  else if (requestedTab && requestedTab !== safeTab && window.location.hash !== `#${safeTab}`) window.history.replaceState(null, "", `#${safeTab}`);
 }
 
 function setupTabs() {
@@ -516,10 +519,14 @@ function renderLicitacoes() {
 
 function renderTotals() {
   const reviewed = state.dicas.filter((item) => item && item.revisadoManualmente === true).length;
-  const openOpps = state.oportunidades.filter(opportunityOpen).length;
   const openBids = state.licitacoes.filter(licitationOpen).length;
-  const total = reviewed + state.noticias.length + openOpps + openBids;
+  const total = reviewed + openBids;
   elements.total.textContent = String(total);
+  const latest = [state.dicasAtualizadoEm, state.licitacoesAtualizadoEm]
+    .map((value) => ({ value, time: new Date(value).getTime() }))
+    .filter((item) => item.value && !Number.isNaN(item.time))
+    .sort((a, b) => b.time - a.time)[0];
+  if (elements.updatedAt) elements.updatedAt.textContent = latest ? formatDate(latest.value) : "Indisponível";
 }
 
 async function fetchJson(path, fallback) {
@@ -532,10 +539,12 @@ async function loadDicas() {
   try {
     const payload = await fetchJson("./dados/dicas.json", { dicas: [] });
     state.dicas = Array.isArray(payload.dicas) ? payload.dicas : [];
+    state.dicasAtualizadoEm = payload.atualizadoEm || null;
     fillSelect(elements.dicas.category, [...new Set(state.dicas.map((item) => item.categoria))], "Todas");
     fillSelect(elements.dicas.level, [...new Set(state.dicas.map((item) => item.nivel))], "Todos");
   } catch {
     state.dicas = [];
+    state.dicasAtualizadoEm = null;
     elements.dicas.status.textContent = "Não foi possível carregar as dicas agora.";
   } finally {
     renderDicas();
@@ -594,7 +603,7 @@ async function loadLicitacoes() {
 }
 
 function setupFilters() {
-  ["dicas", "noticias", "licitacoes", "oportunidades"].forEach((key) => {
+  ["dicas", "licitacoes"].forEach((key) => {
     const controls = elements[key];
     const filters = state.filters[key];
     if (controls.toggle) controls.toggle.addEventListener("click", () => {
@@ -607,7 +616,6 @@ function setupFilters() {
   });
   elements.dicas.category.addEventListener("change", (event) => { state.filters.dicas.categoria = event.target.value; renderDicas(); });
   elements.dicas.level.addEventListener("change", (event) => { state.filters.dicas.nivel = event.target.value; renderDicas(); });
-  elements.noticias.category.addEventListener("change", (event) => { state.filters.noticias.categoria = event.target.value; renderNoticias(); });
   elements.licitacoes.category.addEventListener("change", (event) => { state.filters.licitacoes.categoria = event.target.value; renderLicitacoes(); });
   elements.licitacoes.state.addEventListener("change", (event) => { state.filters.licitacoes.estado = event.target.value; renderLicitacoes(); });
   elements.licitacoes.mode.addEventListener("change", (event) => { state.filters.licitacoes.modalidade = event.target.value; renderLicitacoes(); });
@@ -615,10 +623,6 @@ function setupFilters() {
   elements.licitacoes.order.addEventListener("change", (event) => { state.filters.licitacoes.ordem = event.target.value || "prazo"; renderLicitacoes(); });
   elements.licitacoes.apply.addEventListener("click", () => { renderLicitacoes(); });
   elements.licitacoes.search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); renderLicitacoes(); } });
-  elements.oportunidades.type.addEventListener("change", (event) => { state.filters.oportunidades.tipo = event.target.value; renderOportunidades(); });
-  elements.oportunidades.state.addEventListener("change", (event) => { state.filters.oportunidades.estado = event.target.value; renderOportunidades(); });
-  elements.oportunidades.mode.addEventListener("change", (event) => { state.filters.oportunidades.modalidade = event.target.value; renderOportunidades(); });
-  elements.oportunidades.deadline.addEventListener("change", (event) => { state.filters.oportunidades.prazo = event.target.value; renderOportunidades(); });
 }
 
 function clearControlValues(controls) {
@@ -636,6 +640,4 @@ if (elements.year) elements.year.textContent = String(new Date().getFullYear());
 setupTabs();
 setupFilters();
 loadDicas();
-loadNoticias();
-loadOportunidades();
 loadLicitacoes();

@@ -23,6 +23,51 @@ function normalizeProfile(profile) {
   };
 }
 
+const PROFILE_SELECTS = [
+  "id,auth_user_id,institution_id,company_id,unit_id,name,email,role,status",
+  "id,auth_user_id,institution_id,unit_id,name,email,role,status",
+  "id,auth_user_id,institution_id,company_id,unit_id,name,email,role",
+  "id,auth_user_id,institution_id,unit_id,name,email,role"
+];
+
+function isMissingProfileColumnError(error) {
+  const code = clean(error && error.code);
+  const message = clean(error && (error.message || error.msg || error.hint));
+  return code === "42703" ||
+    code === "PGRST204" ||
+    /column\s+profiles\.[a-z_]+\s+does\s+not\s+exist/i.test(message) ||
+    /could\s+not\s+find\s+the\s+'[a-z_]+'\s+column/i.test(message);
+}
+
+async function fetchProfileByAuthUser(supabase, table, authUserId) {
+  let lastColumnError = null;
+
+  for (const selectColumns of PROFILE_SELECTS) {
+    let result = null;
+    try {
+      result = await supabase
+        .from(table)
+        .select(selectColumns)
+        .eq("auth_user_id", authUserId)
+        .maybeSingle();
+    } catch (error) {
+      result = { data: null, error };
+    }
+
+    if (!result || !result.error) {
+      return { data: result && result.data || null, error: null, selectColumns };
+    }
+
+    if (!isMissingProfileColumnError(result.error)) {
+      return { data: null, error: result.error, selectColumns };
+    }
+
+    lastColumnError = result.error;
+  }
+
+  return { data: null, error: lastColumnError };
+}
+
 export async function resolveAuthContext(request, options = {}) {
   const supabase = options.supabase;
   if (!supabase || !supabase.auth || typeof supabase.auth.getUser !== "function") {
@@ -34,18 +79,23 @@ export async function resolveAuthContext(request, options = {}) {
     return { ok: false, status: 401, error: "authentication_required" };
   }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  let userData = null;
+  let userError = null;
+  try {
+    const result = await supabase.auth.getUser(token);
+    userData = result && result.data;
+    userError = result && result.error;
+  } catch (_) {
+    return { ok: false, status: 401, error: "invalid_session" };
+  }
   const user = userData && userData.user;
   if (userError || !user || !clean(user.id)) {
     return { ok: false, status: 401, error: "invalid_session" };
   }
 
-  const { data: profileData, error: profileError } = await supabase
-    .from(options.profileTable || "profiles")
-    .select("id,auth_user_id,institution_id,company_id,unit_id,name,email,role,status")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
+  const result = await fetchProfileByAuthUser(supabase, options.profileTable || "profiles", clean(user.id));
+  const profileData = result && result.data;
+  const profileError = result && result.error;
   if (profileError) {
     return { ok: false, status: 500, error: "auth_context_profile_lookup_failed" };
   }
@@ -54,12 +104,23 @@ export async function resolveAuthContext(request, options = {}) {
   }
 
   const profile = normalizeProfile(profileData);
+  const tenantId = clean(profile.company_id || profile.institution_id);
+  const institutionId = clean(profile.institution_id || profile.company_id);
+  if (!tenantId || !institutionId) {
+    return { ok: false, status: 403, error: "auth_context_tenant_not_found" };
+  }
+
   return {
     ok: true,
     userId: clean(user.id),
-    institutionId: clean(profile.institution_id || profile.company_id),
-    companyId: clean(profile.company_id || profile.institution_id),
+    institutionId,
+    companyId: tenantId,
     role: clean(profile.role) || "user",
+    user,
     profile
   };
+}
+
+export async function resolveAuthenticatedEloContext(request, options = {}) {
+  return resolveAuthContext(request, options);
 }

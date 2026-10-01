@@ -16,7 +16,7 @@ defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260601-premium-landing">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260906-rdo-final-real-test-bugs">
   <link rel="stylesheet" href="../elo.css">
 </head>
 <body>
@@ -160,7 +160,7 @@ defer></script>
         <p class="auth-note login-access-status is-hidden" id="loginAccessStatus" role="status" aria-live="polite"></p>
 
         <p class="auth-note">
-          A senha protege a área interna neste navegador. A landing comercial permanece pública.
+          O acesso é validado pelo backend. A landing comercial permanece pública.
         </p>
       </form>
     </section>
@@ -735,6 +735,7 @@ defer></script>
                       <option value="Piso">Piso</option>
                       <option value="Revestimento">Revestimento</option>
                       <option value="Pintura">Pintura</option>
+                      <option value="Escavação">Escavação</option>
                       <option value="Tubulação de esgoto">Tubulação de esgoto</option>
                       <option value="Tubulação de água">Tubulação de água</option>
                       <option value="Ralos">Ralos</option>
@@ -809,9 +810,9 @@ defer></script>
                     </select>
                   </label>
                   <label>
-                    Item do almoxarifado
+                    Item vinculado do almoxarifado
                     <select name="materialRequestAlmoxItemId" id="dailyLogMaterialRequestAlmoxSelect">
-                      <option value="">Consultar por nome</option>
+                      <option value="">Sem item vinculado - conferir manualmente</option>
                     </select>
                   </label>
                   <label>
@@ -991,7 +992,7 @@ defer></script>
                     <input name="dailyPhoto" id="dailyLogPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple>
                   </label>
                   <label>
-                    Legenda da foto
+                    Legenda padrão das fotos
                     <input name="dailyPhotoCaption" type="text">
                   </label>
                 </div>
@@ -1026,7 +1027,10 @@ defer></script>
             </form>
           </section>
 
-          <aside class="diary-side-panels">
+          <button type="button" class="mini-button diary-tools-toggle" id="diaryToolsToggle" aria-controls="diarySidePanels" aria-expanded="false">Ferramentas e biblioteca</button>
+          <div class="diary-tools-backdrop" id="diaryToolsBackdrop" hidden></div>
+          <aside class="diary-side-panels" id="diarySidePanels" aria-label="Ferramentas e biblioteca do diário" aria-hidden="true">
+            <button type="button" class="mini-button diary-tools-close" id="diaryToolsClose">Fechar ferramentas</button>
             <section class="workspace-card" id="diary-records">
               <h3>Registros do Diário</h3>
               <label class="compact-search">
@@ -2336,11 +2340,16 @@ defer></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
   <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
   <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260930-auth-restore-v3"></script>
   <div id="elo-operational-dashboard"></div>
-  <script src="elo-command-bridge.js?v=20260727-command-bridge-v1" defer></script>
+  <script src="elo-command-bridge.js?v=20260922-rdo-routing-v2" defer></script>
+  <script src="elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>
+  <script src="elo-municipal-sentinel-adapter.js?v=20260906-municipal-sentinel-v1"></script>
+  <script src="elo-telemetry.js?v=20260920-observability-v1"></script>
+  <script src="elo-proactive-reasoning-policy.js?v=20260920-proactive-v1"></script>
+  <script src="elo-communication-policy.js?v=20260920-conversational-v1"></script>
   <script src="elo-conversation-conductor.js?v=20260629-conductor-v1" defer></script>
-  <script src="elo-assistente.js?v=20260710-reliability-v1" defer></script>
+  <script src="elo-assistente.js?v=20260922-rdo-routing-v2" defer></script>
   <script src="elo-knowledge-registry.js?v=20260717-knowledge-registry-v1" defer></script>
   <script src="elo-technical-service-router.js?v=20260716-technical-service-router-v1" defer></script>
   <script>
@@ -2359,5 +2368,24 @@ defer></script>
       }
     });
   </script>
+  <style>
+    .report-elo-chat { position: relative; isolation: isolate; }
+    .report-elo-chat .elo-standalone-panel { display: grid; grid-template-rows: minmax(220px, 1fr) auto auto; min-height: 440px; max-height: min(68vh, 640px); overflow: hidden; }
+    .report-elo-chat .elo-messages { min-height: 220px; max-height: 380px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .report-elo-chat .elo-input-row { position: relative; z-index: 2; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: end; gap: 8px; min-width: 0; }
+    .report-elo-chat .elo-input { min-width: 0; width: 100%; min-height: 46px; max-height: 140px; resize: vertical; }
+    .report-elo-chat .elo-attach-button, .report-elo-chat .elo-mic-button, .report-elo-chat .elo-send-button, .report-elo-chat .elo-voice-mode-button { position: relative; z-index: 3; flex: 0 0 auto; }
+    .report-elo-chat .elo-voice-status { min-height: 24px; margin: 4px 0 0; overflow-wrap: anywhere; }
+    .report-elo-chat .elo-message-bubble { max-width: 100%; overflow-wrap: anywhere; }
+    @media (max-width: 760px) {
+      .report-elo-chat .elo-standalone-panel { min-height: 380px; max-height: none; }
+      .report-elo-chat .elo-input-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; }
+      .report-elo-chat .elo-input { grid-column: 1 / -1; grid-row: 1; }
+      .report-elo-chat .elo-attach-button { grid-column: 1; grid-row: 2; }
+      .report-elo-chat .elo-mic-button { grid-column: 2; grid-row: 2; justify-self: start; }
+      .report-elo-chat .elo-send-button { grid-column: 3; grid-row: 2; }
+      .report-elo-chat .elo-voice-mode-button, .report-elo-chat .elo-voice-status { width: 100%; max-width: 100%; }
+    }
+  </style>
 </body>
 </html>

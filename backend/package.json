@@ -20,15 +20,17 @@
     "demo:wizard": "node scripts/municipal-demo-wizard.js",
     "demo:wizard:example": "node scripts/municipal-demo-wizard.js --example --dry-run",
     "demo:runbook:dry-run": "node scripts/municipal-demo-wizard.js --example --dry-run",
-    "postinstall": "node scripts/install-playwright-chromium.js"
+    "postinstall": "npm install --prefix .. --omit=dev && node scripts/install-playwright-chromium.js"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@playwright/test": "^1.60.0",
     "@supabase/supabase-js": "^2.107.0",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsdom": "^30.0.1",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"
   }

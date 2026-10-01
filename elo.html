@@ -3,7 +3,7 @@
 <head>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ELO CORE | Pergunte ao ELO</title>
   <meta name="description" content="Converse com o ELO CORE.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,9 +46,14 @@
       display: none;
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
-      inset: 0 0 auto;
-      height: 62px;
-      min-height: 62px;
+      left: 50%;
+      right: auto;
+      top: calc(14px + env(safe-area-inset-top));
+      bottom: auto;
+      width: min(820px, calc(100vw - 16px));
+      height: auto;
+      transform: translateX(-50%);
+      min-height: 54px;
       overflow: visible;
       background: rgba(244, 247, 251, 0.92);
     }
@@ -84,6 +89,7 @@
       <button type="button" data-elo-new-chat>Nova conversa</button>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
+      <button type="button" class="elo-clear-conversation-button" data-elo-clear-chat>Limpar conversa</button>
     </nav>
     <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
       <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
@@ -340,7 +346,8 @@
           reportButton: "[data-elo-local-report]",
           newChatButton: "[data-elo-new-chat]",
           historyButton: "[data-elo-history]",
-          memoryButton: "[data-elo-memory]"
+          memoryButton: "[data-elo-memory]",
+          clearChatButton: "[data-elo-clear-chat]"
         });
         initEloRotatingPrompt();
       }
@@ -349,8 +356,9 @@
   <script>
     window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
   </script>
-  <script src="assets/elo-public-config.js"></script>
-  <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
+  <script src="relatorio-qualidade-obras/elo-runtime-config.js?v=20260920-observability-final-v1"></script>
+  <script src="assets/elo-public-config.js?v=20260912-auth-key-v1"></script>
+  <script src="relatorio-qualidade-obras/relatorio-config.js?v=20260912-auth-key-v1"></script>
   <script>
     (function () {
       const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -419,12 +427,17 @@
   <script src="relatorio-qualidade-obras/elo-budget-engine.js?v=20260624-budget-engine-v3"></script>
   <script src="relatorio-qualidade-obras/elo-brain-router.js?v=20260624-brain-router-v1"></script>
   <div id="elo-operational-dashboard"></div>
+  <script src="relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-final-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-proactive-reasoning-policy.js?v=20260920-proactive-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-communication-policy.js?v=20260920-conversational-v1"></script>
   <script src="relatorio-qualidade-obras/elo-conversation-conductor.js?v=20260629-conductor-v1"></script>
   <script type="module" src="relatorio-qualidade-obras/elo-stock-obras-snapshot.js?v=20260725-stock-obras-snapshot-v1"></script>
   <script type="module" src="relatorio-qualidade-obras/elo-execution-stock-cross.js?v=20260725-execution-stock-cross-v1"></script>
   <script type="module" src="relatorio-qualidade-obras/elo-execution-stock-report.js?v=20260725-execution-stock-report-v1"></script>
   <script type="module" src="relatorio-qualidade-obras/elo-today-work-core.js?v=20260725-today-work-core-v1"></script>
-  <script src="relatorio-qualidade-obras/elo-command-bridge.js?v=20260727-command-bridge-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-command-bridge.js?v=20260922-rdo-routing-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-municipal-sentinel-adapter.js?v=20260906-municipal-sentinel-v1"></script>
   <script src="relatorio-qualidade-obras/elo-sentinel-ui.js"></script>
   <script src="relatorio-qualidade-obras/elo-operational-ui.js"></script>
   <script src="stock-full-core.js?v=20260626-phase-a"></script>
@@ -435,18 +448,19 @@
   <script src="relatorio-qualidade-obras/elo-offline-media-library.js?v=20260826-classical-offline-v1"></script>
   <script src="relatorio-qualidade-obras/elo-music-catalog.js?v=20260825-catalog-100-v1"></script>
   <script src="relatorio-qualidade-obras/elo-music-resolver.js?v=20260825-catalog-first-v1"></script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260826-web-parity-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-memory-adapter.js?v=20260906-p0-offline-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-router.js?v=20260906-p0-offline-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-core-v2.js?v=20260920-offline-core-v2-proactive-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260922-rdo-routing-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-pause-game.js?v=20260907-edu-rex-v20"></script>
+  <script src="./relatorio-qualidade-obras/elo-native-diagnostics.js?v=20260907-native-diagnostics-v1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./elo-sw.js?v=20260826-web-parity-v1").catch(function () {});
+        navigator.serviceWorker.register("./elo-sw.js?v=20260922-sw-routing-v2").catch(function () {});
       });
     }
   </script>
 </body>
 </html>
-
-
-
-
 

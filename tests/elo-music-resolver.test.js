@@ -136,3 +136,38 @@ test("musica desconhecida nao toca video aleatorio", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.status, "not_found");
 });
+
+test("artista explicito vence candidato de titulo parecido", async () => {
+  const resolver = createResolver(async () => ({ ok: true, json: async () => ({
+    ok: true,
+    results: [
+      { title: "Take On Me", artist: "A-ha", videoId: "take01", embeddable: true },
+      { title: "Rape Me", artist: "Nirvana", videoId: "nirv01", embeddable: true }
+    ]
+  }) }));
+  const result = await resolver.resolveCommand("toque rape me do nirvana");
+  assert.equal(result.ok, true);
+  assert.equal(result.track.title, "Rape Me");
+  assert.equal(result.track.artist, "Nirvana");
+});
+
+test("erros foneticos e artista em cauda mantem ranking musical", async () => {
+  const resolver = createResolver(async () => ({ ok: true, json: async () => ({
+    ok: true,
+    results: [{ title: "Comfortably Numb", artist: "Pink Floyd", videoId: "pink01", embeddable: true }]
+  }) }));
+  const result = await resolver.resolveCommand("toque comfortably numb pink floid");
+  assert.equal(result.ok, true);
+  assert.equal(result.track.artist, "Pink Floyd");
+});
+
+test("busca remota resolve faixa brasileira fora do catalogo local", async () => {
+  const resolver = createResolver(async () => ({ ok: true, json: async () => ({
+    ok: true,
+    results: [{ title: "Além do Horizonte", artist: "Roberto Carlos", videoId: "alemd1", embeddable: true }]
+  }) }));
+  const result = await resolver.resolveCommand("toque alem do orizonte roberto carlos");
+  assert.equal(result.ok, true);
+  assert.equal(result.track.title, "Além do Horizonte");
+  assert.equal(result.track.artist, "Roberto Carlos");
+});

@@ -1,0 +1,317 @@
+import { expect, test } from "@playwright/test";
+
+async function waitForElo(page) {
+  await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.EloAssistente && window.EloOfflineRouter && window.EloOfflineMemoryAdapter && window.EloOfflineMediaLibrary);
+}
+
+async function installServiceWorker(page, context) {
+  await context.setOffline(false);
+  await waitForElo(page);
+  await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) return false;
+    await navigator.serviceWorker.ready;
+    return true;
+  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.EloAssistente && window.EloOfflineRouter);
+    const controlled = await page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+    if (controlled) break;
+    await page.waitForTimeout(300);
+  }
+  await expect(page.locator("body")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)), { timeout: 10000 }).toBe(true);
+  await context.setOffline(true);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.EloAssistente && window.EloOfflineRouter);
+}
+
+test("ELO oficial online preserva chat via backend antes do offline router", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  let chatCalls = 0;
+  await page.route("**/api/elo/chat", async (route) => {
+    chatCalls += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, answer: "Resposta online preservada." })
+    });
+  });
+
+  await waitForElo(page);
+  const answer = await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("conversa normal", []));
+  expect(answer).toBe("Resposta online preservada.");
+  expect(chatCalls).toBe(1);
+  expect(await page.evaluate(() => window.EloAssistente.getChatTransportStateForTest().state)).toBe("ONLINE_VALIDATED");
+  expect(errors.filter((message) => !message.includes("Cannot set properties of null (setting 'innerHTML')"))).toEqual([]);
+});
+
+test("ELO oficial não confunde WebView offline com backend válido após autenticação", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+  });
+  let chatCalls = 0;
+  await page.route("**/api/health", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+  await page.route("**/api/elo/chat", async (route) => {
+    chatCalls += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) });
+  });
+  await page.route("**/api/elo/telemetry", async (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    window.dispatchEvent(new Event("offline"));
+    const health = await window.EloAssistente.reconcileCriticalAvailabilityForTest();
+    const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+    return {
+      answer,
+      navigatorOnline: navigator.onLine,
+      health,
+      connectivity: window.EloAssistente.getConnectivityForTest(),
+      transport: window.EloAssistente.getChatTransportStateForTest()
+    };
+  });
+
+  expect(result.navigatorOnline).toBe(false);
+  expect(result.health).toBe(true);
+  expect(result.answer).toBe("OK");
+  expect(result.connectivity.online).toBe(true);
+  expect(result.transport.state).toBe("ONLINE_VALIDATED");
+  expect(chatCalls).toBe(1);
+});
+
+for (const failure of [
+  { name: "500", status: 500 },
+  { name: "404", status: 404 },
+  { name: "timeout", timeout: true }
+]) {
+  test(`ELO oficial mantém chat online quando telemetry falha com ${failure.name}`, async ({ page }) => {
+    await page.route("**/api/elo/telemetry", async (route) => {
+      if (failure.timeout) return route.abort("timedout");
+      return route.fulfill({ status: failure.status, contentType: "application/json", body: JSON.stringify({ ok: false }) });
+    });
+    await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) }));
+    await waitForElo(page);
+    const result = await page.evaluate(async () => {
+      window.ELO_AUTH_SESSION_VALIDATED = true;
+      window.EloAssistente.setConnectivityForTest(false, "webview_false_negative");
+      if (window.EloTelemetry) {
+        window.EloTelemetry.clear();
+        for (let index = 0; index < 25; index += 1) await window.EloTelemetry.track("CHAT_SENT", { route: "chat", status: "PENDING" });
+        await window.EloTelemetry.flush();
+      }
+      const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+      return { answer, transport: window.EloAssistente.getChatTransportStateForTest(), connectivity: window.EloAssistente.getConnectivityForTest() };
+    });
+    expect(result.answer).toBe("OK");
+    expect(result.transport.state).toBe("ONLINE_VALIDATED");
+    expect(result.connectivity.online).toBe(true);
+  });
+}
+
+test("ELO oficial classifica chat HTTP 500 como BACKEND_UNAVAILABLE", async ({ page }) => {
+  await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false }) }));
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    window.EloAssistente.setConnectivityForTest(true, "online");
+    const answer = await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []);
+    return { answer, transport: window.EloAssistente.getChatTransportStateForTest() };
+  });
+  expect(result.answer).toBe(null);
+  expect(result.transport.state).toBe("BACKEND_UNAVAILABLE");
+});
+
+test("ELO oficial classifica auth HTTP 401 como AUTH_INVALID", async ({ page }) => {
+  await page.route("**/auth/v1/user", async (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "invalid_token" }) }));
+  await waitForElo(page);
+  const result = await page.evaluate(async () => {
+    const encoded = (value) => btoa(JSON.stringify(value)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const token = encoded({ alg: "none", typ: "JWT" }) + "." + encoded({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600 }) + ".signature";
+    try {
+      await window.EloAssistente.validateSupabaseTokenForTest(token);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, status: error && error.status };
+    }
+  });
+  expect(result.ok).toBe(false);
+  expect(result.status).toBe(401);
+});
+
+test("ELO oficial não sofre efeito indevido quando telemetry se recupera", async ({ page }) => {
+  let telemetryStatus = 500;
+  await page.route("**/api/elo/telemetry", async (route) => route.fulfill({ status: telemetryStatus, contentType: "application/json", body: JSON.stringify({ ok: telemetryStatus === 200 }) }));
+  await page.route("**/api/elo/chat", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, answer: "OK" }) }));
+  await waitForElo(page);
+  const before = await page.evaluate(async () => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    window.EloAssistente.setConnectivityForTest(true, "online");
+    window.EloTelemetry.clear();
+    await window.EloTelemetry.track("CHAT_SENT", { route: "chat", status: "PENDING" });
+    return window.EloTelemetry.flush();
+  });
+  telemetryStatus = 200;
+  const after = await page.evaluate(() => window.EloTelemetry.flush());
+  const result = await page.evaluate(async () => ({
+    answer: await window.EloAssistente.requestOnlineAnswerForTest("Responda somente OK", []),
+    connectivity: window.EloAssistente.getConnectivityForTest(),
+    transport: window.EloAssistente.getChatTransportStateForTest()
+  }));
+  expect(before).toBe(false);
+  expect(after).toBe(true);
+  expect(result.answer).toBe("OK");
+  expect(result.connectivity.online).toBe(true);
+  expect(result.transport.state).toBe("ONLINE_VALIDATED");
+});
+
+test("ELO oficial instala cache e recarrega offline com músicas, memória e pare locais", async ({ page, context }) => {
+  await installServiceWorker(page, context);
+  const result = await page.evaluate(async () => {
+    const storage = window.localStorage;
+    window.__eloOfflinePlayed = [];
+    window.EloMusicResolver = Object.assign({}, window.EloMusicResolver, {
+      play(media) {
+        window.__eloOfflinePlayed.push(media && media.title);
+        return Promise.resolve(true);
+      }
+    });
+    window.EloMediaPlayer = Object.assign({}, window.EloMediaPlayer, {
+      stop() {
+        window.__eloOfflinePlayed.push("STOP");
+        return { executed: true };
+      }
+    });
+    const router = window.EloOfflineRouter.createRouter({ storage });
+    await router.route("lembre que meu cachorro se chama Thor", { navigator: { onLine: false } });
+    await router.route("lembre que o projeto atual é Photo Bridge", { navigator: { onLine: false } });
+    const commands = ["toque Beethoven", "toque Debussy", "toque Vivaldi", "toque Pachelbel", "toque Chopin"];
+    const music = [];
+    for (const command of commands) {
+      music.push(await router.route(command, { navigator: { onLine: false } }));
+    }
+    const dog = await router.route("qual o nome do meu cachorro?", { navigator: { onLine: false } });
+    const project = await router.route("qual projeto estamos trabalhando?", { navigator: { onLine: false } });
+    const stop = await router.route("pare", { navigator: { onLine: false } });
+    return {
+      music,
+      dog: dog.message,
+      project: project.message,
+      stop,
+      played: window.__eloOfflinePlayed,
+      longTerm: JSON.parse(storage.getItem("elo_long_term_memory_v1") || "[]"),
+      projectMemory: JSON.parse(storage.getItem("elo_core_project_memory_v1") || "[]")
+    };
+  });
+
+  expect(result.music.every((item) => item.localPlay === true && item.providerCalls === 0 && item.chatCalls === 0)).toBe(true);
+  expect(result.dog).toMatch(/Thor/);
+  expect(result.project).toMatch(/Photo Bridge/);
+  expect(result.stop.localStop).toBe(true);
+  expect(result.played).toContain("STOP");
+  expect(result.longTerm.length).toBeGreaterThanOrEqual(2);
+  expect(result.projectMemory[0].project_name).toBe("Photo Bridge");
+});
+
+test("ELO oficial com navegador online e backend morto usa fallback local permitido", async ({ page }) => {
+  await page.route("**/api/elo/chat", async (route) => route.abort("failed"));
+  await waitForElo(page);
+  await page.evaluate(async () => {
+    window.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([{ id: "dog", text: "Meu cachorro se chama Thor.", category: "pessoa", importance: "media", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]));
+  });
+  const online = await page.evaluate(() => window.navigator.onLine);
+  const onlineAnswer = await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("qual o nome do meu cachorro?", []));
+  const transport = await page.evaluate(() => window.EloAssistente.getChatTransportStateForTest());
+  const local = await page.evaluate(() => window.EloAssistente.requestOfflineRouteForTest("qual o nome do meu cachorro?"));
+  const unsupported = await page.evaluate(() => window.EloAssistente.requestOfflineRouteForTest("pesquise notícias de hoje"));
+
+  expect(online).toBe(true);
+  expect(onlineAnswer).toBe(null);
+  expect(transport.state).toBe("BACKEND_UNAVAILABLE");
+  expect(local.message).toMatch(/Thor/);
+  expect(unsupported.handled).toBe(false);
+  expect(unsupported.message).toMatch(/precisa de conexão/i);
+});
+
+for (const status of [502, 503, 504]) {
+  test(`ELO oficial fallback local para status ${status}`, async ({ page }) => {
+    await page.route("**/api/elo/chat", async (route) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ ok: false, error: "backend_down" }) }));
+    await waitForElo(page);
+    await page.evaluate(() => window.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([{ id: "dog", text: "Meu cachorro se chama Thor.", category: "pessoa", importance: "media" }])));
+    await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("qual o nome do meu cachorro?", []));
+    const transport = await page.evaluate(() => window.EloAssistente.getChatTransportStateForTest());
+    const local = await page.evaluate(() => window.EloAssistente.requestOfflineRouteForTest("qual o nome do meu cachorro?"));
+    expect(transport.state).toBe("BACKEND_UNAVAILABLE");
+    expect(local.message).toMatch(/Thor/);
+  });
+}
+
+for (const status of [401, 403]) {
+  test(`ELO oficial status ${status} não vira offline`, async ({ page }) => {
+    await page.route("**/api/elo/chat", async (route) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ ok: false, error: "auth_or_rule" }) }));
+    await waitForElo(page);
+    await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("pesquise notícias de hoje", []));
+    const transport = await page.evaluate(() => window.EloAssistente.getChatTransportStateForTest());
+    expect(transport.state).toBe("ONLINE_VALIDATED");
+  });
+}
+
+test("ELO oficial misses offline não chamam provider nem chat", async ({ page, context }) => {
+  await waitForElo(page);
+  await context.setOffline(true);
+  const result = await page.evaluate(async () => {
+    const fetchCalls = [];
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = function (...args) {
+      fetchCalls.push(String(args[0]));
+      return originalFetch(...args);
+    };
+    const router = window.EloOfflineRouter.createRouter({ storage: window.localStorage });
+    const takeOnMe = await router.route("toque Take On Me", { navigator: { onLine: false } });
+    const sweetChild = await router.route("toque Sweet Child O' Mine", { navigator: { onLine: false } });
+    return { takeOnMe, sweetChild, fetchCalls };
+  });
+  expect(result.takeOnMe.localPlay).toBe(false);
+  expect(result.sweetChild.localPlay).toBe(false);
+  expect(result.takeOnMe.message).toMatch(/não está disponível/i);
+  expect(result.sweetChild.message).toMatch(/não está disponível/i);
+  expect(result.fetchCalls.filter((url) => !url.includes("library.json")).length).toBe(0);
+});
+
+test("ELO P0 reload com browser realmente offline mantém comandos determinísticos e Für Elise", async ({ page, context }) => {
+  const requests = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await installServiceWorker(page, context);
+
+  const result = await page.evaluate(async () => {
+    const date = await window.EloAssistente.requestOfflineRouteForTest("que dia e hoje?", { backendState: "BROWSER_OFFLINE" });
+    const math = await window.EloAssistente.requestOfflineRouteForTest("quanto e 158 x 23", { backendState: "BROWSER_OFFLINE" });
+    const capabilities = await window.EloAssistente.requestOfflineRouteForTest("o que sabe fazer offline?", { backendState: "BROWSER_OFFLINE" });
+    const asset = await fetch("./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg");
+    return {
+      hasController: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      online: navigator.onLine,
+      date,
+      math,
+      capabilities,
+      assetStatus: asset.status,
+      assetOk: asset.ok,
+      assetContentType: asset.headers.get("content-type") || ""
+    };
+  });
+
+  expect(result.hasController).toBe(true);
+  expect(result.online).toBe(false);
+  expect(result.date.handled).toBe(true);
+  expect(result.date.intent).toBe("DATE_LOCAL");
+  expect(result.math.handled).toBe(true);
+  expect(result.math.intent).toBe("MATH_LOCAL");
+  expect(result.math.result).toBe(3634);
+  expect(result.capabilities.handled).toBe(true);
+  expect(result.capabilities.intent).toBe("OFFLINE_CAPABILITIES");
+  expect(result.assetOk).toBe(true);
+  expect(result.assetStatus).toBe(200);
+  expect(requests.filter((url) => url.includes("/api/elo/") || /openai/i.test(url)).length).toBe(0);
+});

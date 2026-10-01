@@ -2,13 +2,13 @@ import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
-import { resolveAuthContext } from "./auth-context.js";
+import { resolveAuthenticatedEloContext, resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
@@ -24,9 +24,18 @@ import { registerEloTtsRoute } from "./elo-tts.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
-import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { createObraReportTransactionalService, defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
+import { createSupabaseRdoRepository } from "./services/obrareport-rdo-repository.js";
+import { createSupabaseObraReportDocumentRepository } from "./services/obrareport-document-repository.js";
+import { createObraReportReportOrchestrator } from "./services/obrareport-report-orchestrator.js";
+import { createObraReportArtifactBroker } from "./services/obrareport-artifact-broker.js";
+import { buildObraReportDocumentContext } from "./services/obrareport-document-context.js";
+import { createEloAutopilotService, sendEloAutopilotError } from "./elo-autopilot-service.js";
+import { bucketBytes, bucketCount, bucketTokens, classifyTelemetryError, createEloTelemetryService, hashOpaque } from "./elo-telemetry.js";
 import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf.js";
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
+import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
+import { APARTMENT_HANDOVER_MODULE_KEY, DEFAULT_SESSION_TTL_MINUTES, getApartmentHandoverEntitlement, mapEntitlementAccess, mapInviteRedeemError, redeemApartmentHandoverInvite, verifyApartmentHandoverInviteSession } from "./apartment-handover-invite-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -44,6 +53,32 @@ const ELO_OPENAI_VECTOR_DIMENSIONS = 1536;
 const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
 const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const ELO_VECTOR_SCHEMA_VERSION = 2;
+const ELO_VECTOR_QUERY_CACHE_TTL_MS = 60 * 1000;
+const ELO_VECTOR_QUERY_CACHE_MAX = 80;
+const ELO_VECTOR_QUERY_CACHE = new Map();
+function buildEloVectorQueryCacheKey_(ownerId, query, env) {
+  const provider = env && env.OPENAI_API_KEY ? "openai" : "local";
+  return [provider, ownerId, clean_(query).slice(0, MAX_ELO_VECTOR_TEXT_LENGTH)].join("|");
+}
+
+function getCachedEloVectorQueryEmbedding_(key) {
+  const entry = ELO_VECTOR_QUERY_CACHE.get(key);
+  if (!entry || nowMs_() - entry.createdAt > ELO_VECTOR_QUERY_CACHE_TTL_MS) {
+    ELO_VECTOR_QUERY_CACHE.delete(key);
+    return null;
+  }
+  return entry.embedding;
+}
+
+function setCachedEloVectorQueryEmbedding_(key, embedding) {
+  if (!key || !embedding) return;
+  ELO_VECTOR_QUERY_CACHE.set(key, { embedding, createdAt: nowMs_() });
+  while (ELO_VECTOR_QUERY_CACHE.size > ELO_VECTOR_QUERY_CACHE_MAX) {
+    const firstKey = ELO_VECTOR_QUERY_CACHE.keys().next().value;
+    ELO_VECTOR_QUERY_CACHE.delete(firstKey);
+  }
+}
+
 const ELO_MUSIC_SEED_CATALOG = [
   {
     title: "Sultans of Swing",
@@ -72,6 +107,8 @@ const ELO_MUSIC_SEED_CATALOG = [
 ];
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_DIR = join(BACKEND_DIR, "..");
+const ELO_COMMUNICATION_POLICY_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-communication-policy.js");
+const ELO_PROACTIVE_REASONING_POLICY_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-proactive-reasoning-policy.js");
 const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
@@ -83,31 +120,136 @@ function nowMs_() {
     : Date.now();
 }
 
+let eloConversationalPolicyPromptCache = null;
+let eloProactiveReasoningPolicyCache = null;
+
+function getEloConversationalPolicyPrompt_() {
+  if (eloConversationalPolicyPromptCache !== null) return eloConversationalPolicyPromptCache;
+
+  try {
+    const sandbox = {};
+    vm.runInNewContext(readFileSync(ELO_COMMUNICATION_POLICY_PATH, "utf8"), sandbox, {
+      filename: ELO_COMMUNICATION_POLICY_PATH
+    });
+    const policy = sandbox.EloCommunicationPolicy;
+    eloConversationalPolicyPromptCache = policy && typeof policy.buildPrompt === "function"
+      ? policy.buildPrompt()
+      : "Responda primeiro à pergunta real, use contexto disponível, não invente fatos e preserve formatos estruturados.";
+  } catch (_) {
+    eloConversationalPolicyPromptCache = "Responda primeiro à pergunta real, use contexto disponível, não invente fatos e preserve formatos estruturados.";
+  }
+
+  return eloConversationalPolicyPromptCache;
+}
+
+function getEloProactiveReasoningPolicy_() {
+  if (eloProactiveReasoningPolicyCache !== null) return eloProactiveReasoningPolicyCache;
+
+  try {
+    const sandbox = {};
+    vm.runInNewContext(readFileSync(ELO_PROACTIVE_REASONING_POLICY_PATH, "utf8"), sandbox, {
+      filename: ELO_PROACTIVE_REASONING_POLICY_PATH
+    });
+    eloProactiveReasoningPolicyCache = sandbox.EloProactiveReasoningPolicy || null;
+  } catch (_) {
+    eloProactiveReasoningPolicyCache = null;
+  }
+
+  return eloProactiveReasoningPolicyCache;
+}
+
 function createEloLatencyMetrics_() {
   return {
+    requestId: "elo_chat_" + randomUUID().slice(0, 8),
+    requestReceivedMs: 0,
+    authContextMs: 0,
+    bodyParseMs: 0,
+    memoryVectorMs: 0,
     memoryLookupMs: 0,
     embeddingMs: 0,
+    promptBuildMs: 0,
+    modelFirstResponseMs: 0,
+    modelTotalMs: 0,
     modelMs: 0,
+    postProcessMs: 0,
+    responseSendMs: 0,
     totalMs: 0,
     memoryCandidateCount: 0,
-    embeddingSkipped: false
+    memoryReturnedCount: 0,
+    embeddingSkipped: false,
+    embeddingCacheHit: false,
+    openAiCalls: 0,
+    model: "",
+    inputChars: 0,
+    outputChars: 0,
+    maxOutputTokens: 0,
+    temperature: null,
+    streaming: false,
+    systemPromptChars: 0,
+    historyMessages: 0,
+    historyChars: 0,
+    memoriesSummaryChars: 0,
+    relevantMemoriesSummaryChars: 0,
+    librarySummaryChars: 0,
+    eloContextChars: 0,
+    documentsSummaryChars: 0
+    ,proactivityLevel: "NONE"
+    ,selfCheckLevel: "NONE"
+    ,answerMode: "DIRECT"
+    ,missingEssentialCount: 0
+    ,riskDetected: false
+    ,modelClass: ""
+    ,tokenUsageBucket: ""
+    ,estimatedCostBucket: ""
   };
 }
 
 function finalizeEloLatencyMetrics_(metrics, startedAt) {
   const safe = metrics && typeof metrics === "object" ? metrics : createEloLatencyMetrics_();
+  const numericKeys = [
+    "requestReceivedMs", "authContextMs", "bodyParseMs", "memoryVectorMs", "memoryLookupMs", "embeddingMs",
+    "promptBuildMs", "modelFirstResponseMs", "modelTotalMs", "modelMs", "postProcessMs", "responseSendMs",
+    "memoryCandidateCount", "memoryReturnedCount", "openAiCalls", "inputChars", "outputChars", "maxOutputTokens",
+    "systemPromptChars", "historyMessages", "historyChars", "memoriesSummaryChars", "relevantMemoriesSummaryChars",
+    "librarySummaryChars", "eloContextChars", "documentsSummaryChars"
+  ];
   safe.totalMs = Math.max(0, Math.round(nowMs_() - startedAt));
-  safe.memoryLookupMs = Math.max(0, Math.round(Number(safe.memoryLookupMs) || 0));
-  safe.embeddingMs = Math.max(0, Math.round(Number(safe.embeddingMs) || 0));
-  safe.modelMs = Math.max(0, Math.round(Number(safe.modelMs) || 0));
-  safe.memoryCandidateCount = Math.max(0, Math.round(Number(safe.memoryCandidateCount) || 0));
+  numericKeys.forEach((key) => {
+    safe[key] = Math.max(0, Math.round(Number(safe[key]) || 0));
+  });
+  safe.memoryLookupMs = safe.memoryVectorMs || safe.memoryLookupMs;
+  safe.modelMs = safe.modelTotalMs || safe.modelMs;
   safe.embeddingSkipped = safe.embeddingSkipped === true;
+  safe.embeddingCacheHit = safe.embeddingCacheHit === true;
+  safe.streaming = safe.streaming === true;
+  safe.proactivityLevel = clean_(safe.proactivityLevel || "NONE").slice(0, 20) || "NONE";
+  safe.selfCheckLevel = clean_(safe.selfCheckLevel || "NONE").slice(0, 20) || "NONE";
+  safe.answerMode = clean_(safe.answerMode || "DIRECT").slice(0, 30) || "DIRECT";
+  safe.missingEssentialCount = Math.max(0, Math.min(20, Number(safe.missingEssentialCount) || 0));
+  safe.riskDetected = safe.riskDetected === true;
+  safe.modelClass = clean_(safe.modelClass || "").slice(0, 30);
+  safe.tokenUsageBucket = clean_(safe.tokenUsageBucket || "").slice(0, 20);
+  safe.estimatedCostBucket = clean_(safe.estimatedCostBucket || "").slice(0, 20);
+  safe.model = clean_(safe.model || "").slice(0, 80);
   return safe;
 }
 
 function setEloLatencyHeader_(response, metrics, startedAt) {
   try {
-    response.set("X-Elo-Latency", JSON.stringify(finalizeEloLatencyMetrics_(metrics, startedAt)));
+    const finalMetrics = finalizeEloLatencyMetrics_(metrics, startedAt);
+    response.set("X-Elo-Latency", JSON.stringify(finalMetrics));
+    if (process.env.ELO_LATENCY_LOGS === "true") {
+      console.info("ELO_CHAT_RESPONSE_SENT", {
+        requestId: finalMetrics.requestId,
+        totalMs: finalMetrics.totalMs,
+        memoryVectorMs: finalMetrics.memoryVectorMs,
+        promptBuildMs: finalMetrics.promptBuildMs,
+        modelTotalMs: finalMetrics.modelTotalMs,
+        postProcessMs: finalMetrics.postProcessMs,
+        responseSendMs: finalMetrics.responseSendMs,
+        openAiCalls: finalMetrics.openAiCalls
+      });
+    }
   } catch (error) {}
 }
 const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
@@ -613,11 +755,15 @@ export function getEloPersonalityPrompt_(input = "geral") {
   if (input && typeof input === "object" && input.interpretation) {
     const interpretation = input.interpretation;
     const userProfile = interpretation.userProfile || {};
-    const userName = clean_(userProfile.name || "Ícaro Amaral");
-    const userStyle = clean_(userProfile.style || "direto, prático e objetivo");
+    const userName = clean_(userProfile.name || "");
+    const userStyle = clean_(userProfile.style || "");
+    const profileLine = [
+      userName ? "Nome: " + userName : "",
+      userStyle ? "Estilo preferido: " + userStyle : ""
+    ].filter(Boolean).join("\n");
     return [
-      "Você é o Elo, assistente técnico e estratégico de " + userName + ".",
-      "Perfil do usuário:\nNome: " + userName + "\nEstilo preferido: " + userStyle,
+      userName ? "Você é o Elo, assistente técnico e estratégico de " + userName + "." : "Você é o Elo, assistente técnico e estratégico.",
+      profileLine ? "Perfil do usuário:\n" + profileLine : "Perfil do usuário: use apenas o contexto recebido no payload; se não houver contexto, mantenha postura neutra.",
       "Antes de responder, considere esta interpretação da mensagem do usuário:",
       "Mensagem original:\n" + clean_(interpretation.originalMessage),
       "Mensagem normalizada:\n" + clean_(interpretation.normalizedMessage),
@@ -1059,17 +1205,79 @@ export function createApp(options = {}) {
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
+  const apartmentHandoverEntitlementSupabaseClient = options.apartmentHandoverEntitlementSupabaseClient || null;
   const municipalAdminSupabaseClient = options.municipalAdminSupabaseClient || authContextSupabaseClient || null;
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
-  const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
+  const configuredRdoStore = clean_(env.ELO_RDO_STORE).toLowerCase();
+  const rdoStoreMode = configuredRdoStore || (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : env.NODE_ENV === "production" ? "supabase" : "file");
+  if (configuredRdoStore && !["supabase", "file"].includes(configuredRdoStore)) throw new Error("rdo_store_mode_invalid");
+  const rdoSupabaseClient = options.rdoSupabaseClient || (!options.obraReportTransactionalService && rdoStoreMode === "supabase" ? getSupabaseClient(env) : null);
+  if (rdoStoreMode === "supabase" && !options.obraReportTransactionalService && !options.rdoRepository && !rdoSupabaseClient) throw new Error("rdo_supabase_store_not_configured");
+  const rdoRepository = options.rdoRepository || (rdoStoreMode === "supabase" && !options.obraReportTransactionalService ? createSupabaseRdoRepository({ client: rdoSupabaseClient }) : null);
+  const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
+  const documentSupabaseClient = options.documentSupabaseClient || rdoSupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null);
+  const documentRepository = options.documentRepository || (documentSupabaseClient ? createSupabaseObraReportDocumentRepository({ client: documentSupabaseClient }) : null);
+  const documentOrchestrator = options.documentOrchestrator || (documentRepository
+    ? createObraReportReportOrchestrator({
+      documentRepository,
+      rdoRepository,
+      appsScriptUrl: env.OBRAREPORT_APPS_SCRIPT_URL || env.RELATORIO_APPS_SCRIPT_URL || "",
+      fetchImpl: options.reportGeneratorFetch || globalThis.fetch
+    })
+    : null);
+  const documentArtifactBroker = options.documentArtifactBroker || createObraReportArtifactBroker({
+    brokerUrl: env.OBRAREPORT_ARTIFACT_BROKER_URL || env.OBRAREPORT_DRIVE_BROKER_URL || "",
+    brokerSecret: env.OBRAREPORT_ARTIFACT_BROKER_SECRET || env.OBRAREPORT_DRIVE_BROKER_SECRET || "",
+    fetchImpl: options.artifactBrokerFetch || globalThis.fetch
+  });
+  const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
+  const eloTelemetry = options.eloTelemetry || createEloTelemetryService({
+    env,
+    client: options.eloTelemetrySupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null),
+    store: options.eloTelemetryStore
+  });
+  const eloTelemetryRetentionDays = Math.max(1, Math.min(3650, Number(env.ELO_TELEMETRY_RETENTION_DAYS || 60) || 60));
+  const eloTelemetryRetentionIntervalMs = Math.max(60 * 60 * 1000, Number(options.eloTelemetryRetentionIntervalMs || env.ELO_TELEMETRY_RETENTION_INTERVAL_MS || 24 * 60 * 60 * 1000));
+  let eloTelemetryRetentionTimer = null;
+  if (options.enableEloTelemetryRetention !== false && eloTelemetry && typeof eloTelemetry.cleanupExpired === "function") {
+    let eloTelemetryRetentionDryRunComplete = false;
+    const runEloTelemetryRetention = () => eloTelemetry.cleanupExpired({
+      days: eloTelemetryRetentionDays,
+      dryRun: !eloTelemetryRetentionDryRunComplete
+    }).then((result) => {
+      if (result && result.dry_run) {
+        eloTelemetryRetentionDryRunComplete = true;
+        if (result.capped) console.warn("[ELO RETENTION] dry-run volume exceeds per-run deletion limit", { matching: result.matching, max_per_run: result.max_per_run });
+      } else if (result && result.capped) {
+        console.warn("[ELO RETENTION] deletion limited to per-run cap", { deleted: result.deleted, max_per_run: result.max_per_run });
+      }
+      return result;
+    }).catch(() => null);
+    runEloTelemetryRetention();
+    eloTelemetryRetentionTimer = setInterval(runEloTelemetryRetention, eloTelemetryRetentionIntervalMs);
+    if (eloTelemetryRetentionTimer && typeof eloTelemetryRetentionTimer.unref === "function") eloTelemetryRetentionTimer.unref();
+  }
+  const eloTelemetryHashSalt = eloTelemetry.hashSalt;
+  const eloTelemetryRate = new Map();
+  app.locals.eloTelemetry = eloTelemetry;
+  app.locals.eloTelemetryRetention = {
+    days: eloTelemetryRetentionDays,
+    interval_ms: eloTelemetryRetentionIntervalMs,
+    max_delete_per_run: 500,
+    active: Boolean(eloTelemetryRetentionTimer)
+  };
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
+  const getApartmentHandoverDatabase = (response) => requireApartmentHandoverDatabase_(env, response, options.apartmentHandoverSupabaseClient || stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
+  const getApartmentHandoverEntitlementDatabase = () => apartmentHandoverEntitlementSupabaseClient || getAuthContextDatabase();
+  const apartmentHandoverInviteRateLimiter = createApartmentHandoverInviteRateLimiter_();
 
   app.locals.resolveAuthContext = (request) => resolveAuthContext(request, { supabase: getAuthContextDatabase() });
+  app.locals.resolveCanonicalAuthContext = (request) => resolveAuthenticatedEloContext(request, { supabase: getAuthContextDatabase() });
 
   app.use(cors({
     origin(origin, callback) {
@@ -1097,13 +1305,363 @@ export function createApp(options = {}) {
   app.options("/api/apartment-handover/pdf", (request, response) => {
     response.sendStatus(204);
   });
+  app.options("/api/apartment-handover/pdf-protected", (request, response) => {
+    response.sendStatus(204);
+  });
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
+
+  function recordEloTelemetry_(event) {
+    try {
+      const result = eloTelemetry.ingest(event);
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch (_) {}
+  }
+
+  function buildEloTelemetryIdentity_(request) {
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const context = body.context && typeof body.context === "object" ? body.context : {};
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    const hash = (value) => hashOpaque(value, eloTelemetryHashSalt);
+    return {
+      session_hash: hash(context.sessionId || context.session_id || request.headers["x-elo-session-id"]),
+      anonymous_user_hash: hash(body.anonymousId || context.anonymousId || context.anonymous_id),
+      tenant_hash: hash(auth.institutionId || profile.institution_id || context.tenantId || context.tenant_id),
+      project_hash: hash(auth.projectId || profile.project_id || context.projectId || context.project_id)
+    };
+  }
+
+  function telemetryRequestEvent_(request, response, startedAt) {
+    const route = request.path === "/api/ai/analyze-image" ? "analyze-image" : "chat";
+    const image = request.body && request.body.image && typeof request.body.image === "object" ? request.body.image : null;
+    const context = request.body && request.body.context && typeof request.body.context === "object" ? request.body.context : {};
+    const meta = request.eloTelemetryMeta || {};
+    const latencyHeader = response.getHeader("X-Elo-Latency");
+    let latency = {};
+    try { latency = latencyHeader ? JSON.parse(String(latencyHeader)) : {}; } catch (_) {}
+    const statusCode = Number(response.statusCode || 200);
+    const failed = statusCode >= 400 || meta.failed === true;
+    const eventType = route === "analyze-image" ? (failed ? "IMAGE_FAILED" : "IMAGE_ANALYSIS") : (failed ? "CHAT_FAILED" : "CHAT_RESPONSE");
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const responseSize = meta.responseSize || response.getHeader("Content-Length");
+    return Object.assign({
+      event_type: eventType,
+      timestamp: new Date().toISOString(),
+      surface: request.headers["x-elo-surface"] || context.surface || "WEB",
+      route,
+      latency_ms: Math.round(Number(latency.totalMs) || Date.now() - startedAt),
+      backend_latency_ms: Math.round(Number(latency.totalMs) || Date.now() - startedAt),
+      model_latency_ms: Math.round(Number(latency.modelTotalMs) || 0),
+      status: failed ? "ERROR" : "SUCCESS",
+      http_status: statusCode,
+      error_code: failed ? classifyTelemetryError(meta.errorCode || "", statusCode) : undefined,
+      fallback_used: Boolean(meta.fallbackUsed),
+      offline_used: Boolean(meta.offlineUsed),
+      attachment_type: meta.attachmentType || (image ? image.mimeType : undefined),
+      attachment_size_bucket: meta.attachmentSizeBucket || (image ? bucketBytes(String(image.base64 || "").length * 0.75) : undefined),
+      response_size_bucket: bucketBytes(responseSize),
+      context_turn_count_bucket: bucketCount(Array.isArray(body.history) ? body.history.length : 0),
+      memory_used: Boolean(meta.memoryUsed || context.memoriesSummary || context.relevantMemoriesSummary),
+      project_context_used: Boolean(meta.projectContextUsed || context.projectId || context.project_id),
+      risk_detected: Boolean(latency.riskDetected || meta.riskDetected),
+      missing_essential_count: Number(latency.missingEssentialCount || meta.missingEssentialCount || 0),
+      answer_mode: latency.answerMode || meta.answerMode,
+      proactivity_level: latency.proactivityLevel || meta.proactivityLevel,
+      self_check_level: latency.selfCheckLevel || meta.selfCheckLevel,
+      model_class: meta.modelClass || latency.modelClass,
+      token_usage_bucket: meta.tokenUsage ? bucketTokens(meta.tokenUsage) : latency.tokenUsageBucket,
+      estimated_cost_bucket: meta.estimatedCostBucket || latency.estimatedCostBucket
+    }, buildEloTelemetryIdentity_(request));
+  }
+
+  app.use((request, response, next) => {
+    const telemetryRoute = request.path === "/api/elo/chat" || request.path === "/api/ai/analyze-image";
+    if (!telemetryRoute) {
+      next();
+      return;
+    }
+    const startedAt = Date.now();
+    const originalJson = response.json.bind(response);
+    response.json = (body) => {
+      try {
+        if (body && body.error) request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { failed: true, errorCode: body.error });
+        if (body && body.fallback) request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { fallbackUsed: true });
+        request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, { responseSize: JSON.stringify(body || {}).length });
+        recordEloTelemetry_(telemetryRequestEvent_(request, response, startedAt));
+        const latencyHeader = response.getHeader("X-Elo-Latency");
+        let latency = {};
+        try { latency = latencyHeader ? JSON.parse(String(latencyHeader)) : {}; } catch (_) {}
+        const identity = buildEloTelemetryIdentity_(request);
+        if (latency.proactivityLevel && latency.proactivityLevel !== "NONE") recordEloTelemetry_(Object.assign({}, identity, {
+          event_type: "PROACTIVE_REASONING", surface: request.headers["x-elo-surface"] || "WEB", route: "chat",
+          status: "SUCCESS", proactivity_level: latency.proactivityLevel, risk_detected: latency.riskDetected === true,
+          missing_essential_count: latency.missingEssentialCount
+        }));
+        if (latency.selfCheckLevel && latency.selfCheckLevel !== "NONE") recordEloTelemetry_(Object.assign({}, identity, {
+          event_type: "SELF_CHECK", surface: request.headers["x-elo-surface"] || "WEB", route: "chat",
+          status: "SUCCESS", self_check_level: latency.selfCheckLevel
+        }));
+      } catch (_) {}
+      return originalJson(body);
+    };
+    next();
+  });
+
+  app.post("/api/elo/telemetry", async (request, response) => {
+    const now = Date.now();
+    const address = String(request.ip || request.socket && request.socket.remoteAddress || "unknown");
+    const previous = eloTelemetryRate.get(address) || { startedAt: now, count: 0 };
+    if (now - previous.startedAt > 60 * 1000) {
+      previous.startedAt = now;
+      previous.count = 0;
+    }
+    previous.count += 1;
+    eloTelemetryRate.set(address, previous);
+    if (previous.count > 120) {
+      response.status(429).json({ ok: false, accepted: 0, error: "telemetry_rate_limited" });
+      return;
+    }
+    const events = Array.isArray(request.body && request.body.events) ? request.body.events : Array.isArray(request.body) ? request.body : [];
+    try {
+      const result = await eloTelemetry.ingestBatch(events);
+      response.status(202).json({ ok: true, accepted: result.accepted, rejected: result.rejected || 0 });
+    } catch (_) {
+      response.status(202).json({ ok: true, accepted: 0, rejected: events.length, fail_open: true });
+    }
+  });
+
+  app.get("/api/elo/telemetry/health", async (request, response) => {
+    const expected = String(options.telemetryAdminToken || env.ELO_TELEMETRY_ADMIN_TOKEN || "");
+    const supplied = String(request.headers["x-elo-telemetry-admin"] || "");
+    let serverTokenAccepted = false;
+    if (expected && supplied) {
+      try {
+        const expectedBytes = Buffer.from(expected);
+        const suppliedBytes = Buffer.from(supplied);
+        serverTokenAccepted = expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
+      } catch (_) {}
+    }
+    if (!serverTokenAccepted) {
+      let authContext = null;
+      try { authContext = await app.locals.resolveAuthContext(request); } catch (_) { authContext = null; }
+      const role = clean_(authContext && authContext.role || authContext && authContext.profile && authContext.profile.role).toLowerCase();
+      const internalRoles = new Set(["admin", "owner", "superadmin", "platform_admin", "institution_admin", "gestor"]);
+      if (!authContext || !authContext.ok) {
+        response.status(authContext && authContext.status ? authContext.status : 401).json({ ok: false, error: "authentication_required" });
+        return;
+      }
+      if (!internalRoles.has(role)) {
+        response.status(403).json({ ok: false, error: "telemetry_admin_required" });
+        return;
+      }
+    }
+    const requestedWindow = String(request.query.window || "24h").toLowerCase();
+    const hours = requestedWindow === "7d" ? 168 : requestedWindow === "30d" ? 720 : 24;
+    response.json({
+      ok: true,
+      health: await eloTelemetry.snapshot({ windowMs: hours * 60 * 60 * 1000 }),
+      buffer: eloTelemetry.getStats(),
+      security: { admin_token_configured: Boolean(expected) }
+    });
+  });
 
   app.get("/api/health", (request, response) => {
     response.json({
       ok: true,
       service: "ObraReport AI Backend"
     });
+  });
+
+  app.post("/api/apartment-handover/invite/redeem", async (request, response) => {
+    const database = getApartmentHandoverDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const rate = apartmentHandoverInviteRateLimiter.check(request);
+    if (!rate.ok) {
+      response.status(429).json({ ok: false, error: "invite_rate_limited", message: "Muitas tentativas. Tente novamente em instantes." });
+      return;
+    }
+
+    try {
+      const result = await redeemApartmentHandoverInvite(database, {
+        inviteToken: request.body && request.body.inviteToken
+      }, {
+        secret: env.APARTMENT_HANDOVER_INVITE_SECRET,
+        sessionTtlMinutes: Number(env.APARTMENT_HANDOVER_INVITE_SESSION_MINUTES || DEFAULT_SESSION_TTL_MINUTES)
+      });
+      response.json({
+        ok: true,
+        allowed: true,
+        auth_mode: "invite",
+        invite_session: result.session.token,
+        invite_session_expires_at: result.session.expiresAt,
+        access: Object.assign({ auth_mode: "invite" }, result.access)
+      });
+    } catch (error) {
+      const mapped = mapInviteRedeemError(error);
+      response.status(mapped.status).json({ ok: false, error: mapped.error, message: mapped.message });
+    }
+  });
+
+  async function resolveApartmentHandoverRequestAccess_(request, response) {
+    const context = await app.locals.resolveAuthContext(request);
+    if (!context || !context.ok) {
+      response.status(context && context.status ? context.status : 401).json({
+        ok: false,
+        allowed: false,
+        code: clean_(context && context.error || "authentication_required")
+      });
+      return null;
+    }
+    const resolver = options.resolveApartmentHandoverAccess || resolveApartmentHandoverAccess;
+    const access = await resolver({
+      supabase: getApartmentHandoverEntitlementDatabase(),
+      institutionId: context.institutionId,
+      now: options.apartmentHandoverAccessNow
+    });
+    return { context, access, auth: { ok: true, authMode: "supabase", institutionId: context.institutionId } };
+  }
+
+  function sendApartmentHandoverAccess_(response, access, extra = {}) {
+    const body = Object.assign({}, access && typeof access === "object" ? access : {}, toApartmentHandoverAccessResponse(access));
+    if (access && access.allowed) {
+      response.status(200).json(Object.assign({ ok: true }, extra, body));
+      return;
+    }
+    response.status(403).json(Object.assign({ ok: false }, extra, body));
+  }
+
+  app.get("/api/apartment-handover/access", async (request, response) => {
+    try {
+      const database = getApartmentHandoverDatabase(response);
+      if (!database) return;
+
+      const auth = await resolveApartmentHandoverProtectedAuth_(request, database, env);
+      if (!auth.ok) {
+        response.status(auth.status).json({ ok: false, error: auth.error });
+        return;
+      }
+
+      const access = auth.authMode === "invite"
+        ? await resolveApartmentHandoverAccess_(database, auth.institutionId)
+        : (await resolveApartmentHandoverRequestAccess_(request, response))?.access;
+      if (!access) return;
+      if (access.ok === false) {
+        response.status(access.status).json({ ok: false, error: access.error });
+        return;
+      }
+
+      sendApartmentHandoverAccess_(response, access, { auth_mode: auth.authMode });
+    } catch (error) {
+      response.status(500).json({ ok: false, allowed: false, code: "APARTMENT_HANDOVER_ACCESS_FAILED" });
+    }
+  });
+
+  function extractApartmentHandoverInspectionId_(payload) {
+    const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
+    const inspection = report && report.inspection && typeof report.inspection === "object" ? report.inspection : null;
+    return clean_(payload && (payload.inspection_id || payload.inspectionId) || report && (report.inspection_id || report.inspectionId || report.id) || inspection && (inspection.id || inspection.inspection_id || inspection.inspectionId));
+  }
+
+  app.post("/api/apartment-handover/pdf-protected", async (request, response) => {
+    const database = getApartmentHandoverDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const auth = await resolveApartmentHandoverProtectedAuth_(request, database, env);
+    if (!auth.ok) {
+      response.status(auth.status).json({ ok: false, error: auth.error });
+      return;
+    }
+
+    const access = auth.authMode === "invite"
+      ? await resolveApartmentHandoverAccess_(database, auth.institutionId)
+      : null;
+    if (access && access.ok === false) {
+      response.status(access.status).json({ ok: false, error: access.error });
+      return;
+    }
+
+    let tempPath = "";
+    try {
+      const payload = request.body && typeof request.body === "object" ? request.body : null;
+      const mode = clean_(payload && payload.mode).toLowerCase();
+      const report = payload && payload.report && typeof payload.report === "object" ? payload.report : null;
+      const inspectionId = extractApartmentHandoverInspectionId_(payload);
+      if (!payload || !report || !["draft", "final"].includes(mode)) {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_PAYLOAD", error: "invalid_apartment_handover_payload" });
+        return;
+      }
+      if (report.type !== "apartment_handover_inspection") {
+        response.status(400).json({ ok: false, code: "INVALID_APARTMENT_HANDOVER_TYPE", error: "invalid_report_type" });
+        return;
+      }
+      if (!inspectionId || !isUuidLike_(inspectionId)) {
+        response.status(400).json({ ok: false, allowed: false, code: "INSPECTION_ID_REQUIRED", error: "inspection_id_required" });
+        return;
+      }
+
+      let inspection;
+      try {
+        inspection = obraReportTransactionalService.getApartmentHandoverInspection({ institutionId: auth.institutionId }, inspectionId);
+      } catch (error) {
+        response.status(Number(error && error.status) || 404).json({ ok: false, code: "INSPECTION_NOT_FOUND", error: "inspection_not_found" });
+        return;
+      }
+      const persistedPayload = buildApartmentHandoverPersistedPdfPayload_(inspection, payload, mode);
+      const reviewer = options.apartmentHandoverReviewer || reviewApartmentHandoverInspection;
+      const review = reviewer(persistedPayload);
+      if (mode === "final" && review && review.canGenerateFinal === false) {
+        response.status(422).json({ ok: false, code: "INSPECTION_PREFLIGHT_BLOCKED", review });
+        return;
+      }
+
+      if (auth.authMode !== "invite") {
+        const authorizer = options.authorizeApartmentHandoverInspectionUsage || authorizeApartmentHandoverInspectionUsage;
+        const usageAccess = await authorizer({
+          supabase: getApartmentHandoverEntitlementDatabase(),
+          institutionId: auth.institutionId,
+          inspectionId,
+          consume: mode === "final"
+        });
+        if (!usageAccess || !usageAccess.allowed) {
+          sendApartmentHandoverAccess_(response, usageAccess, { auth_mode: auth.authMode });
+          return;
+        }
+      }
+
+      const generator = options.apartmentHandoverPdfGenerator || generateApartmentHandoverInspectionPdf;
+      const tempDir = join(REPO_DIR, "tmp", "apartment-handover-endpoint");
+      mkdirSync(tempDir, { recursive: true });
+      tempPath = join(tempDir, `apartment-handover-protected-${Date.now()}-${randomUUID()}.pdf`);
+      const pdfPayload = normalizeApartmentHandoverPdfPayloadForMode_(persistedPayload, mode);
+      const generated = await generator(pdfPayload, tempPath, { mode, review, authMode: auth.authMode, institutionId: auth.institutionId, inspectionId });
+      if (generated && generated.ok === false) {
+        response.status(422).json(generated);
+        return;
+      }
+
+      const pdf = readFileSync(tempPath);
+      const filename = buildApartmentHandoverPdfFilename_(persistedPayload);
+      response.set({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Length": String(pdf.length),
+        "X-Apartment-Handover-Auth-Mode": auth.authMode
+      });
+      response.status(200).send(pdf);
+    } catch (error) {
+      const message = clean_(error && (error.message || error.code)) || "apartment_handover_pdf_failed";
+      const status = /Executable doesn't exist|browserType.launch|Chromium|playwright/i.test(message) ? 503 : 500;
+      response.status(status).json({ ok: false, code: status === 503 ? "CHROMIUM_UNAVAILABLE" : "APARTMENT_HANDOVER_PDF_FAILED", error: status === 503 ? "chromium_unavailable" : "apartment_handover_pdf_failed" });
+    } finally {
+      if (tempPath) {
+        try { unlinkSync(tempPath); } catch {}
+      }
+    }
   });
   app.post("/api/apartment-handover/pdf", async (request, response) => {
     let tempPath = "";
@@ -1158,10 +1716,56 @@ export function createApp(options = {}) {
   });
 
   function buildObraReportContext_(request) {
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    if (auth.ok) {
+      return {
+        institutionId: clean_(auth.institutionId || profile.institution_id || profile.company_id),
+        companyId: clean_(auth.companyId || profile.company_id || profile.institution_id),
+        userId: clean_(auth.userId || profile.auth_user_id),
+        role: clean_(auth.role || profile.role),
+        profile,
+        user: auth.user || null,
+        authenticated: true
+      };
+    }
     return {
       institutionId: clean_(request.headers["x-institution-id"] || request.body.institutionId || request.body.institution_id),
       userId: clean_(request.headers["x-user-id"] || request.body.userId || request.body.user_id)
     };
+  }
+
+  function buildCanonicalRdoContext_(request) {
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    if (!auth.ok) {
+      return { institutionId: "", companyId: "", userId: "", role: "", profile: {}, user: null, authenticated: false };
+    }
+    return {
+      institutionId: clean_(profile.institution_id || profile.company_id || auth.institutionId),
+      companyId: clean_(profile.company_id || profile.institution_id || auth.companyId),
+      userId: clean_(auth.userId || profile.id || profile.auth_user_id),
+      role: clean_(profile.role || auth.role),
+      profile,
+      user: auth.user || null,
+      authenticated: true
+    };
+  }
+
+  async function requireCanonicalObraReportAuth_(request, response, next) {
+    try {
+      const context = request.eloAuthContext && request.eloAuthContext.ok
+        ? request.eloAuthContext
+        : await app.locals.resolveCanonicalAuthContext(request);
+      if (!context || !context.ok) {
+        response.status(context && context.status ? context.status : 401).json({ ok: false, error: clean_(context && context.error || "invalid_session") });
+        return;
+      }
+      request.eloAuthContext = context;
+      next();
+    } catch (error) {
+      response.status(401).json({ ok: false, error: "invalid_session" });
+    }
   }
 
   function operationalTimelineEnabled_() {
@@ -1333,7 +1937,7 @@ export function createApp(options = {}) {
       rdos = await eloObraObserverReaders.readRdos(context);
       sourcesUsed.rdos = Array.isArray(rdos) && rdos.length > 0;
     } else if (obraReportTransactionalService && typeof obraReportTransactionalService.listRdos === "function") {
-      rdos = normalizeEloObraObserverRdos_(obraReportTransactionalService.listRdos({ institutionId: context.institutionId, userId: context.userId, profile: context.profile }, { projectId: context.projectId }));
+      rdos = normalizeEloObraObserverRdos_(await obraReportTransactionalService.listRdos({ institutionId: context.institutionId, userId: context.userId, profile: context.profile }, { projectId: context.projectId }));
       sourcesUsed.rdos = rdos.length > 0;
     }
 
@@ -1418,9 +2022,73 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/obrareport/apartment-handover-inspections", async (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.createApartmentHandoverInspection(buildObraReportContext_(request), request.body || {});
+      response.status(201).json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections", (request, response) => {
+    try {
+      const inspections = obraReportTransactionalService.listApartmentHandoverInspections(buildObraReportContext_(request), request.query || {});
+      response.json({ ok: true, inspections });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections/:id", (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.getApartmentHandoverInspection(buildObraReportContext_(request), request.params.id);
+      response.json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.put("/api/obrareport/apartment-handover-inspections/:id", async (request, response) => {
+    try {
+      const inspection = obraReportTransactionalService.updateApartmentHandoverInspection(buildObraReportContext_(request), request.params.id, request.body || {});
+      response.json({ ok: true, inspection });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.post("/api/obrareport/apartment-handover-inspections/:id/versions", (request, response) => {
+    try {
+      const version = obraReportTransactionalService.createApartmentHandoverInspectionVersion(buildObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, version });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.post("/api/obrareport/apartment-handover-inspections/:id/generate-document", async (request, response) => {
+    try {
+      const document = obraReportTransactionalService.generateApartmentHandoverInspectionDocument(buildObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, document });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/apartment-handover-inspections/:id/events", (request, response) => {
+    try {
+      const events = obraReportTransactionalService.listApartmentHandoverInspectionEvents(buildObraReportContext_(request), request.params.id);
+      response.json({ ok: true, events });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+  app.use("/api/obrareport/rdos", requireCanonicalObraReportAuth_);
+
   app.post("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdo = obraReportTransactionalService.createRdo(buildObraReportContext_(request), request.body || {});
+      const rdo = await obraReportTransactionalService.createRdo(buildCanonicalRdoContext_(request), request.body || {});
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_created", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO criado", description: "Referencia de RDO criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, rdo });
     } catch (error) {
@@ -1428,10 +2096,19 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get("/api/obrareport/rdos", (request, response) => {
+  app.get("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdos = obraReportTransactionalService.listRdos(buildObraReportContext_(request), request.query || {});
+      const rdos = await obraReportTransactionalService.listRdos(buildCanonicalRdoContext_(request), request.query || {});
       response.json({ ok: true, rdos });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/rdos/:id", async (request, response) => {
+    try {
+      const rdo = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
+      response.json({ ok: true, rdo });
     } catch (error) {
       handleObraReportError_(response, error);
     }
@@ -1439,7 +2116,7 @@ export function createApp(options = {}) {
 
   app.put("/api/obrareport/rdos/:id", async (request, response) => {
     try {
-      const rdo = obraReportTransactionalService.updateRdo(buildObraReportContext_(request), request.params.id, request.body || {});
+      const rdo = await obraReportTransactionalService.updateRdo(buildCanonicalRdoContext_(request), request.params.id, request.body || {});
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_updated", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO atualizado", description: "Referencia de RDO atualizada.", severity: "informational", status: rdo.status === "closed" ? "completed" : "active" });
       response.json({ ok: true, rdo });
     } catch (error) {
@@ -1447,9 +2124,9 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/obrareport/rdos/:id/versions", (request, response) => {
+  app.post("/api/obrareport/rdos/:id/versions", async (request, response) => {
     try {
-      const version = obraReportTransactionalService.createRdoVersion(buildObraReportContext_(request), request.params.id);
+      const version = await obraReportTransactionalService.createRdoVersion(buildCanonicalRdoContext_(request), request.params.id);
       response.status(201).json({ ok: true, version });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1458,8 +2135,28 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos/:id/generate-document", async (request, response) => {
     try {
-      const document = obraReportTransactionalService.generateRdoDocument(buildObraReportContext_(request), request.params.id);
-      const rdoForTimeline = obraReportTransactionalService.getRdo(buildObraReportContext_(request), request.params.id);
+      const context = buildCanonicalRdoContext_(request);
+      if (documentOrchestrator) {
+        const rdo = await obraReportTransactionalService.getRdo(context, request.params.id);
+        const body = request.body && typeof request.body === "object" ? request.body : {};
+        const workId = clean_(body.workId || body.work_id || rdo.project_id);
+        const idempotencyKey = clean_(body.idempotencyKey || body.idempotency_key) || "rdo:" + clean_(rdo.id) + ":pdf:v1";
+        const result = await documentOrchestrator.generate(context, Object.assign({}, body, {
+          sourceType: "rdo",
+          sourceId: clean_(rdo.id || request.params.id),
+          rdoId: clean_(rdo.id || request.params.id),
+          workId,
+          idempotencyKey,
+          title: clean_(body.title || rdo.title || "RDO"),
+          documentType: clean_(body.documentType || body.document_type) || "rdo_pdf"
+        }));
+        const document = safeGeneratedDocumentForClient_(result.document);
+        await safeEmitOperationalTimeline_(request, { record: Object.assign({}, result.document, { project_id: workId }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Documento PDF de RDO gerado pelo registro documental canônico.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, request_id: document.request_id } });
+        response.status(result.duplicate ? 200 : 201).json({ ok: true, duplicate: result.duplicate, document, openUrl: document.open_url, requestId: document.request_id });
+        return;
+      }
+      const document = await obraReportTransactionalService.generateRdoDocument(buildCanonicalRdoContext_(request), request.params.id);
+      const rdoForTimeline = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
       await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: rdoForTimeline.project_id }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Referencia de documento de RDO gerado.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
       response.status(201).json({ ok: true, document });
     } catch (error) {
@@ -1467,15 +2164,137 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get("/api/obrareport/rdos/:id/events", (request, response) => {
+  app.get("/api/obrareport/rdos/:id/events", async (request, response) => {
     try {
-      const events = obraReportTransactionalService.listRdoEvents(buildObraReportContext_(request), request.params.id);
+      const events = await obraReportTransactionalService.listRdoEvents(buildCanonicalRdoContext_(request), request.params.id);
       response.json({ ok: true, events });
     } catch (error) {
       handleObraReportError_(response, error);
     }
   });
 
+
+  function safeGeneratedDocumentForClient_(document) {
+    const safe = document && typeof document === "object" ? document : {};
+    const metadata = safe.metadata_json && typeof safe.metadata_json === "object" ? safe.metadata_json : {};
+    const id = clean_(safe.id);
+    return {
+      id,
+      work_id: clean_(safe.work_id) || null,
+      rdo_id: clean_(safe.rdo_id) || null,
+      source_type: clean_(safe.source_type),
+      source_id: clean_(safe.source_id),
+      document_type: clean_(safe.document_type),
+      title: clean_(safe.title || safe.document_type),
+      provider: clean_(safe.provider),
+      status: clean_(safe.status),
+      created_at: safe.created_at || safe.generated_at || null,
+      updated_at: safe.updated_at || safe.generated_at || null,
+      request_id: clean_(metadata.generatorRequestId || metadata.generator_request_id) || null,
+      open_url: id ? "/api/obrareport/documents/" + encodeURIComponent(id) + "/content" : ""
+    };
+  }
+
+  async function serveObraReportDocumentContent_(request, response) {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      if (!documentArtifactBroker || typeof documentArtifactBroker.open !== "function") {
+        response.status(503).json({ ok: false, error: "artifact_broker_not_configured" });
+        return;
+      }
+      const context = buildCanonicalRdoContext_(request);
+      const document = await documentRepository.getById(context, request.params.id);
+      const externalFileId = clean_(document.external_file_id);
+      if (!externalFileId) {
+        response.status(404).json({ ok: false, error: "document_artifact_not_found" });
+        return;
+      }
+      const artifact = await documentArtifactBroker.open({ externalFileId, document, context });
+      if (!artifact || !artifact.bytes) {
+        response.status(502).json({ ok: false, error: "artifact_broker_fetch_failed" });
+        return;
+      }
+      const basename = (clean_(document.title) || "relatorio").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "relatorio";
+      response.status(200)
+        .set("Content-Type", "application/pdf")
+        .set("Content-Disposition", "inline; filename=\"" + basename + ".pdf\"")
+        .set("Cache-Control", "private, no-store")
+        .send(Buffer.from(artifact.bytes));
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  }
+
+  app.post("/api/obrareport/documents/generate", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentOrchestrator) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const result = await documentOrchestrator.generate(buildCanonicalRdoContext_(request), request.body || {});
+      const document = safeGeneratedDocumentForClient_(result.document);
+      response.status(result.duplicate ? 200 : 201).json({ ok: true, duplicate: result.duplicate, document, openUrl: document.open_url, requestId: document.request_id });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const documents = await documentRepository.list(buildCanonicalRdoContext_(request), request.query || {});
+      response.json({ ok: true, documents: documents.map(safeGeneratedDocumentForClient_) });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const document = await documentRepository.getById(buildCanonicalRdoContext_(request), request.params.id);
+      response.json({ ok: true, document: safeGeneratedDocumentForClient_(document) });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id/context", requireCanonicalObraReportAuth_, async (request, response) => {
+    try {
+      if (!documentRepository) {
+        response.status(503).json({ ok: false, error: "document_registry_not_configured" });
+        return;
+      }
+      const context = buildCanonicalRdoContext_(request);
+      const document = await documentRepository.getById(context, request.params.id);
+      const work = document.work_id && typeof documentRepository.validateWork === "function"
+        ? await documentRepository.validateWork(context, document.work_id)
+        : null;
+      const rdo = document.rdo_id && rdoRepository && typeof rdoRepository.getById === "function"
+        ? await rdoRepository.getById(context, document.rdo_id)
+        : null;
+      response.json({ ok: true, context: buildObraReportDocumentContext({ document, work, rdo }) });
+    } catch (error) {
+      handleObraReportError_(response, error);
+    }
+  });
+
+  app.get("/api/obrareport/documents/:id/file", requireCanonicalObraReportAuth_, async (request, response) => {
+    await serveObraReportDocumentContent_(request, response);
+  });
+
+  app.get("/api/obrareport/documents/:id/content", requireCanonicalObraReportAuth_, async (request, response) => {
+    await serveObraReportDocumentContent_(request, response);
+  });
   app.post("/api/obrareport/documents/:id/prepare-email", (request, response) => {
     try {
       const email = obraReportTransactionalService.prepareDocumentEmail(buildObraReportContext_(request), request.params.id, request.body || {});
@@ -1637,12 +2456,15 @@ export function createApp(options = {}) {
       if (error) {
         throw error;
       }
+      const items = (data || []).map(mapStockFullItemFromDatabase_);
+      logStockFullItemsDiag_(env, database, session, { data, responseCount: items.length });
       response.json({
         ok: true,
         mode: "remote",
-        items: (data || []).map(mapStockFullItemFromDatabase_)
+        items
       });
     } catch (error) {
+      logStockFullItemsDiag_(env, database, session, { error, responseCount: 0 });
       response.status(500).json({ ok: false, error: "stock_full_items_query_failed" });
     }
   });
@@ -1655,6 +2477,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockFullPermission_(session.profile, "products:create", response)) {
       return;
     }
 
@@ -1687,6 +2512,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockFullPermission_(session.profile, "products:update", response)) {
       return;
     }
 
@@ -1731,6 +2559,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockFullPermission_(session.profile, "products:delete", response)) {
       return;
     }
 
@@ -2146,6 +2977,157 @@ export function createApp(options = {}) {
       response.status(status).json({ ok: false, error: message });
     }
   });
+  app.post("/api/stock-full/transfers", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const body = request.body || {};
+    const sourceItemId = clean_(body.sourceItemId ?? body.source_item_id ?? body.itemId ?? body.item_id);
+    const destinationItemId = clean_(body.destinationItemId ?? body.destination_item_id);
+    const quantity = parsePositiveNumber_(body.quantity);
+    const operationId = clean_(body.operationId ?? body.operation_id) || "stock_transfer_" + Date.now();
+    const offlineUuid = clean_(body.offlineUuid ?? body.offline_uuid) || operationId;
+    const deviceId = clean_(body.deviceId ?? body.device_id);
+    const destination = clean_(body.destination) || "transferencia_stock_full";
+
+    if (!sourceItemId || !destinationItemId) {
+      response.status(400).json({ ok: false, error: "stock_full_transfer_items_required" });
+      return;
+    }
+    if (sourceItemId === destinationItemId) {
+      response.status(400).json({ ok: false, error: "stock_full_transfer_same_item" });
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      response.status(400).json({ ok: false, error: "quantity_required" });
+      return;
+    }
+
+    try {
+      const [sourceItem, destinationItem] = await Promise.all([
+        getStockFullItemForProfile_(database, sourceItemId, session.profile),
+        getStockFullItemForProfile_(database, destinationItemId, session.profile)
+      ]);
+      if (!sourceItem || !destinationItem) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const previousSourceBalance = parsePositiveNumber_(sourceItem.current_quantity, 0);
+      const previousDestinationBalance = parsePositiveNumber_(destinationItem.current_quantity, 0);
+      if (quantity > previousSourceBalance) {
+        await createStockFullAuditLog_(database, {
+          institutionId: session.profile.institution_id,
+          action: "stock_full_transfer_rejected",
+          entityType: "stock_full_transfer",
+          entityId: sourceItem.id,
+          productId: sourceItem.id,
+          operationId,
+          offlineUuid,
+          deviceId,
+          source: "elo_action_bus",
+          beforeData: { source_current_quantity: previousSourceBalance },
+          afterData: { quantity, reason: "stock_full_insufficient_quantity" },
+          description: "Transferencia rejeitada por saldo insuficiente no Stock Full.",
+          createdBy: session.profile.id
+        });
+        response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity", previousBalance: previousSourceBalance });
+        return;
+      }
+
+      const exitPayload = { operation_id: operationId + ":exit", offline_uuid: offlineUuid + ":exit" };
+      const entryPayload = { operation_id: operationId + ":entry", offline_uuid: offlineUuid + ":entry" };
+      const [duplicateExit, duplicateEntry] = await Promise.all([
+        findStockFullMovementByIdempotency_(database, "stock_full_exits", exitPayload, session.profile),
+        findStockFullMovementByIdempotency_(database, "stock_full_entries", entryPayload, session.profile)
+      ]);
+      if (duplicateExit && duplicateEntry) {
+        response.json({ ok: true, mode: "remote", duplicate: true, status: "duplicate", operationId });
+        return;
+      }
+      if (duplicateExit || duplicateEntry) {
+        response.status(409).json({ ok: false, error: "stock_full_transfer_partial_duplicate" });
+        return;
+      }
+
+      const exitResult = await processStockFullSyncMovement_(database, {
+        type: "saida",
+        itemId: sourceItem.id,
+        quantity,
+        destination,
+        operationId: exitPayload.operation_id,
+        offlineUuid: exitPayload.offline_uuid,
+        deviceId,
+        source: "elo_action_bus"
+      }, session.profile);
+      if (exitResult.status === "rejected") {
+        response.status(409).json({ ok: false, error: clean_(exitResult.message) || "stock_full_transfer_exit_rejected", exit: exitResult });
+        return;
+      }
+
+      const entryResult = await processStockFullSyncMovement_(database, {
+        type: "entrada",
+        itemId: destinationItem.id,
+        quantity,
+        operationId: entryPayload.operation_id,
+        offlineUuid: entryPayload.offline_uuid,
+        deviceId,
+        source: "elo_action_bus"
+      }, session.profile);
+      if (entryResult.status === "rejected") {
+        response.status(409).json({ ok: false, error: clean_(entryResult.message) || "stock_full_transfer_entry_rejected", exit: exitResult, entry: entryResult });
+        return;
+      }
+
+      await createStockFullAuditLog_(database, {
+        institutionId: session.profile.institution_id,
+        action: "stock_full_transfer_created",
+        entityType: "stock_full_transfer",
+        entityId: sourceItem.id,
+        productId: sourceItem.id,
+        operationId,
+        offlineUuid,
+        deviceId,
+        source: "elo_action_bus",
+        beforeData: {
+          source_current_quantity: previousSourceBalance,
+          destination_current_quantity: previousDestinationBalance
+        },
+        afterData: {
+          source_current_quantity: parsePositiveNumber_(sourceItem.current_quantity, 0) - quantity,
+          destination_current_quantity: parsePositiveNumber_(destinationItem.current_quantity, 0) + quantity,
+          quantity,
+          destination_item_id: destinationItem.id
+        },
+        description: "Transferencia registrada pelo ELO Action Bus no Stock Full.",
+        createdBy: session.profile.id
+      });
+
+      response.json({
+        ok: true,
+        mode: "remote",
+        status: "synced",
+        operationId,
+        quantity,
+        sourceItem: mapStockFullItemFromDatabase_(sourceItem),
+        destinationItem: mapStockFullItemFromDatabase_(destinationItem),
+        previousSourceBalance,
+        previousDestinationBalance,
+        exit: exitResult,
+        entry: entryResult
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: clean_(error && error.message) || "stock_full_transfer_failed" });
+    }
+  });
+
   app.post("/api/stock-full/sync", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -2969,6 +3951,38 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/ai/analyze-image", async (request, response) => {
+    if (!clean_(request.headers.authorization)) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "AUTH_REQUIRED" });
+      response.status(401).json({
+        ok: false,
+        error: "authentication_required"
+      });
+      return;
+    }
+
+    let authContext;
+    try {
+      authContext = await app.locals.resolveAuthContext(request);
+    } catch (_) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "INVALID_SESSION" });
+      response.status(401).json({
+        ok: false,
+        error: "invalid_session"
+      });
+      return;
+    }
+
+    if (!authContext || !authContext.ok) {
+      recordEloTelemetry_({ event_type: "AUTH_FAILED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "ERROR", error_code: "INVALID_SESSION" });
+      response.status(authContext && authContext.status ? authContext.status : 401).json({
+        ok: false,
+        error: clean_(authContext && authContext.error || "invalid_session")
+      });
+      return;
+    }
+
+    recordEloTelemetry_({ event_type: "AUTH_VALIDATED", surface: request.headers["x-elo-surface"] || "WEB", route: "analyze-image", status: "SUCCESS" });
+
     const validation = validateImageRequest_(request.body || {});
 
     if (!validation.ok) {
@@ -3041,9 +4055,12 @@ export function createApp(options = {}) {
   function getEloCoreIdentity_(request) {
     const trustedUserId = getTrustedEloCoreUserId_(request);
     const context = buildPublicEloAuthContext_(request.eloAuthContext || {});
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const payloadContext = body.context && typeof body.context === "object" ? body.context : {};
+    const query = request.query && typeof request.query === "object" ? request.query : {};
     return {
       userId: trustedUserId,
-      anonymousId: clean_(request.body && (request.body.anonymousId || request.body.anonymous_id) || request.query && (request.query.anonymousId || request.query.anonymous_id)),
+      anonymousId: clean_(body.anonymousId || body.anonymous_id || payloadContext.anonymousId || payloadContext.anonymous_id || query.anonymousId || query.anonymous_id),
       institutionId: context.institutionId,
       companyId: context.companyId,
       projectId: context.projectId
@@ -3071,6 +4088,20 @@ export function createApp(options = {}) {
       store: getEloCoreSupabaseStore_(),
       identity: Object.assign(getEloCoreIdentity_(request), { jwt })
     };
+  }
+  function getEloCoreMemoryTargetForChat_(request) {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      if (!target || !target.identity || (!target.identity.userId && !target.identity.anonymousId)) {
+        return null;
+      }
+      return target;
+    } catch (error) {
+      if (error && error.status === 401) {
+        return null;
+      }
+      throw error;
+    }
   }
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
@@ -3165,6 +4196,40 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/elo/autopilot/prepare", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.prepare({
+        topic: request.body && request.body.topic,
+        message: request.body && request.body.message,
+        authContext: request.eloAuthContext || null
+      });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
+    }
+  });
+
+  app.post("/api/elo/autopilot/publish", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.publish({
+        draftId: request.body && request.body.draftId,
+        authContext: request.eloAuthContext || null
+      });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
+    }
+  });
+
+  app.post("/api/elo/autopilot/cancel", async (request, response) => {
+    try {
+      const result = await eloAutopilotService.cancel({ draftId: request.body && request.body.draftId });
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) {
+      sendEloAutopilotError(response, error);
+    }
+  });
+
   registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
 
   app.get("/api/elo/budgets", (request, response) => {
@@ -3180,23 +4245,19 @@ export function createApp(options = {}) {
       response.status(400).json({ ok: false, error: "query_required" });
       return;
     }
-    if (!getEloMediaSearchApiKey_(env)) {
-      response.status(503).json({ ok: false, error: "media_search_provider_not_configured", provider: "youtube-data-api" });
-      return;
-    }
-
     try {
-      const result = await callEloMediaSearch_(query, env, options.mediaSearchFetch || globalThis.fetch);
+      const result = await resolveEloMediaSearch_(query, env, options.mediaSearchFetch || globalThis.fetch);
       response.json({
         ok: true,
         mode: "remote",
         provider: result.provider,
         query,
-        results: result.results
+        results: result.results,
+        candidates: result.results
       });
     } catch (error) {
       console.error("Falha na busca de mídia do Elo:", error);
-      response.status(502).json({ ok: false, error: "media_search_failed", provider: "youtube-data-api" });
+      response.status(502).json({ ok: false, error: "media_search_failed", provider: error && error.provider || "youtube-web-search" });
     }
   }
   app.get("/api/elo/media/search", handleEloMediaSearchRequest_);
@@ -3397,7 +4458,22 @@ export function createApp(options = {}) {
     let chatRequest;
 
     try {
-      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore);
+      const bodyParseStartedAt = nowMs_();
+      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics);
+      latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
+      if (chatRequest.documents.length || chatRequest.attachmentErrors.length) {
+        request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, {
+          attachmentType: chatRequest.documents[0] && chatRequest.documents[0].mimeType || "unknown"
+        });
+        const attachmentEvent = chatRequest.documents.length ? "ATTACHMENT_PROCESSED" : "ATTACHMENT_FAILED";
+        recordEloTelemetry_(Object.assign({}, buildEloTelemetryIdentity_(request), {
+          event_type: attachmentEvent,
+          surface: request.headers["x-elo-surface"] || "WEB",
+          route: "chat",
+          status: chatRequest.documents.length ? "SUCCESS" : "ERROR",
+          error_code: chatRequest.documents.length ? undefined : classifyTelemetryError("file parse failed")
+        }));
+      }
     } catch (error) {
       const message = error && error.message ? error.message : "Nao consegui receber o anexo enviado.";
       response.status(error && error.status ? error.status : 400).json({
@@ -3424,16 +4500,23 @@ export function createApp(options = {}) {
       return;
     }
 
+    const proactivePolicy = getEloProactiveReasoningPolicy_();
+    if (proactivePolicy && typeof proactivePolicy.getObservability === "function") {
+      const observability = proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan);
+      latencyMetrics.proactivityLevel = observability.proactivity_level;
+      latencyMetrics.selfCheckLevel = observability.self_check_level;
+      latencyMetrics.answerMode = observability.answer_mode;
+      latencyMetrics.missingEssentialCount = observability.missing_essential_count;
+      latencyMetrics.riskDetected = observability.risk_detected;
+    }
+
     validation.payload.context.documentsSummary = chatRequest.documentsSummary;
     validation.payload.context.attachmentErrors = chatRequest.attachmentErrors;
     validation.payload.interpretation = interpretEloUserMessage({
       message: validation.payload.message,
       history: validation.payload.history,
       context: validation.payload.context.eloContext,
-      userProfile: {
-        name: "Ícaro Amaral",
-        style: "direto, prático, informal, constrói SaaS próprios"
-      }
+      userProfile: {}
     });
     validation.payload.eloIntent = detectEloIntent_(validation.payload.message, validation.payload.context, validation.payload.history, {
       hasAttachments: Boolean(chatRequest.documents.length || chatRequest.attachmentErrors.length)
@@ -3444,8 +4527,39 @@ export function createApp(options = {}) {
       context: validation.payload.context
     });
 
+    const explicitMemoryText = extractEloExplicitMemoryCommandText_(validation.payload.message);
+    if (explicitMemoryText) {
+      const target = getEloCoreMemoryTargetForChat_(request);
+      if (target) {
+        try {
+          const memory = await target.store.upsertMemory(Object.assign({}, target.identity, {
+            category: inferEloCanonicalMemoryCategory_(explicitMemoryText),
+            memory_key: buildEloCanonicalMemoryKey_(explicitMemoryText),
+            memory_value: explicitMemoryText,
+            confidence: 0.9
+          }));
+          setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
+          response.status(201).json({
+            ok: true,
+            mode: "memory_saved",
+            fallback: false,
+            answer: "Guardei essa informação na memória permanente do ELO.",
+            savePrompt: buildEloSavePromptMeta_({ show: false, reason: "explicit_memory_saved", suggestedTarget: "none" }),
+            memory,
+            interpretation: validation.payload.interpretation,
+            eloIntent: validation.payload.eloIntent
+          });
+          return;
+        } catch (error) {
+          sendEloCoreError_(response, error);
+          return;
+        }
+      }
+    }
+
     let municipalAnswer = null;
     try {
+      const authContextStartedAt = nowMs_();
       municipalAnswer = await buildEloMunicipalAnswerIfNeeded({
         request,
         message: validation.payload.message,
@@ -3554,15 +4668,20 @@ export function createApp(options = {}) {
         savePrompt,
         error: "Backend do Elo sem OPENAI_API_KEY configurada.",
         interpretation: validation.payload.interpretation,
+        observability: proactivePolicy && proactivePolicy.getObservability ? proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan) : null,
         attachmentErrors: chatRequest.attachmentErrors
       });
       return;
     }
 
     try {
+      const premodelStartedAt = nowMs_();
+      const canonicalMemoryTarget = getEloCoreMemoryTargetForChat_(request);
       const relevantContext = await getEloRelevantContext_({
         payload: validation.payload,
         memoryStore: eloVectorMemoryStore,
+        canonicalMemoryStore: canonicalMemoryTarget && canonicalMemoryTarget.store,
+        canonicalMemoryIdentity: canonicalMemoryTarget && canonicalMemoryTarget.identity,
         documents: chatRequest.documents,
         attachmentErrors: chatRequest.attachmentErrors,
         metrics: latencyMetrics
@@ -3573,15 +4692,39 @@ export function createApp(options = {}) {
       if (relevantContext.context.stockIaLaunchPlan) {
         validation.payload.stockIaLaunchPlan = relevantContext.context.stockIaLaunchPlan;
       }
+      if (process.env.ELO_LATENCY_LOGS === "true") {
+        console.info("ELO_CHAT_PREMODEL_DONE", {
+          requestId: latencyMetrics.requestId,
+          preModelMs: Math.round(nowMs_() - premodelStartedAt),
+          memoryVectorMs: Math.round(latencyMetrics.memoryVectorMs || 0),
+          promptBuildMs: Math.round(latencyMetrics.promptBuildMs || 0)
+        });
+      }
       const modelStartedAt = nowMs_();
-      const answer = sanitizeEloAnswerText_(await callOpenAiElo_(validation.payload, env));
+      const rawAnswer = await callOpenAiElo_(validation.payload, env, latencyMetrics);
       latencyMetrics.modelMs += nowMs_() - modelStartedAt;
+      const postProcessStartedAt = nowMs_();
+      const proactivePolicy = getEloProactiveReasoningPolicy_();
+      const checkedAnswer = proactivePolicy && typeof proactivePolicy.applySelfCheck === "function"
+        ? proactivePolicy.applySelfCheck(validation.payload.context.proactiveReasoningPlan, rawAnswer, validation.payload.context)
+        : rawAnswer;
+      const answer = sanitizeEloAnswerText_(checkedAnswer);
       const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
         userMessage: validation.payload.message,
         assistantResponse: answer,
         context: validation.payload.context,
         intent: validation.payload.interpretation.detectedIntent
       }));
+      latencyMetrics.postProcessMs += nowMs_() - postProcessStartedAt;
+      if (process.env.ELO_LATENCY_LOGS === "true") {
+        console.info("ELO_CHAT_MODEL_DONE", {
+          requestId: latencyMetrics.requestId,
+          modelTotalMs: Math.round(latencyMetrics.modelTotalMs || latencyMetrics.modelMs || 0),
+          outputChars: Math.round(latencyMetrics.outputChars || 0)
+        });
+      }
+      const responseSendStartedAt = nowMs_();
+      latencyMetrics.responseSendMs = nowMs_() - responseSendStartedAt;
       setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
       response.json({
         ok: true,
@@ -3589,6 +4732,7 @@ export function createApp(options = {}) {
         fallback: false,
         answer,
         savePrompt,
+        observability: proactivePolicy && proactivePolicy.getObservability ? proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan) : null,
         interpretation: validation.payload.interpretation,
         eloIntent: validation.payload.eloIntent,
         contextSummary: {
@@ -3677,6 +4821,85 @@ export function createApp(options = {}) {
   return app;
 }
 
+function requireApartmentHandoverDatabase_(env, response, databaseOverride = null) {
+  const database = databaseOverride || getSupabaseClient(env);
+  if (!database) {
+    response.status(503).json({
+      ok: false,
+      error: "apartment_handover_database_not_configured"
+    });
+    return null;
+  }
+  return database;
+}
+
+function createApartmentHandoverInviteRateLimiter_() {
+  const attempts = new Map();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 20;
+  return {
+    check(request) {
+      const forwarded = clean_(request.headers["x-forwarded-for"]).split(",")[0];
+      const key = forwarded || clean_(request.ip) || "unknown";
+      const now = Date.now();
+      const current = (attempts.get(key) || []).filter((item) => now - item < windowMs);
+      current.push(now);
+      attempts.set(key, current);
+      return { ok: current.length <= maxAttempts };
+    }
+  };
+}
+
+async function resolveApartmentHandoverAccess_(database, institutionId) {
+  try {
+    const entitlement = await getApartmentHandoverEntitlement(database, institutionId, APARTMENT_HANDOVER_MODULE_KEY);
+    return mapEntitlementAccess(entitlement);
+  } catch (error) {
+    return { ok: false, status: 500, error: "apartment_handover_access_lookup_failed" };
+  }
+}
+
+async function resolveApartmentHandoverProtectedAuth_(request, database, env) {
+  const inviteSession = clean_(request.headers["x-apartment-handover-invite-session"]);
+  if (inviteSession) {
+    const verified = verifyApartmentHandoverInviteSession(inviteSession, { secret: env.APARTMENT_HANDOVER_INVITE_SECRET });
+    if (!verified.ok) {
+      return verified;
+    }
+    return {
+      ok: true,
+      authMode: "invite",
+      institutionId: verified.institutionId,
+      inviteId: verified.inviteId,
+      sessionId: verified.sessionId
+    };
+  }
+
+  try {
+    const userResult = await getSupabaseUserFromRequest_(request, database);
+    if (!userResult.ok) {
+      return userResult;
+    }
+    const profile = await getStockFullProfileByAuthUser_(database, userResult.user.id);
+    if (!profile || !clean_(profile.institution_id)) {
+      return { ok: false, status: 403, error: "apartment_handover_profile_not_found" };
+    }
+    return {
+      ok: true,
+      authMode: "supabase",
+      user: userResult.user,
+      profile,
+      institutionId: clean_(profile.institution_id)
+    };
+  } catch (error) {
+    return { ok: false, status: 500, error: "apartment_handover_auth_lookup_failed" };
+  }
+}
+
+function isUuidLike_(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean_(value));
+}
+
 function requireStockSaudeDatabase_(env, response, databaseOverride = null) {
   const database = databaseOverride || getSupabaseClient(env);
   if (!database) {
@@ -3701,6 +4924,54 @@ function requireStockFullDatabase_(env, response, databaseOverride = null) {
     return null;
   }
   return database;
+}
+
+function maskStockFullDiagValue_(value) {
+  const text = clean_(value);
+  if (!text) return "";
+  if (text.length <= 12) return "***";
+  return text.slice(0, 8) + "..." + text.slice(-4);
+}
+
+function getSupabaseProjectRefFromUrl_(url) {
+  try {
+    const hostname = new URL(clean_(url)).hostname || "";
+    return hostname.split(".")[0] || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function getStockFullQueryClientType_(env, database) {
+  if (database && database.__obrareportClientType) return clean_(database.__obrareportClientType);
+  if (clean_(env.SUPABASE_SERVICE_ROLE_KEY)) return "service_role";
+  if (clean_(env.SUPABASE_ANON_KEY)) return "anon";
+  return "unknown";
+}
+
+function logStockFullItemsDiag_(env, database, session, result = {}) {
+  try {
+    const data = Array.isArray(result.data) ? result.data : null;
+    const queryError = result.error || null;
+    console.info("STOCK_ITEMS_DIAG " + JSON.stringify({
+      projectRef: getSupabaseProjectRefFromUrl_(env.SUPABASE_URL),
+      userIdMasked: maskStockFullDiagValue_(session && session.user && session.user.id),
+      profileIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.id),
+      institutionIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.institution_id),
+      table: "stock_full_items",
+      filters: {
+        institution_id: "masked",
+        is_active: true
+      },
+      serviceRoleConfigured: Boolean(clean_(env.SUPABASE_SERVICE_ROLE_KEY)),
+      queryClientType: getStockFullQueryClientType_(env, database),
+      queryCount: data ? data.length : null,
+      queryErrorCode: clean_(queryError && (queryError.code || queryError.message), 120),
+      responseCount: Number.isFinite(Number(result.responseCount)) ? Number(result.responseCount) : 0
+    }));
+  } catch (error) {
+    console.info("STOCK_ITEMS_DIAG_FAILED");
+  }
 }
 
 async function getSupabaseUserFromRequest_(request, supabase) {
@@ -4087,6 +5358,26 @@ function mapStockFullLiveMovement_(record, type, itemIndex) {
   };
 }
 
+function canStockFullBackendRole_(profile, permission) {
+  const role = clean_(profile && profile.role).toLowerCase();
+  if (!permission) return false;
+  const permissions = {
+    admin: new Set(["products:create", "products:update", "products:delete"]),
+    administrador: new Set(["products:create", "products:update", "products:delete"]),
+    gestor: new Set(["products:create", "products:update", "products:delete"]),
+    patrao: new Set(["products:create", "products:update", "products:delete"])
+  };
+  return Boolean(permissions[role] && permissions[role].has(permission));
+}
+
+function requireStockFullPermission_(profile, permission, response) {
+  if (canStockFullBackendRole_(profile, permission)) {
+    return true;
+  }
+  response.status(403).json({ ok: false, error: "permission_denied" });
+  return false;
+}
+
 function validateStockFullItemPayload_(body, profile, options = {}) {
   const update = Boolean(options.update);
   const payload = {
@@ -4281,6 +5572,13 @@ async function createStockFullAuditLog_(database, data) {
     action: clean_(data.action),
     entity_type: clean_(data.entityType),
     entity_id: clean_(data.entityId) || null,
+    product_id: clean_(data.productId) || null,
+    before_data: data.beforeData || null,
+    after_data: data.afterData || null,
+    device_id: clean_(data.deviceId) || null,
+    offline_uuid: clean_(data.offlineUuid) || null,
+    operation_id: clean_(data.operationId) || null,
+    source: clean_(data.source) || "online",
     description: clean_(data.description),
     created_by: clean_(data.createdBy)
   };
@@ -4758,7 +6056,7 @@ function validateImageRequest_(body) {
   };
 }
 
-async function buildEloChatRequest_(request, env, memoryStore) {
+async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
   if (!/^multipart\/form-data/i.test(String(request.headers["content-type"] || ""))) {
     return {
       body: request.body || {},
@@ -4768,7 +6066,9 @@ async function buildEloChatRequest_(request, env, memoryStore) {
     };
   }
 
+  const multipartStartedAt = nowMs_();
   const parsed = await parseEloMultipartFormData_(request, env);
+  if (metrics) metrics.bodyParseMs += nowMs_() - multipartStartedAt;
   const body = {
     message: parsed.fields.message || "",
     eloContext: parsed.fields.eloContext || "",
@@ -5513,8 +6813,21 @@ function validateEloChatRequest_(body) {
   const projectContext = context.projectContext && typeof context.projectContext === "object"
     ? context.projectContext
     : (body.projectContext && typeof body.projectContext === "object" ? body.projectContext : {});
+  const workingMemorySummary = typeof context.workingMemorySummary === "string"
+    ? cleanMultiline_(context.workingMemorySummary).slice(0, 1200)
+    : "";
+  const rawTechnicalContinuation = context.technicalContinuation && typeof context.technicalContinuation === "object"
+    ? context.technicalContinuation
+    : null;
+  const technicalContinuation = rawTechnicalContinuation
+    ? {
+      activeTopic: clean_(rawTechnicalContinuation.activeTopic).slice(0, 120),
+      referent: clean_(rawTechnicalContinuation.referent).slice(0, 160),
+      finalQuery: clean_(rawTechnicalContinuation.finalQuery).slice(0, MAX_ELO_MESSAGE_LENGTH)
+    }
+    : null;
   const rawHistory = Array.isArray(body.history) ? body.history : [];
-  const history = rawHistory
+  const normalizedHistory = rawHistory
     .filter((item) => item && (item.role === "user" || item.role === "assistant"))
     .map((item) => ({
       role: item.role,
@@ -5522,6 +6835,9 @@ function validateEloChatRequest_(body) {
     }))
     .filter((item) => item.content)
     .slice(-20);
+  const history = technicalContinuation
+    ? filterEloTechnicalContinuationHistory_(normalizedHistory, technicalContinuation)
+    : normalizedHistory;
   const contextSize = JSON.stringify(context).length;
 
   if (!message) {
@@ -5548,6 +6864,11 @@ function validateEloChatRequest_(body) {
     };
   }
 
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
+  const proactiveReasoningPlan = proactivePolicy && typeof proactivePolicy.buildResponsePlan === "function"
+    ? proactivePolicy.buildResponsePlan(message, Object.assign({}, context, { history }), {})
+    : null;
+
   return {
     ok: true,
     payload: {
@@ -5558,16 +6879,47 @@ function validateEloChatRequest_(body) {
         mode: clean_(context.mode || body.mode || ""),
         eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
+        anonymousId: clean_(context.anonymousId || context.anonymous_id || body.anonymousId || body.anonymous_id).slice(0, 180),
         memoriesSummary: cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
         librarySummary: cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
         productContext: clean_(context.productContext || "").slice(0, 80),
         screenContext: clean_(context.screenContext || "").slice(0, 1200),
         productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
+        workingMemorySummary,
+        technicalContinuation,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
-        projectContext
+        projectContext,
+        proactiveReasoningPlan
       }
     }
   };
+}
+
+function filterEloTechnicalContinuationHistory_(history, technicalContinuation) {
+  const continuation = technicalContinuation && typeof technicalContinuation === "object" ? technicalContinuation : {};
+  const normalized = normalizeEloSearchText_([
+    continuation.activeTopic,
+    continuation.referent,
+    continuation.finalQuery
+  ].filter(Boolean).join(" "));
+  const topic = normalizeEloSearchText_(continuation.activeTopic || "");
+  const topicTerms = topic === "laje" || topic === "estrutura"
+    ? ["laje", "trelicada", "impermeabilizacao", "manta", "estrutura", "pilar", "viga"]
+    : topic === "fundacao" || topic === "fundacao rasa"
+      ? ["fundacao", "sapata", "baldrame", "radier"]
+      : topic === "parede" || topic === "parede completa"
+        ? ["parede", "alvenaria", "bloco", "tijolo", "reboco", "chapisco"]
+        : topic === "portao"
+          ? ["portao", "caminhonete", "vao livre"]
+          : normalized.split(/\s+/).filter((term) => term.length >= 4);
+  const terms = Array.from(new Set(topicTerms.map(normalizeEloSearchText_).filter(Boolean)));
+  if (!terms.length) return [];
+  return (Array.isArray(history) ? history : [])
+    .filter((item) => {
+      const content = normalizeEloSearchText_(item && item.content);
+      return terms.some((term) => content.includes(term));
+    })
+    .slice(-12);
 }
 
 export function buildConversationSummary_(history = []) {
@@ -5612,7 +6964,76 @@ export function buildConversationSummary_(history = []) {
   return facts.length ? "Resumo atual:\n" + facts.slice(0, 8).map((fact) => "- " + fact).join("\n") : "";
 }
 
-export async function getEloRelevantContext_({ payload, memoryStore, documents = [], attachmentErrors = [], metrics = null } = {}) {
+function extractEloExplicitMemoryCommandText_(message) {
+  const raw = clean_(message).replace(/^elo[,\s]+/i, "");
+  const match = raw.match(/^(?:memorize\s*:|memorize\s+que\s+|lembre\s+que\s+|guarde\s+que\s+|guarde\s+isso\s*:?)\s*(.+)$/i);
+  return match && match[1] ? clean_(match[1]).slice(0, 1200) : "";
+}
+
+function inferEloCanonicalMemoryCategory_(text) {
+  const normalized = normalizeEloSearchText_(text);
+  if (/\b(projeto|produto|saas|cadista|stock|obrareport|elo)\b/.test(normalized)) return "project";
+  if (/\b(decisao|decidimos|combinado|regra)\b/.test(normalized)) return "decision";
+  if (/\b(pendente|fazer|tarefa|prioridade|proximo passo|objetivo)\b/.test(normalized)) return "pending_task";
+  if (/\b(prefiro|preferencia|gosto|tom|estilo)\b/.test(normalized)) return "preference";
+  if (/\b(obra|canteiro|relatorio|rdo|laudo|vistoria|engenharia|tecnico|tecnica)\b/.test(normalized)) return "technical_context";
+  if (/\b(meu|minha|sou|trabalho|formacao|perfil)\b/.test(normalized)) return "profile";
+  return "preference";
+}
+
+function buildEloCanonicalMemoryKey_(text) {
+  const normalized = normalizeEloSearchText_(text)
+    .replace(/^(na verdade|corrigindo|correcao|correção)\s+/, "")
+    .trim();
+  const tokens = normalized
+    .split(/\s+/)
+    .filter((token) => token && !ELO_VECTOR_STOPWORDS_.has(token))
+    .slice(0, 8)
+    .join("_")
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return tokens ? "explicit_" + tokens.slice(0, 140) : "explicit_" + positiveHash_(text).toString(36);
+}
+async function buildCanonicalPermanentUserMemorySummary_(store, identity, query, options = {}) {
+  if (!store || typeof store.listMemories !== "function" || !identity || (!identity.userId && !identity.anonymousId)) {
+    return "";
+  }
+  try {
+    const limit = Math.max(1, Math.min(Number(options.limit || 6), 8));
+    const memories = await store.listMemories(Object.assign({}, identity, { includeInactive: false }));
+    const active = Array.isArray(memories) ? memories.filter((item) => item && item.is_active !== false && item.memory_value) : [];
+    if (!active.length) {
+      return "";
+    }
+    const categories = options.categories || [];
+    const keywords = options.keywords || extractContextKeywords_(query);
+    const historyText = options.historyText || "";
+    const queryTokens = new Set(tokenizeSemanticText_([query].concat(categories).concat(keywords).join(" ")));
+    const broadMemoryQuestion = /\b(lembra|memoria|memória|sobre mim|me conhece)\b/i.test(normalizeEloSearchText_(query));
+    const scored = active.map((item) => {
+      const text = [item.category, item.memory_key, item.memory_value].map(clean_).filter(Boolean).join(" ");
+      const tokens = tokenizeSemanticText_(text);
+      const lexicalScore = tokens.reduce((total, token) => total + (queryTokens.has(token) ? 1 : 0), 0);
+      const contextScore = scoreEloContextText_(text, { query, categories, keywords, historyText });
+      const recencyScore = item.updated_at || item.updatedAt || item.created_at || item.createdAt ? 0.05 : 0;
+      const broadScore = broadMemoryQuestion ? 1 : 0;
+      const relevanceScore = lexicalScore + contextScore + broadScore;
+      return { item, score: relevanceScore + recencyScore, relevanceScore };
+    }).filter((entry) => entry.relevanceScore > 0)
+      .sort((first, second) => second.score - first.score)
+      .slice(0, limit);
+    if (!scored.length) {
+      return "";
+    }
+    return scored.map((entry) => {
+      const item = entry.item;
+      return "- [" + clean_(item.category || "memory") + "; key " + clean_(item.memory_key || "geral") + "] " + clean_(item.memory_value).slice(0, 420);
+    }).join("\n").slice(0, 1800);
+  } catch (error) {
+    return "";
+  }
+}
+export async function getEloRelevantContext_({ payload, memoryStore, canonicalMemoryStore = null, canonicalMemoryIdentity = null, documents = [], attachmentErrors = [], metrics = null } = {}) {
   const safePayload = payload || {};
   const context = safePayload.context || {};
   const intent = safePayload.eloIntent || detectEloIntent_(safePayload.message, context, safePayload.history, {
@@ -5623,6 +7044,13 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   const query = buildEloContextQuery_(safePayload.message, intent);
   const conversationSummary = buildConversationSummary_(safePayload.history);
   const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
+  const vectorStartedAt = nowMs_();
+  const canonicalPermanentUserMemorySummary = await buildCanonicalPermanentUserMemorySummary_(canonicalMemoryStore, canonicalMemoryIdentity, query, {
+    categories: intent.categories,
+    keywords: contextKeywords,
+    historyText: recentHistoryText,
+    limit: 6
+  });
   const relevantMemoriesSummary = await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
     categories: intent.categories,
     keywords: contextKeywords,
@@ -5631,6 +7059,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     limit: 5,
     metrics
   });
+  if (metrics) metrics.memoryVectorMs += nowMs_() - vectorStartedAt;
   const filteredLocalMemories = filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
     keywords: contextKeywords,
     historyText: recentHistoryText
@@ -5654,6 +7083,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   const resultContext = {
     eloIntentSummary: formatEloIntentSummary_(intent),
     conversationSummary,
+    permanentUserMemorySummary: canonicalPermanentUserMemorySummary,
     relevantMemoriesSummary: [relevantMemoriesSummary, filteredLocalMemories].filter(Boolean).join("\n").slice(0, 2200),
     libraryRelevantSummary,
     productContextSummary,
@@ -5679,6 +7109,15 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     if (!auditoriaContext) {
       resultContext.stockIaLaunchPlan = buildStockIaLaunchPlan(safePayload.message);
     }
+  }
+
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
+  if (proactivePolicy && typeof proactivePolicy.buildResponsePlan === "function") {
+    resultContext.proactiveReasoningPlan = proactivePolicy.buildResponsePlan(
+      safePayload.message,
+      Object.assign({}, context, resultContext, { history: safePayload.history }),
+      { hasAttachment: Boolean(documents.length || attachmentErrors.length) }
+    );
   }
 
   return {
@@ -5955,13 +7394,22 @@ export function createEloVectorMemoryStore_(options = {}) {
         if (metrics) metrics.embeddingSkipped = true;
         return [];
       }
-      const embeddingStartedAt = nowMs_();
-      const queryEmbedding = await buildEloEmbedding_(query, env);
-      if (metrics) {
-        metrics.embeddingMs += nowMs_() - embeddingStartedAt;
+      const cacheKey = buildEloVectorQueryCacheKey_(safeOwnerId, query, env);
+      let queryEmbedding = getCachedEloVectorQueryEmbedding_(cacheKey);
+      if (queryEmbedding && metrics) {
+        metrics.embeddingCacheHit = true;
         metrics.embeddingSkipped = false;
       }
-      return ownerItems
+      if (!queryEmbedding) {
+        const embeddingStartedAt = nowMs_();
+        queryEmbedding = await buildEloEmbedding_(query, env);
+        if (metrics) {
+          metrics.embeddingMs += nowMs_() - embeddingStartedAt;
+          metrics.embeddingSkipped = false;
+        }
+        setCachedEloVectorQueryEmbedding_(cacheKey, queryEmbedding);
+      }
+      const results = ownerItems
         .filter((item) => isCompatibleEmbedding_(queryEmbedding, item))
         .map((item) => ({
           ...item,
@@ -5970,6 +7418,8 @@ export function createEloVectorMemoryStore_(options = {}) {
         .filter((item) => item.score > 0.08)
         .sort((first, second) => second.score - first.score)
         .slice(0, limit);
+      if (metrics) metrics.memoryReturnedCount = results.length;
+      return results;
     },
     getOwnerMemoryCount(ownerId) {
       const safeOwnerId = sanitizeEloDeviceId_(ownerId);
@@ -6346,7 +7796,7 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
           historyText: options.historyText || ""
         })
       }))
-      .filter((item) => Number(item.score || 0) > 0.08 || item.contextScore > 0)
+      .filter((item) => item.contextScore > 0 || Number(item.score || 0) >= 0.3)
       .sort((first, second) => {
         const firstScore = first.contextScore + Number(first.score || 0);
         const secondScore = second.contextScore + Number(second.score || 0);
@@ -6367,6 +7817,220 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
 
 function getEloMediaSearchApiKey_(env) {
   return clean_(env && (env.YOUTUBE_API_KEY || env.YOUTUBE_DATA_API_KEY || env.ELO_YOUTUBE_API_KEY));
+}
+
+const ELO_MEDIA_WEB_SEARCH_PROVIDER = "youtube-web-search";
+const ELO_MEDIA_WEB_SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
+const ELO_MEDIA_WEB_SEARCH_CACHE = new Map();
+
+function normalizeEloMediaSearchText_(value) {
+  return clean_(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEloMediaWebQueries_(query) {
+  const base = clean_(query).replace(/\s+/g, " ").trim();
+  const variants = [base + " official", base + " official video", base + " audio"];
+  const seen = new Set();
+  return variants.filter((item) => {
+    const key = normalizeEloMediaSearchText_(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 3);
+}
+
+function getEloMediaWebCache_(query) {
+  const key = normalizeEloMediaSearchText_(query);
+  const cached = ELO_MEDIA_WEB_SEARCH_CACHE.get(key);
+  if (!cached || Date.now() - cached.createdAt > ELO_MEDIA_WEB_SEARCH_TTL_MS) {
+    ELO_MEDIA_WEB_SEARCH_CACHE.delete(key);
+    return null;
+  }
+  return cached.results.map((item) => ({ ...item }));
+}
+
+function setEloMediaWebCache_(query, results) {
+  const key = normalizeEloMediaSearchText_(query);
+  if (!key) return;
+  ELO_MEDIA_WEB_SEARCH_CACHE.set(key, {
+    createdAt: Date.now(),
+    results: results.map((item) => ({ ...item }))
+  });
+}
+
+function extractBalancedJson_(text, startIndex) {
+  const firstBrace = text.indexOf("{", startIndex);
+  if (firstBrace < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = firstBrace; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(firstBrace, index + 1);
+    }
+  }
+  return null;
+}
+
+function getYoutubeText_(value) {
+  if (!value) return "";
+  if (typeof value === "string") return clean_(value);
+  if (typeof value.simpleText === "string") return clean_(value.simpleText);
+  if (Array.isArray(value.runs)) return clean_(value.runs.map((run) => run && run.text || "").join(""));
+  return "";
+}
+
+function walkYoutubeRenderers_(node, found) {
+  if (!node || found.length >= 32) return;
+  if (Array.isArray(node)) {
+    node.forEach((item) => walkYoutubeRenderers_(item, found));
+    return;
+  }
+  if (typeof node !== "object") return;
+  if (node.videoRenderer && typeof node.videoRenderer === "object") {
+    const renderer = node.videoRenderer;
+    found.push({
+      videoId: clean_(renderer.videoId),
+      title: getYoutubeText_(renderer.title),
+      channel: getYoutubeText_(renderer.ownerText || renderer.shortBylineText || renderer.longBylineText)
+    });
+  }
+  Object.keys(node).forEach((key) => walkYoutubeRenderers_(node[key], found));
+}
+
+function extractYoutubeInitialData_(html) {
+  const markerIndex = html.indexOf("ytInitialData");
+  if (markerIndex < 0) return null;
+  const jsonText = extractBalancedJson_(html, markerIndex);
+  if (!jsonText) return null;
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    return null;
+  }
+}
+
+function extractYoutubeWebCandidates_(html) {
+  const data = extractYoutubeInitialData_(html);
+  const raw = [];
+  if (data) walkYoutubeRenderers_(data, raw);
+  if (!raw.length) {
+    const pattern = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{6,20})"[\s\S]{0,900}?"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([^"]{1,180})"/g;
+    let match;
+    while ((match = pattern.exec(html)) && raw.length < 32) raw.push({ videoId: match[1], title: match[2], channel: "" });
+  }
+  const seen = new Set();
+  return raw.filter((item) => {
+    if (!item.videoId || seen.has(item.videoId)) return false;
+    seen.add(item.videoId);
+    return true;
+  });
+}
+
+function scoreEloMediaWebCandidate_(candidate, query) {
+  const normalizedQuery = normalizeEloMediaSearchText_(query);
+  const title = normalizeEloMediaSearchText_(candidate.title);
+  const channel = normalizeEloMediaSearchText_(candidate.channel);
+  const tokens = normalizedQuery.split(" ").filter((token) => token.length > 2 && !/^(official|video|audio|music|the|of|and)$/.test(token));
+  let score = 0;
+  tokens.forEach((token) => {
+    if (title.includes(token)) score += 8;
+    if (channel.includes(token)) score += 4;
+  });
+  if (/\bofficial\b/.test(title)) score += 6;
+  if (/\bofficial audio\b/.test(title)) score += 5;
+  if (/\bofficial video\b/.test(title)) score += 5;
+  if (/\bvevo\b/.test(channel)) score += 4;
+  if (/\b(?:cover|karaoke|reaction|tutorial|lesson|tribute|remix)\b/.test(title)) score -= 18;
+  return score;
+}
+
+function normalizeEloMediaWebCandidate_(candidate, query) {
+  const videoId = clean_(candidate.videoId);
+  const title = clean_(candidate.title).slice(0, 160);
+  if (!/^[a-zA-Z0-9_-]{6,20}$/.test(videoId) || !title) return null;
+  const channel = clean_(candidate.channel).slice(0, 120);
+  return {
+    title,
+    artist: channel,
+    channel,
+    channelTitle: channel,
+    videoId,
+    url: "https://www.youtube.com/watch?v=" + videoId,
+    source: "web_search",
+    provider: ELO_MEDIA_WEB_SEARCH_PROVIDER,
+    playable: null,
+    embeddable: null,
+    relevance: scoreEloMediaWebCandidate_(candidate, query)
+  };
+}
+
+async function fetchYoutubeWebSearch_(query, fetchImpl) {
+  const url = new URL("https://www.youtube.com/results");
+  url.searchParams.set("search_query", query);
+  const options = {
+    method: "GET",
+    headers: {
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    }
+  };
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    options.signal = AbortSignal.timeout(4500);
+  }
+  const response = await fetchImpl(url.toString(), options);
+  if (!response.ok) throw Object.assign(new Error("youtube_web_search_http_" + response.status), { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER });
+  return response.text();
+}
+
+async function callEloMediaWebSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") throw Object.assign(new Error("media_search_fetch_unavailable"), { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER });
+  const cached = getEloMediaWebCache_(query);
+  if (cached) return { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER, results: cached, cache: "hit" };
+  const resultsById = new Map();
+  const queries = buildEloMediaWebQueries_(query);
+  for (const webQuery of queries) {
+    if (resultsById.size >= 8) break;
+    const html = await fetchYoutubeWebSearch_(webQuery, fetchImpl);
+    extractYoutubeWebCandidates_(html)
+      .map((candidate) => normalizeEloMediaWebCandidate_(candidate, query))
+      .filter(Boolean)
+      .sort((a, b) => b.relevance - a.relevance)
+      .forEach((candidate) => {
+        if (resultsById.size < 8 && !resultsById.has(candidate.videoId)) resultsById.set(candidate.videoId, candidate);
+      });
+  }
+  const results = Array.from(resultsById.values()).sort((a, b) => b.relevance - a.relevance).slice(0, 8);
+  setEloMediaWebCache_(query, results);
+  return { provider: ELO_MEDIA_WEB_SEARCH_PROVIDER, results, cache: "miss" };
+}
+
+async function resolveEloMediaSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (getEloMediaSearchApiKey_(env)) {
+    try {
+      return await callEloMediaSearch_(query, env, fetchImpl);
+    } catch (error) {
+      return callEloMediaWebSearch_(query, env, fetchImpl);
+    }
+  }
+  return callEloMediaWebSearch_(query, env, fetchImpl);
 }
 
 function normalizeEloMediaSearchItem_(item) {
@@ -6568,27 +8232,25 @@ async function callOpenAiVision_(payload, env) {
   return parseImageAnalysis_(outputText);
 }
 
-async function callOpenAiElo_(payload, env) {
+async function callOpenAiElo_(payload, env, metrics = null) {
   const model = env.OPENAI_ELO_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
   const interpretation = payload.interpretation || interpretEloUserMessage({
     message: payload.message,
     history: payload.history,
     context: payload.context && payload.context.eloContext,
-    userProfile: {
-      name: "Ícaro Amaral",
-      style: "direto, prático, informal, constrói SaaS próprios"
-    }
+    userProfile: {}
+  });
+  const promptBuildStartedAt = nowMs_();
+  const systemPrompt = buildEloSystemPrompt_(payload.context);
+  const proactivePolicy = getEloProactiveReasoningPolicy_();
+  const personalityPrompt = getEloPersonalityPrompt_({
+    interpretation,
+    context: payload.context && payload.context.eloContext
   });
   const input = [
     {
       role: "system",
-      content: [
-        buildEloSystemPrompt_(payload.context),
-        getEloPersonalityPrompt_({
-          interpretation,
-          context: payload.context && payload.context.eloContext
-        })
-      ].join("\n\n")
+      content: [systemPrompt, personalityPrompt].join("\n\n")
     }
   ];
 
@@ -6599,35 +8261,76 @@ async function callOpenAiElo_(payload, env) {
     });
   });
 
-  input.push({
-    role: "user",
-    content: [
-      "Mensagem original do usuário:",
-      interpretation.originalMessage,
-      "",
-      "Mensagem interpretada:",
-      interpretation.normalizedMessage,
-      "",
-      "Responda considerando a intenção detectada:",
-      interpretation.detectedIntent
-    ].join("\n")
-  });
+  const userPromptParts = [];
+  if (payload.context && payload.context.technicalContinuation) {
+    const continuation = payload.context.technicalContinuation;
+    userPromptParts.push(
+      "CONTEXTO TÉCNICO ATUAL OBRIGATÓRIO:",
+      "Tópico atual: " + clean_(continuation.activeTopic),
+      "Referente atual: " + clean_(continuation.referent),
+      "Consulta final: " + clean_(continuation.finalQuery),
+      "Responda sobre o referente atual, nunca sobre um tópico técnico antigo.",
+      ""
+    );
+  }
+  userPromptParts.push(
+    "Mensagem original do usuário:",
+    interpretation.originalMessage,
+    "",
+    "Mensagem interpretada:",
+    interpretation.normalizedMessage,
+    "",
+    "Responda considerando a intenção detectada:",
+    interpretation.detectedIntent
+  );
+  input.push({ role: "user", content: userPromptParts.join("\n") });
 
+  const requestBody = {
+    model,
+    input,
+    temperature: 0.7,
+    max_output_tokens: 1800
+  };
+  const requestBodyText = JSON.stringify(requestBody);
+  if (metrics) {
+    metrics.promptBuildMs += nowMs_() - promptBuildStartedAt;
+    metrics.model = model;
+    metrics.modelClass = /(?:o1|o3|o4|reasoning)/i.test(model) ? "HIGH_REASONING" : /mini|nano|local/i.test(model) ? "CHEAP_REMOTE" : "STANDARD";
+    metrics.inputChars = requestBodyText.length;
+    metrics.maxOutputTokens = requestBody.max_output_tokens;
+    metrics.temperature = requestBody.temperature;
+    metrics.streaming = false;
+    metrics.systemPromptChars = systemPrompt.length + personalityPrompt.length;
+    metrics.historyMessages = Array.isArray(payload.history) ? payload.history.length : 0;
+    metrics.historyChars = Array.isArray(payload.history) ? payload.history.reduce((total, item) => total + clean_(item && item.content).length, 0) : 0;
+    metrics.memoriesSummaryChars = clean_(payload.context && payload.context.memoriesSummary).length;
+    metrics.relevantMemoriesSummaryChars = clean_(payload.context && payload.context.relevantMemoriesSummary).length;
+    metrics.librarySummaryChars = clean_(payload.context && (payload.context.librarySummary || payload.context.libraryRelevantSummary)).length;
+    metrics.eloContextChars = clean_(payload.context && payload.context.eloContext).length;
+    metrics.documentsSummaryChars = clean_(payload.context && payload.context.documentsSummary).length;
+    if (proactivePolicy && typeof proactivePolicy.getObservability === "function") {
+      const observability = proactivePolicy.getObservability(payload.context && payload.context.proactiveReasoningPlan);
+      metrics.proactivityLevel = observability.proactivity_level;
+      metrics.selfCheckLevel = observability.self_check_level;
+      metrics.answerMode = observability.answer_mode;
+      metrics.missingEssentialCount = observability.missing_essential_count;
+      metrics.riskDetected = observability.risk_detected;
+    }
+  }
+  const modelFetchStartedAt = nowMs_();
+  if (metrics) metrics.openAiCalls += 1;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + env.OPENAI_API_KEY,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model,
-      input,
-      temperature: 0.7,
-      max_output_tokens: 1800
-    })
+    body: requestBodyText
   });
+  if (metrics) metrics.modelFirstResponseMs += nowMs_() - modelFetchStartedAt;
 
   const data = await response.json().catch(() => null);
+  if (metrics) metrics.modelTotalMs += nowMs_() - modelFetchStartedAt;
 
   if (!response.ok || !data) {
     const message = data && data.error && data.error.message ? data.error.message : "Resposta inválida da API OpenAI.";
@@ -6635,6 +8338,12 @@ async function callOpenAiElo_(payload, env) {
   }
 
   const outputText = extractOutputText_(data);
+  if (metrics && data && data.usage) {
+    const tokenCount = Number(data.usage.total_tokens || Number(data.usage.input_tokens || 0) + Number(data.usage.output_tokens || 0));
+    metrics.tokenUsageBucket = bucketTokens(tokenCount);
+    metrics.estimatedCostBucket = metrics.modelClass === "HIGH_REASONING" || tokenCount > 8000 ? "HIGH" : tokenCount > 2000 ? "MEDIUM" : tokenCount > 0 ? "LOW" : "0";
+  }
+  if (metrics) metrics.outputChars = clean_(outputText).length;
 
   if (!outputText) {
     throw new Error("O Elo online respondeu sem texto utilizável.");
@@ -6645,18 +8354,32 @@ async function callOpenAiElo_(payload, env) {
 
 export function buildEloSystemPrompt_(context = {}) {
   const eloContext = normalizeEloContext_(context.eloContext);
+  const permanentUserMemorySummary = clean_(context.permanentUserMemorySummary || "").slice(0, 1800);
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
   const operationalSummary = clean_(context.operationalSummary || "").slice(0, 2500);
   const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
+  const workingMemorySummary = clean_(context.workingMemorySummary || "").slice(0, 1200);
+  const technicalContinuation = context.technicalContinuation && typeof context.technicalContinuation === "object"
+    ? {
+      activeTopic: clean_(context.technicalContinuation.activeTopic).slice(0, 120),
+      referent: clean_(context.technicalContinuation.referent).slice(0, 160),
+      finalQuery: clean_(context.technicalContinuation.finalQuery).slice(0, MAX_ELO_MESSAGE_LENGTH)
+    }
+    : null;
   const libraryRelevantSummary = clean_(context.libraryRelevantSummary || "").slice(0, 1800);
   const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
   const obraComposicaoContext = eloContext === "obras" ? clean_(context.obraComposicaoContext || "").slice(0, 3000) : "";
   const constructionQuantitySafetyContext = clean_(context.constructionQuantitySafetyContext || "").slice(0, 1800);
+  const proactiveReasoningPlan = context.proactiveReasoningPlan && typeof context.proactiveReasoningPlan === "object"
+    ? context.proactiveReasoningPlan
+    : null;
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
+    "ELO_CONVERSATIONAL_POLICY (CANONICAL / WEB + ANDROID WEBVIEW):\n" + getEloConversationalPolicyPrompt_(),
+    proactiveReasoningPlan && getEloProactiveReasoningPolicy_() ? "ELO_PROACTIVE_REASONING_PLAN (INTERNAL):\n" + getEloProactiveReasoningPolicy_().buildPrompt(proactiveReasoningPlan) : "",
     buildEloMasterContext_(context),
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
@@ -6668,6 +8391,13 @@ export function buildEloSystemPrompt_(context = {}) {
     "Quando o pedido for uma receita culinária simples, responda já com ingredientes, quantidades aproximadas e modo de preparo. Não peça confirmação se o prato já estiver claro.",
     "Quando o pedido for reflexivo, pode organizar em: o que percebo; o que isso significa; próximo passo simples.",
     "Raciocinio contextual: antes de responder, considere a intencao detectada, memoria relevante, biblioteca relevante, historico resumido e contexto do produto. Use somente o que tiver relacao com a pergunta atual.",
+    "Prioridade de contexto: pergunta atual > memoria de trabalho da conversa > historico recente > memoria longa > perfil geral. Memoria longa nunca deve deslocar o assunto atual.",
+    "Continuidade conversacional: ao interpretar referencias como 'isso', 'essas', 'os anteriores', 'o segundo', 'detalhe', 'aprofunde' e similares, priorize a entidade, lista ou topico mais recente da conversa. Nao volte para um tema mais amplo quando a referencia local estiver clara.",
+    "Profundidade: pedidos de detalhamento devem adicionar uma nova camada tecnica e nao repetir o conteudo anterior com outras palavras.",
+    "Modo estudo tecnico: em arquitetura, engenharia civil, paisagismo, materiais, estruturas, instalacoes, patologias e conforto ambiental, aumente a profundidade quando solicitado, diferenciando fato tecnico, recomendacao de projeto, hipotese e requisito normativo.",
+    "Paisagismo tecnico: quando o usuario pedir aprofundamento sobre vegetacao, inclua quando relevante categoria/estrato, porte, insolacao, agua, origem/bioma, funcao paisagistica, limitacoes, manutencao e exemplos. Use nome cientifico so quando ajudar tecnicamente.",
+    "Normas: cite norma aplicavel somente quando houver confianca; nao invente numero de NBR nem transforme recomendacao em obrigacao normativa.",
+    "Zero fluff: comece pelo conteudo, evite 'voce pediu', 'como mencionei' e perguntas finais automaticas quando ja houver proximo conteudo util.",
     "Memória: use apenas o histórico recente e o contexto enviado no payload. Não diga que lembra de meses ou anos se isso não estiver no contexto. Se não souber, diga com honestidade. Se houver contexto ou memórias, use naturalmente.",
     "Documentos: quando houver conteúdo extraído de anexo, use-o como fonte de contexto. Cite que está usando o documento anexado quando a resposta depender dele. Não invente informação que não apareça no documento. Se não encontrar algo no documento, diga claramente.",
     "Com documentos, você pode resumir, extrair pontos principais, organizar em tabela textual, comparar com histórico e explicar em linguagem simples.",
@@ -6682,44 +8412,68 @@ export function buildEloSystemPrompt_(context = {}) {
     prompt.push("Classificacao de intencao do pedido:\n" + eloIntentSummary);
   }
 
-  if (operationalSummary) {
-    prompt.push("Resumo operacional deterministico:\n" + operationalSummary);
+  if (technicalContinuation && (technicalContinuation.activeTopic || technicalContinuation.referent || technicalContinuation.finalQuery)) {
+    prompt.push([
+      "CURRENT TECHNICAL CONTEXT (HIGHEST PRIORITY)",
+      "CURRENT TECHNICAL TOPIC: " + technicalContinuation.activeTopic,
+      "RESOLVED REFERENT: " + technicalContinuation.referent,
+      "CURRENT USER QUESTION: " + technicalContinuation.finalQuery,
+      "PREVIOUS TECHNICAL TOPICS: background only",
+      "INSTRUCTION: responda sobre o topico/referent tecnico atual. Nao substitua o assunto atual por um topico antigo do historico."
+    ].join("\n"));
   }
 
-  if (productContextSummary) {
-    prompt.push("Contexto de produto relevante:\n" + productContextSummary);
+  const permanentUserMemoryParts = [];
+  if (permanentUserMemorySummary) {
+    permanentUserMemoryParts.push("Memoria canonica relevante do usuario:\n" + permanentUserMemorySummary);
   }
-
-  if (conversationSummary) {
-    prompt.push("Historico inteligente resumido:\n" + conversationSummary);
-  }
-
   if (memoriesSummary) {
-    prompt.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
-    prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo.");
+    permanentUserMemoryParts.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
   }
-
   if (relevantMemoriesSummary) {
-    prompt.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
-    prompt.push("Use o contexto relevante recuperado quando ele se conectar ao pedido atual, mesmo que a pessoa use palavras diferentes das memÃ³rias originais.");
+    permanentUserMemoryParts.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
+  }
+  if (permanentUserMemoryParts.length) {
+    prompt.push("PERMANENT USER MEMORY\n" + permanentUserMemoryParts.join("\n\n"));
+    prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo. Use somente memorias relacionadas ao pedido atual.");
   }
 
+  const workingContextParts = [];
+  if (operationalSummary) {
+    workingContextParts.push("Resumo operacional deterministico:\n" + operationalSummary);
+  }
+  if (productContextSummary) {
+    workingContextParts.push("Contexto de produto relevante:\n" + productContextSummary);
+  }
   if (libraryRelevantSummary) {
-    prompt.push("Biblioteca relevante recuperada:\n" + libraryRelevantSummary);
-    prompt.push("Use a biblioteca somente quando ela ajudar a responder o pedido atual. Nao diga que a biblioteca esta vazia se houver contexto recuperado.");
+    workingContextParts.push("Biblioteca relevante recuperada:\n" + libraryRelevantSummary);
   }
-
   if (documentsSummary) {
-    prompt.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
+    workingContextParts.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
   }
-
   if (constructionQuantitySafetyContext) {
-    prompt.push("[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA]\n" + constructionQuantitySafetyContext);
+    workingContextParts.push("[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA]\n" + constructionQuantitySafetyContext);
+  }
+  if (obraComposicaoContext) {
+    workingContextParts.push(obraComposicaoContext);
+    workingContextParts.push("Ao usar a base tecnica demonstrativa de obras, liste insumos principais, explique que e uma previsao inicial, nao invente preco, norma ou coeficiente oficial e pergunte se a pessoa deseja lancar essa previsao de consumo no Stock IA futuramente.");
+  }
+  if (workingContextParts.length) {
+    prompt.push("CURRENT WORKING CONTEXT / OBRA\n" + workingContextParts.join("\n\n"));
+    if (libraryRelevantSummary) {
+      prompt.push("Use a biblioteca somente quando ela ajudar a responder o pedido atual. Nao diga que a biblioteca esta vazia se houver contexto recuperado.");
+    }
   }
 
-  if (obraComposicaoContext) {
-    prompt.push(obraComposicaoContext);
-    prompt.push("Ao usar a base tecnica demonstrativa de obras, liste insumos principais, explique que e uma previsao inicial, nao invente preco, norma ou coeficiente oficial e pergunte se a pessoa deseja lancar essa previsao de consumo no Stock IA futuramente.");
+  const conversationParts = [];
+  if (conversationSummary) {
+    conversationParts.push("Historico inteligente resumido:\n" + conversationSummary);
+  }
+  if (workingMemorySummary) {
+    conversationParts.push("Memoria de trabalho da conversa atual:\n" + workingMemorySummary);
+  }
+  if (conversationParts.length) {
+    prompt.push("CONVERSATION HISTORY\n" + conversationParts.join("\n\n"));
   }
 
   if (attachmentErrors) {
@@ -7609,6 +9363,28 @@ function safeValue_(value) {
   return clean_(value) || "-";
 }
 
+
+function buildApartmentHandoverPersistedPdfPayload_(inspection, body = {}, mode = "draft") {
+  const safeBody = body && typeof body === "object" ? body : {};
+  const bodyReport = safeBody.report && typeof safeBody.report === "object" ? safeBody.report : {};
+  const inspectionData = inspection && inspection.inspection_data_json && typeof inspection.inspection_data_json === "object" ? inspection.inspection_data_json : {};
+  const metadata = inspectionData.metadata && typeof inspectionData.metadata === "object" ? inspectionData.metadata : {};
+  return {
+    mode,
+    inspection_id: inspection.id,
+    report: Object.assign({}, bodyReport, {
+      type: "apartment_handover_inspection",
+      empreendimento: inspectionData.empreendimento || metadata.projectName || inspection.title || bodyReport.empreendimento || bodyReport.obra || "",
+      obra: inspectionData.obra || metadata.projectName || inspection.title || bodyReport.obra || bodyReport.empreendimento || "",
+      unidade: inspectionData.unidade || metadata.unitName || bodyReport.unidade || "",
+      cliente: inspectionData.cliente || metadata.clientName || bodyReport.cliente || "",
+      bloco: inspectionData.bloco || metadata.blockName || bodyReport.bloco || "",
+      endereco: inspectionData.endereco || metadata.address || bodyReport.endereco || "",
+      dataVistoria: inspectionData.dataVistoria || inspectionData.startedAt || inspection.created_at || bodyReport.dataVistoria || "",
+      inspection: Object.assign({}, inspectionData, { id: inspection.id })
+    })
+  };
+}
 
 function normalizeApartmentHandoverPdfPayloadForMode_(payload, mode) {
   const cloned = JSON.parse(JSON.stringify(payload || {}));

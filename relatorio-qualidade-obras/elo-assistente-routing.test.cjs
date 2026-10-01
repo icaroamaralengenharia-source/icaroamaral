@@ -25,9 +25,11 @@ function createElement(tag) {
   const classes = new Set();
   const element = {
     tagName: String(tag || '').toUpperCase(),
+    _className: '',
     dataset: {},
     style: {},
     children: [],
+    parentNode: null,
     scrollTop: 0,
     scrollHeight: 0,
     clientHeight: 0,
@@ -41,18 +43,41 @@ function createElement(tag) {
         else classes.delete(key);
         return active;
       },
-      contains(name) { return classes.has(String(name)); }
+      contains(name) { String(element._className || "").split(/\s+/).filter(Boolean).forEach((item) => classes.add(item)); return classes.has(String(name)); }
     },
-    appendChild(child) { this.children.push(child); this.firstChild = this.children[0] || null; this.scrollHeight = Math.max(this.scrollHeight, this.children.length * 120); return child; },
+    appendChild(child) { if (child && child.parentNode && child.parentNode.children) { child.parentNode.children = child.parentNode.children.filter((item) => item !== child); child.parentNode.firstChild = child.parentNode.children[0] || null; } if (child) child.parentNode = this; this.children.push(child); this.firstChild = this.children[0] || null; this.scrollHeight = Math.max(this.scrollHeight, this.children.length * 120); return child; },
+    remove() { if (this.parentNode && this.parentNode.children) { this.parentNode.children = this.parentNode.children.filter((item) => item !== this); this.parentNode.firstChild = this.parentNode.children[0] || null; } this.parentNode = null; },
     addEventListener() {},
     setAttribute(name, value) { this[String(name)] = String(value); },
     getAttribute(name) { return this[String(name)] || ''; },
-    querySelector() { return null; },
-    querySelectorAll() { return []; },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
+    querySelectorAll(selector) {
+      const selectors = String(selector || '').split(',').map((item) => item.trim()).filter(Boolean);
+      const matches = [];
+      function hasClass(node, className) {
+        return String(node && node.className || '').split(/\s+/).includes(className);
+      }
+      function matchesSelector(node, selectorText) {
+        if (!node || !selectorText || selectorText[0] !== '.') return false;
+        return selectorText.slice(1).split('.').every((className) => hasClass(node, className));
+      }
+      function visit(node) {
+        (node.children || []).forEach((child) => {
+          if (selectors.some((selectorText) => matchesSelector(child, selectorText))) matches.push(child);
+          visit(child);
+        });
+      }
+      visit(this);
+      return matches;
+    },
     value: '',
     options: [],
     selectedIndex: -1
   };
+  Object.defineProperty(element, 'className', {
+    get() { return this._className || ''; },
+    set(value) { this._className = String(value || ''); classes.clear(); this._className.split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); }
+  });
   Object.defineProperty(element, 'textContent', {
     get() { return this._textContent || ''; },
     set(value) { this._textContent = String(value || ''); if (this._textContent === '') { this.children = []; this.firstChild = null; this.scrollHeight = 0; } }
@@ -94,6 +119,7 @@ function loadEloContext(options = {}) {
       readyState: 'complete',
       body: createElement('body'),
       createElement,
+      createDocumentFragment() { return createElement('fragment'); },
       addEventListener() {},
       querySelector() { return null; },
       querySelectorAll() { return []; },
@@ -192,7 +218,7 @@ test('ELO gate: wildcard generico nao abre o ELO', () => {
 });
 
 test('ELO gate: token ELO nao validado nao abre por presenca no storage', () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const gate = loadEloHtmlGateContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
@@ -200,6 +226,29 @@ test('ELO gate: token ELO nao validado nao abre por presenca no storage', () => 
   });
 
   assertEloGateClosed(gate);
+});
+
+test('ELO auth: 401 rejeita token e falha transitória preserva sessão potencial', async () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const invalid = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) }); }
+  });
+  await assert.rejects(invalid.elo.validateSupabaseTokenForTest(validToken), (error) => {
+    assert.equal(error.message, 'sessao_invalida');
+    assert.equal(error.status, 401);
+    return true;
+  });
+
+  const transient = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: validToken } }) },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.reject(new Error('network unavailable')); }
+  });
+  const restored = await transient.elo.initCorePersistenceForTest();
+  assert.equal(restored, true);
+  assert.equal(transient.context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(transient.elo.getCoreAuthTokenForTest(), validToken);
 });
 
 test('ELO gate: setAuthenticated abre e fecha o ELO', () => {
@@ -333,6 +382,79 @@ test('ELO conversa natural roteia sem fallback generico', () => {
   const technical = elo.buildResponseForTest('parede de bloco baiano 8x3');
   assert.equal(technical.brain, 'technical');
   assert.notEqual(technical.brain, 'budget');
+});
+
+test('ELO roteia PDF de RDO existente para generateDocument', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const request = elo.detectCommandBridgeRequestForTest('Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026');
+  assert.equal(request.module, 'obrareport_rdo');
+  assert.equal(request.action, 'rdo.generateDocument');
+});
+
+test('ELO routing guard: RDO com data nao cai no calculador', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const question = 'Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026';
+  const intents = elo.classifyIntentForTest(question).map((item) => item.type);
+  assert.equal(intents.includes('math'), false);
+  assert.equal(elo.buildLocalToolFastPathResponseForTest(question), null);
+  assert.equal(elo.detectCommandBridgeRequestForTest(question).action, 'rdo.generateDocument');
+});
+
+test('ELO routing guard: ask despacha RDO antes do calculador', () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    window: {
+      EloCommandBridge: {
+        execute(request) {
+          calls.push(request);
+          return { handled: true, humanAnswer: 'RDO roteado para generate-document.' };
+        }
+      }
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026', [], 'manual');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].action, 'rdo.generateDocument');
+  const bubble = messages.children.at(-1).children.find((child) => String(child.className || '').includes('elo-message-bubble'));
+  assert.match(bubble.textContent, /RDO roteado/i);
+  assert.doesNotMatch(bubble.textContent, /Resultado:/i);
+});
+
+test('ELO routing guard: PDF sem tipo pede esclarecimento', () => {
+  const { elo } = loadEloContext();
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Gere o PDF', [], 'manual');
+  const bubble = messages.children.at(-1).children.find((child) => String(child.className || '').includes('elo-message-bubble'));
+  assert.match(bubble.textContent, /Qual documento devo gerar em PDF/i);
+  assert.doesNotMatch(bubble.textContent, /Resultado:/i);
+});
+
+test('ELO routing stress: 100 entradas mistas sem cruzamento de dominio', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const rdo = 'Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026';
+  const music = 'Toque Sultans of Swing';
+  const calculator = '17% de 850';
+  const greeting = 'Oi ELO';
+  for (let index = 0; index < 25; index += 1) {
+    const domainRequest = elo.detectCommandBridgeRequestForTest(rdo);
+    assert.equal(domainRequest.action, 'rdo.generateDocument');
+    assert.equal(elo.detectMusicPlayIntentForTest(rdo), null, `domain->music ${index}`);
+    assert.equal(elo.buildLocalToolFastPathResponseForTest(rdo), null, `domain->calculator ${index}`);
+
+    const musicIntent = elo.detectMusicPlayIntentForTest(music);
+    assert.equal(musicIntent.intent, 'PLAY', `music intent ${index}`);
+    assert.equal(elo.detectCommandBridgeRequestForTest(music), null, `music->rdo ${index}`);
+
+    const calculatorResponse = elo.buildLocalToolFastPathResponseForTest(calculator);
+    assert.match(calculatorResponse.sessionIntent, /math/);
+    assert.equal(elo.detectCommandBridgeRequestForTest(calculator), null, `calculator->rdo ${index}`);
+
+    const greetingResponse = elo.buildResponseForTest(greeting);
+    assert.equal(greetingResponse.brain, 'conversational', `greeting ${index}`);
+  }
 });
 test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
   const calls = [];
@@ -1238,7 +1360,523 @@ test('ELO estoque: saldo conhecido roteia antes da ajuda de materiais', () => {
   assert.equal(response.brain, 'stock');
   assert.equal(response.sessionIntent, 'stock_full_saldo');
   assert.notEqual(response.sessionIntent, 'ajuda_materiais');
-  assert.match(answer, /85 sc de Cimento CP II|Saldo atual: 85 sc/i);
+  assert.match(answer, /85 sc de Cimento CP II|Saldo atual: 85 sc|85 sc em estoque/i);
+});
+test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge', () => {
+  const { elo } = loadEloContext({
+    window: {
+      EloActionBusStockFull: {
+        readPending() { return { action: 'stock.entry.execute' }; }
+      }
+    }
+  });
+
+  const stockQuery = elo.detectCommandBridgeRequestForTest('ELO, quanto cimento temos?');
+  assert.equal(stockQuery.module, 'stock_full');
+  assert.equal(stockQuery.action, 'get_balance');
+  assert.deepEqual({ message: stockQuery.payload.message }, { message: 'ELO, quanto cimento temos?' });
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, o que está acabando?').action, 'stock_low_stock');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quais foram as últimas movimentações do estoque?').action, 'stock_history');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('ELO, transfira 5 sacos de cimento para o almoxarifado B.').action, 'stock_transfer');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quais produtos existem no estoque?').action, 'list_products');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('liste os produtos do estoque').action, 'list_products');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('qual o saldo de Aco?').action, 'get_balance');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('quanto tem de Aco no estoque?').action, 'get_balance');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('registre entrada de 10 kg de Aco').action, 'stock_entry');
+  assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
+});
+
+test('ELO Action Bus RDO: exige intencao valida e nao inventa listagem', () => {
+  const { elo } = loadEloContext();
+
+  const quais = elo.detectCommandBridgeRequestForTest('quais RDOs existem?');
+  assert.equal(quais.module, 'obrareport_rdo');
+  assert.equal(quais.action, 'rdo.list');
+
+  const liste = elo.detectCommandBridgeRequestForTest('liste os RDOs');
+  assert.equal(liste.module, 'obrareport_rdo');
+  assert.equal(liste.action, 'rdo.list');
+
+  assert.equal(elo.detectCommandBridgeRequestForTest('rota invalida rdo step04'), null);
+  assert.equal(elo.detectCommandBridgeRequestForTest('rdo banana xyz'), null);
+
+  const create = elo.detectCommandBridgeRequestForTest('crie um RDO para hoje');
+  assert.equal(create.module, 'obrareport_rdo');
+  assert.equal(create.action, 'preview_new_rdo');
+});
+test('ELO Action Bus Stock Full: cadastro de produto vence colisao com Vistoria', () => {
+  const { elo } = loadEloContext();
+
+  const original = elo.detectCommandBridgeRequestForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg');
+  assert.equal(original.module, 'stock_full');
+  assert.equal(original.action, 'create_product');
+
+  const cimento = elo.detectCommandBridgeRequestForTest('crie um produto chamado Cimento CP II com unidade saco');
+  assert.equal(cimento.module, 'stock_full');
+  assert.equal(cimento.action, 'create_product');
+
+  const novoProduto = elo.detectCommandBridgeRequestForTest('adicione um novo produto ao estoque');
+  assert.equal(novoProduto.module, 'stock_full');
+  assert.equal(novoProduto.action, 'create_product');
+});
+
+test('ELO Action Bus Vistoria: hotfix nao rouba intents legitimos', () => {
+  const { elo } = loadEloContext();
+
+  const novaVistoria = elo.detectCommandBridgeRequestForTest('cadastre uma vistoria para o apartamento 101');
+  assert.equal(novaVistoria.module, 'inspection');
+  assert.match(novaVistoria.action, /^inspection\./);
+
+  const pdfVistoria = elo.detectCommandBridgeRequestForTest('gere o PDF da vistoria');
+  assert.equal(pdfVistoria.module, 'inspection');
+  assert.equal(pdfVistoria.action, 'inspection.generatePdf');
+
+  const ncVistoria = elo.detectCommandBridgeRequestForTest('registre uma não conformidade na vistoria');
+  assert.equal(ncVistoria.module, 'inspection');
+  assert.equal(ncVistoria.action, 'inspection.openNCs');
+});
+test('ELO Action Bus Stock Full: historico usa CommandBridge antes do chat generico', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/live') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, lastMovements: [
+          { type: 'entrada', itemName: 'Aco', quantity: 10, unit: 'kg', createdAt: '2026-09-08T10:00:00.000Z' },
+          { type: 'saida', itemName: 'Aco', quantity: 5, unit: 'kg', createdAt: '2026-09-08T10:05:00.000Z' }
+        ] }) });
+      }
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock_history');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('quais foram as últimas movimentações do estoque?', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/live').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Últimas movimentações do Stock Full/);
+  assert.match(elementText(messages), /entrada.*Aco: 10 kg/i);
+  assert.match(elementText(messages), /saída.*Aco: 5 kg/i);
+});
+
+test('ELO Action Bus Stock Full: ask usa CommandBridge antes do chat generico', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 }] }) });
+      }
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('quais produtos existem no estoque?', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Produtos no Stock Full/);
+  assert.match(elementText(messages), /Aco: 420 kg/);
+});
+
+test('ELO Action Bus Stock Full: preview de cadastro via CommandBridge nao executa escrita nem chat', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), elo_core_auth_context_v1: JSON.stringify({ userId: 'auth-user-a', permissions: ['products:create'], profile: { id: 'profile-auth', institution_id: 'inst_auth', company_id: '', role: 'gestor', email: 'gestor@example.com' } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method });
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && method === 'GET') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [] }) });
+      }
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && method === 'POST') throw new Error('stock_product_create_should_wait_for_confirm');
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock_create');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  const identity = elo.getCoreIdentityForTest();
+  assert.equal(identity.institutionId, 'inst_auth');
+  assert.equal(identity.companyId, 'inst_auth');
+
+  const response = await elo.buildCommandBridgeResponseForTest('cadastre um produto chamado TESTE ELO E2E com unidade kg');
+
+  assert.equal(response.commandBridge.module, 'stock_full');
+  assert.equal(response.commandBridge.action, 'stock.create_product');
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.equal(calls.filter((call) => call.href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && call.method === 'GET').length, 1);
+  assert.equal(calls.some((call) => call.href === 'https://obrareport-backend.onrender.com/api/stock-full/items' && call.method === 'POST'), false);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
+  assert.match(response.fullAnswer, /Preview de cadastro no Stock Full/);
+  assert.match(response.fullAnswer, /ACTION: stock\.create_product/);
+  assert.match(response.fullAnswer, /NAME: TESTE ELO E2E/);
+  assert.match(response.fullAnswer, /UNIT: kg/);
+  assert.match(response.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(response.fullAnswer, /WRITE EXECUTED: 0/);
+});
+test('ELO Action Bus RDO: create preview rejeita obra explícita ausente sem escrita', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method });
+      if (href.includes('/api/obrareport/rdos') && method !== 'GET') throw new Error('rdo_create_should_wait_for_confirm');
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_rdo_create_preview');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+
+  const request = elo.detectCommandBridgeRequestForTest('crie um RDO de teste para hoje na obra de teste');
+  assert.equal(request.module, 'obrareport_rdo');
+  assert.equal(request.action, 'preview_new_rdo');
+
+  const response = await elo.buildCommandBridgeResponseForTest('crie um RDO de teste para hoje na obra de teste', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obra-real-1' } }
+  });
+
+  assert.equal(response.commandBridge.module, 'obrareport_rdo');
+  assert.equal(response.commandBridge.action, 'rdo.create.preview');
+  assert.equal(response.commandBridge.requiresConfirmation, false);
+  assert.match(response.fullAnswer, /Não encontrei essa obra/i);
+  assert.match(response.fullAnswer, /Nenhum RDO foi criado/i);
+  assert.equal(calls.some((call) => call.href.includes('/api/obrareport/rdos') && call.method !== 'GET'), false);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
+});
+
+test('ELO Action Bus RDO: create com obra não cadastrada pede correção sem escrita', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      calls.push({ href: String(url), method: config.method || 'GET' });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+
+  const response = await elo.buildCommandBridgeResponseForTest('crie um RDO de teste para hoje na obra de teste', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } }
+  });
+
+  assert.equal(response.commandBridge.module, 'obrareport_rdo');
+  assert.equal(response.commandBridge.action, 'rdo.create.preview');
+  assert.equal(response.commandBridge.requiresConfirmation, false);
+  assert.match(response.fullAnswer, /Não encontrei essa obra/i);
+  assert.match(response.fullAnswer, /Nenhum RDO foi criado/i);
+  assert.equal(calls.length, 0);
+});
+test('ELO Action Bus RDO: pending create preserva data e resolve follow-up por nome de obra', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'work-test-id', name: 'Residencia Teste', clientId: 'cli-a', address: 'Rua A', type: 'Residencial', status: 'Em andamento' },
+    { id: 'work-b-id', name: 'Edificio B', clientId: 'cli-b', address: 'Rua B', type: 'Predial', status: 'Em andamento' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      calls.push({ href: String(url), method: config.method || 'GET' });
+      if (String(url).includes('/api/obrareport/rdos') && (config.method || 'GET') !== 'GET') throw new Error('rdo_write_should_wait_for_confirm');
+      if (String(url).includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_rdo_pending');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+
+  const choose = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } }
+  });
+  assert.equal(choose.commandBridge.action, 'rdo.create.preview');
+  assert.equal(choose.commandBridge.requiresConfirmation, false);
+  assert.match(choose.fullAnswer, /Para qual obra/i);
+  assert.match(choose.fullAnswer, /Residencia Teste/);
+
+  const followRequest = elo.detectCommandBridgeRequestForTest('Residencia Teste');
+  assert.equal(followRequest.module, 'obrareport_rdo');
+  assert.equal(followRequest.action, 'rdo.create.preview');
+  assert.equal(followRequest.payload.workName, 'Residencia Teste');
+
+  const preview = await elo.buildCommandBridgeResponseForTest('Residencia Teste', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } }
+  });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.match(preview.fullAnswer, /PROJECT: Residencia Teste/);
+  assert.match(preview.fullAnswer, /PROJECT ID: work-test-id/);
+  assert.match(preview.fullAnswer, /DATE:/);
+  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(calls.some((call) => call.href.includes('/api/obrareport/rdos') && call.method !== 'GET'), false);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
+});
+
+test('ELO Action Bus RDO: sem obra inequívoca pede seleção e consome a resposta pendente', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const expectedId = 'work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2';
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'obr_mpm0ugmi_71rfcq', name: 'Residência teste', clientId: 'client-old' },
+    { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' }
+  ], clients: [
+    { id: 'obr_mtzctvob_hjdnbv', name: 'CLIENTE TESTE ELO E2E' }
+  ], reports: [], dailyLogs: [] });
+  const { elo, localStorage } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      calls.push({ href: String(url), method: config.method || 'GET' });
+      if (String(url).includes('/api/obrareport/rdos') && (config.method || 'GET') !== 'GET') throw new Error('rdo_write_should_wait_for_confirm');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const context = { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obr_mpm0ugmi_71rfcq' } };
+
+  const ask = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context });
+  assert.equal(ask.commandBridge.requiresConfirmation, false);
+  assert.match(ask.fullAnswer, /Para qual obra/i);
+  assert.match(ask.fullAnswer, /OBRA TESTE ELO E2E/);
+  const pending = JSON.parse(localStorage.getItem('elo_action_bus_rdo_pending_v1'));
+  assert.equal(pending.status, 'awaiting_work');
+  assert.equal(pending.draft.projectId, '');
+
+  const followRequest = elo.detectCommandBridgeRequestForTest('OBRA TESTE ELO E2E');
+  assert.equal(followRequest.action, 'rdo.create.preview');
+  assert.equal(followRequest.payload.workName, 'OBRA TESTE ELO E2E');
+  const preview = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
+  assert.match(preview.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
+  assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
+});
+
+test('ELO Action Bus RDO: obra explícita inline vence o projeto do contexto', async () => {
+  const token = createEloHotfixToken();
+  const expectedId = 'work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2';
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'obr_mpm0ugmi_71rfcq', name: 'Residência teste', clientId: 'client-old' },
+    { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) }); }
+  });
+  const response = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na OBRA TESTE ELO E2E', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obr_mpm0ugmi_71rfcq' } }
+  });
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.match(response.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
+  assert.match(response.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.doesNotMatch(response.fullAnswer, /Residência teste/);
+});
+
+test('ELO Action Bus RDO: seleção explícita vence obra antiga no contexto', async () => {
+  const token = createEloHotfixToken();
+  const expectedId = 'work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2';
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'obr_mpm0ugmi_71rfcq', name: 'Residência teste', clientId: 'client-old' },
+    { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) }); }
+  });
+  const context = { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obr_mpm0ugmi_71rfcq' } };
+  const ask = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context });
+  assert.equal(ask.commandBridge.requiresConfirmation, false);
+  const response = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context });
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.match(response.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
+  assert.match(response.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.doesNotMatch(response.fullAnswer, /Residência teste/);
+});
+
+test('ELO Action Bus RDO: obra inexistente não gera preview incorreto', async () => {
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'obr_mpm0ugmi_71rfcq', name: 'Residência teste', clientId: 'client-old' },
+    { id: 'work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2', name: 'OBRA TESTE ELO E2E', clientId: 'client-test' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) }); }
+  });
+  const response = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na OBRA QUE NÃO EXISTE', {
+    context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obr_mpm0ugmi_71rfcq' } }
+  });
+  assert.equal(response.commandBridge.requiresConfirmation, false);
+  assert.match(response.fullAnswer, /Não encontrei essa obra/i);
+  assert.match(response.fullAnswer, /Nenhum RDO foi criado/i);
+  assert.doesNotMatch(response.fullAnswer, /PROJECT:/);
+});
+test('ELO Action Bus RDO: confirmacao executa create uma vez e bloqueia duplicata', async () => {
+  const calls = [];
+  const createdRdos = [];
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: 'work-test-id', name: 'Residencia Teste', clientId: 'cli-a', address: '', type: '', status: 'Em andamento' }
+  ], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method, body: config.body || '' });
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_rdo_confirmation');
+      if (href.includes('/api/obrareport/rdos') && method === 'POST') {
+        const body = JSON.parse(config.body || '{}');
+        const rdo = { id: 'rdo-created-1', institution_id: config.headers['x-institution-id'], project_id: body.projectId, rdo_date: body.rdoDate, rdo_data_json: body.rdoData || {} };
+        createdRdos.push(rdo);
+        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: createdRdos }) });
+    }
+  });
+  const context = { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } };
+
+  const preview = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context });
+  assert.equal(preview.commandBridge.action, 'rdo.create.preview');
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
+
+  const confirmRequest = elo.detectCommandBridgeRequestForTest('sim');
+  assert.equal(confirmRequest.module, 'obrareport_rdo');
+  assert.equal(confirmRequest.action, 'rdo_confirm');
+
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(createdRdos.length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 1);
+
+  const again = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(again.commandBridge.action, 'rdo.create.execute');
+  assert.equal(createdRdos.length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 1);
+});
+test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita', async () => {
+  const calls = [];
+  const messages = createElement('div');
+  const token = createEloHotfixToken();
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    fetch(url) {
+      const href = String(url);
+      calls.push(href);
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 }] }) });
+      }
+      if (href.includes('/api/stock-full/sync')) throw new Error('stock_write_should_not_run_without_confirm');
+      if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.ask('registre entrada de 10 kg de Aco', [], 'manual');
+  await flushEloHotfixPromises();
+
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 1);
+  assert.equal(calls.some((url) => url.includes('/api/stock-full/sync')), false);
+  assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
+  assert.match(elementText(messages), /Preview de entrada/);
+  assert.match(elementText(messages), /10 kg de Aco/);
+});
+test('ELO Action Bus Stock Full: sim sem pendencia nao sequestra conversa', () => {
+  const { elo } = loadEloContext({
+    window: {
+      EloActionBusStockFull: {
+        readPending() { return null; }
+      }
+    }
+  });
+
+  assert.equal(elo.detectCommandBridgeRequestForTest('sim'), null);
+});
+test('ELO Action Bus Municipal: comandos da demo roteiam antes dos fallbacks genericos', () => {
+  const { elo } = loadEloContext({
+    preloadScripts: [
+      'elo-command-bridge.js',
+      'elo-municipal-action-adapter.js',
+      'elo-municipal-sentinel-adapter.js'
+    ]
+  });
+
+  const attention = elo.detectCommandBridgeRequestForTest('ELO, quais obras da prefeitura precisam da minha atenção?');
+  assert.equal(attention.module, 'municipal');
+  assert.equal(attention.action, 'municipal.attention');
+
+  const assets = elo.detectCommandBridgeRequestForTest('Quais patrimônios estão vinculados?');
+  assert.equal(assets.module, 'municipal');
+  assert.equal(assets.action, 'assets.list');
+
+  const archive = elo.detectCommandBridgeRequestForTest('Quais documentos temos?');
+  assert.equal(archive.module, 'municipal');
+  assert.equal(archive.action, 'archive.documents.list');
+
+  const report = elo.detectCommandBridgeRequestForTest('Gere um relatório municipal para revisão');
+  assert.equal(report.module, 'municipal');
+  assert.equal(report.action, 'reports.preview');
+
+  const pending = elo.detectCommandBridgeRequestForTest('Mostre as pendências abertas do Sentinela');
+  assert.equal(pending.module, 'municipal_sentinel');
+  assert.equal(pending.action, 'sentinel.pending.list');
+  assert.equal(pending.payload.status, 'open');
+
+  const awaiting = elo.detectCommandBridgeRequestForTest('Correções aguardando validação');
+  assert.equal(awaiting.module, 'municipal_sentinel');
+  assert.equal(awaiting.action, 'sentinel.pending.list');
+  assert.equal(awaiting.payload.status, 'awaiting_validation');
+
+  const rejected = elo.detectCommandBridgeRequestForTest('Rejeite esta correção e registre o motivo Faltou foto final');
+  assert.equal(rejected.module, 'municipal_sentinel');
+  assert.equal(rejected.action, 'sentinel.pending.validate');
+  assert.equal(rejected.payload.decision, 'rejected');
+  assert.match(rejected.payload.notes, /Faltou foto final/);
+
+  const today = elo.detectCommandBridgeRequestForTest('O que precisa da minha atenção hoje?');
+  assert.equal(today.module, 'municipal');
+  assert.equal(today.action, 'municipal.attention');
 });
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();
@@ -1275,6 +1913,21 @@ test('ELO CORE intent: classifica data clima opiniao e multi-intent', () => {
 
   const multi = elo.classifyIntentForTest('Qual dia e hoje? Quantos graus faz em Vitoria da Conquista e quem vai ganhar a Copa?');
   assert.equal(multi.map((item) => item.type).join(','), 'date_time,weather,research_or_opinion');
+});
+
+test('ELO CORE local tool: calcula percentual conversao e volume de laje sem fallback remoto', () => {
+  const elo = loadElo();
+
+  assert.equal(elo.classifyIntentForTest('17% de 850')[0].type, 'math');
+  assert.match(elo.routeCoreIntentsForTest('17% de 850', {}).fullAnswer, /144,5/);
+
+  assert.equal(elo.classifyIntentForTest('3,5 metros em centímetros')[0].type, 'math');
+  assert.match(elo.routeCoreIntentsForTest('3,5 metros em centímetros', {}).fullAnswer, /350/);
+
+  const slab = elo.routeCoreIntentsForTest('laje 8 por 12 com 12 cm', {});
+  assert.match(slab.fullAnswer, /96/);
+  assert.match(slab.fullAnswer, /11,52/);
+  assert.equal(elo.buildLocalToolFastPathResponseForTest('17% de 850').sessionIntent, 'math');
 });
 
 test('ELO CORE intent: responde pergunta composta sem fallback generico', () => {
@@ -1458,6 +2111,59 @@ test('ELO CORE sincroniza as tres superficies publicas no bootstrap minimalista'
 });
 
 
+test('ELO surfaces expose one sanitized context contract', () => {
+  const { elo, context } = loadEloContext({
+    window: {
+      ObraReportEloSurface: {
+        getContext() {
+          return {
+            source: 'obrareport',
+            auth: { userId: 'user-1', role: 'admin', companyId: 'company-1', tenantId: 'tenant-1', profile: { id: 'user-1', email: 'user@example.com' } },
+            tenant: { id: 'tenant-1', companyId: 'company-1' },
+            currentWork: { id: 'obr-1', name: 'OBRA TESTE ELO E2E' },
+            obraReportState: { storageKey: 'obrareport-saas-v1', workCount: 2 }
+          };
+        }
+      }
+    }
+  });
+  const report = elo.buildSurfaceContextForTest('report', { userId: 'user-1', role: 'admin', companyId: 'company-1' });
+  const standalone = elo.buildSurfaceContextForTest('elo', report.auth);
+  assert.equal(report.obraReportState.storageKey, 'obrareport-saas-v1');
+  assert.equal(report.obraReportState.workCount, 2);
+  assert.equal(report.currentWork.name, 'OBRA TESTE ELO E2E');
+  assert.equal(report.auth.userId, standalone.auth.userId);
+  assert.equal(report.auth.role, standalone.auth.role);
+  assert.equal(report.tenant.id, 'tenant-1');
+
+test('ELO embedded handoff preserves canonical tenant and company after auth merge', () => {
+  const { elo, context } = loadEloContext({
+    window: {
+      ELO_AUTH_CONTEXT: {
+        userId: 'elo-user-1', role: 'admin', tenantId: 'tenant-1',
+        institutionId: 'institution-1', companyId: 'company-1',
+        profile: { id: 'elo-user-1', email: 'user@example.com', role: 'admin', company_id: 'company-1' }
+      },
+      ObraReportEloSurface: {
+        getContext() {
+          return {
+            source: 'obrareport',
+            auth: { userId: 'obrareport-user-1', role: 'admin', profile: { id: 'obrareport-user-1' } },
+            tenant: {}, currentWork: { id: 'obr-1', name: 'OBRA TESTE ELO E2E' }
+          };
+        }
+      }
+    }
+  });
+  const handoff = elo.handoffSurfaceContextForTest('report');
+  assert.equal(handoff.auth.userId, 'elo-user-1');
+  assert.equal(handoff.auth.institutionId, 'institution-1');
+  assert.equal(handoff.auth.companyId, 'company-1');
+  assert.equal(handoff.auth.role, 'admin');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.companyId, 'company-1');
+});
+});
+
 test('ELO CORE confiabilidade: registra eventos sanitizados e limita historico local', () => {
   const { elo, localStorage } = loadEloContext();
   for (let index = 0; index < 105; index += 1) {
@@ -1568,8 +2274,8 @@ test('ELO CORE confiabilidade: falha ao abrir ferramenta registra evento seguro'
 });
 
 test('ELO token ELO: window expirado usa storage valido e sincroniza janela', () => {
-  const expiredToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const { elo, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
@@ -1580,7 +2286,7 @@ test('ELO token ELO: window expirado usa storage valido e sincroniza janela', ()
 });
 
 test('ELO token ELO: token expirado sozinho vira ausencia de sessao', () => {
-  const expiredToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
   const windowOnly = loadEloContext({ window: { ELO_AUTH_TOKEN: expiredToken } });
   assert.equal(windowOnly.elo.getCoreAuthTokenForTest(), '');
   assert.equal(windowOnly.context.window.ELO_AUTH_TOKEN, '');
@@ -1600,7 +2306,7 @@ test('ELO JWT: string comum e JWT quebrado sao rejeitados', () => {
 
 test('ELO issuer: JWT de outro projeto e exp ausente sao rejeitados', () => {
   const wrongIssuer = createJwt({ iss: 'https://outro-projeto.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
-  const missingExp = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1' });
+  const missingExp = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1' });
 
   const wrong = loadEloContext({ window: { ELO_AUTH_TOKEN: wrongIssuer } });
   assert.equal(wrong.elo.getCoreAuthTokenForTest(), '');
@@ -1610,7 +2316,7 @@ test('ELO issuer: JWT de outro projeto e exp ausente sao rejeitados', () => {
 });
 
 test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo, context } = loadEloContext({ window: { ELO_AUTH_TOKEN: validToken } });
   assert.equal(elo.getCoreAuthTokenForTest(), validToken);
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
@@ -1618,14 +2324,14 @@ test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
 test('ELO auth/v1/user: token invalido e config ausente rejeitam sem fetch', async () => {
   const calls = [];
   const invalid = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
   }).elo;
 
   await assert.rejects(invalid.validateSupabaseTokenForTest('token-solto'), /sessao_invalida/);
   assert.equal(calls.length, 0);
 
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const missingConfig = loadEloContext({
     fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
   }).elo;
@@ -1635,9 +2341,9 @@ test('ELO auth/v1/user: token invalido e config ausente rejeitam sem fetch', asy
 });
 
 test('ELO auth/v1/user: 401 rejeita com erro seguro sem vazar token', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch() { return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) }); }
   });
 
@@ -1650,10 +2356,10 @@ test('ELO auth/v1/user: 401 rejeita com erro seguro sem vazar token', async () =
 });
 
 test('ELO auth/v1/user: 200 retorna usuario e envia headers corretos', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
@@ -1663,27 +2369,27 @@ test('ELO auth/v1/user: 200 retorna usuario e envia headers corretos', async () 
   const user = await elo.validateSupabaseTokenForTest(validToken);
   assert.deepEqual(user, { id: 'user-a', email: 'a@b.com' });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user');
+  assert.equal(calls[0].url, 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user');
   assert.equal(calls[0].options.method, 'GET');
   assert.equal(calls[0].options.headers.apikey, 'anon-key');
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
 });
 
 test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes', async () => {
-  const oldToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const oldToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const oldPayload = JSON.stringify({ currentSession: { access_token: oldToken } });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': oldPayload },
     sessionStorage: { 'sb-elo-core-auth-token': oldPayload },
-    window: { ELO_AUTH_TOKEN: oldToken, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_AUTH_TOKEN: oldToken, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         assert.equal(localStorage.getItem('sb-elo-core-auth-token'), oldPayload);
         assert.equal(options.method, 'GET');
         assert.equal(options.headers.apikey, 'anon-key');
@@ -1701,8 +2407,8 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
   await elo.loginSupabaseForTest('a@b.com', 'secret');
 
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
@@ -1712,16 +2418,16 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
 });
 
 test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) {
       calls.push(String(url));
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) });
       }
       throw new Error('fetch_should_not_run');
@@ -1731,8 +2437,8 @@ test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
   await assert.rejects(elo.loginSupabaseForTest('a@b.com', 'secret'), /sessao_invalida/);
 
   assert.deepEqual(calls, [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user'
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
   assert.equal(context.window.ELO_AUTH_TOKEN, '');
@@ -1740,17 +2446,17 @@ test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
   assert.equal(sessionStorage.getItem('sb-elo-core-auth-token'), null);
 });
 test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const status = createElement('p');
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_AUTH_CONTEXT: { institutionId: 'inst-old', projectId: 'proj-old' } },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_AUTH_CONTEXT: { institutionId: 'inst-old', projectId: 'proj-old' } },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
@@ -1770,8 +2476,8 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
   await elo.loginSupabaseForTest('a@b.com', 'secret');
 
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
@@ -1786,17 +2492,17 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
 });
 
 test('ELO login com merge false mantem gate aberto e token no Bearer', async () => {
-  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const newToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const status = createElement('p');
   const calls = [];
   const { elo, localStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
@@ -1832,15 +2538,15 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
 });
 
 test('ELO restaura sessao somente apos validar token salvo', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const calls = [];
   const { elo, localStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': payload },
-    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
       }
@@ -1863,24 +2569,24 @@ test('ELO restaura sessao somente apos validar token salvo', async () => {
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).currentSession.access_token, validToken);
   assert.deepEqual(calls.map((call) => call.url), [
-    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
     'http://localhost:3000/api/elo/identity/merge',
     'http://localhost:3000/api/elo/memories?userId=user-a&anonymousId=elo_anon_test-id'
   ]);
 });
 
 test('ELO restaura sessao invalida limpa somente fontes ELO', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const eloPayload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockPayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
     localStorage: { 'sb-elo-core-auth-token': eloPayload, 'sb-stock-full-auth-token': stockPayload },
     sessionStorage: { 'sb-elo-core-auth-token': eloPayload, 'sb-stock-full-auth-token': stockPayload },
-    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
     fetch(url) {
       calls.push(String(url));
-      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) });
       }
       throw new Error('fetch_should_not_run');
@@ -1899,8 +2605,133 @@ test('ELO restaura sessao invalida limpa somente fontes ELO', async () => {
   assert.equal(sessionStorage.getItem('sb-stock-full-auth-token'), stockPayload);
 });
 
+test('ELO P0 refresh: token salvo esconde login durante restore e preserva sessao', async () => {
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const payload = JSON.stringify({ currentSession: { access_token: validToken } });
+  const form = createElement('form');
+  const session = createElement('section');
+  const user = createElement('span');
+  let resolveAuth;
+  const authPromise = new Promise((resolve) => { resolveAuth = resolve; });
+  const { elo, context } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url) {
+      const href = String(url);
+      if (href === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') return authPromise;
+      if (href.includes('/api/elo/identity/merge')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: 'user-a', profile: { id: 'user-a', company_id: 'company-a' } } }) });
+      if (href.includes('/api/elo/memories')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, memories: [] }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, conversations: [] }) });
+    }
+  });
+  context.document.querySelector = (selector) => ({ '[data-elo-auth-form]': form, '[data-elo-auth-session]': session, '[data-elo-auth-user]': user }[selector] || null);
+
+  const restoring = elo.initCorePersistenceForTest();
+  assert.equal(form.hidden, true);
+  assert.equal(session.hidden, false);
+  assert.equal(context.window.ELO_AUTH_SESSION_RESTORING, true);
+
+  resolveAuth({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
+  assert.equal(await restoring, true);
+  await flushEloHotfixPromises();
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(context.window.ELO_AUTH_SESSION_RESTORING, false);
+  assert.equal(form.hidden, true);
+  assert.equal(session.hidden, false);
+});
+
+test('ELO P0 refresh: falha transitoria na validacao nao apaga token persistido', async () => {
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const payload = JSON.stringify({ currentSession: { access_token: validToken } });
+  const { elo, localStorage, sessionStorage, context } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload },
+    sessionStorage: { 'sb-elo-core-auth-token': payload },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url) {
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') throw new Error('network_down');
+      throw new Error('fetch_should_not_run');
+    }
+  });
+
+  assert.equal(await elo.initCorePersistenceForTest(), true);
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
+  assert.equal(localStorage.getItem('sb-elo-core-auth-token'), payload);
+  assert.equal(sessionStorage.getItem('sb-elo-core-auth-token'), payload);
+});
+
+test('ELO P0 bootstrap stale nao apaga mensagem enviada depois de oi', async () => {
+  const validToken = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: validToken } });
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const calls = [];
+  const { elo } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-ok' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url, options = {}) {
+      const href = String(url);
+      calls.push({ url: href, options });
+      if (href === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
+      if (href.includes('/api/elo/identity/merge')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: 'user-a' } }) });
+      if (href.includes('/api/elo/memories')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, memories: [] }) });
+      if (href.includes('/api/elo/conversations/conv-ok/messages')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+      if (href.includes('/api/elo/conversations/conv-ok')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, messages: [{ role: 'user', content: 'antiga' }, { role: 'assistant', content: 'resposta antiga' }] }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+
+  const restoring = elo.initCorePersistenceForTest();
+  elo.ask('oi');
+  await restoring;
+  await flushEloHotfixPromises();
+
+  assert.equal(messages.children.some((child) => /antiga|resposta antiga/.test(child.textContent || '')), false);
+  assert.equal(messages.children.length >= 1, true);
+});
+
+test('ELO P0 memoria e identity merge nao limpam conversa ja iniciada', async () => {
+  const validToken = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: validToken } });
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_auth_context_v1: JSON.stringify({ userId: 'user-old' }) },
+    window: { ELO_AUTH_TOKEN: validToken, ELO_AUTH_SESSION_VALIDATED: true },
+    fetch(url) {
+      const href = String(url);
+      if (href.includes('/api/elo/identity/merge')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: 'user-new' } }) });
+      if (href.includes('/api/elo/memories')) return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'memory_down' }) });
+      if (href.includes('/api/elo/conversations')) return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, conversation: { id: 'conv-new' } }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.appendMessageForLayoutTest('user', 'oi');
+
+  assert.equal(await elo.ensureAuthMergeForTest(), true);
+  await elo.loadCoreMemoriesForTest();
+
+  assert.equal(messages.children.length, 1);
+});
+
+test('ELO P0 data e hora sao locais e nao usam fast path online', () => {
+  const elo = loadElo();
+  ['QUE DIA É HOJE?', 'que horas são?', 'qual a data de hoje?', 'hoje é que dia?'].forEach((question) => {
+    const intents = elo.classifyIntentForTest(question).map((item) => item.type);
+    const response = elo.buildLocalToolFastPathResponseForTest(question);
+    assert.equal(intents.includes('date_time'), true, question);
+    assert.ok(response, question);
+    assert.match(response.sessionIntent, /date_time/);
+    assert.match([response.shortAnswer, response.fullAnswer].join(' '), /Hoje é|Hoje e|Agora são|Agora sao/i);
+  });
+});
+
 test('ELO logout limpa token nas tres fontes', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const payload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockPayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
@@ -1920,7 +2751,7 @@ test('ELO logout limpa token nas tres fontes', async () => {
 });
 
 test('ELO token ELO valido continua enviado no Bearer', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
     window: { ELO_AUTH_TOKEN: validToken },
@@ -1936,7 +2767,7 @@ test('ELO token ELO valido continua enviado no Bearer', async () => {
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
 });
 test('ELO token ELO: usa somente fonte do ELO Core', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const eloStoragePayload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockStoragePayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const genericStoragePayload = JSON.stringify({ currentSession: { access_token: 'generic-token' } });
@@ -1960,12 +2791,14 @@ test('ELO token ELO: usa somente fonte do ELO Core', async () => {
   }).elo;
   const answer = await noEloToken.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
   assert.equal(calls.length, 0);
-  assert.match(answer, /sem autenticacao|Entre no ELO/i);
+  // Contrato atual: Observador da Obra pode responder por fast-path local
+  // deterministico sem promover token Stock/generico para sessao ELO Core.
+  assert.match(answer, /Hoje na obra|Prioridades|dados locais/i);
 });
 
 test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conversa ou tecnico', async () => {
   const calls = [];
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const { elo } = loadEloContext({
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
@@ -2015,7 +2848,7 @@ test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conver
 
 test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', async () => {
   const exactQuestion = 'O que precisa da minha aten\u00e7\u00e3o hoje?';
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const calls = [];
   const { elo } = loadEloContext({
     fetch(url, options = {}) {
@@ -2061,7 +2894,7 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
 });
 
 test('ELO Observador da Obra: mostra erros seguros da rota', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   async function answerFor(error) {
     const { elo } = loadEloContext({
       fetch() {
@@ -2092,7 +2925,7 @@ test('ELO Observador da Obra: data e hora reais continuam no roteador correto', 
   assert.match([timeAnswer.shortAnswer, timeAnswer.fullAnswer].join(' '), /Agora são|Agora sao/i);
 });
 test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
-  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const validToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
   const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); }, window: { ELO_AUTH_TOKEN: validToken } }).elo;
   const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha aten��o hoje?');
   assert.match(weakAnswer, /Qualidade dos dados: baixa/i);
@@ -2717,6 +3550,45 @@ test('ELO music execute: autocorrect vindo do resolver re-resolve titulo corrigi
     ['play', 'galinha-video']
   ]);
 });
+
+test('ELO music implicit query sends fuzzy and phonetic candidates through the player finalizer', async () => {
+  const calls = [];
+  const resolver = {
+    resolve(query) {
+      calls.push(['resolve', query]);
+      if (/rape mi nirvana|rape me/i.test(query)) return { id: 'rape-me-video', title: 'Rape Me', artist: 'Nirvana', videoId: 'rape-me-1', playable: true, embeddable: true };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id]); return true; }
+  };
+  const { elo } = loadEloContext({ window: { EloMusicResolver: resolver, navigator: { onLine: true } } });
+
+  const result = await elo.handleMusicQueryForTest('rape mi nirvana');
+
+  assert.equal(result.handled, true);
+  assert.match(result.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/);
+  assert.equal(result.candidate.title, 'Rape Me');
+  assert.deepEqual(calls, [['resolve', 'rape mi nirvana'], ['resolve', 'Rape Me'], ['play', 'rape-me-video']]);
+});
+
+test('ELO active topic recency lets an explicit laje topic outrank stale context', () => {
+  const { elo } = loadEloContext();
+  const first = elo.buildResponseForTest('estou fazendo uma laje');
+  elo.rememberSessionTurnForTest('estou fazendo uma laje', first, first.fullAnswer || first.shortAnswer || '');
+  elo.buildResponseForTest('e se for treliçada?');
+
+  const summary = elo.buildWorkingMemorySummaryForTest('e se for treliçada?');
+  assert.match(summary, /activeTopic: estrutura/);
+});
+
+test('ELO music implicit unknown faixa resolves to a terminal not-found decision', async () => {
+  const { elo } = loadEloContext({ window: { EloMusicResolver: { resolve() { return null; } }, navigator: { onLine: true } } });
+  const result = await elo.handleMusicQueryForTest('faixa inexistente');
+
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'NO_MATCH');
+});
+
 test('ELO music fuzzy: candidato duplicado do resolver nao reduz gap do autocorrect', async () => {
   const calls = [];
   const resolver = {
@@ -3048,11 +3920,13 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
 
-  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.');
+  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.', { responseLifecycle: 'new', responseId: 'resp-auto-tts-1' });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCalls, 1);
   assert.equal(message.dataset.eloAutoTtsDone, 'true');
+  assert.equal(message.dataset.eloResponseLifecycle, 'new');
+  assert.equal(message.dataset.eloResponseId, 'resp-auto-tts-1');
   assert.equal(audioInstances.length, 1);
   assert.equal(audioInstances[0].playbackRate, 1);
   assert.equal(audioInstances[0].preservesPitch, true);
@@ -3060,6 +3934,120 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
   assert.equal(audit.mode, 'neural');
   assert.equal(audit.provider, 'openai-tts');
   assert.equal(audit.fallback, false);
+  assert.equal(audit.responseId, 'resp-auto-tts-1');
+  assert.equal(audit.generationId, 1);
+});
+
+test('ELO local tools: respostas deterministicas nao chamam chat conversas TTS ou OpenAI', async () => {
+  const fetchCalls = [];
+  let audioInstances = 0;
+  function Audio() {
+    audioInstances += 1;
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url: String(url), options });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:should-not-run', provider: 'openai-tts' }) });
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  const cases = [
+    { prompt: '17% de 850', expected: /144,5/ },
+    { prompt: '3,5 metros em centímetros', expected: /350/ },
+    { prompt: 'laje 8 por 12 com 12 cm', expected: /96[\s\S]*11,52/ }
+  ];
+
+  for (const item of cases) {
+    const before = fetchCalls.length;
+    elo.ask(item.prompt, [], 'manual');
+    await flushEloHotfixPromises();
+    const urls = fetchCalls.slice(before).map((call) => call.url);
+    const answer = elementText(messages.children[messages.children.length - 1]);
+
+    assert.match(answer, item.expected);
+    assert.equal(urls.some((url) => /\/api\/elo\/chat/i.test(url)), false);
+    assert.equal(urls.some((url) => /\/api\/elo\/conversations/i.test(url)), false);
+    assert.equal(urls.some((url) => /\/api\/elo\/tts/i.test(url)), false);
+    assert.equal(urls.some((url) => /openai/i.test(url)), false);
+    assert.equal(urls.length, 0);
+  }
+
+  assert.equal(audioInstances, 0);
+});
+test('ELO auto-TTS: render, historico e rerender sem nova responseId nao falam', async () => {
+  let fetchCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, console: fakeConsole },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:blocked' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Oi. Estou pronto.');
+  elo.appendMessageForLayoutTest('assistant', 'Mensagem antiga restaurada.', { historical: true, responseLifecycle: 'historical', responseId: 'old-response' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 0);
+  assert.ok(events.some((event) => event.name === 'TTS_BACKGROUND_EVENT_SKIPPED'));
+  assert.ok(events.some((event) => event.name === 'TTS_HISTORICAL_SKIPPED' && event.payload.responseId === 'old-response'));
+});
+
+test('ELO auto-TTS: mesma responseId fala uma vez e pula duplicata', async () => {
+  let fetchCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', console: fakeConsole },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:once', provider: 'openai-tts' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta nova e final.', { responseLifecycle: 'new', responseId: 'same-response' });
+  elo.appendMessageForLayoutTest('assistant', 'Resposta nova e final.', { responseLifecycle: 'new', responseId: 'same-response' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(elo.getTtsRuntimeForTest().spokenResponseIds['same-response'], true);
+  assert.ok(events.some((event) => event.name === 'TTS_NEW_RESPONSE' && event.payload.responseId === 'same-response'));
+  assert.ok(events.some((event) => event.name === 'TTS_DUPLICATE_SKIPPED' && event.payload.responseId === 'same-response'));
+});
+
+test('ELO auto-TTS: PARAR invalida callback antigo e nao aciona fallback', async () => {
+  let resolveFetch;
+  let audioInstances = 0;
+  let speechCalls = 0;
+  const events = [];
+  const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
+  const { elo } = loadEloContext({
+    window: {
+      Audio: function Audio() { audioInstances += 1; this.play = () => Promise.resolve(true); this.pause = () => {}; },
+      ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; },
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak() { speechCalls += 1; } },
+      console: fakeConsole
+    },
+    fetch() { return new Promise((resolve) => { resolveFetch = resolve; }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta longa para interromper.', { responseLifecycle: 'new', responseId: 'stop-response' });
+  assert.equal(elo.stopSpeechOutputForTest(), true);
+  resolveFetch({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late', provider: 'openai-tts' }) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(audioInstances, 0);
+  assert.equal(speechCalls, 0);
+  assert.ok(events.some((event) => event.name === 'TTS_STOP' && event.payload.responseId === 'stop-response'));
+  assert.ok(events.some((event) => event.name === 'TTS_STALE_CALLBACK_SKIPPED' && event.payload.responseId === 'stop-response'));
 });
 
 test('ELO auto-TTS: nao fala musica nem status interno', async () => {
@@ -3094,7 +4082,7 @@ test('ELO auto-TTS: nova pergunta cancela fala anterior', async () => {
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
 
-  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.');
+  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.', { responseLifecycle: 'new', responseId: 'resp-cancel-prev' });
   await new Promise((resolve) => setTimeout(resolve, 0));
   elo.ask('Nova pergunta do usuário');
 
@@ -3161,4 +4149,838 @@ test('ELO offline classical routing: 5 obras executam local-first sem provider o
   assert.equal(playCalls.find((media) => media.id === 'vivaldi-four-seasons-spring').files.length, 3);
   assert.equal(fetchCalls.filter((url) => /\/api\/elo\/media\/search/.test(url)).length, 0);
   assert.ok(events.some((event) => event.name === 'MEDIA_OFFLINE_LIBRARY_MATCH'));
+});
+
+test('ELO Autopilot: parser reconhece comandos editoriais e extrai tema limpo', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const cases = [
+    ['Elo, publique sobre os selos de sustentabilidade e construcoes verdes', 'os selos de sustentabilidade e construcoes verdes'],
+    ['publique uma novidade sobre BIM', 'BIM'],
+    ['crie e publique um artigo sobre construcao sustentavel', 'construcao sustentavel'],
+    ['faca uma publicacao sobre casas modulares', 'casas modulares'],
+    ['publique no site sobre LEED', 'LEED'],
+    ['prepare uma materia sobre inteligencia artificial na engenharia', 'inteligencia artificial na engenharia']
+  ];
+  for (const [message, topic] of cases) {
+    const intent = elo.detectAutopilotPublicationIntentForTest(message);
+    assert.equal(intent.ok, true, message);
+    assert.equal(intent.topic, topic, message);
+  }
+});
+
+test('ELO Autopilot: Command Bridge classifica publicacao como preview com confirmacao', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+  const request = elo.detectCommandBridgeRequestForTest('publique uma novidade sobre BIM');
+  assert.equal(request.module, 'elo_autopilot');
+  assert.equal(request.action, 'publish_editorial_content');
+  const response = elo.buildCommandBridgeResponseForTest('publique uma novidade sobre BIM', { context: { authToken: 'token' } });
+  assert.equal(response.commandBridge.requiresConfirmation, true);
+  assert.equal(response.commandBridge.mode, 'preview');
+});
+
+test('ELO Autopilot: fluxo humano prepara preview e grava pending sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const response = await elo.buildAutopilotAnswerForTest('Elo, publique sobre os selos de sustentabilidade e construcoes verdes');
+  assert.equal(response.sessionIntent, 'elo_autopilot_publish_preview');
+  const previewCopy = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join('\\n');
+  assert.match(previewCopy, /Preparei a materia para o site/);
+  assert.match(previewCopy, /Titulo: Selos de sustentabilidade/);
+  assert.match(previewCopy, /Fontes consultadas: 2/);
+  assert.match(previewCopy, /Ainda nao publiquei/);
+  assert.match(previewCopy, /Quer que eu publique/);
+  assert.doesNotMatch(previewCopy, /Preview editorial preparado|Slug:|Status:|pending|Proxima acao|Próxima ação/i);
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
+  assert.deepEqual(calls.map((call) => call.type), ['prepare']);
+});
+
+test('ELO Autopilot: sim publica uma unica vez e consome pending', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  await elo.buildAutopilotAnswerForTest('publique uma novidade sobre BIM');
+  const confirmed = await elo.buildAutopilotAnswerForTest('sim');
+  const second = await elo.buildAutopilotAnswerForTest('sim');
+  assert.equal(confirmed.sessionIntent, 'elo_autopilot_publish_confirmed');
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  const publishCopy = [confirmed.shortAnswer, confirmed.fullAnswer, confirmed.nextAction].filter(Boolean).join('\\n');
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.match(publishCopy, /Materia criada com sucesso/);
+  assert.match(publishCopy, /URL prevista:/);
+  assert.doesNotMatch(publishCopy, /branch atual|Revise o diff|idempotencia|ja esta no ar|Link:/i);
+  assert.equal(second, null);
+});
+
+test('ELO Autopilot: producao so diz no ar quando backend sinaliza publicacao real', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls, { publishResponse: { productionPublished: true } }) }
+  });
+  await elo.buildAutopilotAnswerForTest('publique uma novidade sobre BIM');
+  const confirmed = await elo.buildAutopilotAnswerForTest('sim');
+  const publishCopy = [confirmed.shortAnswer, confirmed.fullAnswer, confirmed.nextAction].filter(Boolean).join('\n');
+  assert.match(publishCopy, /Publicado/);
+  assert.match(publishCopy, /ja esta no ar em Novidades/);
+  assert.match(publishCopy, /Link:/);
+  assert.doesNotMatch(publishCopy, /URL prevista|branch atual|Revise o diff|idempotencia/i);
+});
+test('ELO Autopilot: cancelar aborta pending sem publicar', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  await elo.buildAutopilotAnswerForTest('faca uma publicacao sobre casas modulares');
+  const cancelled = await elo.buildAutopilotAnswerForTest('cancelar');
+  assert.equal(cancelled.sessionIntent, 'elo_autopilot_publish_cancelled');
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  assert.equal(calls.filter((call) => call.type === 'cancel').length, 1);
+});
+
+test('ELO Autopilot: ask digitado atravessa ELO ate preview pendente', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique sobre os selos de sustentabilidade e construcoes verdes', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls[0].type, 'prepare');
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'os selos de sustentabilidade e construcoes verdes');
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+  const previewText = elementText(messages);
+  assert.match(previewText, /Preparei a materia para o site|Ainda nao publiquei|Quer que eu publique/);
+  assert.doesNotMatch(previewText, /Slug:|Status:|pending|Preview editorial preparado/i);
+});
+
+test('ELO Autopilot: ask digitado confirma pending antes do Certo generico', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique sobre os selos de sustentabilidade e construcoes verdes', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 0);
+  elo.ask('sim', [], 'manual');
+  await flushAutopilotAsync();
+  const afterConfirmText = elementText(messages);
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+  assert.equal(elo.getPendingAutopilotPublicationForTest(), null);
+  assert.match(afterConfirmText, /Materia criada com sucesso|URL prevista/);
+  assert.doesNotMatch(afterConfirmText, /Certo\.\s*$|branch atual|Revise o diff|idempotencia|ja esta no ar|Link:/i);
+  elo.ask('sim', [], 'manual');
+  await flushAutopilotAsync();
+  assert.equal(calls.filter((call) => call.type === 'publish').length, 1);
+});
+test('ELO Autopilot: voz usa o mesmo ask/router e prepara preview', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: { EloAutopilotApi: fakeAutopilotApi(calls) }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask('Elo, publique uma novidade sobre BIM', [], 'voice_auto_send');
+  await flushAutopilotAsync();
+  assert.equal(calls[0].type, 'prepare');
+  assert.equal(elo.getPendingAutopilotPublicationForTest().topic, 'BIM');
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+});
+
+function fakeAutopilotApi(calls, options = {}) {
+  return {
+    prepare(input) {
+      calls.push({ type: 'prepare', input });
+      return Promise.resolve({
+        ok: true,
+        draftId: 'draft-autopilot-1',
+        report: { sourcesRead: 2, post: 'PASS', seo: 'PASS' },
+        draft: {
+          titulo: 'Selos de sustentabilidade ganham espaco em construcoes verdes',
+          slug: 'selos-sustentabilidade-construcoes-verdes',
+          fontes: [{ fonte: 'Fonte A' }, { fonte: 'Fonte B' }]
+        }
+      });
+    },
+    publish(input) {
+      calls.push({ type: 'publish', input });
+      return Promise.resolve(Object.assign({
+        ok: true,
+        post: { titulo: 'Selos de sustentabilidade ganham espaco em construcoes verdes', slug: 'selos-sustentabilidade-construcoes-verdes' }
+      }, options.publishResponse || {}));
+    },
+    cancel(input) {
+      calls.push({ type: 'cancel', input });
+      return Promise.resolve({ ok: true });
+    }
+  };
+}
+
+function elementText(element) {
+  if (!element) return '';
+  const own = element.textContent || '';
+  const children = Array.isArray(element.children) ? element.children.map(elementText).join(' ') : '';
+  return [own, children].filter(Boolean).join(' ');
+}
+
+async function flushAutopilotAsync() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
+
+async function flushEloHotfixPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function createEloHotfixToken() {
+  return createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+}
+
+function createEloHotfixAuthFetch(calls, options = {}) {
+  return function fetch(url, requestOptions = {}) {
+    const href = String(url);
+    calls.push({ url: href, options: requestOptions });
+    if (href === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: options.userId || 'user-a', email: 'a@b.com' }) });
+    }
+    if (href.includes('/api/elo/identity/merge')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: options.userId || 'user-a' } }) });
+    }
+    if (href.includes('/api/elo/memories')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, memories: options.memories || [{ id: 'mem-1', category: 'profile', memory_key: 'nome', memory_value: 'Nome permanente' }] }) });
+    }
+    if (href.includes('/api/elo/conversations/conv-ok')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, messages: [{ role: 'user', content: 'mensagem antiga valida' }, { role: 'assistant', content: 'resposta valida' }] }) });
+    }
+    if (href.includes('/api/elo/conversations/conv-stale')) {
+      throw new Error('stale_conversation_should_not_restore');
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, conversations: options.conversations || [] }) });
+  };
+}
+
+test('ELO Web bootstrap: restaura conversa normal, mas nao ressuscita conversa limpa/stale no reload', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const normalCalls = [];
+  const normalMessages = createElement('div');
+  const normal = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-ok' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(normalCalls)
+  });
+  normal.elo.setCoreMessagesElementForTest(normalMessages);
+  await normal.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(normal.elo.getCurrentConversationIdForTest(), 'conv-ok');
+  assert.equal(normalMessages.children.length, 2);
+  assert.ok(normalCalls.some((call) => call.url.includes('/api/elo/conversations/conv-ok')));
+
+  const clearMessages = createElement('div');
+  const cleared = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-stale' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch([])
+  });
+  cleared.elo.setCoreMessagesElementForTest(clearMessages);
+  cleared.localStorage.setItem('elo_work_memory_v1', JSON.stringify({ projects: { obra_atual: { nome: 'temporaria' } } }));
+  cleared.localStorage.setItem('elo_long_term_memory_v1', JSON.stringify([{ text: 'memoria permanente' }]));
+  assert.equal(cleared.elo.clearCurrentConversationForTest(), true);
+  assert.equal(cleared.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(cleared.elo.isConversationClearedForTest('conv-stale'), true);
+  assert.notEqual(cleared.localStorage.getItem('elo_long_term_memory_v1'), null);
+
+  const reloadCalls = [];
+  const reloadMessages = createElement('div');
+  const reloaded = loadEloContext({
+    localStorage: cleared.localStorage.dump(),
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(reloadCalls)
+  });
+  reloaded.elo.setCoreMessagesElementForTest(reloadMessages);
+  await reloaded.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(reloaded.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(reloadMessages.children.length, 0);
+  assert.equal(reloadCalls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
+});
+
+test('ELO Web bootstrap bloqueia request stale com tombstone legado antes do fetch', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const calls = [];
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      elo_core_current_conversation_id_v1: 'conv-stale',
+      elo_core_cleared_conversations_v1: JSON.stringify({ 'conv-stale': Date.now() })
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(calls)
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  await elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+  assert.equal(calls.some((call) => call.url.includes('/api/elo/conversations/conv-stale')), false);
+});
+
+test('ELO P0 auth invalida esconde surface e ponteiro antigo antes de qualquer restore', async () => {
+  const oldSurface = JSON.stringify({
+    version: 1,
+    identityScope: 'anon_elo_anon_test-id',
+    savedAt: Date.now(),
+    expiresAt: Date.now() + 3600000,
+    conversationId: 'conv-old',
+    draft: 'rascunho antigo',
+    messages: [{ kind: 'user', text: 'conversa antiga' }, { kind: 'assistant', text: 'resposta antiga' }]
+  });
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, context } = loadEloContext({
+    localStorage: {
+      elo_core_current_conversation_id_v1: 'conv-old',
+      elo_core_surface_state_v1: oldSurface
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+
+  assert.equal(await elo.initCorePersistenceForTest(), false);
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(messages.children.some((child) => /conversa antiga|resposta antiga/.test(child.textContent || '')), false);
+  assert.equal(input.value, '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO P0 auth valida e restaura somente ponteiro escopado da identidade atual', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const calls = [];
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      elo_core_current_conversation_id_v1: 'conv-old',
+      'elo_core_current_conversation_id_v1::user_user-a': 'conv-ok'
+    },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(calls)
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  await elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(elo.getCurrentConversationIdForTest(), 'conv-ok');
+  assert.equal(messages.children.length, 2);
+  assert.equal(calls.some((call) => call.url.includes('/api/elo/conversations/conv-old')), false);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO P0 Nova conversa nao volta para conversa anterior no reload autenticado', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const firstMessages = createElement('div');
+  const firstCalls = [];
+  const first = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload, elo_core_current_conversation_id_v1: 'conv-ok' },
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(firstCalls)
+  });
+  first.elo.setCoreMessagesElementForTest(firstMessages);
+  await first.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+  first.elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+
+  const reloadMessages = createElement('div');
+  const reloadCalls = [];
+  const reloaded = loadEloContext({
+    localStorage: first.localStorage.dump(),
+    window: { ELO_STANDALONE_MODE: true, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch(reloadCalls)
+  });
+  reloaded.elo.setCoreMessagesElementForTest(reloadMessages);
+  await reloaded.elo.initCorePersistenceForTest();
+  await flushEloHotfixPromises();
+
+  assert.equal(reloaded.elo.getCurrentConversationIdForTest(), '');
+  assert.equal(reloadMessages.children.length, 0);
+  assert.equal(reloadCalls.some((call) => call.url.includes('/api/elo/conversations/conv-ok')), false);
+});
+
+test('ELO P0 logout invalida restore pendente e limpa somente surface ativa', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, context } = loadEloContext({
+    localStorage: {
+      'sb-elo-core-auth-token': payload,
+      'elo_core_auth_context_v1': JSON.stringify({ userId: 'user-a' }),
+      'elo_core_current_conversation_id_v1::user_user-a': 'conv-logout',
+      elo_long_term_memory_v1: JSON.stringify([{ text: 'memoria permanente' }]),
+      obraport_elo_assistente_v1: JSON.stringify({ conversations: [{ question: 'historico' }] })
+    },
+    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_SESSION_VALIDATED: true },
+    fetch: createEloHotfixAuthFetch([])
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+  elo.appendMessageForLayoutTest('user', 'mensagem ativa');
+  input.value = 'draft ativo';
+
+  await elo.logoutSupabaseForTest();
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
+  assert.equal(messages.children.length, 0);
+  assert.equal(input.value, '');
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1::user_user-a'), null);
+  assert.notEqual(localStorage.getItem('elo_long_term_memory_v1'), null);
+  assert.notEqual(localStorage.getItem('obraport_elo_assistente_v1'), null);
+});
+
+test('ELO Web Nova conversa continua abrindo chat vazio sem marcar historico como limpo', () => {
+  const messages = createElement('div');
+  const { elo, localStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-prev' } });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.appendMessageForLayoutTest('user', 'oi');
+  elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+
+  assert.equal(messages.children.length, 0);
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(elo.isConversationClearedForTest('conv-prev'), false);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+});
+
+test('ELO Web Limpar conversa zera mensagens, draft e ponteiro ativo, preservando memoria e historico', () => {
+  const messages = createElement('div');
+  const input = createElement('textarea');
+  const { elo, localStorage, sessionStorage } = loadEloContext({ localStorage: { elo_core_current_conversation_id_v1: 'conv-clear' } });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCoreInputElementForTest(input);
+  elo.appendMessageForLayoutTest('user', 'pergunta');
+  input.value = 'rascunho';
+  localStorage.setItem('elo_core_current_draft_v1', 'rascunho');
+  sessionStorage.setItem('elo_core_reopen_conversation_id_v1', 'conv-clear');
+  localStorage.setItem('elo_long_term_memory_v1', JSON.stringify([{ text: 'memoria permanente' }]));
+  localStorage.setItem('obrareport_elo_assistente_v1', JSON.stringify({ conversations: [{ question: 'outra', answer: 'conversa' }] }));
+
+  assert.equal(elo.clearCurrentConversationForTest(), true);
+
+  assert.equal(messages.children.length, 0);
+  assert.equal(input.value, '');
+  assert.equal(elo.getCurrentConversationIdForTest(), '');
+  assert.equal(localStorage.getItem('elo_core_current_draft_v1'), null);
+  assert.equal(sessionStorage.getItem('elo_core_reopen_conversation_id_v1'), null);
+  assert.notEqual(localStorage.getItem('elo_long_term_memory_v1'), null);
+  assert.notEqual(localStorage.getItem('obrareport_elo_assistente_v1'), null);
+});
+
+test('ELO Web UI actions Historico e Memoria nao viram mensagens do chat', async () => {
+  const token = createEloHotfixToken();
+  const payload = JSON.stringify({ currentSession: { access_token: token } });
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': payload },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch: createEloHotfixAuthFetch([], { conversations: [{ id: 'conv-ok', title: 'Conversa valida', summary: 'Resumo' }] })
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.appendMessageForLayoutTest('user', 'oi');
+  const originalTranscriptCount = messages.children.filter((child) => /elo-message/.test(child.className || '')).length;
+
+  elo.showCoreHistoryForTest({ preventDefault() {}, stopPropagation() {} });
+  await flushEloHotfixPromises();
+  assert.equal(messages.children.filter((child) => /elo-message/.test(child.className || '')).length, originalTranscriptCount);
+
+  elo.showCoreMemoryPanelForTest({ preventDefault() {}, stopPropagation() {} });
+  await flushEloHotfixPromises();
+  assert.equal(messages.children.filter((child) => /elo-message/.test(child.className || '')).length, originalTranscriptCount);
+  assert.equal(originalTranscriptCount, 1);
+});
+
+test('ELO Web TTS para em limpar, nova conversa, logout e pagehide sem callback antigo religar', async () => {
+  const handlers = {};
+  const audios = [];
+  let ttsCount = 0;
+  function Audio(url) {
+    this.src = url;
+    this.currentTime = 13;
+    this.pause = () => { this.paused = true; };
+    this.play = () => Promise.resolve(true);
+    audios.push(this);
+  }
+  const token = createEloHotfixToken();
+  const { elo, localStorage } = loadEloContext({
+    localStorage: { elo_core_current_conversation_id_v1: 'conv-voice' },
+    window: {
+      ELO_AUTH_TOKEN: token,
+      ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
+      Audio,
+      addEventListener(type, handler) { handlers[type] = handler; }
+    },
+    fetch(url) {
+      if (String(url) === 'https://tts.test/api/elo/tts') {
+        ttsCount += 1;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-' + ttsCount, provider: 'openai-tts' }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  assert.equal(elo.speakTextForTest('fala longa para limpar'), true);
+  await flushEloHotfixPromises();
+  const firstAudio = audios[0];
+  assert.equal(elo.clearCurrentConversationForTest(), true);
+  assert.equal(firstAudio.paused, true);
+  assert.equal(firstAudio.currentTime, 0);
+  assert.equal(firstAudio.src, '');
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+  assert.equal(localStorage.getItem('elo_core_current_conversation_id_v1'), null);
+
+  assert.equal(elo.speakTextForTest('fala A'), true);
+  await flushEloHotfixPromises();
+  const staleAudio = audios[audios.length - 1];
+  assert.equal(elo.speakTextForTest('fala B'), true);
+  await flushEloHotfixPromises();
+  assert.equal(staleAudio.onended, null);
+  if (typeof staleAudio.onended === 'function') staleAudio.onended();
+  assert.notEqual(elo.getSpeechStateForTest().shutdown, true);
+
+  elo.startNewConversationForLayoutTest({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  assert.equal(elo.speakTextForTest('fala antes logout'), true);
+  await flushEloHotfixPromises();
+  await elo.logoutSupabaseForTest();
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  assert.equal(elo.speakTextForTest('fala antes pagehide'), true);
+  await flushEloHotfixPromises();
+  assert.equal(typeof handlers.pagehide, 'function');
+  handlers.pagehide();
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+  assert.equal(!!elo.getSpeechStateForTest().wakeRestartScheduled, false);
+});
+
+test('ELO Web TTS nao reinicia quando callbacks antigos chegam depois do stop', async () => {
+  let resolveTts;
+  let playCount = 0;
+  const audios = [];
+  function Audio(url) {
+    this.src = url;
+    this.currentTime = 9;
+    this.pause = () => { this.paused = true; };
+    this.play = () => { playCount += 1; return Promise.resolve(true); };
+    audios.push(this);
+  }
+  const { elo } = loadEloContext({
+    window: { ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', Audio },
+    fetch(url) {
+      if (String(url) === 'https://tts.test/api/elo/tts') {
+        return new Promise((resolve) => {
+          resolveTts = () => resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late-tts', provider: 'openai-tts' }) });
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+  });
+
+  assert.equal(elo.speakTextForTest('fala neural pendente', null, { responseId: 'late-neural' }), true);
+  assert.equal(elo.stopAllSpeechForTest({ shutdown: true }), true);
+  resolveTts();
+  await flushEloHotfixPromises();
+
+  assert.equal(audios.length, 0);
+  assert.equal(playCount, 0);
+  assert.equal(elo.getSpeechStateForTest().state, 'idle');
+  assert.equal(elo.getSpeechStateForTest().shutdown, true);
+
+  let cancelCount = 0;
+  let speakCount = 0;
+  let staleUtterance = null;
+  function SpeechSynthesisUtterance(text) { this.text = text; this.onend = null; this.onerror = null; }
+  const fallback = loadEloContext({
+    window: {
+      Audio: null,
+      SpeechSynthesisUtterance,
+      speechSynthesis: {
+        getVoices() { return []; },
+        speak(utterance) { speakCount += 1; staleUtterance = utterance; },
+        cancel() { cancelCount += 1; }
+      }
+    },
+    fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false }) }); }
+  });
+
+  assert.equal(fallback.elo.speakTextForTest('fala fallback', null, { responseId: 'late-fallback' }), true);
+  await flushEloHotfixPromises();
+  assert.equal(speakCount, 1);
+  assert.equal(fallback.elo.stopAllSpeechForTest({ shutdown: true }), true);
+  assert.equal(cancelCount >= 1, true);
+  assert.equal(staleUtterance.onend, null);
+  assert.equal(staleUtterance.onerror, null);
+  if (typeof staleUtterance.onend === 'function') staleUtterance.onend();
+  if (typeof staleUtterance.onerror === 'function') staleUtterance.onerror();
+  assert.equal(speakCount, 1);
+  assert.equal(fallback.elo.getSpeechStateForTest().state, 'idle');
+});
+
+test('ELO Action Bus RDO: hidrata contexto canonico imediatamente antes da action embedded', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const expectedId = 'work-canonical-auth-001';
+  const workState = JSON.stringify({ version: 1, works: [
+    { id: expectedId, name: 'OBRA TESTE ELO E2E', clientId: 'client-test' },
+    { id: 'work-other-002', name: 'Outra obra', clientId: 'client-other' }
+  ], clients: [
+    { id: 'client-test', name: 'CLIENTE TESTE ELO E2E' }
+  ], reports: [], dailyLogs: [] });
+  const canonical = {
+    userId: 'canonical-user-1',
+    role: 'admin',
+    institutionId: 'tenant-canonical-1',
+    companyId: 'company-canonical-1',
+    profile: {
+      id: 'canonical-user-1',
+      role: 'admin',
+      institution_id: 'tenant-canonical-1',
+      company_id: 'company-canonical-1'
+    }
+  };
+  const { elo, localStorage, context } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: {
+      'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }),
+      'obrareport-saas-v1': workState
+    },
+    window: {
+      ELO_AUTH_TOKEN: token,
+      ELO_AUTH_CONTEXT: canonical,
+      ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co',
+      ELO_SUPABASE_ANON_KEY: 'anon-key',
+      ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com'
+    },
+    fetch(url, config = {}) {
+      calls.push({ href: String(url), method: config.method || 'GET' });
+      if (String(url).includes('/api/obrareport/rdos') && (config.method || 'GET') !== 'GET') throw new Error('rdo_write_should_wait_for_confirm');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const staleEmbeddedContext = {
+    userId: 'embedded-user-1',
+    role: '',
+    institutionId: null,
+    companyId: undefined,
+    identity: { userId: 'embedded-user-1', institutionId: '', companyId: {} }
+  };
+
+  const hydrated = context.window.EloActionBusRdo.resolveCanonicalAuthContext();
+  assert.equal(hydrated.userId, 'canonical-user-1');
+  assert.equal(hydrated.role, 'admin');
+  assert.equal(hydrated.institutionId, 'tenant-canonical-1');
+  assert.equal(hydrated.companyId, 'company-canonical-1');
+
+  const choose = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje', { context: staleEmbeddedContext });
+  assert.equal(choose.commandBridge.error, 'work_selection_required');
+  assert.doesNotMatch(choose.fullAnswer, /Preciso do tenant\/empresa ativo/i);
+  assert.match(choose.fullAnswer, /Para qual obra/i);
+  assert.equal(choose.commandBridge.data.pending.identity.institutionId, 'tenant-canonical-1');
+  assert.equal(choose.commandBridge.data.pending.identity.companyId, 'company-canonical-1');
+  assert.equal(choose.commandBridge.data.pending.identity.userId, 'canonical-user-1');
+  assert.equal(localStorage.getItem('elo_action_bus_rdo_pending_v1') !== null, true);
+
+  const preview = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context: staleEmbeddedContext });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
+  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
+  assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
+  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
+});
+
+
+test("ELO Action Bus RDO: confirmações explícitas priorizam pending, cancelam e não capturam frase ambígua", async () => {
+  async function prepare() {
+    const calls = [];
+    const token = createEloHotfixToken();
+    const workState = JSON.stringify({ version: 1, works: [{ id: "work-confirmation-1", name: "Obra confirmação", clientId: "client-1" }], clients: [], reports: [], dailyLogs: [] });
+    const context = { identity: { institutionId: "inst_auth", companyId: "inst_auth", userId: "profile_auth" } };
+    const { elo, localStorage } = loadEloContext({
+      preloadScripts: ["elo-command-bridge.js"],
+      localStorage: { "sb-elo-core-auth-token": JSON.stringify({ currentSession: { access_token: token } }), "obrareport-saas-v1": workState },
+      window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com" },
+      fetch(url, config = {}) {
+        const href = String(url);
+        const method = config.method || "GET";
+        calls.push({ href, method });
+        if (href.includes("/api/obrareport/rdos") && method === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: "rdo-confirmation-1", project_id: "work-confirmation-1", rdo_date: "2026-09-13" } }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+      }
+    });
+    const preview = await elo.buildCommandBridgeResponseForTest("crie um RDO para hoje", { context });
+    assert.equal(preview.commandBridge.requiresConfirmation, true);
+    return { elo, localStorage, calls, context };
+  }
+
+  for (const phrase of ["sim", "s", "confirmo", "confirmar", "pode criar", "pode prosseguir", "prossiga", "pode executar"]) {
+    const { elo, calls, context } = await prepare();
+    const request = elo.detectCommandBridgeRequestForTest(phrase);
+    assert.equal(request.action, "rdo_confirm", phrase);
+    const confirmed = await elo.buildCommandBridgeResponseForTest(phrase, { context });
+    assert.equal(confirmed.commandBridge.action, "rdo.create.execute", phrase);
+    assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 1, phrase);
+  }
+
+  for (const phrase of ["não", "nao", "cancelar", "cancela", "não prossiga"]) {
+    const cancelledCase = await prepare();
+    const cancelRequest = cancelledCase.elo.detectCommandBridgeRequestForTest(phrase);
+    assert.equal(cancelRequest.action, "rdo_cancel", phrase);
+    const cancelled = await cancelledCase.elo.buildCommandBridgeResponseForTest(phrase, { context: cancelledCase.context });
+    assert.equal(cancelledCase.calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0, phrase);
+    assert.equal(cancelledCase.localStorage.getItem("elo_action_bus_rdo_pending_v1"), null, phrase);
+    assert.match(cancelled.fullAnswer, /cancelada/i, phrase);
+  }
+
+  const ambiguousCase = await prepare();
+  assert.equal(ambiguousCase.elo.detectCommandBridgeRequestForTest("sim, pode criar porque revisei tudo"), null);
+  assert.equal(ambiguousCase.calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0);
+});
+
+
+test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa geral", async () => {
+  const calls = [];
+  const messages = createElement("div");
+  const token = createEloHotfixToken();
+  const workState = JSON.stringify({ version: 1, works: [{ id: "work-ask-confirm-1", name: "Obra ask confirmação", clientId: "client-1" }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ["elo-command-bridge.js"],
+    localStorage: { "sb-elo-core-auth-token": JSON.stringify({ currentSession: { access_token: token } }), "obrareport-saas-v1": workState },
+    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_CONTEXT: { userId: "user-1", role: "admin", institutionId: "inst-1", companyId: "company-1" }, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com" },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || "GET";
+      calls.push({ href, method });
+      if (href.includes("/api/obrareport/rdos") && method === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: "rdo-ask-confirm-1", project_id: "work-ask-confirm-1", rdo_date: "2026-09-13" } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.ask("crie um RDO para hoje", [], "manual");
+  await flushEloHotfixPromises();
+  assert.match(elementText(messages), /CONFIRMATION REQUIRED: SIM/);
+  assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0, JSON.stringify(calls));
+  elo.ask("sim", [], "manual");
+  await flushEloHotfixPromises();
+  assert.match(elementText(messages), /RDO criado pelo ELO/);
+  assert.doesNotMatch(elementText(messages), /Certo\.\s*$/);
+  assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 1);
+});
+
+test('ELO Action Bus RDO auth: execute usa sessao atual do EloCanonicalSession, nao token do preview', async () => {
+  const calls = [];
+  const staleToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'stale-user' });
+  const currentToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-current-token', name: 'Obra Auth Atual', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: currentToken } }), 'obrareport-saas-v1': workState },
+    window: {
+      ELO_AUTH_TOKEN: staleToken,
+      ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co',
+      ELO_SUPABASE_ANON_KEY: 'anon-key',
+      ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com',
+      EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: currentToken }) }
+    },
+    fetch(url, config = {}) {
+      const call = { href: String(url), method: config.method || 'GET', headers: config.headers || {} };
+      calls.push(call);
+      if (call.href.includes('/api/obrareport/rdos') && call.method === 'POST') return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: 'rdo-current-token', project_id: 'work-current-token', rdo_date: '2026-09-13' } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const context = { authToken: staleToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  const preview = await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Auth Atual', { context });
+  assert.equal(preview.commandBridge.requiresConfirmation, true);
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  const rdoPosts = calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos'));
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(rdoPosts.length, 1);
+  assert.equal(rdoPosts[0].headers.Authorization, 'Bearer ' + currentToken);
+  assert.notEqual(rdoPosts[0].headers.Authorization, 'Bearer ' + staleToken);
+});
+
+test('ELO Action Bus RDO auth: token expirado renova sessao Supabase uma unica vez antes do POST', async () => {
+  const calls = [];
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60, sub: 'user-a' });
+  const refreshedToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-refresh', name: 'Obra Refresh', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: expiredToken, refresh_token: 'refresh-a' } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: expiredToken, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com', EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: expiredToken, refresh_token: 'refresh-a' }) } },
+    fetch(url, config = {}) {
+      const href = String(url);
+      const method = config.method || 'GET';
+      calls.push({ href, method, headers: config.headers || {} });
+      if (href.includes('/auth/v1/token?grant_type=refresh_token')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ access_token: refreshedToken, refresh_token: 'refresh-b', user: { id: 'user-a' } }) });
+      if (href.includes('/api/obrareport/rdos') && method === 'POST') return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: 'rdo-refresh', project_id: 'work-refresh', rdo_date: '2026-09-13' } }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
+    }
+  });
+  const context = { authToken: expiredToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Refresh', { context });
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  const refreshes = calls.filter((call) => call.href.includes('/auth/v1/token?grant_type=refresh_token'));
+  const rdoPosts = calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos'));
+  assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
+  assert.equal(refreshes.length, 1);
+  assert.equal(rdoPosts.length, 1);
+  assert.equal(rdoPosts[0].headers.Authorization, 'Bearer ' + refreshedToken);
+});
+
+test('ELO Action Bus RDO auth: sessao invalida bloqueia execute sem POST', async () => {
+  const calls = [];
+  const expiredToken = createJwt({ iss: 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60, sub: 'user-a' });
+  const workState = JSON.stringify({ version: 1, works: [{ id: 'work-invalid-session', name: 'Obra Invalid Session', clientId: 'cli-a' }], clients: [], reports: [], dailyLogs: [] });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: expiredToken } }), 'obrareport-saas-v1': workState },
+    window: { ELO_AUTH_TOKEN: expiredToken, ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com', EloCanonicalSession: { getSession: () => Promise.resolve({ access_token: expiredToken }) } },
+    fetch(url, config = {}) { calls.push({ href: String(url), method: config.method || 'GET' }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) }); }
+  });
+  const context = { authToken: expiredToken, identity: { institutionId: 'inst-a', companyId: 'company-a', userId: 'user-a' } };
+  await elo.buildCommandBridgeResponseForTest('crie um RDO para hoje na Obra Invalid Session', { context });
+  const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(confirmed.commandBridge.error, 'invalid_session');
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 0);
 });

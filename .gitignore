@@ -1,12 +1,5 @@
-node_modules/
-dist/
-*.log
-npm-debug.log*
-.env
-.env.e2e
-backend/.env
-*.bak*
-backend/data/
-artifacts/
-test-results/
-tmp/
+/relatorio-qualidade-obras/offline-media/pack-v1/*.ogg
+/relatorio-qualidade-obras/offline-media/pack-v1/*.oga
+/relatorio-qualidade-obras/offline-media/pack-v1/*.mp3
+/relatorio-qualidade-obras/offline-media/pack-v1/*.wav
+relatorio-qualidade-obras/offline-media/optimized/

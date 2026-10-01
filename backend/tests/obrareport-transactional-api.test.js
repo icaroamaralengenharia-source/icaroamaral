@@ -9,7 +9,35 @@ import { createObraReportTransactionalService } from "../src/services/obrareport
 async function withServer(callback) {
   const dir = mkdtempSync(join(tmpdir(), "obrareport-api-"));
   const app = createApp({
-    obraReportTransactionalService: createObraReportTransactionalService({ dataPath: join(dir, "obrareport.json") })
+    obraReportTransactionalService: createObraReportTransactionalService({ dataPath: join(dir, "obrareport.json") }),
+    authContextSupabaseClient: {
+      auth: {
+        async getUser(token) {
+          return { data: { user: { id: token === "token-b" ? "user_b" : "user_a" } }, error: null };
+        }
+      },
+      from(table) {
+        assert.equal(table, "profiles");
+        return {
+          select() {
+            return {
+              eq(_column, value) {
+                return {
+                  async maybeSingle() {
+                    return {
+                      data: value === "user_b"
+                        ? { id: "profile-b", auth_user_id: "user_b", institution_id: "inst_b", role: "admin" }
+                        : { id: "profile-a", auth_user_id: "user_a", institution_id: "inst_a", role: "admin" },
+                      error: null
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+    }
   });
   const server = await new Promise((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
@@ -36,8 +64,8 @@ async function json(url, options = {}) {
   return { response, data };
 }
 
-const headersA = { "x-institution-id": "inst_a", "x-user-id": "user_a" };
-const headersB = { "x-institution-id": "inst_b", "x-user-id": "user_b" };
+const headersA = { Authorization: "Bearer token-a", "x-institution-id": "inst_a", "x-user-id": "user_a" };
+const headersB = { Authorization: "Bearer token-b", "x-institution-id": "inst_b", "x-user-id": "user_b" };
 
 test("ObraReport API cria, lista, busca, atualiza, versiona, documenta e audita relatorio", async () => {
   await withServer(async (base) => {
@@ -179,5 +207,65 @@ test("ObraReport API prepara email sem envio real", async () => {
     assert.equal(email.data.email.mode, "prepared");
     assert.equal(email.data.email.sent, false);
     assert.match(email.data.email.message, /provedor SMTP\/Resend/);
+  });
+});
+test("ObraReport API cria, lista, busca, atualiza, versiona, documenta e isola vistoria", async () => {
+  await withServer(async (base) => {
+    const created = await json(base + "/api/obrareport/apartment-handover-inspections", {
+      method: "POST",
+      headers: headersA,
+      body: JSON.stringify({
+        projectId: "obra_001",
+        clientId: "cliente_001",
+        title: "Vistoria apto 202",
+        status: "completed",
+        inspectionData: { metadata: { projectName: "Residencial Alfa", unitName: "202" }, items: [{ ambiente: "Sala", item: "Rodape", status: "NC", severidade: "Alta" }] }
+      })
+    });
+    assert.equal(created.response.status, 201);
+    assert.equal(created.data.inspection.institution_id, "inst_a");
+    const id = created.data.inspection.id;
+
+    const list = await json(base + "/api/obrareport/apartment-handover-inspections?projectId=obra_001", { headers: headersA });
+    assert.equal(list.response.status, 200);
+    assert.equal(list.data.inspections.length, 1);
+    assert.equal(list.data.inspections[0].id, id);
+
+    const crossList = await json(base + "/api/obrareport/apartment-handover-inspections?projectId=obra_001", { headers: headersB });
+    assert.equal(crossList.response.status, 200);
+    assert.equal(crossList.data.inspections.length, 0);
+
+    const blocked = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, { headers: headersB });
+    assert.equal(blocked.response.status, 403);
+    assert.equal(blocked.data.error, "inspection_forbidden");
+
+    const got = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, { headers: headersA });
+    assert.equal(got.response.status, 200);
+    assert.equal(got.data.inspection.inspection_data_json.metadata.unitName, "202");
+
+    const updated = await json(base + "/api/obrareport/apartment-handover-inspections/" + id, {
+      method: "PUT",
+      headers: headersA,
+      body: JSON.stringify({ status: "draft", inspectionData: { metadata: { unitName: "202" }, items: [] } })
+    });
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.data.inspection.status, "draft");
+
+    const version = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/versions", { method: "POST", headers: headersA, body: "{}" });
+    assert.equal(version.response.status, 201);
+    assert.equal(version.data.version.version_number, 1);
+
+    const document = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/generate-document", { method: "POST", headers: headersA, body: "{}" });
+    assert.equal(document.response.status, 201);
+    assert.equal(document.data.document.source_type, "apartment_handover_inspection");
+
+    const events = await json(base + "/api/obrareport/apartment-handover-inspections/" + id + "/events", { headers: headersA });
+    assert.equal(events.response.status, 200);
+    assert.deepEqual(events.data.events.map((event) => event.event_type), [
+      "inspection_created",
+      "inspection_updated",
+      "inspection_version_created",
+      "inspection_document_generated"
+    ]);
   });
 });

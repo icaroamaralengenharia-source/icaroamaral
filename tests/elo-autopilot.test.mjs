@@ -1,0 +1,880 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm, stat, writeFile, mkdir } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {
+  antiCopyCheck,
+  antiHallucinationCheck,
+  assertPublicHttpUrl,
+  classifyPauta,
+  countIndependentSources,
+  buildPostPage,
+  buildSitemap,
+  collectCandidates,
+  selectIndependentSources,
+  isIndependentSource,
+  discoverSecondarySources,
+  duplicatePautaMatch,
+  buildSecondaryQueries,
+  topicAlignmentScore,
+  enforceFactualGrounding,
+  extractArticle,
+  buildOpenAiErrorDiagnostic,
+  formatOpenAiDiagnostic,
+  generateEditorialArticle,
+  generateEditorialImage,
+  groupPautas,
+  isDuplicatePauta,
+  rankPautas,
+  prepareEditorialPost,
+  publishPreparedEditorialPost,
+  runAutopilot,
+  safePostSlug,
+  runFactualVerifier,
+  selectSourcesForPauta,
+  slugify,
+  validateClaimsAgainstSources,
+  validateLlmArticle,
+  validateSourcePolicy,
+} from "../scripts/elo-autopilot.mjs";
+
+const now = new Date("2026-09-06T12:00:00.000Z");
+process.env.OPENAI_API_KEY ||= "test-openai-key";
+const config = {
+  enabled: true,
+  brand: "Amaral Engenharia",
+  topics: ["engenharia civil", "arquitetura", "construcao", "BIM"],
+  postsPerRun: 1,
+  publishDefault: false,
+  sources: [
+    { name: "Fonte A", url: "https://fonte-a.example/feed.xml", type: "rss", quality: 0.9 },
+    { name: "Fonte B", url: "https://fonte-b.example/feed.xml", type: "rss", quality: 0.8 },
+  ],
+  weights: { recency: 2, sourceCount: 3, topicRelevance: 3, keywordRepetition: 1, sourceQuality: 1, novelty: 2 },
+  limits: { maxFeedBytes: 500000, maxHtmlBytes: 500000, maxRedirects: 2, timeoutMs: 5000, maxSourcesPerPost: 5, minSourcesForStrongPauta: 2 },
+  llm: { modelEnv: "OPENAI_ELO_AUTOPILOT_MODEL", fallbackModelEnv: "OPENAI_MODEL" },
+  image: { provider: "pollinations", width: 640, height: 360, model: "sana" },
+  pricing: { inputPerMillion: null, outputPerMillion: null },
+};
+
+const feedA = `<?xml version="1.0"?><rss><channel>
+<item><title>Construcao industrializada avanca em obras brasileiras</title><link>https://fonte-a.example/a</link><description>Engenharia civil, BIM e construcao industrializada ganham relevancia.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const feedB = `<?xml version="1.0"?><rss><channel>
+<item><title>Construcao industrializada avanca com BIM no Brasil</title><link>https://fonte-b.example/b</link><description>Engenharia civil, BIM e construcao industrializada ajudam equipes tecnicas.</description><pubDate>Sat, 05 Sep 2026 11:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const articleHtml = `<!doctype html><html><head><title>Materia original</title><link rel="canonical" href="https://fonte-a.example/a"><meta name="author" content="Redacao"><meta property="article:published_time" content="2026-09-05T13:00:00Z"></head><body><main><article><h1>Materia original</h1><p>A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.</p><p>Especialistas do setor indicam que BIM, planejamento e coordenacao tecnica ajudam construtoras a reduzir perdas no canteiro.</p><p>O tema interessa a engenheiros e arquitetos porque conecta produtividade, qualidade e controle de prazos em obras de diferentes portes.</p><p>Mesmo assim, fontes destacam que a implantacao exige projeto detalhado, fornecedores preparados e compatibilizacao antes da obra.</p></article></main></body></html>`;
+
+const articleHtmlB = `<!doctype html><html><head><title>Materia complementar</title><link rel="canonical" href="https://fonte-b.example/b"><meta name="author" content="Equipe tecnica"><meta property="article:published_time" content="2026-09-05T14:00:00Z"></head><body><main><article><h1>Materia complementar</h1><p>O BIM apoia o planejamento da construcao industrializada ao organizar informacoes de arquitetura, engenharia e compras.</p><p>Equipes tecnicas usam modelos coordenados para revisar interferencias, prever etapas de execucao e melhorar a comunicacao entre projetistas e obra.</p><p>A fonte tambem destaca que padronizacao, documentacao e fornecedores preparados ajudam a tornar o processo mais consistente.</p><p>O tema segue conectado a produtividade, qualidade e controle tecnico em obras brasileiras.</p></article></main></body></html>`;
+
+function response(body, { status = 200, contentType = "text/html", headers = {} } = {}) {
+  const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: (name) => headers[String(name).toLowerCase()] || (String(name).toLowerCase() === "content-type" ? contentType : null) },
+    async arrayBuffer() { return buffer; },
+    async json() { return JSON.parse(buffer.toString("utf8")); },
+  };
+}
+
+const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+test("ranking de tendencias prioriza pauta recente, relevante e multifonte", () => {
+  const candidates = [
+    { titulo: "Construcao industrializada avanca em obras brasileiras", resumo_feed: "BIM e engenharia civil", fonte: "A", url: "https://a.example/1", data: now.toISOString(), sourceQuality: 0.9 },
+    { titulo: "BIM apoia construcao industrializada", resumo_feed: "arquitetura e construcao", fonte: "B", url: "https://b.example/1", data: now.toISOString(), sourceQuality: 0.8 },
+    { titulo: "Evento cultural movimenta cidade", resumo_feed: "agenda local", fonte: "C", url: "https://c.example/1", data: now.toISOString(), sourceQuality: 0.7 },
+  ];
+  const ranked = rankPautas(groupPautas(candidates, config), config, [], now);
+  assert.ok(ranked[0].score > ranked.at(-1).score);
+});
+
+test("dedupe URL na selecao de fontes", () => {
+  const pauta = { items: [
+    { fonte: "A", url: "https://a.example/x", sourceQuality: 0.9 },
+    { fonte: "A", url: "https://a.example/x", sourceQuality: 0.8 },
+  ] };
+  assert.equal(selectSourcesForPauta(pauta).length, 1);
+});
+
+test("dedupe titulo e assunto contra historico", () => {
+  const pauta = { titulo: "Construcao industrializada avanca no Brasil", keywords: ["construcao", "industrializada", "bim"] };
+  assert.equal(isDuplicatePauta(pauta, [{ titulo: "Construcao industrializada ganha espaco no Brasil", tags: ["BIM"] }]), true);
+});
+
+test("parser RSS entra pelo coletor reaproveitado", async () => {
+  const collected = await collectCandidates(config, {
+    now,
+    lookup,
+    fetchImpl: async (url) => response(String(url).includes("fonte-a") ? feedA : feedB, { contentType: "application/rss+xml" }),
+  });
+  assert.equal(collected.candidates.length, 2);
+});
+
+test("validacao URL/SSRF bloqueia protocolos e redes privadas", async () => {
+  await assert.rejects(() => assertPublicHttpUrl("file:///etc/passwd", { lookup }), /Protocolo/);
+  await assert.rejects(() => assertPublicHttpUrl("http://127.0.0.1/x", { lookup }), /privado/);
+  await assert.rejects(() => assertPublicHttpUrl("http://example.test/x", { lookup: async () => [{ address: "10.0.0.2", family: 4 }] }), /DNS privado/);
+});
+
+test("extracao de artigo real usa HTML principal", async () => {
+  const article = await extractArticle({ url: "https://fonte-a.example/a", titulo: "Original", fonte: "Fonte A" }, {
+    config,
+    lookup,
+    fetchImpl: async () => response(articleHtml),
+  });
+  assert.match(article.conteudo, /construcao industrializada/i);
+  assert.equal(article.autor, "Redacao");
+});
+
+test("rejeicao de HTML invalido", async () => {
+  await assert.rejects(() => extractArticle({ url: "https://fonte-a.example/a", titulo: "x", fonte: "A" }, {
+    config,
+    lookup,
+    fetchImpl: async () => response("<html><body>curto</body></html>"),
+  }), /conteudo principal/);
+});
+
+test("schema de resposta LLM", () => {
+  const article = validateLlmArticle(fakeArticle());
+  assert.equal(article.slug, "construcao-industrializada-e-bim");
+});
+
+test("artigo sem fontes = rejeitado", () => {
+  const check = antiHallucinationCheck(validateLlmArticle(fakeArticle()), [], { titulo: "BIM", keywords: ["BIM"] });
+  assert.equal(check.ok, false);
+});
+
+test("anti-copia rejeita frase longa identica", () => {
+  const generated = validateLlmArticle(fakeArticle({
+    conteudo: [{ subtitulo: "Contexto", paragrafos: ["A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto orcamento e execucao em todo o setor."] }],
+  }));
+  const check = antiCopyCheck(generated, [{ conteudo: "A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto orcamento e execucao em todo o setor." }]);
+  assert.equal(check.ok, false);
+});
+
+test("slug seguro", () => {
+  assert.equal(slugify("Construção Industrializada e BIM!"), "construcao-industrializada-e-bim");
+  assert.throws(() => safePostSlug("../x"), /Slug/);
+});
+
+test("render do post escapa XSS", () => {
+  const html = buildPostPage(postFixture({ titulo: "<script>alert(1)</script>" }));
+  assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
+});
+
+test("JSON-LD valido no HTML renderizado", () => {
+  const html = buildPostPage(postFixture());
+  const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(match);
+  const json = JSON.parse(match[1]);
+  assert.equal(json["@type"], "Article");
+});
+
+test("sitemap inclui post sem duplicar", () => {
+  const xml = buildSitemap([postFixture(), postFixture()]);
+  assert.equal((xml.match(/construcao-industrializada-e-bim/g) || []).length, 1);
+});
+
+test("dry-run nao grava posts.json", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFixtureConfig(configPath);
+  const report = await runAutopilot({ dryRun: true, configPath, now, lookup, log: () => {}, fetchImpl: fakePipelineFetch });
+  assert.equal(report.post, "PASS");
+  await assert.rejects(() => stat(path.join(dir, "novidades", "dados", "posts.json")));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("publish false nao publica", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFixtureConfig(configPath);
+  const report = await runAutopilot({ dryRun: false, publish: false, configPath, now, lookup, log: () => {}, fetchImpl: fakePipelineFetch });
+  assert.equal(report.post, "PASS");
+  assert.equal(report.publication, false);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("imagem nao permite path traversal", async () => {
+  await assert.rejects(() => generateEditorialImage({
+    article: { ...validateLlmArticle(fakeArticle()), slug: "../fora" },
+    config,
+    fetchImpl: async () => response(Buffer.alloc(2048), { contentType: "image/jpeg" }),
+  }), /Slug/);
+});
+
+test("fonte externa maliciosa e bloqueada", async () => {
+  const bad = { ...config, sources: [{ name: "Bad", url: "http://localhost/feed.xml", type: "rss" }] };
+  const collected = await collectCandidates(bad, { lookup, fetchImpl: async () => response(feedA), now });
+  assert.equal(collected.candidates.length, 0);
+  assert.equal(collected.stats.errors.length, 1);
+});
+
+test("artigo duplicado nao publica", () => {
+  const ranked = rankPautas(groupPautas([{ titulo: "Construcao industrializada e BIM", resumo_feed: "engenharia civil", fonte: "A", url: "https://a.example/1", data: now.toISOString(), sourceQuality: 0.9 }], config), config, [{ titulo: "Construcao industrializada e BIM", tags: ["engenharia"] }], now);
+  assert.equal(ranked[0].scoreParts.novelty, 0);
+});
+
+
+test("redirect seguro valida URL final", async () => {
+  let calls = 0;
+  const result = await extractArticle({ url: "https://fonte-a.example/redirect", titulo: "Original", fonte: "Fonte A" }, {
+    config,
+    lookup,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return response("", { status: 302, headers: { location: "https://fonte-a.example/a" } });
+      return response(articleHtml);
+    },
+  });
+  assert.equal(result.url, "https://fonte-a.example/a");
+});
+
+test("selecao de fontes respeita limite configurado", () => {
+  const pauta = { items: Array.from({ length: 6 }, (_, index) => ({ fonte: `F${index}`, url: `https://f${index}.example/a`, sourceQuality: 0.8 })) };
+  assert.equal(selectSourcesForPauta(pauta, 3).length, 3);
+});
+
+test("sitemap gerado e XML basico valido", () => {
+  const xml = buildSitemap([postFixture()]);
+  assert.match(xml, /^<\?xml version="1\.0"/);
+  assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+  assert.match(xml, /https:\/\/www\.icaroamaral\.com\.br\/novidades\/posts\/construcao-industrializada-e-bim\//);
+});
+function fakeArticle(overrides = {}) {
+  return {
+    titulo: "Construcao industrializada e BIM",
+    subtitulo: "Tecnologia e obra",
+    resumo: "Uma sintese sobre como BIM e industrializacao aproximam projeto e canteiro.",
+    conteudo: [
+      { subtitulo: "Por que o tema importa", paragrafos: ["A industrializacao da construcao cresce porque reduz improvisos e exige projeto mais coordenado. O BIM aparece como base tecnica para integrar arquitetura, engenharia, custos e obra sem depender de decisao tardia no canteiro. Essa integracao ajuda equipes a comparar alternativas, revisar interferencias, antecipar compras e tomar decisoes com informacao rastreavel antes da execucao."] },
+      { subtitulo: "O que observar", paragrafos: ["Para empresas pequenas, o caminho mais seguro e escolher processos repetitivos, padronizar informacoes e conferir fornecedores antes da execucao. A mudanca depende menos de promessa tecnologica e mais de rotina tecnica consistente. Quando o processo e documentado, a empresa consegue medir ganhos, corrigir gargalos e preservar qualidade sem transformar cada obra em um experimento improvisado."] },
+    ],
+    seoTitle: "Construcao industrializada e BIM",
+    seoDescription: "Entenda como construcao industrializada e BIM podem melhorar planejamento, qualidade e controle tecnico nas obras.",
+    slug: "construcao-industrializada-e-bim",
+    categoria: "Tecnologia e construcao",
+    tags: ["BIM", "engenharia civil", "construcao"],
+    imagePrompt: "Ilustracao editorial de canteiro industrializado com modelos digitais BIM",
+    claims: [
+      { claim: "A construcao industrializada recebe atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.", sourceIds: ["source_1"] },
+      { claim: "BIM, planejamento e coordenacao tecnica ajudam construtoras a reduzir perdas no canteiro.", sourceIds: ["source_1"] },
+    ],
+    ...overrides,
+  };
+}
+
+function postFixture(overrides = {}) {
+  const article = validateLlmArticle(fakeArticle());
+  return {
+    id: "post-1",
+    slug: article.slug,
+    titulo: article.titulo,
+    resumo: article.resumo,
+    conteudo: article.conteudo,
+    categoria: article.categoria,
+    tags: article.tags,
+    imagem: "./assets/posts/construcao-industrializada-e-bim.jpg",
+    imagemAlt: "Ilustracao editorial",
+    publicadoEm: now.toISOString(),
+    criadoEm: now.toISOString(),
+    fontes: [{ fonte: "Fonte A", tituloOriginal: "Original", url: "https://fonte-a.example/a" }],
+    seoTitle: article.seoTitle,
+    seoDescription: article.seoDescription,
+    ...overrides,
+  };
+}
+
+async function writeFixtureConfig(configPath) {
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(configPath, JSON.stringify(config), "utf8");
+}
+
+async function fakePipelineFetch(url) {
+  const target = String(url);
+  if (target.includes("fonte-a.example/feed")) return response(feedA, { contentType: "application/rss+xml" });
+  if (target.includes("fonte-b.example/feed")) return response(feedB, { contentType: "application/rss+xml" });
+  if (target.includes("fonte-a.example/a")) return response(articleHtml);
+  if (target.includes("fonte-b.example/b")) return response(articleHtmlB);
+  if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(fakeArticle({ claims: [{ claim: "A construcao industrializada vem recebendo atencao por reduzir improvisos e aproximar projeto, orcamento e execucao.", sourceIds: ["source_1", "source_2"] }] })), usage: { input_tokens: 1000, output_tokens: 500 } }), { contentType: "application/json" });
+  if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
+  throw new Error(`URL inesperada: ${target}`);
+}
+
+
+test("prepare editorial usa dry-run e nao publica antes da confirmacao", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFixtureConfig(configPath);
+  const draft = await prepareEditorialPost({ topic: "BIM", configPath, now, lookup, log: () => {}, fetchImpl: fakePipelineFetch });
+  assert.equal(draft.report.post, "PASS");
+  assert.equal(draft.report.publication, false);
+  assert.equal(draft.topic, "BIM");
+  await assert.rejects(() => stat(path.join(dir, "novidades", "dados", "posts.json")));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("publishPreparedEditorialPost consome rascunho preparado e chama persistencia controlada", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-publish-"));
+  const imagePath = path.join(dir, "construcao-industrializada-e-bim.jpg");
+  await writeFile(imagePath, Buffer.alloc(2048));
+  const persisted = [];
+  const result = await publishPreparedEditorialPost({
+    draftId: "draft-1",
+    topic: "BIM",
+    imageAbsolutePath: imagePath,
+    post: postFixture()
+  }, {
+    now,
+    readPostsFn: async () => ({ atualizadoEm: null, posts: [] }),
+    persistPostFn: async (post, previous, date) => persisted.push({ post, previous, date }),
+    imageDir: path.join(dir, "final-images")
+  });
+  assert.equal(result.publication, true);
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].post.slug, "construcao-industrializada-e-bim");
+  await rm(dir, { recursive: true, force: true });
+});
+
+const fortalezaSource = {
+  sourceId: "source_1",
+  fonte: "CBIC",
+  tituloOriginal: "CBIC realiza evento sobre sustentabilidade, inovacao e construcao em Fortaleza",
+  url: "https://cbic.org.br/evento-fortaleza",
+  conteudo: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao. A programacao reune representantes do setor para debater experiencias, iniciativas e a agenda da construcao civil. O texto informa local, realizacao e tema central do encontro.",
+};
+
+const workshopSource = {
+  sourceId: "source_1",
+  fonte: "CBIC",
+  tituloOriginal: "Workshop de Negociacoes Coletivas",
+  url: "https://cbic.org.br/workshop-negociacoes-coletivas",
+  conteudo: "O Workshop de Negociacoes Coletivas sera realizado em Brasilia nos dias 10 e 11 de setembro. A atividade tera carga horaria de 12 horas, vagas limitadas e abordara temas como negociacao coletiva, estrategias sindicais e simulacao pratica.",
+};
+
+const leedSource = { sourceId: "source_1", fonte: "GBC", tituloOriginal: "Certificacao LEED", url: "https://gbc.example/leed", conteudo: "A certificacao LEED avalia criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna." };
+const aquaSource = { sourceId: "source_2", fonte: "Fundacao Vanzolini", tituloOriginal: "AQUA-HQE", url: "https://vanzolini.example/aqua", conteudo: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento e conforto dos usuarios." };
+const sustainableSource = { sourceId: "source_3", fonte: "Agencia Setorial", tituloOriginal: "Construcao sustentavel", url: "https://setor.example/sustentavel", conteudo: "Construcao sustentavel envolve escolhas de projeto, materiais, operacao e gestao para reduzir impactos ao longo do ciclo de vida da edificacao." };
+
+function groundedArticle(overrides = {}) {
+  return validateLlmArticle(fakeArticle(overrides));
+}
+
+test("claim sem sourceId rejeita", () => {
+  const article = groundedArticle({ claims: [{ claim: "O workshop tera carga horaria de 12 horas.", sourceIds: [] }] });
+  const result = validateClaimsAgainstSources(article, [workshopSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "missing_source_id");
+});
+
+test("sourceId inexistente rejeita", () => {
+  const article = groundedArticle({ claims: [{ claim: "O workshop tera carga horaria de 12 horas.", sourceIds: ["source_x"] }] });
+  const result = validateClaimsAgainstSources(article, [workshopSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "invalid_source_id");
+});
+
+test("claim nao suportado rejeita conhecimento geral plausivel", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento reduz carbono e economiza recursos nas obras participantes.", sourceIds: ["source_1"] }] });
+  const result = validateClaimsAgainstSources(article, [fortalezaSource]);
+  assert.equal(result.ok, false);
+  assert.equal(result.unsupportedClaims[0].reason, "unsupported_by_text");
+});
+
+test("claim suportado passa", () => {
+  const article = groundedArticle({ claims: [{ claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] }] });
+  const result = validateClaimsAgainstSources(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+});
+
+test("segunda verificacao detecta extrapolacao", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento coloca Fortaleza na rota global de cidades inteligentes e resilientes.", sourceIds: ["source_1"] }] });
+  const result = runFactualVerifier(article, [fortalezaSource]);
+  assert.equal(result.supported, false);
+  assert.match(result.unsupportedClaims[0].claim, /cidades inteligentes/);
+});
+
+test("revisao automatica remove claim nao suportado", () => {
+  const article = groundedArticle({
+    conteudo: [{ subtitulo: "Fortaleza", paragrafos: ["A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao. O evento reduz carbono e gera economia de recursos para as cidades."] }],
+    claims: [
+      { claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] },
+      { claim: "O evento reduz carbono e gera economia de recursos para as cidades.", sourceIds: ["source_1"] },
+    ],
+  });
+  const result = enforceFactualGrounding(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+  assert.equal(result.autoRevision, true);
+  assert.doesNotMatch(JSON.stringify(result.article), /carbono|economia de recursos/);
+});
+
+test("segunda falha bloqueia publicacao", () => {
+  const article = groundedArticle({ claims: [{ claim: "O evento reduz carbono.", sourceIds: ["source_1"] }] });
+  const result = enforceFactualGrounding(article, [fortalezaSource], { allowAutoRevision: false });
+  assert.equal(result.ok, false);
+});
+
+test("pauta event aceita 1 fonte", () => {
+  const type = classifyPauta({ titulo: "Workshop de Negociacoes Coletivas", keywords: ["workshop", "vagas"] }, [workshopSource]);
+  const policy = validateSourcePolicy(type, [workshopSource]);
+  assert.equal(type, "event");
+  assert.equal(policy.ok, true);
+});
+
+test("pauta trend exige multiplas fontes", () => {
+  const type = classifyPauta({ titulo: "Tendencias de construcao verde", keywords: ["tendencias", "sustentabilidade"] }, [fortalezaSource]);
+  const policy = validateSourcePolicy(type, [fortalezaSource]);
+  assert.equal(type, "trend");
+  assert.equal(policy.ok, false);
+});
+
+test("fontes duplicadas nao contam como independentes", () => {
+  const duplicate = { ...fortalezaSource, sourceId: "source_2", url: "https://cbic.org.br/copia", tituloOriginal: fortalezaSource.tituloOriginal };
+  assert.equal(countIndependentSources([fortalezaSource, duplicate]), 1);
+  assert.equal(validateSourcePolicy("trend", [fortalezaSource, duplicate]).ok, false);
+});
+
+test("multifonte funciona com claims por fonte real", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "A certificacao LEED avalia criterios de sustentabilidade em edificacoes, incluindo energia, agua e materiais.", sourceIds: ["source_1"] },
+      { claim: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios.", sourceIds: ["source_2"] },
+      { claim: "Construcao sustentavel envolve escolhas de projeto, materiais, operacao e gestao.", sourceIds: ["source_3"] },
+    ],
+  });
+  const result = validateClaimsAgainstSources(article, [leedSource, aquaSource, sustainableSource]);
+  assert.equal(result.ok, true);
+  assert.equal(result.supportedClaims.length, 3);
+});
+
+test("anti-copia continua funcionando com factual grounding", () => {
+  const article = groundedArticle({ claims: [{ claim: "O Workshop de Negociacoes Coletivas tera carga horaria de 12 horas.", sourceIds: ["source_1"] }] });
+  assert.equal(validateClaimsAgainstSources(article, [workshopSource]).ok, true);
+  const copy = antiCopyCheck(article, [{ conteudo: article.conteudo[0].paragrafos[0] }]);
+  assert.equal(copy.ok, false);
+});
+
+test("artigo vazio rejeita no schema", () => {
+  assert.throws(() => validateLlmArticle(fakeArticle({ conteudo: [] })), /Artigo sem blocos/);
+});
+
+test("artigo sem fontes rejeita no factual grounding", () => {
+  const result = enforceFactualGrounding(groundedArticle(), []);
+  assert.equal(result.ok, false);
+});
+
+test("caso Fortaleza bloqueia extrapolacoes antigas", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "A CBIC promove em Fortaleza um evento voltado a sustentabilidade, inovacao e construcao.", sourceIds: ["source_1"] },
+      { claim: "O evento discutira reducao de carbono, economia de recursos, cidades inteligentes, cidades resilientes e tendencias globais.", sourceIds: ["source_1"] },
+    ],
+  });
+  const result = enforceFactualGrounding(article, [fortalezaSource]);
+  assert.equal(result.ok, true);
+  const output = JSON.stringify(result.article).toLowerCase();
+  assert.doesNotMatch(output, /carbono|economia de recursos|cidades inteligentes|cidades resilientes|tendencias globais/);
+});
+
+test("caso Workshop positivo preserva fatos suportados com uma fonte", () => {
+  const article = groundedArticle({
+    claims: [
+      { claim: "O Workshop de Negociacoes Coletivas sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] },
+      { claim: "A atividade tera carga horaria de 12 horas, vagas limitadas e simulacao pratica.", sourceIds: ["source_1"] },
+    ],
+  });
+  assert.equal(validateSourcePolicy(classifyPauta({ titulo: "Workshop de Negociacoes Coletivas" }, [workshopSource]), [workshopSource]).ok, true);
+  assert.equal(enforceFactualGrounding(article, [workshopSource]).ok, true);
+});
+
+
+
+const sustainabilityFeedA = `<?xml version="1.0"?><rss><channel>
+<item><title>Selos de sustentabilidade em construcoes verdes ganham espaco</title><link>https://gbc.example/selos</link><description>Certificacoes ambientais, LEED e construcao verde no Brasil.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const sustainabilityFeedB = `<?xml version="1.0"?><rss><channel>
+<item><title>LEED e AQUA-HQE orientam certificacoes ambientais na construcao civil</title><link>https://cbcs.example/certificacoes</link><description>Sustentabilidade, edificacoes e certificacao ambiental para projetos brasileiros.</description><pubDate>Sat, 05 Sep 2026 11:00:00 -0300</pubDate></item>
+</channel></rss>`;
+
+const sustainabilityHtmlA = `<!doctype html><html><head><title>Selos de sustentabilidade em construcoes verdes</title><link rel="canonical" href="https://gbc.example/selos"><meta name="author" content="GBC"></head><body><main><article><h1>Selos de sustentabilidade em construcoes verdes</h1><p>Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna.</p><p>O texto aborda como construcao verde depende de requisitos documentados, verificacao tecnica e acompanhamento do desempenho ambiental de edificios.</p><p>No Brasil, a discussao sobre certificacao ambiental aparece ligada a projeto, operacao, eficiencia e melhores praticas para reduzir impactos no ciclo de vida.</p><p>A fonte apresenta o tema como referencia tecnica para equipes de arquitetura, engenharia e operacao predial.</p></article></main></body></html>`;
+
+const sustainabilityHtmlB = `<!doctype html><html><head><title>LEED e AQUA-HQE na construcao civil</title><link rel="canonical" href="https://cbcs.example/certificacoes"><meta name="author" content="CBCS"></head><body><main><article><h1>LEED e AQUA-HQE na construcao civil</h1><p>A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos.</p><p>A abordagem relaciona sustentabilidade a escolhas de projeto, materiais, operacao, eficiencia e gestao tecnica ao longo do ciclo de vida da edificacao.</p><p>O conteudo diferencia certificacoes ambientais de acoes isoladas e destaca a necessidade de evidencias, criterios verificaveis e documentacao de projeto.</p><p>O tema e tratado como pauta tecnica para construcao civil e edificacoes sustentaveis.</p></article></main></body></html>`;
+
+function sustainabilityArticle() {
+  return validateLlmArticle(fakeArticle({
+    titulo: "Selos de sustentabilidade e construcoes verdes",
+    resumo: "Certificacoes ambientais ajudam equipes tecnicas a organizar criterios verificaveis de sustentabilidade em edificacoes.",
+    conteudo: [
+      { subtitulo: "Criterios verificaveis", paragrafos: ["Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna. A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos. Essas referencias ajudam equipes tecnicas a tratar construcao verde com documentacao, verificacao e acompanhamento de desempenho ambiental."] },
+      { subtitulo: "Aplicacao tecnica", paragrafos: ["As fontes relacionam sustentabilidade a escolhas de projeto, materiais, operacao, eficiencia e gestao tecnica ao longo do ciclo de vida da edificacao. O ponto comum e que certificacao ambiental depende de evidencias e criterios verificaveis, nao apenas de acoes isoladas ou declaracoes genericas sobre impacto ambiental."] },
+    ],
+    seoTitle: "Selos de sustentabilidade e construcoes verdes",
+    seoDescription: "Veja como LEED e AQUA-HQE estruturam criterios ambientais verificaveis para edificacoes sustentaveis.",
+    slug: "selos-sustentabilidade-construcoes-verdes",
+    categoria: "Sustentabilidade",
+    tags: ["sustentabilidade", "LEED", "AQUA-HQE"],
+    claims: [
+      { claim: "Certificacoes ambientais como LEED avaliam criterios de sustentabilidade em edificacoes, incluindo energia, agua, materiais e qualidade ambiental interna.", sourceIds: ["source_1"] },
+      { claim: "A certificacao AQUA-HQE organiza requisitos de desempenho ambiental para edificios, gestao do empreendimento, conforto dos usuarios e qualidade dos processos.", sourceIds: ["source_2"] },
+    ],
+  }));
+}
+
+const discoveryConfig = {
+  ...config,
+  topics: ["engenharia civil", "construcao", "sustentabilidade"],
+  sources: [
+    { name: "GBC", url: "https://gbc.example/feed.xml", type: "rss", quality: 0.9 },
+    { name: "CBCS", url: "https://cbcs.example/feed.xml", type: "rss", quality: 0.86 },
+  ],
+  limits: { ...config.limits, maxSecondaryQueries: 5, maxSecondaryCandidates: 8, maxSourcesToRead: 5, maxSourcesSelected: 5, secondarySourceMinScore: 1.15, clusterSimilarityThreshold: 0.5 },
+  sourceDiscovery: { queryAliases: { sustentabilidade: ["selos sustentabilidade construcao verde Brasil", "LEED AQUA-HQE construcao sustentavel"], certificac: ["certificacoes ambientais construcao civil Brasil"] } },
+};
+
+async function discoveryFetch(url) {
+  const target = String(url);
+  if (target.includes("gbc.example/feed")) return response(sustainabilityFeedA, { contentType: "application/rss+xml" });
+  if (target.includes("cbcs.example/feed")) return response(sustainabilityFeedB, { contentType: "application/rss+xml" });
+  if (target.includes("gbc.example/selos")) return response(sustainabilityHtmlA);
+  if (target.includes("cbcs.example/certificacoes")) return response(sustainabilityHtmlB);
+  if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(sustainabilityArticle()), usage: { input_tokens: 1200, output_tokens: 700 } }), { contentType: "application/json" });
+  if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg", headers: { "x-model-used": "sana", "x-usage-total-tokens": "1" } });
+  throw new Error(`URL inesperada: ${target}`);
+}
+
+test("query expansion gera variacoes deterministicas", () => {
+  const queries = buildSecondaryQueries({ titulo: "Selos de sustentabilidade e construcoes verdes", keywords: ["sustentabilidade", "certificacao"] }, discoveryConfig);
+  assert.ok(queries.length <= discoveryConfig.limits.maxSecondaryQueries);
+  assert.ok(queries.some((query) => /LEED|AQUA-HQE|selos sustentabilidade/i.test(query)));
+});
+test("query expansion preserva entidades de evento especifico", () => {
+  const queries = buildSecondaryQueries({ titulo: "Workshop de Negociacoes Coletivas da CBIC", keywords: ["workshop", "negociacoes", "coletivas", "CBIC"] }, discoveryConfig);
+  assert.ok(queries.some((query) => /Workshop.*Negociacoes.*Coletivas.*CBIC|CBIC.*Workshop.*Negociacoes/i.test(query)));
+  assert.ok(queries.every((query) => !/^negociacao coletiva construcao$/i.test(query)));
+});
+
+test("topic alignment rejeita pauta vizinha e aceita entidade principal", () => {
+  const radar = { titulo: "CBIC divulga Radar Convencoes Coletivas de julho", resumo_feed: "Levantamento acompanha negociacoes coletivas no setor." };
+  const workshop = { titulo: "Workshop de Negociacoes Coletivas da CBIC", resumo_feed: "Evento com inscricoes, vagas e simulacao pratica." };
+  const radarScore = topicAlignmentScore("Workshop de Negociacoes Coletivas da CBIC", radar, discoveryConfig);
+  const workshopScore = topicAlignmentScore("Workshop de Negociacoes Coletivas da CBIC", workshop, discoveryConfig);
+  assert.equal(radarScore.topicDrift, true);
+  assert.ok(radarScore.missingEntities.includes("workshop"));
+  assert.equal(workshopScore.topicDrift, false);
+  assert.ok(workshopScore.score > radarScore.score);
+});
+
+test("secondary search encontra nova fonte relacionada", async () => {
+  const collected = await collectCandidates(discoveryConfig, { fetchImpl: discoveryFetch, lookup, now });
+  const pauta = { titulo: "Selos de sustentabilidade em construcoes verdes", keywords: ["sustentabilidade", "certificacoes"], items: [collected.candidates[0]] };
+  const result = await discoverSecondarySources({ pauta, config: discoveryConfig, initialCandidates: collected.candidates, selectedSources: [collected.candidates[0]], fetchImpl: discoveryFetch, lookup, now });
+  assert.equal(result.sources.length, 2);
+  assert.ok(result.candidates.some((item) => item.fonte === "CBCS"));
+});
+test("secondary discovery HTML aceita resultado relevante fora do cache inicial", async () => {
+  const html = `<!doctype html><html><body><main><article><a href="/certificacao-ambiental">Certificacao ambiental para edificacoes sustentaveis no Brasil</a><p>LEED, AQUA-HQE, selos e construcao verde orientam criterios verificaveis.</p></article></main></body></html>`;
+  const htmlConfig = { ...discoveryConfig, sources: [], sourceDiscovery: { ...discoveryConfig.sourceDiscovery, htmlSources: [{ name: "Instituto Tecnico", url: "https://instituto.example/noticias/", quality: 0.82 }] } };
+  const fetchImpl = async (url) => {
+    if (String(url).includes("instituto.example/noticias")) return response(html);
+    throw new Error(`URL inesperada: ${url}`);
+  };
+  const pauta = { titulo: "Selos de sustentabilidade e construcoes verdes", keywords: ["sustentabilidade", "certificacao"] };
+  const result = await discoverSecondarySources({ pauta, config: htmlConfig, initialCandidates: [], selectedSources: [], commandTopic: pauta.titulo, fetchImpl, lookup, now });
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.audit.some((item) => item.provider === "Instituto Tecnico" && item.raw >= 1 && item.accepted === 1), true);
+});
+
+test("resultado secundario irrelevante e descartado por topic drift antes de independencia", async () => {
+  const pauta = { titulo: "Workshop de Negociacoes Coletivas da CBIC", keywords: ["workshop", "negociacoes", "coletivas", "CBIC"] };
+  const radar = { titulo: "CBIC divulga Radar Convencoes Coletivas de julho", resumo_feed: "Levantamento acompanha convencoes coletivas.", fonte: "CBIC", url: "https://cbic.example/radar", data: now.toISOString(), sourceQuality: 0.9 };
+  const result = await discoverSecondarySources({ pauta, config: discoveryConfig, initialCandidates: [radar], selectedSources: [], commandTopic: pauta.titulo, fetchImpl: discoveryFetch, lookup, now });
+  assert.equal(result.candidates.length, 0);
+  assert.equal(result.discarded.some((item) => item.reason === "topic_drift"), true);
+});
+
+test("canonical igual nao conta duas fontes", () => {
+  const a = { ...leedSource, url: "https://gbc.example/leed" };
+  const b = { ...a, fonte: "Republicador", sourceId: "source_2" };
+  assert.equal(isIndependentSource(a, b), false);
+  assert.equal(countIndependentSources([a, b]), 1);
+});
+
+test("mesmo dominio pode contar quando conteudo e origem diferem", () => {
+  const a = { fonte: "Portal", tituloOriginal: "LEED em edificios comerciais", url: "https://portal.example/a", conteudo: sustainabilityHtmlA };
+  const b = { fonte: "Portal", tituloOriginal: "AQUA-HQE em edificios publicos", url: "https://portal.example/b", conteudo: sustainabilityHtmlB };
+  assert.equal(isIndependentSource(a, b), true);
+  assert.equal(countIndependentSources([a, b]), 2);
+});
+
+test("syndication e conteudo semelhante nao contam", () => {
+  const copy = { fonte: "Portal Y", tituloOriginal: fortalezaSource.tituloOriginal, url: "https://portal-y.example/release", autor: "Com informacoes da CBIC", conteudo: fortalezaSource.conteudo };
+  assert.equal(isIndependentSource(copy, fortalezaSource), false);
+});
+
+test("tres fontes independentes funcionam", () => {
+  assert.equal(countIndependentSources([leedSource, aquaSource, sustainableSource]), 3);
+  assert.equal(selectIndependentSources([leedSource, aquaSource, sustainableSource]).sources.length, 3);
+});
+
+test("clusterizacao junta titulos proximos e separa assuntos distintos", () => {
+  const candidates = [
+    { titulo: "Selos de sustentabilidade em construcoes verdes", resumo_feed: "certificacoes ambientais", fonte: "A", url: "https://a.example/1", data: now.toISOString(), sourceQuality: 0.9 },
+    { titulo: "Certificacoes ambientais para construcao verde", resumo_feed: "LEED e AQUA-HQE", fonte: "B", url: "https://b.example/1", data: now.toISOString(), sourceQuality: 0.8 },
+    { titulo: "Workshop sindical discute negociacoes coletivas", resumo_feed: "agenda de evento", fonte: "C", url: "https://c.example/1", data: now.toISOString(), sourceQuality: 0.8 },
+  ];
+  const grouped = groupPautas(candidates, { ...discoveryConfig, limits: { ...discoveryConfig.limits, clusterSimilarityThreshold: 0.3 } });
+  assert.equal(grouped.length, 2);
+  assert.ok(grouped.some((group) => group.items.length === 2));
+});
+
+test("trend com uma fonte bloqueia e LLM fica NOT_CALLED", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-one-source-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify({ ...discoveryConfig, sources: [discoveryConfig.sources[0]] }), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "tendencias de construcao verde", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl: discoveryFetch });
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.sourcePolicy?.ok || false, false);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("technical_topic tenta secondary discovery antes de bloquear e chama LLM com duas fontes", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-secondary-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(discoveryConfig), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "selos de sustentabilidade e construcoes verdes", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl: discoveryFetch });
+  assert.equal(report.sourceDiscovery.secondarySearch, "PASS");
+  assert.equal(report.sourceDiscovery.multiSource, "PASS");
+  assert.equal(report.llm, "PASS");
+  assert.equal(report.sourcePolicy.ok, true);
+  await rm(dir, { recursive: true, force: true });
+});
+
+
+test("diagnostico de duplicidade identifica regra e post anterior", () => {
+  const match = duplicatePautaMatch(
+    { titulo: "CBIC promove Workshop de Negociacoes Coletivas na Construcao Civil", keywords: ["CBIC", "Workshop", "Negociacoes Coletivas"] },
+    [{ titulo: "CBIC realiza Workshop de Negociacoes Coletivas para o setor da Construcao Civil", slug: "workshop-cbic", tags: ["CBIC", "Workshop"] }],
+  );
+  assert.equal(match.duplicate, true);
+  assert.equal(match.rule, "duplicate_title_similarity");
+  assert.equal(match.post.slug, "workshop-cbic");
+});
+
+test("Workshop real gera draft valido quando nao ha post anterior duplicado", async () => {
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop de Negociacoes Coletivas da CBIC</title><link>https://cbic.example/workshop</link><description>Evento com inscricoes, carga horaria e vagas limitadas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop de Negociacoes Coletivas da CBIC</title><link rel="canonical" href="https://cbic.example/workshop"></head><body><article><h1>Workshop de Negociacoes Coletivas da CBIC</h1><p>O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro, com agenda voltada a representantes sindicais e equipes juridicas do setor.</p><p>A atividade tera carga horaria de 12 horas, vagas limitadas, conteudo sobre negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.</p><p>A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao e leitura de cenarios trabalhistas.</p><p>O texto apresenta informacoes de agenda, tema, local, formato da atividade, publico esperado e objetivos declarados da capacitacao, sem transformar a pauta em analise ampla do mercado.</p></article></body></html>`;
+  const eventArticle = validateLlmArticle(fakeArticle({
+    titulo: "Workshop de Negociacoes Coletivas da CBIC",
+    resumo: "A CBIC realizara um Workshop de Negociacoes Coletivas em Brasilia nos dias 10 e 11 de setembro, com carga horaria de 12 horas, vagas limitadas e atividades praticas para representantes do setor.",
+    conteudo: [
+      { subtitulo: "Agenda do encontro", paragrafos: ["O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro. A atividade tera carga horaria de 12 horas e vagas limitadas. A comunicacao da fonte delimita a pauta como uma atividade de capacitacao, com foco em participantes que atuam nas rotinas de negociacao coletiva do setor da construcao civil."] },
+      { subtitulo: "Conteudo previsto", paragrafos: ["A programacao aborda negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano. O recorte editorial permanece no que a fonte informa sobre o evento: carga horaria, vagas, publico de interesse e conteudo aplicado. Sem recorrer a conclusoes externas, o texto organiza os pontos essenciais para que o leitor entenda o formato e o objetivo anunciado."] },
+      { subtitulo: "Publico e foco", paragrafos: ["A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao. A materia evita transformar o Workshop em analise ampla de mercado e registra apenas os dados sustentados pela fonte original, preservando titulo, escopo, tema, publico e caracteristicas informadas da atividade."] },
+    ],
+    seoTitle: "Workshop de Negociacoes Coletivas da CBIC",
+    seoDescription: "CBIC realiza workshop em Brasilia com carga horaria de 12 horas, vagas limitadas e simulacao pratica de negociacoes coletivas.",
+    slug: "workshop-negociacoes-coletivas-cbic",
+    categoria: "Eventos",
+    tags: ["CBIC", "Workshop", "Negociacoes Coletivas"],
+    claims: [
+      { claim: "O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] },
+      { claim: "A atividade tera carga horaria de 12 horas e vagas limitadas.", sourceIds: ["source_1"] },
+      { claim: "A programacao aborda negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.", sourceIds: ["source_1"] },
+    ],
+  }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(eventArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-workshop-valid-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify({ ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] }), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "Workshop de Negociacoes Coletivas da CBIC", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.post, "PASS");
+  assert.equal(report.editorialValidation.ok, true);
+  assert.equal(report.antiCopy, "PASS");
+  assert.equal(report.factualVerifier, "PASS");
+  assert.equal(report.unsupportedClaimBlock, "PASS");
+  assert.equal(report.postPreview.fontes.length, 1);
+  await rm(dir, { recursive: true, force: true });
+});
+test("evento com uma fonte continua suficiente", async () => {
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop de Negociacoes Coletivas da CBIC</title><link>https://cbic.example/workshop</link><description>Evento com inscricoes, carga horaria e vagas limitadas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop de Negociacoes Coletivas da CBIC</title><link rel="canonical" href="https://cbic.example/workshop"></head><body><article><h1>Workshop de Negociacoes Coletivas da CBIC</h1><p>O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro, com agenda voltada a representantes sindicais e equipes juridicas do setor.</p><p>A atividade tera carga horaria de 12 horas, vagas limitadas, conteudo sobre negociacao coletiva, estrategias sindicais, simulacao pratica e debates orientados por casos do cotidiano.</p><p>A programacao e descrita como evento tecnico voltado a representantes sindicais e equipes do setor da construcao, com foco em preparacao para mesas de negociacao e leitura de cenarios trabalhistas.</p><p>O texto apresenta informacoes de agenda, tema, local, formato da atividade, publico esperado e objetivos declarados da capacitacao, sem transformar a pauta em analise ampla do mercado.</p></article></body></html>`;
+  const eventConfig = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  const eventArticle = validateLlmArticle(fakeArticle({ claims: [{ claim: "O Workshop de Negociacoes Coletivas da CBIC sera realizado em Brasilia nos dias 10 e 11 de setembro.", sourceIds: ["source_1"] }] }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(eventArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-event-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(eventConfig), "utf8");
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "Workshop de Negociacoes Coletivas da CBIC", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.pautaType, "event");
+  assert.equal(report.sourcePolicy.ok, true);
+  assert.equal(report.llm, "PASS");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("scoping bloqueia quando a fonte unica vira pauta vizinha", async () => {
+  const scoped = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-scoping-"));
+  const configPath = path.join(dir, "config.json");
+  await writeFile(configPath, JSON.stringify(scoped), "utf8");
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</title><link>https://cbic.example/evento</link><description>Evento tecnico sobre sustentabilidade, inovacao e construcao.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</title><link rel="canonical" href="https://cbic.example/evento"></head><body><article><h1>CBIC realiza evento sobre sustentabilidade e inovacao em Fortaleza</h1><p>A CBIC realiza em Fortaleza um evento sobre sustentabilidade, inovacao e construcao civil, com programacao voltada ao debate tecnico entre representantes do setor.</p><p>A programacao reune representantes da construcao para debater experiencias, iniciativas, projetos e agenda tecnica relacionada a sustentabilidade, inovacao e melhoria de processos.</p><p>O texto informa local, realizacao, tema central do encontro, perfil institucional da iniciativa e contexto da agenda, sem apresentar dados gerais sobre certificacoes ambientais.</p><p>A pauta e delimitada como evento, com informacoes factuais sobre organizacao, local, tema, participantes esperados e objetivos declarados para a conversa tecnica.</p></article></body></html>`;
+  const scopedArticle = validateLlmArticle(fakeArticle({ claims: [{ claim: "A CBIC realiza em Fortaleza um evento sobre sustentabilidade, inovacao e construcao civil.", sourceIds: ["source_1"] }] }));
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("evento")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ output_text: JSON.stringify(scopedArticle), usage: { input_tokens: 100, output_tokens: 80 } }), { contentType: "application/json" });
+    if (target.includes("image.pollinations.ai")) return response(Buffer.alloc(2048, 1), { contentType: "image/jpeg" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const report = await runAutopilot({ dryRun: true, publish: false, topic: "selos de sustentabilidade e construcoes verdes", configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.sourceDiscovery.scoping, "NAO");
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.blockers.some((item) => /Nenhuma fonte real|Politica de fontes/.test(item)), true);
+  await rm(dir, { recursive: true, force: true });
+});
+test("Workshop CBIC nao vira Radar CBIC quando nao ha fonte aderente", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-workshop-drift-"));
+  const configPath = path.join(dir, "config.json");
+  const driftConfig = { ...config, sources: [{ name: "CBIC", url: "https://cbic.example/feed.xml", type: "rss", quality: 0.9 }] };
+  await writeFile(configPath, JSON.stringify(driftConfig), "utf8");
+  const feed = `<?xml version="1.0"?><rss><channel><item><title>CBIC divulga Radar Convencoes Coletivas de julho</title><link>https://cbic.example/radar</link><description>Levantamento acompanha convencoes coletivas e dados do setor.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(feed, { contentType: "application/rss+xml" });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const topic = "Workshop de Negociacoes Coletivas da CBIC";
+  const report = await runAutopilot({ dryRun: true, publish: false, topic, configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: () => {}, fetchImpl });
+  assert.equal(report.selected.titulo, topic);
+  assert.equal(report.sourcesRead, 0);
+  assert.equal(report.llm, "NOT_CALLED");
+  assert.equal(report.sourceDiscovery.discarded.some((item) => item.reason === "topic_drift"), true);
+  await rm(dir, { recursive: true, force: true });
+});
+test("diagnostico OpenAI 401 nao expoe chave e mantem falha", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-secret-auth-test-1234567890";
+  const dir = await mkdtemp(path.join(os.tmpdir(), "autopilot-openai-401-"));
+  const configPath = path.join(dir, "config.json");
+  const eventConfig = { ...config, sources: [{ name: "Fonte Evento", url: "https://evento-openai.example/feed.xml", type: "rss", quality: 0.9 }] };
+  await writeFile(configPath, JSON.stringify(eventConfig), "utf8");
+  const eventFeed = `<?xml version="1.0"?><rss><channel><item><title>Workshop tecnico de engenharia digital</title><link>https://evento-openai.example/workshop</link><description>Evento com agenda tecnica, inscricoes e vagas.</description><pubDate>Sat, 05 Sep 2026 10:00:00 -0300</pubDate></item></channel></rss>`;
+  const eventHtml = `<!doctype html><html><head><title>Workshop tecnico de engenharia digital</title><link rel="canonical" href="https://evento-openai.example/workshop"></head><body><article><h1>Workshop tecnico de engenharia digital</h1><p>O workshop tecnico de engenharia digital sera realizado com agenda sobre planejamento, coordenacao e documentacao de projetos para equipes de engenharia.</p><p>A atividade informa inscricoes, vagas, publico de engenharia, formato de participacao e conteudo aplicado a equipes tecnicas envolvidas com projetos e obras.</p><p>O texto apresenta dados factuais de evento, incluindo tema, publico, formato, objetivos declarados, relacao com processos de obra e organizacao da programacao.</p><p>A pauta permanece delimitada ao evento e nao exige analise ampla de mercado, tendencia setorial, comparacao de tecnologias ou conclusoes externas as informacoes publicadas.</p></article></body></html>`;
+  const logs = [];
+  const fetchImpl = async (url) => {
+    const target = String(url);
+    if (target.includes("feed")) return response(eventFeed, { contentType: "application/rss+xml" });
+    if (target.includes("workshop")) return response(eventHtml);
+    if (target.includes("api.openai.com")) return response(JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_api_key", message: "Incorrect API key provided: sk-secret-auth-test-1234567890" } }), { status: 401, contentType: "application/json", headers: { "x-request-id": "req_auth_123" } });
+    throw new Error(`URL inesperada: ${target}`);
+  };
+  const report = await runAutopilot({ dryRun: true, publish: false, configPath, postsPath: path.join(dir, "posts.json"), now, lookup, log: (line) => logs.push(String(line)), fetchImpl });
+  const output = logs.join("\n") + "\n" + JSON.stringify(report);
+  assert.equal(report.llm, "FAIL");
+  assert.equal(report.openAiDiagnostic.classification, "AUTH_ERROR");
+  assert.equal(report.openAiDiagnostic.status, 401);
+  assert.equal(report.openAiDiagnostic.code, "invalid_api_key");
+  assert.match(logs.join("\n"), /OPENAI CALL FAILED/);
+  assert.doesNotMatch(output, /sk-secret-auth-test-1234567890|Bearer\s+sk-secret/i);
+  process.env.OPENAI_API_KEY = originalKey;
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("diagnostico OpenAI 429 classifica quota sem expor chave", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-secret-quota-test-1234567890";
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => response(JSON.stringify({ error: { type: "insufficient_quota", code: "insufficient_quota", message: "You exceeded your current quota for sk-secret-quota-test-1234567890" } }), { status: 429, contentType: "application/json" }),
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "RATE_LIMIT_OR_QUOTA");
+  assert.equal(error.openAiDiagnostic.status, 429);
+  assert.doesNotMatch(formatOpenAiDiagnostic(error.openAiDiagnostic).join("\n"), /sk-secret-quota-test-1234567890/);
+  process.env.OPENAI_API_KEY = originalKey;
+});
+
+test("diagnostico OpenAI classifica erro de modelo", async () => {
+  const originalModel = process.env.OPENAI_ELO_AUTOPILOT_MODEL;
+  process.env.OPENAI_ELO_AUTOPILOT_MODEL = "gpt-4.1-mini";
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => response(JSON.stringify({ error: { type: "invalid_request_error", code: "model_not_found", message: "The model does not exist or you do not have access to it." } }), { status: 404, contentType: "application/json" }),
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "MODEL_ERROR");
+  assert.equal(error.openAiDiagnostic.model, "gpt-4.1-mini");
+  if (originalModel == null) delete process.env.OPENAI_ELO_AUTOPILOT_MODEL;
+  else process.env.OPENAI_ELO_AUTOPILOT_MODEL = originalModel;
+});
+
+test("diagnostico OpenAI classifica erro de rede", async () => {
+  const error = await generateEditorialArticle({
+    config,
+    pauta: { titulo: "Pauta", keywords: ["BIM"] },
+    articles: [fortalezaSource],
+    fetchImpl: async () => { throw new TypeError("fetch failed network unreachable"); },
+  }).then(() => assert.fail("expected OpenAI failure"), (caught) => caught);
+  assert.equal(error.openAiDiagnostic.classification, "NETWORK_ERROR");
+  assert.equal(error.openAiDiagnostic.status, null);
+  assert.match(formatOpenAiDiagnostic(error.openAiDiagnostic).join("\n"), /OPENAI CALL FAILED/);
+});
+
+
+test("diagnostico OpenAI 403 classifica permissao", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ status: 403, payload: { error: { type: "permission_error", code: "organization_restricted", message: "Project does not have permission" } }, model: "gpt-4.1-mini", requestId: "req_perm_123" });
+  assert.equal(diagnostic.classification, "PERMISSION_ERROR");
+  assert.equal(diagnostic.status, 403);
+  assert.equal(diagnostic.requestId, "req_perm_123");
+});
+
+test("diagnostico OpenAI 500 classifica servico externo", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ status: 500, payload: { error: { type: "server_error", code: "server_error", message: "Internal server error" } }, model: "gpt-4.1-mini" });
+  assert.equal(diagnostic.classification, "OPENAI_SERVICE_ERROR");
+});
+
+test("diagnostico OpenAI AbortError classifica timeout", () => {
+  const diagnostic = buildOpenAiErrorDiagnostic({ model: "gpt-4.1-mini", cause: { name: "AbortError", message: "The operation was aborted by timeout" } });
+  assert.equal(diagnostic.classification, "TIMEOUT");
+});
+
+test("diagnostico OpenAI redige Bearer sk e JWT sem perder campos uteis", () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-live-secret-redaction-1234567890";
+  const diagnostic = buildOpenAiErrorDiagnostic({
+    status: 401,
+    payload: { error: { type: "invalid_request_error", code: "invalid_api_key", message: "Bearer sk-live-secret-redaction-1234567890 jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzZWNyZXQifQ.signaturetoken123" } },
+    model: "gpt-4.1-mini",
+    requestId: "req_redaction_123",
+  });
+  const output = formatOpenAiDiagnostic(diagnostic).join("\n");
+  assert.match(output, /HTTP STATUS: 401/);
+  assert.match(output, /MODEL: gpt-4\.1-mini/);
+  assert.match(output, /REQUEST ID: req_redaction_123/);
+  assert.doesNotMatch(output, /sk-live-secret-redaction-1234567890|Bearer sk-live|eyJhbGci/);
+  if (originalKey == null) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = originalKey;
+});

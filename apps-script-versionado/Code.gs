@@ -46,7 +46,8 @@ function doPost(e) {
     return json_({
       ok: false,
       requestId: requestId,
-      error: error.message || String(error)
+      error: error.message || String(error),
+      errorCode: error.code || "REQUEST_FAILED"
     });
   }
 }
@@ -80,6 +81,8 @@ function processAppApi_(payload, requestId) {
     } else if (action === "auth.login") {
       result = handleAuthLogin_(payload, store, requestId);
       saveAppStore_(store);
+    } else if (action === "auth.me") {
+      result = handleAuthMe_(payload, store, requestId);
     } else if (action === "sync.get") {
       result = handleSyncGet_(payload, store, requestId);
     } else if (action === "sync.save") {
@@ -104,32 +107,21 @@ function handleAuthLogin_(payload, store, requestId) {
     throw new Error("Informe e-mail e senha.");
   }
 
-  let user = store.users.find(function (item) {
+  const user = store.users.find(function (item) {
     return item.email === email;
   });
 
   if (!user) {
-    user = {
-      id: createAppId_("usr"),
-      name: name || email,
-      email: email,
-      role: "Responsavel tecnico",
-      passwordSalt: Utilities.getUuid(),
-      passwordHash: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    user.passwordHash = hashPassword_(password, user.passwordSalt);
-    store.users.push(user);
-  } else {
-    if (user.passwordHash && user.passwordHash !== hashPassword_(password, user.passwordSalt)) {
-      throw new Error("E-mail ou senha invalidos.");
-    }
+    throw createAuthError_("AUTH_DENIED", "E-mail ou senha invalidos.");
+  }
 
-    if (name) {
-      user.name = name;
-      user.updatedAt = new Date().toISOString();
-    }
+  if (!isSupportedRole_(user.role) || !user.passwordHash || user.passwordHash !== hashPassword_(password, user.passwordSalt)) {
+    throw createAuthError_("AUTH_DENIED", "E-mail ou senha invalidos.");
+  }
+
+  if (name && name !== user.name) {
+    user.name = name;
+    user.updatedAt = new Date().toISOString();
   }
 
   const token = createAuthToken_(user.id);
@@ -141,6 +133,37 @@ function handleAuthLogin_(payload, store, requestId) {
     user: publicUser_(user),
     state: buildUserState_(store, user.id)
   };
+}
+
+function handleAuthMe_(payload, store, requestId) {
+  if (!payload || !payload.token) {
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: false,
+      user: null,
+      role: null
+    };
+  }
+
+  try {
+    const user = requireUser_(payload.token, store);
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: true,
+      user: publicUser_(user),
+      role: normalizeRole_(user.role)
+    };
+  } catch (error) {
+    return {
+      ok: true,
+      requestId: requestId,
+      authenticated: false,
+      user: null,
+      role: null
+    };
+  }
 }
 
 function handleSyncGet_(payload, store, requestId) {
@@ -246,7 +269,7 @@ function publicUser_(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role || "Responsavel tecnico",
+    role: normalizeRole_(user.role),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
@@ -258,11 +281,25 @@ function requireUser_(token, store) {
     return item.id === tokenData.userId;
   });
 
-  if (!user) {
-    throw new Error("Sessao invalida. Entre novamente.");
+  if (!user || !isSupportedRole_(user.role)) {
+    throw createAuthError_("AUTH_DENIED", "Sessao invalida. Entre novamente.");
   }
 
   return user;
+}
+
+function normalizeRole_(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isSupportedRole_(value) {
+  return ["admin", "fiscal", "viewer", "user", "client"].indexOf(normalizeRole_(value)) >= 0;
+}
+
+function createAuthError_(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
 }
 
 function getAppStore_() {
@@ -292,6 +329,81 @@ function saveAppStore_(store) {
   store.version = 1;
   store.updatedAt = new Date().toISOString();
   getAppDataFile_().setContent(JSON.stringify(store, null, 2));
+}
+
+/**
+ * TEMPORARY OPERATOR-ONLY BOOTSTRAP.
+ * Run manually from the existing Apps Script editor, never through doPost.
+ * The password is read only from Script Properties and is never logged or returned.
+ */
+function operatorResetCanonicalAdmin_() {
+  const propertyKey = "OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD";
+  const canonicalEmail = "local@obrareport.app";
+  const properties = PropertiesService.getScriptProperties();
+  const password = String(properties.getProperty(propertyKey) || "");
+
+  if (
+    password.length < 20 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    throw new Error("A Script Property do bootstrap deve conter uma senha forte.");
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const store = getAppStore_();
+    const matches = store.users.filter(function (item) {
+      return normalizeEmail_(item && item.email) === canonicalEmail;
+    });
+
+    if (matches.length > 1) {
+      throw new Error("Mais de um registro para o admin canônico; revisão manual necessária.");
+    }
+
+    const now = new Date().toISOString();
+    let user = matches[0];
+    const created = !user;
+
+    if (!user) {
+      user = {
+        id: createAppId_("usr"),
+        name: "Administrador ObraReport",
+        email: canonicalEmail,
+        role: "admin",
+        passwordSalt: "",
+        passwordHash: "",
+        createdAt: now,
+        updatedAt: now
+      };
+      store.users.push(user);
+    }
+
+    user.role = "admin";
+    user.passwordSalt = Utilities.getUuid();
+    user.passwordHash = hashPassword_(password, user.passwordSalt);
+    user.updatedAt = now;
+    saveAppStore_(store);
+
+    return {
+      ok: true,
+      user: canonicalEmail,
+      role: "admin",
+      created: created
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Temporary operator cleanup; run immediately after verifying the reset. */
+function operatorClearCanonicalAdminBootstrapPassword_() {
+  PropertiesService.getScriptProperties().deleteProperty("OBRAREPORT_BOOTSTRAP_ADMIN_PASSWORD");
+  return { ok: true, propertyRemoved: true };
 }
 
 function getAppDataFile_() {
@@ -421,6 +533,10 @@ function createAppId_(prefix) {
 }
 
 function processReport_(payload, requestId) {
+  if (isRdoPayload_(payload)) {
+    return processRdoReport_(payload, requestId);
+  }
+
   validatePayload_(payload);
 
   const report = payload.report;
@@ -474,6 +590,97 @@ function processReport_(payload, requestId) {
     imageReportFolder: imageReportFolder,
     docFile: docFile
   };
+}
+
+function isRdoPayload_(payload) {
+  return String(payload && (payload.documentType || payload.document_type) || "").trim().toLowerCase() === "rdo";
+}
+
+function processRdoReport_(payload, requestId) {
+  validateRdoPayload_(payload);
+
+  const report = payload.report;
+  const timestamp = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    "yyyy-MM-dd_HH-mm-ss"
+  );
+  const safeObra = safeName_(report.workName || "RDO");
+  const baseName = timestamp + "_RDO_" + safeObra + "_" + requestId.slice(0, 8);
+  const pdfFolder = DriveApp.getFolderById(CONFIG.PDF_FOLDER_ID);
+  const imageRootFolder = DriveApp.getFolderById(CONFIG.IMAGE_FOLDER_ID);
+  const imageReportFolder = imageRootFolder.createFolder(baseName);
+  const photos = normalizeRdoPhotoItems_(payload.fotosRdo || report.photos || []);
+  const savedPhotos = saveImageItems_(photos, imageReportFolder, "RDO", requestId);
+  const docFile = createRdoDocument_(baseName, payload, savedPhotos, requestId);
+  const pdfBlob = docFile
+    .getBlob()
+    .getAs(MimeType.PDF)
+    .setName(baseName + ".pdf");
+  const pdfFile = pdfFolder.createFile(pdfBlob);
+
+  logInfo_(requestId, "RDO concluído: " + pdfFile.getUrl(), {
+    documentType: "rdo",
+    workId: payload.workId,
+    rdoId: payload.rdoId
+  });
+
+  return {
+    pdfFile: pdfFile,
+    imageReportFolder: imageReportFolder,
+    docFile: docFile
+  };
+}
+
+function validateRdoPayload_(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Payload RDO inválido.");
+  }
+
+  if (!String(payload.workId || "").trim()) {
+    throw new Error("Identificador da obra ausente no RDO.");
+  }
+
+  if (!String(payload.rdoId || "").trim()) {
+    throw new Error("Identificador do RDO ausente.");
+  }
+
+  if (!payload.report || typeof payload.report !== "object") {
+    throw new Error("Dados do RDO ausentes.");
+  }
+
+  ["date", "workName"].forEach(function (field) {
+    if (!String(payload.report[field] || "").trim()) {
+      throw new Error("Campo obrigatório do RDO ausente: " + field);
+    }
+  });
+
+  const photos = payload.fotosRdo || payload.report.photos || [];
+  if (!Array.isArray(photos)) {
+    throw new Error("Registro fotográfico do RDO inválido.");
+  }
+
+  if (photos.length > CONFIG.MAX_FOTOS_UNIDADE) {
+    throw new Error("Limite de fotos do RDO excedido. Máximo: " + CONFIG.MAX_FOTOS_UNIDADE);
+  }
+}
+
+function normalizeRdoPhotoItems_(photos) {
+  return (Array.isArray(photos) ? photos : []).map(function (item, index) {
+    const source = item && typeof item === "object" ? item : {};
+    const photo = source.foto && typeof source.foto === "object"
+      ? source.foto
+      : {
+          base64: source.base64,
+          mimeType: source.mimeType,
+          fileName: source.fileName || source.originalName
+        };
+    return {
+      numero: source.numero || String(index + 1).padStart(2, "0"),
+      descricao: source.descricao || source.description || "",
+      foto: photo
+    };
+  });
 }
 
 function validatePayload_(payload) {
@@ -697,6 +904,123 @@ function ensureImageFileExtension_(fileName, mimeType) {
 
   return safeFileName + (extensionByMimeType[mimeType] || ".jpg");
 }
+
+function createRdoDocument_(baseName, payload, photos, requestId) {
+  const doc = DocumentApp.create(baseName + "_doc");
+  const body = doc.getBody();
+
+  buildRdoDocument_(doc, body, payload, photos, requestId);
+  doc.saveAndClose();
+
+  return DriveApp.getFileById(doc.getId());
+}
+
+function buildRdoDocument_(doc, body, payload, photos, requestId) {
+  const report = payload.report;
+  body.clear();
+  body.setMarginTop(34);
+  body.setMarginBottom(42);
+  body.setMarginLeft(42);
+  body.setMarginRight(42);
+
+  addRdoDocumentFooter_(doc, report, payload);
+  appendCoverBand_(body, "ObraReport", "Diário de Obra");
+  appendCenteredParagraph_(body, "RELATÓRIO DIÁRIO DE OBRA / RDO", 24, true, "#082033");
+  appendCenteredParagraph_(body, "Registro operacional do dia", 11, false, "#5b6673");
+  body.appendParagraph("").setSpacingAfter(16);
+  appendCoverLine_(body, "OBRA", report.workName);
+  appendCoverLine_(body, "DATA", formatDateForDisplay_(report.date));
+  appendCoverLine_(body, "RESPONSÁVEL", rdoDisplayValue_(report.responsible));
+  appendCoverLine_(body, "WORK ID", payload.workId);
+  appendCoverLine_(body, "RDO ID", payload.rdoId);
+  body.appendPageBreak();
+
+  appendRdoSection_(body, "1 - IDENTIFICAÇÃO", [
+    ["OBRA", report.workName],
+    ["DATA", formatDateForDisplay_(report.date)],
+    ["RESPONSÁVEL", report.responsible],
+    ["WORK ID", payload.workId],
+    ["RDO ID", payload.rdoId]
+  ]);
+  appendRdoSection_(body, "2 - CONDIÇÕES DO DIA", [
+    ["CLIMA", report.climate],
+    ["IMPACTOS / INTERFERÊNCIAS", report.impact],
+    ["HORÁRIO / JORNADA", report.hours]
+  ]);
+  appendRdoSection_(body, "3 - EQUIPE", [
+    ["EQUIPE", report.team],
+    ["TRABALHADORES", report.workers]
+  ]);
+  appendRdoSection_(body, "4 - EXECUÇÃO", [
+    ["SERVIÇOS EXECUTADOS", report.services],
+    ["PROGRESSO FÍSICO", report.physicalProgress],
+    ["PRODUÇÃO", report.production]
+  ]);
+  appendRdoSection_(body, "5 - RECURSOS", [
+    ["MATERIAIS", report.materials],
+    ["SOLICITAÇÕES", report.requests],
+    ["FERRAMENTAS / EQUIPAMENTOS", report.tools]
+  ]);
+  appendRdoSection_(body, "6 - SEGURANÇA", [["INFORMAÇÕES DE SEGURANÇA", report.safety]]);
+  appendRdoSection_(body, "7 - OCORRÊNCIAS", [["OCORRÊNCIAS / INCONFORMIDADES", report.occurrences]]);
+  appendRdoSection_(body, "8 - OBSERVAÇÕES", [["OBSERVAÇÕES GERAIS", report.observations]]);
+
+  if (photos.length) {
+    body.appendPageBreak();
+    appendPhotoGrid_(body, photos, requestId, "9 - REGISTRO FOTOGRÁFICO");
+  } else {
+    appendRdoSection_(body, "9 - REGISTRO FOTOGRÁFICO", [["STATUS", "Nenhuma foto registrada no RDO."]]);
+  }
+
+  appendRdoSection_(body, "10 - RESUMO", [["RESUMO DO DIA", report.summary]]);
+}
+
+function appendRdoSection_(body, title, items) {
+  appendSectionHeader_(body, title);
+  appendInfoBox_(body, items.map(function (item) {
+    return [item[0], rdoDisplayValue_(item[1])];
+  }));
+}
+
+function rdoDisplayValue_(value) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return "Não informado";
+  }
+
+  if (Array.isArray(value)) {
+    if (!value.length) return "Não informado";
+    return value.map(function (item) {
+      return typeof item === "object" ? JSON.stringify(item) : String(item);
+    }).join("; ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function addRdoDocumentFooter_(doc, report, payload) {
+  try {
+    const footer = doc.addFooter();
+    const paragraph = footer.appendParagraph(
+      "ObraReport | RDO | " +
+        rdoDisplayValue_(report && report.workName) +
+        " | " +
+        rdoDisplayValue_(formatDateForDisplay_(report && report.date)) +
+        " | " +
+        rdoDisplayValue_(payload && payload.rdoId)
+    );
+    paragraph
+      .setAlignment(DocumentApp.HorizontalAlignment.CENTER)
+      .setFontSize(8)
+      .setForegroundColor("#5b6673");
+  } catch (error) {
+    console.log("Rodape do RDO nao criado: " + error.message);
+  }
+}
+
 function createDocument_(baseName, report, fotosUnidade, inconformidades, requestId) {
   const doc = DocumentApp.create(baseName + "_doc");
   const body = doc.getBody();

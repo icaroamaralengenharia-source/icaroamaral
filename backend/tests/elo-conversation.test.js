@@ -242,7 +242,7 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   const pureRouteIndex = source.indexOf("handleEloCorePureConversationalAnswer_(cleanQuestion)");
   const onlineRouteIndex = source.lastIndexOf("requestEloOnlineAnswer(cleanQuestion, attachedFiles)");
   const searchRouteIndex = source.indexOf("requestEloWebSearchAnswer_(cleanQuestion).then");
-  const searchButtonIndex = source.indexOf('label: "Pesquise"');
+  const searchButtonIndex = source.indexOf('label: "Pesquisar agora"');
   const technicalBlocker = source.match(/function hasEloCoreTechnicalConversationBlocker_[\s\S]*?\n  \}/)?.[0] || "";
   const casualDetector = source.match(/function detectEloCoreCasualConversationIntent_[\s\S]*?\n  \}/)?.[0] || "";
   const casualAnswer = source.match(/function buildEloCoreCasualConversationAnswer_[\s\S]*?\n  function buildEloCorePureConversationalAnswer_/)?.[0] || "";
@@ -278,21 +278,39 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   assert.doesNotMatch(source.slice(searchRouteIndex, searchRouteIndex + 700), /label: "Pesquise"|action: liveSearchResponse\.action/);
 });
 
-test("frontend preserva scroll do chat historico e memoria", () => {
+test("frontend usa painel controlado para historico e memoria", () => {
   const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");
   const css = readFileSync("elo.css", "utf8");
   const historyBlock = source.match(/function showEloCoreHistory_[\s\S]*?\.catch/)?.[0] || "";
   const memoryBlock = source.match(/function showEloCoreMemoryPanel_[\s\S]*?function buildEloCoreMemoryRecallResponse_/)?.[0] || "";
-  const appendMessageBlock = source.match(/function appendMessage[\s\S]*?return message;\n  \}/)?.[0] || "";
+  const utilityBlock = source.match(/function ensureEloCoreUtilityPanel_[\s\S]*?function restoreEloCoreChatFromHistory_/)?.[0] || "";
 
-  assert.match(historyBlock, /ELO_UI\.messages\.scrollTop = 0/);
-  assert.match(memoryBlock, /ELO_UI\.messages\.scrollTop = 0/);
-  assert.match(source, /scrollEloConversationToBottom_\(\{ force: shouldStick \|\| kind === "assistant" \}\)/);
-  assert.match(css, /scroll-padding-top: 16px/);
-  assert.match(css, /scroll-padding-bottom: calc\(14px \+ var\(--elo-composer-height, 72px\)\)/);
-  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-messages/);
-  assert.match(css, /scroll-margin-top: 14px/);
-  assert.match(css, /padding-bottom: calc\(12px \+ var\(--elo-composer-height, 66px\)\)/);
+  assert.ok(source.includes("coreUtilityPanel: null"));
+  assert.ok(source.includes('corePanelState: "none"'));
+  assert.ok(source.includes("coreConversationEnsurePromise: null"));
+  assert.ok(source.includes("if (ELO_UI.coreConversationEnsurePromise) return ELO_UI.coreConversationEnsurePromise"));
+  assert.match(source, /\.finally\(function \(\) \{\s*ELO_UI\.coreConversationEnsurePromise = null;/);
+  assert.ok(source.includes('const panelActive = ELO_UI.corePanelState && ELO_UI.corePanelState !== "none"'));
+  assert.ok(source.includes("const active = userCount > 0 || panelActive"));
+
+  assert.ok(utilityBlock.includes('createElement("section", "elo-core-utility-panel")'));
+  assert.ok(utilityBlock.includes('panel.textContent = ""'));
+  assert.ok(utilityBlock.includes("ELO_UI.messages.hidden = true"));
+  assert.ok(utilityBlock.includes("closeEloCoreUtilityPanel_({ preserveScroll: true })"));
+  assert.doesNotMatch(utilityBlock, /document\.createDocumentFragment|historySnapshot/);
+
+  assert.ok(historyBlock.includes('renderEloCoreUtilityPanel_("history", "Historico de conversas")'));
+  assert.ok(historyBlock.includes("loadEloCoreConversation_(conversation.id)"));
+  assert.doesNotMatch(historyBlock, /appendMessage\("assistant"|ELO_UI\.messages\.scrollTop = 0|document\.createDocumentFragment|historySnapshot/);
+
+  assert.ok(memoryBlock.includes('renderEloCoreUtilityPanel_("memory"'));
+  assert.ok(memoryBlock.includes("panel.appendChild(list)"));
+  assert.ok(memoryBlock.includes("showEloCoreMemoryPanel_()"));
+  assert.doesNotMatch(memoryBlock, /appendMessage\("assistant"|ELO_UI\.messages\.scrollTop = 0/);
+
+  assert.ok(css.includes("elo-core-utility-panel"));
+  assert.ok(css.includes("is-memory-view .elo-input-row"));
+  assert.ok(css.includes("is-history-view .elo-input-row"));
 });
 test("frontend preserva continuidade do wall_budget simples", () => {
   const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");

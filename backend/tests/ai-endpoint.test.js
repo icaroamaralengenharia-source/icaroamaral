@@ -1658,6 +1658,55 @@ test("stock full sync rejeita saida maior que saldo e audita", async () => {
   }
 });
 
+test("stock full transfer aceita operationId textual e preserva idempotencia", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [
+      { id: "sf_source_1", institution_id: "inst_auth", name: "Cimento origem", unit: "saco", current_quantity: 12, is_active: true },
+      { id: "sf_dest_1", institution_id: "inst_auth", name: "Almox destino", unit: "saco", current_quantity: 1, is_active: true }
+    ]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const body = JSON.stringify({
+      sourceItemId: "sf_source_1",
+      destinationItemId: "sf_dest_1",
+      quantity: 5,
+      operationId: "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123",
+      offlineUuid: "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123",
+      deviceId: "elo-web-test",
+      source: "elo_action_bus"
+    });
+    const firstResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const first = await firstResponse.json();
+    const secondResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const second = await secondResponse.json();
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(first.status, "synced");
+    assert.equal(secondResponse.status, 200);
+    assert.equal(second.duplicate, true);
+    assert.equal(supabase.stockFullItems.find((item) => item.id === "sf_source_1").current_quantity, 7);
+    assert.equal(supabase.stockFullItems.find((item) => item.id === "sf_dest_1").current_quantity, 6);
+    assert.equal(supabase.stockFullExits.length, 1);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullExits[0].operation_id, "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123:exit");
+    const transferAudit = supabase.stockFullAuditLogs.find((log) => log.action === "stock_full_transfer_created");
+    assert.ok(transferAudit);
+    assert.equal(transferAudit.entity_id, "sf_source_1");
+    assert.equal(transferAudit.operation_id, "elo:stock.transfer.preview:sf_source_1:5:inst_auth:profile_auth:abc123");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
 test("stock full sync ignora institution_id do frontend e isola empresa", async () => {
   const supabase = createMockStockSaudeSupabase_({
     stockFullItems: [
@@ -3832,6 +3881,7 @@ before(async () => {
       PORT: "0",
       AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
     },
+    authContextSupabaseClient: createMockStockSaudeSupabase_(),
     eloVectorMemoryStore
   });
 
@@ -3934,6 +3984,69 @@ test("análise visual sem chave retorna erro amigável", async () => {
   assert.equal(response.status, 503);
   assert.equal(data.ok, false);
   assert.match(data.error, /OPENAI_API_KEY/);
+});
+
+test("análise visual exige autenticação e contexto de tenant", async () => {
+  const imageBody = {
+    image: {
+      base64: tinyJpegBase64_(),
+      mimeType: "image/jpeg",
+      fileName: "controlled-test.jpg",
+      width: 1,
+      height: 1
+    },
+    context: { securityAudit: "controlled-image" }
+  };
+
+  const cases = [
+    {
+      authorization: undefined,
+      supabase: createMockStockSaudeSupabase_(),
+      status: 401,
+      error: "authentication_required"
+    },
+    {
+      authorization: "Bearer invalid-audit-token",
+      supabase: createMockStockSaudeSupabase_(),
+      status: 401,
+      error: "invalid_session"
+    },
+    {
+      authorization: "Bearer valid-token",
+      supabase: createMockStockSaudeSupabase_({ profile: null }),
+      status: 403,
+      error: "auth_context_profile_not_found"
+    },
+    {
+      authorization: "Bearer valid-token",
+      supabase: createMockStockSaudeSupabase_(),
+      status: 503,
+      errorPattern: /OPENAI_API_KEY/
+    }
+  ];
+
+  for (const scenario of cases) {
+    const app = createApp({
+      env: { PORT: "0" },
+      authContextSupabaseClient: scenario.supabase
+    });
+    const testServer = await listenTestApp_(app);
+    try {
+      const response = await postImageTo_(testServer.baseUrl, imageBody, scenario.authorization);
+      const data = await response.json();
+
+      assert.equal(response.status, scenario.status);
+      assert.equal(data.ok, false);
+      if (scenario.error) {
+        assert.equal(data.error, scenario.error);
+      }
+      if (scenario.errorPattern) {
+        assert.match(data.error, scenario.errorPattern);
+      }
+    } finally {
+      await closeTestServer_(testServer.server);
+    }
+  }
 });
 
 test("elo chat exige mensagem", async () => {
@@ -6695,6 +6808,422 @@ test("frontend Elo separa conversa, busca atual e continuacao tecnica por intenc
   assert.equal(classify("e com 10%?", { active: false, topic: "" }).intent, "conversa_geral");
 });
 
+test("frontend Elo prioriza topico explicito recente nas continuacoes curtas", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  assert.equal(elo.detectConversationTopicForTest("qual largura de portao para caminhonete?"), "portao");
+  elo.resolveTopicSwitchForTest("qual largura de portao para caminhonete?");
+  elo.resolveTopicSwitchForTest("estou fazendo uma laje");
+  const topicState = elo.getActiveTopicStateForTest();
+  assert.equal(topicState.activeTopic, "laje");
+  assert.equal(topicState.activeConversationTopic, "laje");
+  assert.equal(topicState.lastQuestion, "");
+  assert.equal(elo.classifySemanticRouteForTest("e se for trelicada?", { active: true, topic: "laje" }).intent, "continuacao_contexto_tecnico");
+  elo.resolveTopicSwitchForTest("e se for trelicada?");
+  assert.equal(elo.getActiveTopicStateForTest().activeConversationTopic, "laje");
+
+  const cases = [
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede"],
+    ["estou tratando a fundacao", "e se for radier?", "fundacao"]
+  ];
+  for (const [first, followUp, expectedTopic] of cases) {
+    const isolated = await loadEloOperationalSandbox_([]);
+    const isolatedElo = isolated.window.EloAssistente;
+    isolatedElo.resolveTopicSwitchForTest(first);
+    assert.equal(isolatedElo.getActiveTopicStateForTest().activeConversationTopic, expectedTopic, first);
+    assert.equal(isolatedElo.classifySemanticRouteForTest(followUp, { active: true, topic: expectedTopic }).intent, "continuacao_contexto_tecnico", followUp);
+    isolatedElo.resolveTopicSwitchForTest(followUp);
+    assert.equal(isolatedElo.getActiveTopicStateForTest().activeConversationTopic, expectedTopic, followUp);
+  }
+
+  const fresh = await loadEloOperationalSandbox_([]);
+  assert.equal(fresh.window.EloAssistente.getActiveTopicStateForTest().activeConversationTopic, "");
+});
+
+test("frontend Elo despacha continuacao tecnica antes do fallback generico de sessao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  const cases = [
+    ["estou fazendo uma laje", "e se for trelicada?", "laje"],
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede"],
+    ["estou analisando uma fundacao", "e se for radier?", "fundacao"]
+  ];
+  for (const [first, followUp, topic] of cases) {
+    const isolated = await loadEloOperationalSandbox_([]);
+    const isolatedElo = isolated.window.EloAssistente;
+    isolatedElo.resolveTopicSwitchForTest(first);
+    const technicalRoute = isolatedElo.classifySemanticRouteForTest(followUp, {
+      active: true,
+      topic
+    });
+    const technicalResponse = isolatedElo.buildResponseForTest(followUp, {
+      skipLocalCommunicationFallback: true,
+      semanticRoute: technicalRoute
+    });
+    assert.equal(technicalRoute.intent, "continuacao_contexto_tecnico", followUp);
+    assert.equal(technicalResponse, null, followUp);
+  }
+
+  const genericSandbox = await loadEloOperationalSandbox_([]);
+  const genericResponse = genericSandbox.window.EloAssistente.buildResponseForTest("e depois?", {
+    skipLocalCommunicationFallback: true,
+    semanticRoute: { intent: "conversa_geral" }
+  });
+  assert.equal(genericResponse.sessionIntent, "continuidade");
+});
+
+test("frontend Elo contextualiza continuacoes tecnicas para o motor online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.resolveTopicSwitchForTest("estou fazendo uma laje");
+  const route = elo.classifySemanticRouteForTest("e se for trelicada?", { active: true, topic: "laje" });
+  const query = elo.buildTechnicalContinuationQueryForTest("e se for trelicada?", route);
+  const prompt = elo.buildTechnicalContinuationPromptForTest("e se for trelicada?", route);
+  assert.equal(query, "e se a laje for trelicada?");
+  assert.match(prompt, /Referente .*resolvido: a laje/i);
+  assert.match(prompt, /Consulta .*final: e se a laje for trelicada/i);
+  assert.match(prompt, /vantagens|limita..es|dados faltantes/i);
+
+  const genericPrompt = elo.buildTechnicalContinuationPromptForTest("e depois?", { intent: "conversa_geral" });
+  assert.equal(genericPrompt, "");
+});
+
+test("frontend Elo fixa o referent recente na query final e remove historico concorrente", async () => {
+  const cases = [
+    ["estou fazendo uma laje", "e se for trelicada?", "laje", "e se a laje for trelicada?"],
+    ["estou impermeabilizando uma laje", "e se usar manta?", "laje", "e se usar manta na laje?"],
+    ["estou fazendo orcamento de alvenaria", "e se aumentar a altura?", "parede", "e se aumentar a altura da alvenaria?"],
+    ["estou analisando uma fundacao", "e se for radier?", "fundacao", "e se a fundação for radier?"]
+  ];
+
+  for (const [first, followUp, topic, expectedQuery] of cases) {
+    const sandbox = await loadEloOperationalSandbox_([]);
+    const elo = sandbox.window.EloAssistente;
+    let payload = null;
+    sandbox.fetch = async (url, options = {}) => {
+      if (String(url).indexOf("/api/elo/chat") >= 0) {
+        payload = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ ok: true, answer: "resposta tecnica" }) };
+      }
+      return { ok: true, json: async () => ({ ok: true }) };
+    };
+    sandbox.window.fetch = sandbox.fetch;
+    elo.resolveTopicSwitchForTest(first);
+    const route = elo.classifySemanticRouteForTest(followUp, { active: true, topic });
+    assert.equal(elo.buildTechnicalContinuationQueryForTest(followUp, route), expectedQuery, followUp);
+    await elo.requestOnlineAnswerForTest(expectedQuery, [], {
+      technicalContinuation: true,
+      activeTopic: topic,
+      referent: topic === "parede" ? "a alvenaria" : topic === "fundacao" ? "a fundação" : "a laje"
+    });
+    assert.ok(payload, followUp);
+    assert.equal(payload.message, expectedQuery);
+    assert.deepEqual(payload.history, []);
+    assert.match(payload.context.workingMemorySummary, new RegExp("activeTopic: " + topic));
+    assert.doesNotMatch(payload.message, /port.o/i);
+    assert.doesNotMatch(JSON.stringify(payload.history), /port.o/i);
+  }
+
+  const generic = await loadEloOperationalSandbox_([]);
+  const genericElo = generic.window.EloAssistente;
+  genericElo.resolveTopicSwitchForTest("conversa comum");
+  assert.equal(genericElo.buildTechnicalContinuationQueryForTest("e depois?", { intent: "conversa_geral" }), "");
+});
+
+test("frontend Elo captura listas recentes como working memory sem persistir memoria longa", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  const persistentBefore = elo.buildMemorySummaryForTest();
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas usadas no paisagismo",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const memory = elo.getWorkingMemoryForTest();
+  assert.equal(memory.activeTopic, "categorias de vegetação no paisagismo");
+  assert.deepEqual(Array.from(memory.lastEnumeratedItems), ["árvores", "arbustos", "trepadeiras", "herbáceas", "rasteiras"]);
+  assert.deepEqual(Array.from(memory.activeEntities), Array.from(memory.lastEnumeratedItems));
+  assert.equal(memory.detailLevel, 1);
+  assert.equal(elo.buildMemorySummaryForTest(), persistentBefore);
+});
+
+test("frontend Elo resolve anaforas contra a ultima lista local", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas usadas no paisagismo",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("detalhe todas as categorias que falou acima");
+  assert.match(summary, /activeTopic: categorias de vegetação no paisagismo/);
+  assert.match(summary, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+  assert.doesNotMatch(summary, /Arquitetura|Paisagismo brasileiro|Design de interiores/i);
+});
+
+test("frontend Elo resolve ordinais contra lastEnumeratedItems", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "liste problemas encontrados",
+    { sessionTheme: "elo_online" },
+    "Problemas: fissura, infiltração e desplacamento."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("explique o segundo");
+  assert.match(summary, /resolvedReference: infiltração/);
+});
+
+test("frontend Elo incrementa detail level em pedido de aprofundamento", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+
+  elo.rememberSessionTurnForTest(
+    "explique tipos de fundação",
+    { sessionTheme: "elo_online" },
+    "Tipos: fundação rasa e profunda."
+  );
+
+  elo.rememberSessionTurnForTest("aprofunde", { sessionTheme: "elo_online" }, "Aprofundando o mesmo tópico.");
+
+  const memory = elo.getWorkingMemoryForTest();
+  assert.deepEqual(Array.from(memory.lastReferenceSet), ["fundação rasa", "profunda"]);
+  assert.equal(memory.detailLevel, 2);
+});
+
+test("frontend Elo resolve compare os tres contra materiais enumerados", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.rememberSessionTurnForTest(
+    "liste materiais estruturais",
+    { sessionTheme: "elo_online" },
+    "Materiais: concreto, aço e madeira."
+  );
+
+  const summary = elo.buildWorkingMemorySummaryForTest("compare os três");
+  assert.match(summary, /activeTopic: materiais de construção/);
+  assert.match(summary, /activeEntities: concreto, aço, madeira/);
+  assert.match(summary, /aumente uma camada de profundidade/);
+});
+
+test("frontend Elo preserva categorias vegetais ao aprofundar arvores e arbustos", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const elo = sandbox.window.EloAssistente;
+
+  elo.rememberSessionTurnForTest(
+    "quero saber as categorias das plantas, aplicação, regiões e exemplos",
+    { sessionTheme: "elo_online" },
+    "Categorias: árvores, arbustos, trepadeiras, herbáceas e rasteiras."
+  );
+
+  const detailCategories = elo.buildWorkingMemorySummaryForTest("detalhe todas as categorias que falou acima");
+  assert.match(detailCategories, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+
+  const detailTrees = elo.buildWorkingMemorySummaryForTest("agora detalhe as árvores");
+  assert.match(detailTrees, /resolvedReference: árvores/);
+
+  elo.rememberSessionTurnForTest(
+    "agora detalhe as árvores",
+    { sessionTheme: "elo_online" },
+    "Árvores: ipê-amarelo, sibipiruna e oiti."
+  );
+
+  const detailShrubs = elo.buildWorkingMemorySummaryForTest("e os arbustos?");
+  assert.match(detailShrubs, /activeTopic: categorias de vegetação no paisagismo/);
+  assert.match(detailShrubs, /activeEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras/);
+  assert.match(detailShrubs, /resolvedReference: arbustos/);
+});
+test("prompt do Elo instrui continuidade, profundidade e prioridade da pergunta atual", () => {
+  const prompt = buildEloSystemPrompt_({
+    workingMemorySummary: "activeTopic: categorias de vegetação no paisagismo\nactiveEntities: árvores, arbustos, trepadeiras, herbáceas, rasteiras\ndetailLevel: 2"
+  });
+
+  assert.match(prompt, /Continuidade conversacional/i);
+  assert.match(prompt, /pergunta atual > memoria de trabalho/i);
+  assert.match(prompt, /Profundidade/i);
+  assert.match(prompt, /Paisagismo tecnico/i);
+  assert.match(prompt, /Normas: cite norma aplicavel somente quando houver confianca/i);
+  assert.match(prompt, /Memoria de trabalho da conversa atual/i);
+});
+test("endpoint do Elo preserva workingMemorySummary da request ate o system prompt", async () => {
+  const originalFetch = globalThis.fetch;
+  let promptText = "";
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      promptText = payload.input[0].content;
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta contextual do Elo." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({
+          message: "fale mais sobre a primeira",
+          history: [],
+          context: {
+            source: "elo",
+            workingMemorySummary: "ACTIVE TOPIC: paisagismo\nLAST ENUMERATED ITEMS: arvores | arbustos | trepadeiras"
+          }
+        })
+      });
+
+      const data = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.match(promptText, /Memoria de trabalho da conversa atual/i);
+      assert.match(promptText, /ACTIVE TOPIC: paisagismo/);
+      assert.match(promptText, /LAST ENUMERATED ITEMS: arvores \| arbustos \| trepadeiras/);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo fixa o contexto tecnico remoto atual e exclui historico concorrente", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      openAiPayload = JSON.parse(options.body || "{}");
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta sobre laje trelicada." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({
+          message: "e se a laje for trelicada?",
+          history: [
+            { role: "user", content: "qual largura de portao para caminhonete?" },
+            { role: "assistant", content: "O portao precisa de vao livre." },
+            { role: "user", content: "estou fazendo uma laje" }
+          ],
+          context: {
+            source: "elo",
+            workingMemorySummary: "activeTopic: laje\nresolvedReferent: a laje",
+            technicalContinuation: {
+              activeTopic: "laje",
+              referent: "a laje",
+              finalQuery: "e se a laje for trelicada?"
+            }
+          }
+        })
+      });
+      const data = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.ok(openAiPayload);
+      const serializedInput = JSON.stringify(openAiPayload.input);
+      assert.match(serializedInput, /CURRENT TECHNICAL CONTEXT|CONTEXTO T.CNICO ATUAL/i);
+      assert.match(serializedInput, /laje/i);
+      assert.match(serializedInput, /e se a laje for trelicada/i);
+      assert.doesNotMatch(serializedInput, /portao|portão/i);
+      const historyInput = openAiPayload.input.filter((item) => item.role === "user").slice(0, -1);
+      assert.equal(historyInput.length, 1);
+      assert.match(JSON.stringify(historyInput), /laje/i);
+      assert.doesNotMatch(JSON.stringify(historyInput), /portao|portão/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo sanitiza workingMemorySummary antes do system prompt", async () => {
+  const originalFetch = globalThis.fetch;
+  const prompts = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      prompts.push(payload.input[0].content);
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta contextual do Elo." }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const cases = [123, { topic: "paisagismo" }, null];
+      for (const value of cases) {
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+          body: JSON.stringify({ message: "fale mais", history: [], context: { workingMemorySummary: value } })
+        });
+        assert.equal(response.status, 200);
+      }
+
+      const longSummary = "wm:" + "z".repeat(1500);
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+        body: JSON.stringify({ message: "aprofunde mais", history: [], context: { workingMemorySummary: longSummary } })
+      });
+      assert.equal(response.status, 200);
+
+      assert.equal(prompts.length, 4);
+      assert.doesNotMatch(prompts[0], /Memoria de trabalho da conversa atual/i);
+      assert.doesNotMatch(prompts[1], /Memoria de trabalho da conversa atual/i);
+      assert.doesNotMatch(prompts[2], /Memoria de trabalho da conversa atual/i);
+      const marker = "Memoria de trabalho da conversa atual:\n";
+      const markerIndex = prompts[3].indexOf(marker);
+      assert.ok(markerIndex >= 0);
+      const preserved = prompts[3].slice(markerIndex + marker.length).split("\n\n")[0];
+      assert.equal(preserved.length, 1200);
+      assert.match(preserved, /^wm:z+/);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("frontend Elo higieniza nomes e flags internos antes de renderizar", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   const answer = sandbox.window.EloAssistente.sanitizeHumanFacingAnswerForTest([
@@ -6731,6 +7260,283 @@ function writeEloVectorTestFile_(path, items) {
     updatedAt: "2026-06-01T00:00:00.000Z"
   }, null, 2), "utf8");
 }
+
+
+
+test("elo chat header expoe metricas detalhadas de latencia sem conteudo sensivel", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      const payload = JSON.parse(options.body || "{}");
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Resposta curta do Elo." }] }],
+        _testInputChars: JSON.stringify(payload.input || []).length
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({
+          message: "qual o nome do meu gato?",
+          history: [{ role: "user", content: "lembre que meu gato se chama Sicrano" }],
+          context: {
+            source: "elo",
+            mode: "standalone",
+            eloContext: "geral",
+            deviceId: "elo_dev_latency_header_test",
+            memoriesSummary: "MEMORIA EXPLICITA: meu gato se chama Sicrano",
+            librarySummary: "Biblioteca curta"
+          }
+        })
+      });
+      const metrics = JSON.parse(response.headers.get("x-elo-latency") || "{}");
+      const data = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.equal(data.answer, "Resposta curta do Elo.");
+      assert.match(metrics.requestId, /^elo_chat_/);
+      assert.equal(metrics.openAiCalls, 1);
+      assert.equal(metrics.model, "gpt-4.1-mini");
+      assert.equal(metrics.maxOutputTokens, 1800);
+      assert.equal(metrics.temperature, 0.7);
+      assert.equal(metrics.streaming, false);
+      assert.equal(metrics.historyMessages, 1);
+      assert.ok(metrics.inputChars > 0);
+      assert.ok(metrics.systemPromptChars > 0);
+      assert.ok(metrics.memoriesSummaryChars > 0);
+      assert.ok(metrics.outputChars > 0);
+      assert.equal(JSON.stringify(metrics).includes("Sicrano"), false);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("elo vector memory reutiliza embedding de consulta repetida", async () => {
+  const originalFetch = globalThis.fetch;
+  let embeddingCalls = 0;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      embeddingCalls += 1;
+      return new Response(JSON.stringify({
+        data: [{ embedding: Array.from({ length: 1536 }, (_, index) => (index % 11) / 11) }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const store = createEloVectorMemoryStore_({ memoryOnly: true, env: { OPENAI_API_KEY: "test-key" } });
+    const deviceId = "elo_dev_latency_cache_test";
+    await store.upsert({
+      id: "mem_cache",
+      ownerId: deviceId,
+      text: "O gato do usuario se chama Sicrano e o projeto atual e Photo Bridge",
+      category: "pessoal"
+    });
+    embeddingCalls = 0;
+
+    const payload = {
+      message: "qual o nome do meu gato?",
+      history: [],
+      context: { eloContext: "geral", deviceId, memoriesSummary: "" },
+      eloIntent: detectEloIntent_("qual o nome do meu gato?", { eloContext: "geral" }, [])
+    };
+    const firstMetrics = createTestMetrics_();
+    const secondMetrics = createTestMetrics_();
+
+    const first = await getEloRelevantContext_({ payload, memoryStore: store, metrics: firstMetrics });
+    const second = await getEloRelevantContext_({ payload, memoryStore: store, metrics: secondMetrics });
+
+    assert.match(first.context.relevantMemoriesSummary, /Sicrano|Photo Bridge/i);
+    assert.match(second.context.relevantMemoriesSummary, /Sicrano|Photo Bridge/i);
+    assert.equal(embeddingCalls, 1);
+    assert.equal(firstMetrics.embeddingCacheHit, false);
+    assert.equal(secondMetrics.embeddingCacheHit, true);
+    assert.ok(firstMetrics.embeddingMs >= 0);
+    assert.equal(secondMetrics.embeddingMs, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function createTestMetrics_() {
+  return {
+    memoryLookupMs: 0,
+    memoryVectorMs: 0,
+    embeddingMs: 0,
+    memoryCandidateCount: 0,
+    memoryReturnedCount: 0,
+    embeddingSkipped: false,
+    embeddingCacheHit: false
+  };
+}
+
+test("Elo memoria mestre consolida perfil projeto preferencia memoria e timeline", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const now = "2026-09-01T12:00:00.000Z";
+
+  sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
+    userName: "\u00cdcaro",
+    mainProject: "Photo Bridge",
+    weeklyGoal: "finalizar memoria do Elo",
+    expectedHelp: "respostas diretas sobre produto",
+    answerStyle: "curtas",
+    updatedAt: now
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_perfil_inicial_v1", JSON.stringify({
+    nome: "\u00cdcaro",
+    profissao: "Engenheiro Civil",
+    empresa: "Wia Engenharia",
+    cidade: "Vit\u00f3ria da Conquista",
+    projetos: ["Photo Bridge"],
+    objetivos: ["memoria util entre conversas"],
+    preferencias: ["respostas diretas"],
+    createdAt: now,
+    updatedAt: now
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_memorias_importantes_v1", JSON.stringify({
+    projetos: [{ titulo: "Photo Bridge", status: "ativo" }],
+    objetivos: [{ titulo: "memoria util entre conversas", status: "ativo" }],
+    preferencias: [{ titulo: "respostas diretas", descricao: "prefere respostas diretas" }]
+  }));
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: now, updatedAt: now }
+  ]));
+  sandbox.localStorage.setItem("obrareport_elo_timeline_v1", JSON.stringify({
+    events: [{ id: "evt_mem", type: "marco", title: "Memoria do Elo consolidada", content: "Contexto mestre", project: "Photo Bridge", importance: "alta", createdAt: now }]
+  }));
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+  assert.match(summary, /PROJETO ATUAL: Photo Bridge/i);
+  assert.match(summary, /PREFERENCIAS:.*respostas diretas/i);
+  assert.match(summary, /OBJETIVOS:.*memoria util entre conversas/i);
+  assert.match(summary, /IDENTIDADE:.*\u00cdcaro.*Engenheiro Civil/i);
+  assert.match(summary, /MEMORIAS IMPORTANTES - PROJETOS:.*Photo Bridge/i);
+  assert.match(summary, /CONTEXTO RECENTE:.*Memoria do Elo consolidada/i);
+  assert.ok(summary.length <= 2200);
+  assert.equal((summary.match(/Thor/g) || []).length, 1);
+});
+
+
+test("Elo comando explicito lembre salva antes do fallback conversacional", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.document.body.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
+  const panel = sandbox.document.createElement("div");
+  const messages = sandbox.document.createElement("div");
+  sandbox.window.EloAssistente.setCorePanelElementForTest(panel);
+  sandbox.window.EloAssistente.setCoreMessagesElementForTest(messages);
+
+  sandbox.window.EloAssistente.ask("lembre que meu cachorro se chama Thor", [], "test");
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+});
+
+test("Elo memoria mestre persiste depois de reload local", async () => {
+  const first = await loadEloOperationalSandbox_([]);
+  first.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" }
+  ]));
+  const savedLongTerm = first.localStorage.getItem("elo_long_term_memory_v1");
+
+  const reloaded = await loadEloOperationalSandbox_([]);
+  reloaded.localStorage.setItem("elo_long_term_memory_v1", savedLongTerm);
+  const summary = reloaded.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /MEMORIA EXPLICITA:.*Thor/i);
+});
+
+test("Elo envia memoriesSummary consolidado no payload online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  let chatPayload = null;
+
+  sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
+    userName: "\u00cdcaro",
+    mainProject: "Photo Bridge",
+    answerStyle: "curtas"
+  }));
+  sandbox.localStorage.setItem("obrareport_elo_memorias_importantes_v1", JSON.stringify({
+    projetos: [{ titulo: "Photo Bridge", status: "ativo" }],
+    objetivos: [],
+    preferencias: [{ titulo: "respostas diretas", descricao: "prefere respostas diretas" }]
+  }));
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "mem_thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" }
+  ]));
+
+  sandbox.fetch = async (url, options = {}) => {
+    if (String(url).indexOf("/api/elo/chat") >= 0) {
+      chatPayload = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ ok: true, answer: "ok", savePrompt: { show: false } }) };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  sandbox.window.fetch = sandbox.fetch;
+
+  await sandbox.window.EloAssistente.requestOnlineAnswerForTest("qual o nome do meu cachorro?");
+
+  assert.ok(chatPayload);
+  assert.match(chatPayload.context.memoriesSummary, /Thor/i);
+  assert.match(chatPayload.context.memoriesSummary, /Photo Bridge/i);
+  assert.match(chatPayload.context.memoriesSummary, /respostas diretas/i);
+});
+
+test("Elo system prompt recebe memoriesSummary consolidado", () => {
+  const prompt = buildEloSystemPrompt_({
+    eloContext: "geral",
+    memoriesSummary: "MEMORIA EXPLICITA: meu cachorro se chama Thor\nPROJETO ATUAL: Photo Bridge\nPREFERENCIAS: respostas diretas"
+  });
+
+  assert.match(prompt, /Contexto salvo sobre a pessoa/i);
+  assert.match(prompt, /Thor/i);
+  assert.match(prompt, /Photo Bridge/i);
+  assert.match(prompt, /respostas diretas/i);
+});
+
+test("Elo backend nao usa perfil hardcoded como fonte de verdade", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.doesNotMatch(content, /userProfile:\s*\{\s*name:\s*["']\u00cdcaro Amaral/i);
+  assert.doesNotMatch(content, /constr\u00f3i SaaS pr\u00f3prios/i);
+  assert.match(content, /use apenas o contexto recebido no payload/i);
+});
+
+test("Elo memoria mestre nao inclui segredos no contexto online", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "segredo", text: "minha api key e sk-teste", category: "outro", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" },
+    { id: "thor", text: "meu cachorro se chama Thor", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:01:00.000Z", updatedAt: "2026-09-01T12:01:00.000Z" }
+  ]));
+
+  const summary = sandbox.window.EloAssistente.buildMemorySummaryForTest();
+
+  assert.match(summary, /Thor/i);
+  assert.doesNotMatch(summary, /sk-teste|api key/i);
+});
 
 function loadEloTechnicalValidatorSandbox_() {
   const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
@@ -6862,8 +7668,24 @@ function postImage_(body) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: "Bearer valid-token",
       Origin: "http://127.0.0.1:5500"
     },
+    body: JSON.stringify(body)
+  });
+}
+
+function postImageTo_(url, body, authorization) {
+  const headers = {
+    "Content-Type": "application/json",
+    Origin: "http://127.0.0.1:5500"
+  };
+  if (authorization) {
+    headers.Authorization = authorization;
+  }
+  return fetch(url + "/api/ai/analyze-image", {
+    method: "POST",
+    headers,
     body: JSON.stringify(body)
   });
 }

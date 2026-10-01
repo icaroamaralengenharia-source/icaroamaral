@@ -91,3 +91,12 @@ test("EloBrainRouter usa acolhimento curto com proxima acao", () => {
   assert.match(routed.result.fullAnswer, /servico e as medidas/);
   assert.doesNotMatch(routed.result.fullAnswer, /Memoria|Auditor|Base Tecnica|Base Técnica/);
 });
+
+test("EloBrainRouter classifica profundidade técnica sem trocar modelo", () => {
+  const router = loadRouter();
+  assert.equal(router.classifyTechnicalDepth("quanto é 2+2?"), "SIMPLE");
+  assert.equal(router.classifyTechnicalDepth("qual largura de porta para caminhonete?"), "TECHNICAL_STANDARD");
+  assert.equal(router.classifyTechnicalDepth("analise essa fissura em viga e compare as causas"), "TECHNICAL_DEEP");
+  const deep = router.routeEloBrain("analise essa fissura em viga", {});
+  assert.equal(deep.result.technicalEngine.depth, "TECHNICAL_DEEP");
+});
