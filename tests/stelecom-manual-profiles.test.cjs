@@ -98,10 +98,12 @@ test("UI cria tabela SIM/NAO com autosave local e perfis independentes por relat
   assert.match(app, /data-answer="NAO"/);
 });
 
-test("trocar cidade, SGTO/STELECOM e DT1B/PM1B troca contexto de fotos e carrega checklist", () => {
+test("trocar cidade e DT1B/PM1B troca contexto de fotos, mas SGTO/STELECOM compartilha evidencias", () => {
   assert.match(app, /nodes\.city\.addEventListener\("input"/);
   assert.match(app, /loadChecklistProfile\(\);\s*renderChecklist\(\);\s*switchPhotoContext\(\);/);
   assert.match(app, /nodes\.reportType\.addEventListener\("change"/);
+  assert.match(app, /sharedReportState/);
+  assert.match(app, /SGTO e STELECOM usam o mesmo conjunto de evidências/);
   assert.match(app, /state\.workType = template\.normalizeWorkType/);
   assert.match(app, /clearStatePhotos\(\)/);
 });
@@ -571,13 +573,13 @@ test("IndexedDB salva, restaura apos reload e recria ObjectURL em ordem", async 
 
   const secondLoad = createAppContext({ indexedDB });
   await secondLoad.loadStoredPhotosForCurrentContext();
-  assert.deepEqual(secondLoad.getState().cameras.map((item) => item.id), originalIds);
+  assert.deepEqual(Array.from(secondLoad.getState().cameras, (item) => item.id), Array.from(originalIds));
   assert.equal(secondLoad.getState().tomadas.length, 1);
   assert.notEqual(secondLoad.getState().cameras[0].url, firstLoad.getState().cameras[0].url);
   assert.equal(secondLoad.getState().cameras[0].file.type, "image/jpeg");
 });
 
-test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
+test("IndexedDB isola cidade, tipo de obra e grupo, mas compartilha SGTO e STELECOM", async () => {
   const indexedDB = createFakeIndexedDB();
   const appContext = createAppContext({ indexedDB });
   await appContext.loadStoredPhotosForCurrentContext();
@@ -610,7 +612,7 @@ test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
   reportNode.value = "STELECOM";
   reportNode.listeners.change();
   await appContext.loadStoredPhotosForCurrentContext();
-  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().cameras.length, 1);
   reportNode.value = "SGTO";
   reportNode.listeners.change();
   await appContext.loadStoredPhotosForCurrentContext();
@@ -625,6 +627,33 @@ test("IndexedDB isola cidade, relatorio, tipo de obra e grupo", async () => {
   await appContext.loadStoredPhotosForCurrentContext();
   assert.equal(appContext.getState().cameras.length, 1);
   assert.equal(appContext.getState().tomadas.length, 1);
+});
+
+test("alternar SGTO/STELECOM preserva ordem, categorias, legendas e não duplica fotos", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  const photoA = imageFile({ width: 640, height: 480, size: 120000, name: "a.jpg" });
+  const photoB = imageFile({ width: 800, height: 600, size: 140000, name: "b.jpg" });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await addReady(appContext, "cameras", [photoA, photoB]);
+  await addReady(appContext, "rack", [photoA]);
+  const beforeIds = Array.from(appContext.getState().cameras, (photo) => photo.id);
+  appContext.sharedReportState.legends.cameras = "Legenda compartilhada";
+
+  const reportNode = appContext.__nodes.get("[data-report-type]");
+  reportNode.value = "SGTO";
+  reportNode.listeners.change();
+  assert.deepEqual(Array.from(appContext.getState().cameras, (photo) => photo.id), beforeIds);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(appContext.sharedReportState.legends.cameras, "Legenda compartilhada");
+  assert.equal(new Set(appContext.getState().cameras.map((photo) => photo.id)).size, 2);
+
+  reportNode.value = "STELECOM";
+  reportNode.listeners.change();
+  await appContext.loadStoredPhotosForCurrentContext();
+  assert.deepEqual(Array.from(appContext.getState().cameras, (photo) => photo.id), beforeIds);
+  assert.equal(appContext.getState().rack.length, 1);
+  assert.equal(indexedDB.records.size, 3);
 });
 
 test("remover uma foto e limpar grupo removem apenas os registros certos", async () => {
@@ -818,6 +847,30 @@ test("falha de otimização fica isolada e IndexedDB salva somente fotos ready",
   assert.equal(appContext.getState().caixa.filter((photo) => photo.status === "ready").length, 1);
   assert.equal(indexedDB.records.size, 1);
   assert.match(appContext.__nodes.get("[data-category-panels]").innerHTML, /Falha na otimização/);
+});
+
+test("retry reprocessa o File original e limpa o recurso decodificado", async () => {
+  let calls = 0;
+  let closes = 0;
+  const appContext = createAppContext({
+    createImageBitmapImpl: (file) => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error("falha transitória"));
+      return Promise.resolve({ width: file.width, height: file.height, close() { closes += 1; } });
+    }
+  });
+  const original = imageFile({ width: 1600, height: 900, size: 1000000, name: "retry-original.jpg" });
+  await appContext.addFiles("cameras", [original]);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  const failed = appContext.getState().cameras[0];
+  assert.equal(failed.status, "error");
+  assert.equal(failed.originalFile, original);
+  assert.equal(appContext.retryPhotoOptimization("cameras", failed.id), true);
+  await appContext.waitForPhotoOptimizationsForCurrentReport();
+  assert.equal(calls, 2);
+  assert.equal(closes, 1);
+  assert.equal(appContext.getState().cameras[0].status, "ready");
+  assert.equal(appContext.getState().cameras[0].originalFile, null);
 });
 
 test("gerar PDF aguarda otimização pendente e usa somente blob otimizado", async () => {
