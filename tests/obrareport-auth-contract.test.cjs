@@ -67,10 +67,20 @@ test("falha transitória de restauração preserva a sessão e só AUTH_DENIED r
   const start = script.indexOf("async function restoreAuthenticatedCloudSession_()");
   const end = script.indexOf("function getCurrentUrlParams_()", start);
   const restore = script.slice(start, end);
-  assert.match(restore, /cloudApiWithTransientRetry_\("auth\.me", \{ token: token \}, 5\)/);
-  assert.match(restore, /cloudApiWithTransientRetry_\("sync\.get", \{ token: token \}, 5\)/);
+  assert.match(restore, /cloudApiWithTransientRetry_\("auth\.me", \{ token: token \}, 3\)/);
+  assert.match(restore, /cloudApiWithTransientRetry_\("sync\.get", \{ token: token \}, 3\)/);
   assert.match(restore, /if \(!isConfirmedAuthFailure_\(error\)\)/);
   assert.match(restore, /sessão persistida foi preservada/);
   assert.match(script, /function isConfirmedAuthFailure_\(error\)/);
   assert.match(script, /apiError\.code = result\.errorCode/);
+});
+
+test("sync.get retenta somente transporte transitório e preserva sessão", () => {
+  assert.match(script, /window\.setTimeout\(resolve, attempt === 1 \? 500 : 1500\)/);
+  assert.match(script, /Boolean\(error && error\.transient === true\)/);
+  assert.match(script, /status >= 500/);
+  assert.match(script, /htmlError\.transient = true/);
+  assert.match(script, /apiError\.transient = response\.status >= 500/);
+  assert.match(script, /if \(isConfirmedAuthFailure_\(error\)\)/);
+  assert.match(script, /Falha temporária ao atualizar a nuvem\. A sessão persistida foi preservada\./);
 });

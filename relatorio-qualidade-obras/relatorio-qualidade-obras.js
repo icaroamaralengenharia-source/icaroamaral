@@ -1333,7 +1333,7 @@
     setCloudStatus_("Verificando sessão autenticada...", "info");
 
     try {
-      const identity = await cloudApiWithTransientRetry_("auth.me", { token: token }, 5);
+      const identity = await cloudApiWithTransientRetry_("auth.me", { token: token }, 3);
       if (
         !identity ||
         identity.authenticated !== true ||
@@ -1346,7 +1346,7 @@
         throw authError;
       }
 
-      const result = await cloudApiWithTransientRetry_("sync.get", { token: token }, 5);
+      const result = await cloudApiWithTransientRetry_("sync.get", { token: token }, 3);
       if (!result || !result.user || !result.state) {
         throw new Error("A sessão persistida não retornou estado válido.");
       }
@@ -1389,7 +1389,7 @@
         }
 
         await new Promise(function (resolve) {
-          window.setTimeout(resolve, 1200);
+          window.setTimeout(resolve, attempt === 1 ? 500 : 1500);
         });
       }
     }
@@ -1416,7 +1416,11 @@
 
   function isTransientCloudError_(error) {
     const message = String(error && error.message ? error.message : error).toLowerCase();
+    const status = Number(error && error.status);
     return (
+      Boolean(error && error.transient === true) ||
+      status >= 500 ||
+      (status === 404 && Boolean(error && error.unexpectedPayload)) ||
       message.indexOf("failed to fetch") !== -1 ||
       message.indexOf("networkerror") !== -1 ||
       message.indexOf("typeerror") !== -1 ||
@@ -3598,20 +3602,25 @@
       if (!identity || identity.authenticated !== true || !identity.user || !hasExplicitAuthRole_(identity.user)) {
         throw new Error("Sessão sem identidade ou permissão válida. Entre novamente.");
       }
-      const result = await cloudApi_("sync.get", {
+      const result = await cloudApiWithTransientRetry_("sync.get", {
         token: appState.session.token
-      });
+      }, 3);
       await applyCloudState_(result.state, appState.session.token);
       renderSaasState_();
       setCloudStatus_("Sincronizado na nuvem", "success");
     } catch (error) {
       console.warn("Não foi possível atualizar a nuvem.", error);
-      appState.session = null;
-      currentUser = null;
-      saveLocalData({ syncCloud: false });
-      revokeLocalAccessSession_();
-      showLoginPanel_();
-      setCloudStatus_(error.message || "Nuvem indisponível.", "error");
+      if (isConfirmedAuthFailure_(error)) {
+        appState.session = null;
+        currentUser = null;
+        saveLocalData({ syncCloud: false });
+        revokeLocalAccessSession_();
+        showLoginPanel_();
+        setCloudStatus_(error.message || "Nuvem indisponível.", "error");
+        return;
+      }
+
+      setCloudStatus_("Falha temporária ao atualizar a nuvem. A sessão persistida foi preservada.", "error");
     }
   }
 
@@ -3691,17 +3700,38 @@
     });
 
     const text = await response.text();
+    const contentType = String(response.headers && response.headers.get("content-type") || "").toLowerCase();
+    const trimmedText = text.trim();
+    const unexpectedHtml = contentType.indexOf("text/html") !== -1 || /^<(?:!doctype\s+html|html\b)/i.test(trimmedText);
+
+    if (unexpectedHtml) {
+      const htmlError = new Error("Resposta HTML inesperada da nuvem.");
+      htmlError.status = response.status;
+      htmlError.contentType = contentType;
+      htmlError.transient = true;
+      htmlError.unexpectedPayload = true;
+      throw htmlError;
+    }
+
     let result;
 
     try {
       result = JSON.parse(text);
     } catch (error) {
-      throw new Error("Resposta inválida da nuvem: " + text.slice(0, 160));
+      const invalidResponseError = new Error("Resposta inválida da nuvem: " + text.slice(0, 160));
+      invalidResponseError.status = response.status;
+      invalidResponseError.contentType = contentType;
+      invalidResponseError.transient = response.status >= 500 || response.status === 404 || contentType.indexOf("json") === -1;
+      invalidResponseError.unexpectedPayload = true;
+      throw invalidResponseError;
     }
 
     if (!response.ok || !result.ok) {
       const apiError = new Error(result.error || "Falha na API do ObraReport.");
       apiError.code = result.errorCode || (response.status === 401 || response.status === 403 ? "AUTH_DENIED" : "");
+      apiError.status = response.status;
+      apiError.contentType = contentType;
+      apiError.transient = response.status >= 500;
       throw apiError;
     }
 
