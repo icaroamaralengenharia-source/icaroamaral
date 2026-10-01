@@ -35,6 +35,7 @@
     tabs: document.querySelector("[data-category-tabs]"),
     panels: document.querySelector("[data-category-panels]"),
     generate: document.querySelector("[data-generate-pdf]"),
+    clearReport: document.querySelector("[data-clear-report]"),
     statusTitle: document.querySelector("[data-status-title]"),
     statusDetail: document.querySelector("[data-status-detail]")
   };
@@ -820,6 +821,39 @@
     return true;
   }
 
+  function removeQueuedJobsForProfile(profileKey) {
+    for (let index = photoOptimizationQueue.length - 1; index >= 0; index -= 1) {
+      if (photoOptimizationQueue[index].profileKey === profileKey) photoOptimizationQueue.splice(index, 1);
+    }
+  }
+
+  function resetLegends() {
+    template.categories.forEach((category) => {
+      state.legends[category.id] = category.defaultLegend;
+    });
+  }
+
+  async function clearCurrentReport() {
+    const profileKey = photoProfileKey();
+    if (!window.confirm("Isso apagará todos os dados do relatório atual, incluindo fotos, marcações SIM/NÃO e observações. Deseja continuar?")) return false;
+    removeQueuedJobsForProfile(profileKey);
+    clearStatePhotos();
+    state.checklistAnswers = {};
+    resetLegends();
+    saveChecklistProfile();
+    render();
+    if (photoStorageAvailable()) {
+      try {
+        await clearReportPhotos(profileKey);
+      } catch (error) {
+        handlePhotoStorageError(error);
+        return true;
+      }
+    }
+    setStatus("Relatório limpo", "Dados do relatório atual apagados. As demais cidades e tipos de obra foram preservados.");
+    return true;
+  }
+
   function renderTabs() {
     nodes.tabs.innerHTML = template.categories.map((category) => `
       <button class="category-tab ${category.id === activeCategory ? "is-active" : ""}" type="button" data-open-category="${category.id}">
@@ -1060,6 +1094,7 @@
   nodes.workType.value = state.workType;
   nodes.reportType.value = state.reportType;
   nodes.generate.addEventListener("click", generatePdf);
+  if (nodes.clearReport) nodes.clearReport.addEventListener("click", () => clearCurrentReport());
   loadChecklistProfile();
   render();
   loadStoredPhotosForCurrentContext();
@@ -1076,6 +1111,7 @@
     removePhoto,
     movePhoto,
     clearPhotoGroup,
+    clearCurrentReport,
     clearReportPhotos,
     loadStoredPhotosForCurrentContext,
     persistPhotoGroup,

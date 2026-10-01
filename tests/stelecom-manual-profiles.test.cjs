@@ -108,6 +108,24 @@ test("trocar cidade e DT1B/PM1B troca contexto de fotos, mas SGTO/STELECOM compa
   assert.match(app, /clearStatePhotos\(\)/);
 });
 
+test("Limpar tudo apaga o contexto compartilhado e mantém a ação disponível", async () => {
+  const indexedDB = createFakeIndexedDB();
+  const appContext = createAppContext({ indexedDB });
+  await appContext.loadStoredPhotosForCurrentContext();
+  await addReady(appContext, "cameras", [imageFile({ width: 640, height: 480, size: 120000 })]);
+  appContext.setChecklistAnswer(1, "SIM");
+  appContext.sharedReportState.legends.cameras = "Legenda temporária";
+
+  assert.match(app, /data-clear-report/);
+  assert.match(app, /clearCurrentReport/);
+  assert.match(css, /\.secondary-danger-action/);
+  assert.equal(await appContext.clearCurrentReport(), true);
+  assert.equal(appContext.getState().cameras.length, 0);
+  assert.equal(appContext.getState().checklistAnswers["1"], undefined);
+  assert.equal(appContext.sharedReportState.legends.cameras, "Fotos: Ponto de camera interna e externa, conectadas, identificadas.");
+  assert.equal(indexedDB.records.size, 0);
+});
+
 test("PDF usa exatamente SIM/NAO selecionado e não inventa resposta ausente", () => {
   const template = loadTemplate();
   const report = template.buildStelecomReport({
