@@ -927,6 +927,11 @@
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
     const hasMunicipalContext = /\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|notifica[cç][oõ]es)\b/.test(text);
     const hasSentinelContext = /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text);
+    // Generic document wording belongs to the active attachment/conversation.
+    // It must not be promoted to the municipal archive route unless the user
+    // names an explicit municipal or sentinel context in the same message.
+    const hasGenericDocumentReference = /\b(?:documento|documentos|arquivo|anexo|pdf|livro)\b/.test(text);
+    if (hasGenericDocumentReference && !hasMunicipalContext && !hasSentinelContext) return null;
     if (hasMunicipalContext || hasSentinelContext) {
       if (/aprove\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "approved" }) };
       if (/rejeite\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "rejected", notes: rejectedMatch && rejectedMatch[1] || "" }) };
