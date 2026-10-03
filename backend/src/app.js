@@ -1271,7 +1271,19 @@ export function createApp(options = {}) {
   };
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
-  const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
+  const getStockFullDatabase = (response) => {
+    const database = requireStockFullDatabase_(env, response, stockFullSupabaseClient);
+    if (database && clean_(env.SUPABASE_ANON_KEY) && typeof database.__obrareportStockFullAuthClients !== "function") {
+      database.__obrareportStockFullAuthClients = (token) => ({
+        auth: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } }),
+        query: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+          accessToken: async () => token,
+          auth: { autoRefreshToken: false, persistSession: false }
+        })
+      });
+    }
+    return database;
+  };
   const getApartmentHandoverDatabase = (response) => requireApartmentHandoverDatabase_(env, response, options.apartmentHandoverSupabaseClient || stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
   const getApartmentHandoverEntitlementDatabase = () => apartmentHandoverEntitlementSupabaseClient || getAuthContextDatabase();
@@ -5174,13 +5186,19 @@ async function requireStockSaudeAuth_(request, response, supabase) {
 
 async function requireStockFullAuth_(request, response, supabase) {
   try {
-    const userResult = await getSupabaseUserFromRequest_(request, supabase);
+    const authorization = clean_(request.headers.authorization);
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    const token = match && clean_(match[1]);
+    const authClients = token && typeof supabase.__obrareportStockFullAuthClients === "function"
+      ? supabase.__obrareportStockFullAuthClients(token)
+      : { auth: supabase, query: supabase };
+    const userResult = await getSupabaseUserFromRequest_(request, authClients.auth);
     if (!userResult.ok) {
       response.status(userResult.status).json({ ok: false, error: userResult.error });
       return null;
     }
 
-    const profile = await getStockFullProfileByAuthUser_(supabase, userResult.user.id);
+    const profile = await getStockFullProfileByAuthUser_(authClients.query, userResult.user.id);
     if (!profile) {
       response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
       return null;
