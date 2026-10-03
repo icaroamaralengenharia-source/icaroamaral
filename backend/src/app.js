@@ -2361,7 +2361,7 @@ export function createApp(options = {}) {
         return;
       }
 
-      const profile = await getStockFullProfileByAuthUser_(database, user.id);
+      const profile = await getStockFullProfileByAuthUser_(loginDatabase, user.id);
       if (!profile || !clean_(profile.institution_id)) {
         response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
         return;
