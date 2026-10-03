@@ -925,7 +925,9 @@
       return { module: "obrareport_report", action: "generate_report_from_context", payload: payload };
     }
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
-    if (/\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|documentos?|notifica[cç][oõ]es)\b/.test(text) || /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text)) {
+    const hasMunicipalContext = /\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|notifica[cç][oõ]es)\b/.test(text);
+    const hasSentinelContext = /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text);
+    if (hasMunicipalContext || hasSentinelContext) {
       if (/aprove\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "approved" }) };
       if (/rejeite\s+(?:esta\s+)?corre[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.validate", payload: Object.assign({}, payload, { decision: "rejected", notes: rejectedMatch && rejectedMatch[1] || "" }) };
       if (/aguardando\s+valida[cç][aã]o/.test(text)) return { module: "municipal_sentinel", action: "sentinel.pending.list", payload: Object.assign({}, payload, { status: "awaiting_validation" }) };
@@ -937,6 +939,7 @@
       if (/notifica[cç][oõ]es|alertas? internos?/.test(text)) return { module: "municipal", action: "notifications.list", payload: payload };
       if (/relatorio|relatório/.test(text) && /municipal|prefeitura/.test(text)) return { module: "municipal", action: "reports.preview", payload: payload };
       if (/(?:prefeitura|municipal).*aten[cç][aã]o|aten[cç][aã]o.*(?:prefeitura|municipal)|precisa.*hoje|obras?.*prefeitura/.test(text)) return { module: "municipal", action: "municipal.attention", payload: payload };
+      if (/\b(?:prefeitura|municipal)\b/.test(text)) return { module: "municipal", action: "municipal.attention", payload: payload };
     }
     if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|codigo\s+sinapi|stock\s+obras)\b/.test(text)) {
       return { module: "stock_obras", action: /exporte|csv|xlsx/.test(text) ? "preview_export" : "search_composition", payload: payload };
@@ -8586,14 +8589,18 @@
   }
 
   function isEloActiveDocumentReference_(question) {
-    const text = normalizeText(question || "");
+    const text = normalizeText(question || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
     if (!text) return false;
-    if (/\b(?:esse|este|nesse|neste|desse|deste|no|do)\s+(?:pdf|arquivo|documento|anexo)\b/.test(text)) return true;
+    if (/\b(?:prefeitura|municipal|patrimonio|acervo|tombamento|notifica[cç][oõ]es)\b/.test(text)) return false;
+    if (/\b(?:esse|este|nesse|neste|desse|deste|no|do|ao|a\s+o|para\s+o)\s+(?:pdf|arquivo|documento|anexo|livro)\b/.test(text)) return true;
     if (/\b(?:o|esse|este)\s+anexo\b/.test(text)) return true;
+    if (/\b(?:voltando|retomando|voltar|retomar|retornei|retorno)\b[\s\S]{0,35}\b(?:pdf|arquivo|documento|anexo|livro)\b/.test(text)) return true;
     if (/\bcom\s+base\s+(?:nele|nesse|neste|no\s+pdf|nesse\s+pdf|neste\s+pdf|nesse\s+arquivo|neste\s+arquivo)\b/.test(text)) return true;
     if (/^(?:continue|continua|continuar)$/.test(text)) return true;
     if (/^(?:continue|continua|extraia|extrair|faca|faça|monte|gere|crie)\b/.test(text) && /\b(?:topicos|questoes|perguntas?|mais\s+\d+|\d+\s+questoes)\b/.test(text)) return true;
     if (/^(?:faca|faça|mande|gere|crie)\s+mais\s+\d+\b/.test(text)) return true;
+    if (/\b(?:c[oó]digo|valor(?:es)?|n[uú]mero(?:s)?|problema(?:s)?|grave|segundo|primeiro|final|in[ií]cio|meio|contradi[cç][aã]o|infiltra[cç][aã]o|fissura|conclus[aã]o|aparece|fala|menciona|conte[uú]do|resum(?:a|o)|tabela|informa[cç][aã]o|informa[cç][oõ]es?|onde|compare|cap[ií]tulo|autor)\b/.test(text)) return true;
+    if (/^(?:e|isso|aquilo|qual\s+deles|o\s+mais\s+grave|explique\s+melhor|resuma\s+isso|fa[cç]a\s+um\s+relat[oó]rio\s+disso|continue)\b/.test(text)) return true;
     return false;
   }
 

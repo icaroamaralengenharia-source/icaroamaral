@@ -47,3 +47,41 @@ test("ELO roteia frases de RDO para actions reais do Action Bus", () => {
   assert.equal(assistant.detectCommandBridgeRequestForTest("rota invalida rdo step04"), null);
   assert.equal(assistant.detectCommandBridgeRequestForTest("rdo banana xyz"), null);
 });
+
+test("documento generico nao sequestra o contexto para o modulo municipal", () => {
+  const assistant = loadAssistant();
+  assert.equal(assistant.detectCommandBridgeRequestForTest("qual e o codigo do documento?"), null);
+  assert.equal(assistant.detectCommandBridgeRequestForTest("voltando ao documento, qual foi o problema mais grave?"), null);
+  assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("mostre os documentos da prefeitura")), JSON.stringify({
+    module: "municipal",
+    action: "archive.documents.list",
+    payload: { message: "mostre os documentos da prefeitura" }
+  }));
+  assert.equal(JSON.stringify(assistant.detectCommandBridgeRequestForTest("agora fale sobre a prefeitura")), JSON.stringify({
+    module: "municipal",
+    action: "municipal.attention",
+    payload: { message: "agora fale sobre a prefeitura" }
+  }));
+});
+
+test("follow-ups coerentes reutilizam documento ativo sem prender assuntos independentes", () => {
+  const assistant = loadAssistant();
+  assistant.rememberActiveDocumentForTest([{ fileName: "fixture.txt", type: "txt", text: "Codigo DOC-ELO-ALFA-271. Problema grave: infiltracao." }]);
+  [
+    "qual e o codigo?",
+    "qual e o valor?",
+    "e o segundo?",
+    "o mais grave?",
+    "onde fala disso?",
+    "voltando ao documento",
+    "resuma isso",
+    "continue"
+  ].forEach((question) => assert.equal(assistant.isActiveDocumentReferenceForTest(question), true, question));
+  assert.equal(assistant.isActiveDocumentReferenceForTest("quanto e 15% de 38000?"), false);
+  assert.equal(assistant.isActiveDocumentReferenceForTest("por que o ceu e azul?"), false);
+  assert.equal(assistant.isActiveDocumentReferenceForTest("agora fale sobre a prefeitura"), false);
+  const payload = { message: "qual e o codigo?", context: {} };
+  assert.equal(assistant.applyActiveDocumentContextToPayloadForTest(payload, payload.message), true);
+  assert.match(payload.message, /CONTEUDO EXTRAIDO DO PDF/i);
+  assert.match(payload.message, /DOC-ELO-ALFA-271/i);
+});
