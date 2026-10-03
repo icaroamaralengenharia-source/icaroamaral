@@ -30206,13 +30206,28 @@ function isEloResidentialNewPipelineEnabled_() {
         });
       }
     });
+    orchestrator.registerTool({
+      id: "primary.media",
+      description: "Player e mídia visual por comando explícito, sem alterar o domínio Stock Full.",
+      capabilities: ["media", "visual", "explicit_action", "legacy_adapter"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "media" || plan.intent === "visual_media" ? 100 : 0; },
+      run: function (plan) {
+        if (plan.intent === "visual_media") return centralResponseFromLegacy_(buildEloVisualMediaResponse_(plan.message), "media-visual");
+        const media = handleEloMediaCommand_(plan.message);
+        if (!media || media.handled !== true) return { handled: false, reason: media && media.reason || "media_command_not_handled", media: media || null };
+        const action = sanitizeUserText(media.action || "media");
+        const answer = "Ação de mídia executada: " + action + ".";
+        return { handled: true, text: answer, shortAnswer: answer, fullAnswer: "", canSave: false, sessionTheme: "media", sessionIntent: "media_command", media: media };
+      }
+    });
     return true;
   }
   function handleEloCentralPrimary_(question, attachments, source) {
     const orchestrator = window.EloCentralOrchestrator;
     if (!orchestrator || typeof orchestrator.isPrimary !== "function" || (typeof orchestrator.shouldUsePrimary === "function" ? !orchestrator.shouldUsePrimary(question) : !orchestrator.isPrimary()) || (attachments && attachments.length)) return false;
     const plan = typeof orchestrator.plan === "function" ? orchestrator.plan(question, { source: source || "manual", surface: "web" }) : null;
-    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "engineering", "tool_request"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
+    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "media", "visual_media", "engineering", "tool_request"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
     if (plan.confidence < 0.83) return false;
     appendMessage("user", question);
     appendTypingIndicator();

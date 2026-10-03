@@ -20,7 +20,7 @@ READY FOR NEXT MIGRATION GATE: SIM
 READY FOR FINAL PRODUCT CERTIFICATION: NÃO
 
 OPEN GATES:
-- migrate remaining conversation, media, attachment, RDO and action tools behind central contracts;
+- migrate remaining conversation, attachment, RDO and action tools behind central contracts;
 - validate Android parity before broad cross-surface promotion;
 - run 50/200-turn, long-document, memory, unknown-data and wrong-engine torture suites;
 - compile/install the Android artifact in an environment with a working Gradle loopback;

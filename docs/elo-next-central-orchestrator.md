@@ -69,6 +69,7 @@ As ferramentas são registradas por `id`, descrição, capacidades, prioridade, 
 | `domain.work-context` | obra/projeto ativo | adaptador primário Web |
 | `domain.budget` | orçamento/SINAPI/ORSE/quantitativos | adaptador primário Web |
 | `domain.writing` | escrita e reformulação | adaptador primário Web |
+| `domain.media` | player e mídia visual explícita | adaptador primário Web |
 | `conversation.general` | conversa segura/fallback | habilitada no núcleo |
 
 No navegador, os adaptadores `primary.*` envolvem os motores existentes sob o contrato central. Isso promove o roteamento e a verificação sem duplicar a implementação legada. Stock Full não é registrado no núcleo e continua somente como contrato/API externo.
@@ -112,6 +113,6 @@ Nenhuma ferramenta Stock Full é registrada pelo núcleo. Stock Full permanece u
 
 ## Gate desta etapa
 
-O gate focal passa com 20 testes: registro sem Stock Full, 50 variantes documentais, fast paths, memória, documento longo de 150 páginas com recuperação tardia e reload, classificação de report/work/budget/writing, comparação shadow, canary determinístico e promoção reversível.
+O gate focal passa com 20 testes: registro sem Stock Full, 50 variantes documentais, fast paths, memória, documento longo de 150 páginas com recuperação tardia e reload, classificação de report/work/budget/writing/media, comparação shadow, canary determinístico e promoção reversível.
 
 Isto ainda não é certificação final do produto. Permanecem abertos os gates de 1000+ interações, conversa longa de 50/200 turnos, torture de arquivos/memória, anexos/mídia/RDO, paridade Android, produção Web e as falhas já registradas no ledger de certificação.
