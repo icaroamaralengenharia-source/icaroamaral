@@ -16,11 +16,24 @@ export function getSupabaseClient(env = process.env) {
     return cachedClient;
   }
 
+  const globalOptions = {};
+  if (serviceRoleKey.startsWith("sb_secret_")) {
+    globalOptions.fetch = async (input, init = {}) => {
+      const url = String(input && input.url ? input.url : input);
+      const headers = new Headers(init.headers);
+      if (url.includes("/rest/v1/")) {
+        headers.delete("Authorization");
+      }
+      return fetch(input, { ...init, headers });
+    };
+  }
+
   cachedClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
-    }
+    },
+    global: globalOptions
   });
   cachedSignature = signature;
   return cachedClient;
