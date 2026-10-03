@@ -2609,7 +2609,14 @@ export function createApp(options = {}) {
       }
       response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
     } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_items_create_failed" });
+      const diagnostic = {
+        name: clean_(error && error.name).slice(0, 80) || "Error",
+        message: clean_(error && error.message).slice(0, 240) || "unknown_error",
+        code: clean_(error && error.code).slice(0, 80) || null,
+        status: Number.isFinite(Number(error && error.status)) ? Number(error.status) : null
+      };
+      console.error("STOCK_FULL_ITEM_CREATE_DIAG", JSON.stringify(diagnostic));
+      response.status(500).json({ ok: false, error: "stock_full_items_create_failed", diagnostic });
     }
   });
 
