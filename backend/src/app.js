@@ -1272,15 +1272,25 @@ export function createApp(options = {}) {
   let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => {
+    const authorization = clean_(response.req && response.req.headers && response.req.headers.authorization);
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    const token = match && clean_(match[1]);
+    const createAuthClients = (accessToken) => ({
+      auth: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } }),
+      query: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+        accessToken: async () => accessToken,
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    });
+    if (token && clean_(env.SUPABASE_ANON_KEY)) {
+      const database = createAuthClients(token).query;
+      database.__obrareportStockFullAuthClients = createAuthClients;
+      return database;
+    }
+
     const database = requireStockFullDatabase_(env, response, stockFullSupabaseClient);
     if (database && clean_(env.SUPABASE_ANON_KEY) && typeof database.__obrareportStockFullAuthClients !== "function") {
-      database.__obrareportStockFullAuthClients = (token) => ({
-        auth: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } }),
-        query: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-          accessToken: async () => token,
-          auth: { autoRefreshToken: false, persistSession: false }
-        })
-      });
+      database.__obrareportStockFullAuthClients = createAuthClients;
     }
     return database;
   };
