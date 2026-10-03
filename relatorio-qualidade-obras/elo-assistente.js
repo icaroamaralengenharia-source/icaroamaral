@@ -921,7 +921,8 @@
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
-    if (isEloReportFromAnalysisContextRequest_(raw)) {
+    const activeDocumentTakesPrecedence = Boolean(getEloActiveDocumentContext_() && isEloActiveDocumentReference_(raw));
+    if (!activeDocumentTakesPrecedence && isEloReportFromAnalysisContextRequest_(raw)) {
       return { module: "obrareport_report", action: "generate_report_from_context", payload: payload };
     }
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
@@ -968,7 +969,7 @@
       const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGenerateDocument ? "rdo.generateDocument" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
       return { module: "obrareport_rdo", action: action, payload: payload };
     }
-    if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
+    if (!activeDocumentTakesPrecedence && /\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
     }
     if (/^(?:elo[, ]*)?(?:publique|publicar|crie\s+e\s+publique|criar\s+e\s+publicar|faca\s+uma\s+publicacao|fazer\s+uma\s+publicacao|prepare\s+uma\s+materia|preparar\s+uma\s+materia|crie\s+um\s+artigo|criar\s+um\s+artigo|publique\s+uma\s+novidade)\b/.test(text)) {
