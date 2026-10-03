@@ -1,0 +1,26 @@
+ELO NEXT — CENTRAL ORCHESTRATOR FOUNDATION
+
+STATUS: FOUNDATION IMPLEMENTED / CERTIFICATION OPEN
+
+WEB CORE: PASS
+WEB STATIC INTEGRATION: PASS
+FOCUSED REGRESSIONS: PASS
+ANDROID CONTRACT: ADDED
+ANDROID COMPILE: BLOCKED BY GRADLE LOOPBACK ENVIRONMENT
+STOCK FULL: OUT OF SCOPE / UNTOUCHED
+
+COMMIT: fb08dff
+PR: https://github.com/icaroamaralengenharia-source/icaroamaral/pull/122
+
+FEATURE FLAG:
+window.ELO_ORCHESTRATOR_VNEXT = { enabled: false, shadow: true }
+
+READY FOR NEXT MIGRATION GATE: SIM
+READY FOR FINAL PRODUCT CERTIFICATION: NÃO
+
+OPEN GATES:
+- migrate legacy engineering/conversation/document tools behind central contracts;
+- enable fast paths after Web and Android parity validation;
+- run 50/200-turn, long-document, memory, unknown-data and wrong-engine torture suites;
+- compile/install the Android artifact in an environment with a working Gradle loopback;
+- execute production Web/Android release gates.
