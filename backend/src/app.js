@@ -2429,7 +2429,14 @@ export function createApp(options = {}) {
         }
       }
       if (createError || !created?.user?.id) {
-        response.status(409).json({ ok: false, error: "stock_full_e2e_account_create_failed" });
+        response.status(409).json({
+          ok: false,
+          error: "stock_full_e2e_account_create_failed",
+          phase: "auth_create",
+          authCode: clean_(createError && createError.code) || null,
+          authStatus: Number(createError && createError.status) || null,
+          authMessage: clean_(createError && createError.message).slice(0, 120) || null
+        });
         return;
       }
 
