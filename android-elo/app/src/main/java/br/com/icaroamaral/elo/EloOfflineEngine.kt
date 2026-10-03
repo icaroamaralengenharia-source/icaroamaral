@@ -15,10 +15,16 @@ class EloOfflineEngine(
     private val conversation = ConversationEngine()
     private val technical = technicalKnowledge
     private val music = MusicCommandEngine(tracks)
+    private val central = EloCentralIntentContract()
 
     fun handle(input: String): EloOfflineResult {
         val raw = input.trim()
         if (raw.isBlank()) return fallback()
+
+        // Shadow-only central planning keeps Android aligned with Web without changing
+        // the established offline engine precedence during the migration.
+        val centralPlan = central.plan(raw, context)
+        context.lastIntent = centralPlan.intent
 
         music.answer(raw, context)?.let { return it }
         dateTime.answer(raw)?.let {

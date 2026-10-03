@@ -112,6 +112,21 @@ public class EloOfflineEngineTest {
         assertTrue(result.toString(), result.getText().contains("Não consegui resolver isso offline"));
     }
 
+    @Test public void contratoCentralNaoConfundeProximaAcaoComMusica() {
+        EloCentralIntentContract contract = new EloCentralIntentContract();
+        EloCentralPlan plan = contract.plan("indique a próxima ação para a fissura", new EloOfflineContext());
+        assertEquals("engineering", plan.getIntent());
+    }
+
+    @Test public void contratoCentralPreservaFollowUp() {
+        EloOfflineContext context = new EloOfflineContext();
+        context.setLastIntent("date_time");
+        EloCentralIntentContract contract = new EloCentralIntentContract();
+        EloCentralPlan plan = contract.plan("e amanhã?", context);
+        assertEquals("follow_up", plan.getIntent());
+        assertEquals("date_time", plan.getReferent());
+    }
+
     @Test public void baseTecnicaEstruturada() {
         String source = "[{\"topic\":\"impermeabilização\",\"keywords\":[\"impermeabilização\"],\"answer\":\"base local\"}]";
         EloOfflineEngine current = new EloOfflineEngine(TRACKS, TechnicalKnowledgeEngine.Companion.fromJson(source), Clock.systemDefaultZone());

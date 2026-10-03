@@ -30053,6 +30053,36 @@ function isEloResidentialNewPipelineEnabled_() {
     clearProductAttachmentPreview();
     return true;
   }
+  function observeEloCentralOrchestrator_(question, attachments, source) {
+    const orchestrator = window.EloCentralOrchestrator;
+    if (!orchestrator || typeof orchestrator.observe !== "function") return null;
+    try {
+      const activeDocument = getEloActiveDocumentContext_();
+      const activeWork = getActiveEloWorkProject_();
+      if (activeDocument && typeof orchestrator.setActiveDocument === "function") {
+        orchestrator.setActiveDocument({
+          documents: activeDocument.documents,
+          updatedAt: activeDocument.updatedAt,
+          source: "elo-assistente"
+        });
+      }
+      if (activeWork && typeof orchestrator.setActiveWork === "function") {
+        orchestrator.setActiveWork({
+          id: activeWork.id || activeWork.projectId || ELO_SESSION_MEMORY.activeProjectId || "active-work",
+          name: activeWork.name || activeWork.title || activeWork.nome || "obra ativa",
+          source: "elo-assistente"
+        });
+      }
+      return orchestrator.observe(question, {
+        source: sanitizeUserText(source || "manual"),
+        attachmentCount: Array.isArray(attachments) ? attachments.length : 0,
+        surface: "web"
+      });
+    } catch (error) {
+      recordEloCoreReliabilityEvent_("central_orchestrator_shadow_failed", { reason: error && error.message ? error.message : "unknown" });
+      return null;
+    }
+  }
   function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -30063,6 +30093,7 @@ function isEloResidentialNewPipelineEnabled_() {
     stopEloSpeechOutput_();
     const attachedFiles = Array.prototype.slice.call(attachments || []);
     const submitSource = sanitizeUserText(source || ELO_UI.lastSubmitSource || "manual");
+    observeEloCentralOrchestrator_(cleanQuestion, attachedFiles, submitSource);
     const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
     const routeQuestion = stripEloWakePrefixForRouting_(cleanQuestion);
     const musicIntent = parseEloMusicPlayIntent_(routeQuestion);
