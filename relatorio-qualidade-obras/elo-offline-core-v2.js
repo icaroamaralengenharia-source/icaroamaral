@@ -54,7 +54,13 @@
 
   function clean(value) { return String(value == null ? "" : value).replace(/[\u0000-\u001f<>]/g, "").trim(); }
   function norm(value) { return clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/×/g, " x ").replace(/,/g, ".").replace(/\s+/g, " ").trim(); }
-  function number(value) { var text = String(value).trim(); return Number(text.indexOf(",") >= 0 ? text.replace(/\./g, "").replace(",", ".") : text); }
+  function number(value) {
+    var text = String(value == null ? "" : value).trim().replace(/\s+/g, "");
+    if (/^-?\d{1,3}(?:\.\d{3})+$/.test(text)) text = text.replace(/\./g, "");
+    else if (text.indexOf(",") >= 0) text = text.replace(/\./g, "").replace(",", ".");
+    var parsed = Number(text);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
   function fmt(value) { return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(value); }
   function day(value) { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(value); }
   function dateAnswer(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return day(d).replace(/^./, function (c) { return c.toUpperCase(); }); }

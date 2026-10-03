@@ -268,11 +268,12 @@
     const operationalReleaseMath = /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text) && /material|materiais|liberar|saida|sa.da|almoxarifado/.test(text);
     const constructionGeometryMath = /\b(?:parede|viga|pilar|laje|sapata|baldrame|concreto|volume|area|área)\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por|com)\s*\d+(?:[,.]\d+)?/.test(text);
     const percentageMath = /\d+(?:[,.]\d+)?\s*%\s*(?:de|do|da)\s*\d+(?:[,.]\d+)?/.test(text);
+    const lengthPercentageMath = /\d+(?:[,.]\d+)?\s*(?:m|metro|metros)\b\s*(?:com|de)\s*\d+(?:[,.]\d+)?\s*%/.test(text);
     const meterConversionMath = /\d+(?:[,.]\d+)?\s*(?:m|metro|metros)\b/.test(text) && /\b(?:em|para)\s+(?:cm|centimetro|centimetros|centímetro|centímetros)\b/.test(text);
     const slabVolumeMath = /\blaje\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) && /\bcom\s+\d+(?:[,.]\d+)?\s*cm\b/.test(text);
     const isDomainCommand = /\b(?:rdo|diario\s+de\s+obra|diario)\b/.test(text) &&
       /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar|gerar\s+documento|gere\s+documento|relatorio\s+pdf|gere|gerar)\b/.test(text);
-    if (!isDomainCommand && !operationalReleaseMath && (percentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
+    if (!isDomainCommand && !operationalReleaseMath && (percentageMath || lengthPercentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
     if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
@@ -323,28 +324,42 @@
   }
 
   function calculateSimpleEloCoreMath_(message) {
-    const raw = sanitizeUserText(message).replace(/,/g, ".");
+    const raw = sanitizeUserText(message);
     const normalized = normalizeText(raw);
+    function parseLocalizedNumber(value) {
+      const token = String(value == null ? "" : value).trim().replace(/\s+/g, "");
+      if (!token) return NaN;
+      if (/^-?\d{1,3}(?:\.\d{3})+$/.test(token)) return Number(token.replace(/\./g, ""));
+      if (token.includes(",") && token.includes(".")) return Number(token.replace(/\./g, "").replace(",", "."));
+      if (token.includes(",")) return Number(token.replace(",", "."));
+      return Number(token);
+    }
     function format(value) {
       return String(Number(value.toFixed(6))).replace(".", ",");
     }
-    const percentage = raw.match(/(-?\d+(?:\.\d+)?)\s*%\s*(?:de|do|da)\s*(-?\d+(?:\.\d+)?)/i);
+    const percentage = raw.match(/(-?\d+(?:[.,]\d+)?)\s*%\s*(?:de|do|da)\s*(-?\d+(?:(?:[.,]\d+)|(?:\.\d{3})+)?)/i);
     if (percentage) {
-      const rate = Number(percentage[1]);
-      const base = Number(percentage[2]);
+      const rate = parseLocalizedNumber(percentage[1]);
+      const base = parseLocalizedNumber(percentage[2]);
       if (Number.isFinite(rate) && Number.isFinite(base)) return format(rate) + "% de " + format(base) + " é " + format((rate / 100) * base) + ".";
     }
-    const meterValue = raw.match(/(-?\d+(?:\.\d+)?)\s*(?:m|metro|metros)\b/i);
+    const lengthPercentage = raw.match(/(-?\d+(?:[.,]\d+)?)\s*(?:m|metro|metros)\b\s*(?:com|de)\s*(-?\d+(?:[.,]\d+)?)\s*%/i);
+    if (lengthPercentage) {
+      const meters = parseLocalizedNumber(lengthPercentage[1]);
+      const rate = parseLocalizedNumber(lengthPercentage[2]);
+      if (Number.isFinite(meters) && Number.isFinite(rate)) return format(rate) + "% de " + format(meters) + " m é " + format((rate / 100) * meters) + " m.";
+    }
+    const meterValue = raw.match(/(-?\d+(?:[.,]\d+)?)\s*(?:m|metro|metros)\b/i);
     if (meterValue && /\b(?:em|para)\s+(?:cm|centimetro|centimetros)\b/.test(normalized)) {
-      const meters = Number(meterValue[1]);
+      const meters = parseLocalizedNumber(meterValue[1]);
       if (Number.isFinite(meters)) return format(meters) + " metros equivalem a " + format(meters * 100) + " centímetros.";
     }
     if (/\blaje\b/.test(normalized)) {
-      const slab = raw.match(/(-?\d+(?:\.\d+)?)\s*(?:x|por)\s*(-?\d+(?:\.\d+)?)[\s\S]*?\bcom\s+(-?\d+(?:\.\d+)?)\s*cm\b/i);
+      const slab = raw.match(/(-?\d+(?:[.,]\d+)?)\s*(?:x|por)\s*(-?\d+(?:[.,]\d+)?)[\s\S]*?\bcom\s+(-?\d+(?:[.,]\d+)?)\s*cm\b/i);
       if (slab) {
-        const width = Number(slab[1]);
-        const length = Number(slab[2]);
-        const thicknessCm = Number(slab[3]);
+        const width = parseLocalizedNumber(slab[1]);
+        const length = parseLocalizedNumber(slab[2]);
+        const thicknessCm = parseLocalizedNumber(slab[3]);
         if (Number.isFinite(width) && Number.isFinite(length) && Number.isFinite(thicknessCm)) {
           const area = width * length;
           const volume = area * (thicknessCm / 100);
@@ -352,10 +367,10 @@
         }
       }
     }
-    const match = raw.match(/(-?\d+(?:\.\d+)?)\s*([+*x×/÷-])\s*(-?\d+(?:\.\d+)?)/);
+    const match = raw.match(/(-?\d+(?:[.,]\d+)?)\s*([+*x×/÷-])\s*(-?\d+(?:[.,]\d+)?)/);
     if (!match) return "Consigo calcular, mas preciso de uma conta objetiva, por exemplo: 25 * 4.";
-    const left = Number(match[1]);
-    const right = Number(match[3]);
+    const left = parseLocalizedNumber(match[1]);
+    const right = parseLocalizedNumber(match[3]);
     const op = match[2];
     let result = null;
     if (op === "+") result = left + right;

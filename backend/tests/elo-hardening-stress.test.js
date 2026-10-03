@@ -190,6 +190,12 @@ test("ELO hardening performance lote 200 mensagens", () => {
   assert.equal(failures.length, 0, formatFailures_(failures));
 });
 
+test("ELO hardening calculator respects pt-BR thousands and length percentages", () => {
+  const sandbox = loadEloWidgetSandbox_();
+  assert.match(sandbox.window.EloAssistente.calculateSimpleMathForTest("Quanto é 15% de 38.000?"), /5700|5\.700/);
+  assert.match(sandbox.window.EloAssistente.calculateSimpleMathForTest("8 m com 10% dá quanto?"), /0,8\s*m/i);
+});
+
 function cases(category, context, entries) {
   return entries.map(([message, expect]) => ({ category, context, message, expect }));
 }
