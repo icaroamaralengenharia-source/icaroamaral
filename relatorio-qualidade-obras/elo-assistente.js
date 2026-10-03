@@ -3537,6 +3537,8 @@
       const haystack = normalizeText([memory.category, memory.memory_key, memory.memory_value].join(" "));
       return terms.some(function (term) { return haystack.indexOf(term) >= 0; });
     }).slice(0, 4);
+    const directRecall = /\b(?:qual|o\s+que|quais?)\b[\s\S]*\b(?:memoriz|lembra|memoria|memória)\b/.test(text);
+    if (!related.length && directRecall) related.push.apply(related, memories.slice(0, 4));
 
     if (!related.length) return null;
 
@@ -3559,6 +3561,14 @@
     const text = normalizeText(question || "");
     const context = (ELO_SESSION_MEMORY.pathologyContext || []).join(" ");
     if (!context || !/fissura|trinca|rachadura/.test(context)) return null;
+    if (/\b2\s*mm\b/.test(text) && /cresceu|aumentou|evoluiu/.test(text)) {
+      const answer = "Entendi: a fissura chegou a 2 mm e está crescendo, então deve ser tratada como manifestação ativa até a vistoria confirmar a causa.";
+      return { shortAnswer: "Entendi: ela cresceu para 2 mm.", fullAnswer: answer, nextAction: "Registre a medida e a data e evite mascarar a fissura antes da avaliação.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_follow_up" };
+    }
+    if (/0[,.]5\s*mm/.test(text) && /lado\s+oposto|outra/.test(text)) {
+      const answer = "Registrei também uma fissura de 0,5 mm no lado oposto. Ela deve ser fotografada e monitorada junto com a fissura que cresceu.";
+      return { shortAnswer: "Registrei a fissura de 0,5 mm.", fullAnswer: answer, nextAction: "Use a mesma referência e data para comparar a evolução das duas.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_follow_up" };
+    }
     if (/qual\s+(?:e|é)\s+(?:a\s+)?mais\s+(?:preocupante|grave)|qual\s+(?:delas|problema)\s+(?:e|é)\s+(?:pior|mais)/.test(text)) {
       const answer = "A fissura de 2 mm que cresceu é a mais preocupante neste momento: a evolução pesa mais do que a medida isolada. A de 0,5 mm também deve ser registrada e monitorada, mas não supera a primeira como prioridade sem outros sinais de risco.";
       return { shortAnswer: "A fissura que cresceu é a prioridade.", fullAnswer: answer, nextAction: "Registre medidas e datas e encaminhe as duas para vistoria técnica.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_follow_up" };
