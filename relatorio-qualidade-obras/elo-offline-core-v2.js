@@ -109,7 +109,7 @@
   function resolve(text) {
     var raw = clean(text); var t = norm(raw); if (!t) return null;
     var date = localDate(raw); if (date) { state.topic = "date"; state.lastAnswer = date; return response(date, "offline_date"); }
-    if (/próxima|proxima|pular musica|pular música|outra musica|outra música|voltar|anterior|embaralhe|embaralhar/.test(t)) return response(musicQueue(raw), "offline_music_queue");
+    if (/(?:próxima|proxima)\s+(?:musica|música)|pular musica|pular música|outra musica|outra música|(?:musica|música)\s+anterior|\bvoltar\b|embaralhe|embaralhar/.test(t)) return response(musicQueue(raw), "offline_music_queue");
     if (/toque|toca|reproduza|play|fur elise|für elise|musica/.test(t) && !/pause|parar|pare|continue/.test(t)) return response(music(raw), "offline_music");
     if (/pause|pausar|parar musica|parar música|continue|continuar musica|continuar música/.test(t) && root.EloMediaPlayer) { if (/pause|pausar/.test(t)) root.EloMediaPlayer.pause(); else if (/parar/.test(t)) root.EloMediaPlayer.stop(); else root.EloMediaPlayer.resume(); return response(/parar/.test(t) ? "Música parada." : /pause|pausar/.test(t) ? "Música pausada." : "Música retomada.", "offline_music_control"); }
     if (/pesquise|preco atual|preço atual|cotacao|cotação|noticias|notícias|clima|tempo agora/.test(t)) return response("Chefe, esse pedido depende da internet. Assim que a conexão voltar eu consigo pesquisar.", "online_required");

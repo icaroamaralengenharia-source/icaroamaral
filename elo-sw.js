@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v18-20261003-intelligence-v4";
+const ELO_CACHE_NAME = "elo-web-offline-v19-20261003-intelligence-v5";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css",
