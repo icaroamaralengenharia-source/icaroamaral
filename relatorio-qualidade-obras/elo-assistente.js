@@ -30235,13 +30235,23 @@ function isEloResidentialNewPipelineEnabled_() {
         });
       }
     });
+    orchestrator.registerTool({
+      id: "primary.multi-tool",
+      description: "Pedidos compostos com sequência controlada e fallback legado único.",
+      capabilities: ["multi_tool", "sequencing", "context", "fallback"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "multi_tool" ? 100 : 0; },
+      run: function (plan) {
+        return centralResponseFromLegacy_(buildResponse(plan.message, { surface: "relatorio-qualidade-obras", useSession: true, skipLocalCommunicationFallback: true }), "multi-tool");
+      }
+    });
     return true;
   }
   function handleEloCentralPrimary_(question, attachments, source) {
     const orchestrator = window.EloCentralOrchestrator;
     if (!orchestrator || typeof orchestrator.isPrimary !== "function" || (typeof orchestrator.shouldUsePrimary === "function" ? !orchestrator.shouldUsePrimary(question) : !orchestrator.isPrimary()) || (attachments && attachments.length)) return false;
     const plan = typeof orchestrator.plan === "function" ? orchestrator.plan(question, { source: source || "manual", surface: "web" }) : null;
-    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "media", "visual_media", "engineering", "tool_request", "conversation"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
+    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "media", "visual_media", "multi_tool", "engineering", "tool_request", "conversation"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
     if (plan.confidence < 0.83) return false;
     appendMessage("user", question);
     appendTypingIndicator();

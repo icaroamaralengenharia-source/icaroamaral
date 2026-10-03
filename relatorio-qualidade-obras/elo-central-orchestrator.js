@@ -303,6 +303,13 @@
       if (/\b(?:escreva|escrever|redija|redigir|reformule|reformular|melhore|melhorar|texto|mensagem|email|e-mail|proposta)\b/.test(value) && !/\b(?:orcamento|orçamento|quantitativo|sinapi|orse)\b/.test(value)) add("writing", 0.86, "writing_request");
       if (/\b(?:toque|pausa|pause|continue|anterior|embaralhe)\b/.test(value) && /\b(?:musica|música|faixa|audio|áudio|player|tocando)\b/.test(value)) add("media", 0.99, "explicit_media_command");
       if (/\b(?:imagem|foto|video|vídeo)\b/.test(value) && /\b(?:mostre|mostrar|ver|quero ver|renderize|renderiza|abra|abrir|abre)\b/.test(value)) add("visual_media", 0.99, "explicit_visual_media_request");
+      const strongIntents = [
+        /\b(?:amanha|amanhã|ontem|data|horas?)\b/.test(value) && /\b(?:qual|quanto|que|hoje|dia)\b/.test(value),
+        (/\d+(?:[.,]\d+)?\s*(?:%|m2|m²|cm)\b/.test(value) || /\d+\s*[+\-*×x/]\s*\d+/.test(value)) && /\b(?:quanto|calcule|resultado|vezes|por)\b/.test(value),
+        /\b(?:fissura|trinca|infiltracao|infiltração|parede|laje|pilar|viga|patologia)\b/.test(value),
+        /\b(?:relatorio|relatório|rdo|documento|pdf)\b/.test(value) && /\b(?:gere|gerar|liste|listar|resuma|resumir|mostre|mostrar)\b/.test(value)
+      ].filter(Boolean).length;
+      if (strongIntents >= 2 && /\b(?:e|tambem|também|depois|alem disso|além disso)\b/.test(value)) add("multi_tool", 1, "multiple_domain_signals");
       if (/\b(?:fissura|trinca|rachadura|infiltracao|infiltração|parede|laje|pilar|viga|fundacao|fundação|reboco|argamassa|alvenaria|sinapi|orse|quantitativo|patologia|vistoria)\b/.test(value)) add("engineering", 0.84, "engineering_domain_signal");
       if (/\b(?:abrir|abra|acessar|acesse|navegar|me leve|usar)\b/.test(value) && /\b(?:relatorio|relatório|cadista|estoque|stock|rdo|orcamento|orçamento|planta)\b/.test(value)) add("tool_request", 0.9, "explicit_tool_request");
       if (/^(oi|ola|olá|bom dia|boa tarde|boa noite|obrigado|obrigada|valeu|show|beleza|tudo bem)[!.? ]*$/i.test(raw)) add("conversation", 0.9, "social_message");
@@ -614,6 +621,9 @@
     } });
     registerTool({ id: "domain.media", description: "Mantém mídia e player como ferramenta explícita, sem sequestrar conversa técnica.", capabilities: ["media", "visual", "explicit_action", "legacy_adapter"], priority: 82, matches: function (plan) { return plan.intent === "media" || plan.intent === "visual_media" ? 100 : 0; }, run: function (plan) {
       return { text: "Solicitação de mídia identificada e encaminhada ao player/renderizador existente.", route: "legacy.media", delegated: true };
+    } });
+    registerTool({ id: "domain.multi-tool", description: "Coordena pedidos compostos sem perder a ordem nem misturar domínios.", capabilities: ["multi_tool", "sequencing", "context", "legacy_adapter"], priority: 86, matches: function (plan) { return plan.intent === "multi_tool" ? 100 : 0; }, run: function (plan) {
+      return { text: "Pedido composto identificado; os domínios serão tratados em sequência segura.", route: "legacy.multi_tool", delegated: true };
     } });
     registerTool({ id: "conversation.general", description: "Mantém conversa geral sem inventar domínio ou dados.", capabilities: ["conversation", "safe_fallback"], priority: 50, matches: function (plan) { return plan.intent === "conversation" || plan.intent === "empty" ? 50 : 0; }, run: function () { return { text: "Entendi. Pode me dizer o próximo passo?", conversational: true }; } });
 
