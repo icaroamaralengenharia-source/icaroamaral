@@ -60,7 +60,26 @@
   function dateAnswer(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return day(d).replace(/^./, function (c) { return c.toUpperCase(); }); }
   function timeAnswer() { return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date()); }
   function matchRule(text) { var t = norm(text); for (var i = 0; i < rules.length; i += 1) { if (rules[i][1].some(function (phrase) { return t === norm(phrase) || t.indexOf(norm(phrase)) >= 0; })) return rules[i]; } return null; }
-  function localDate(text) { var t = norm(text); if (/depois de amanha/.test(t)) return dateAnswer(2); if (/anteontem|antes de ontem/.test(t)) return dateAnswer(-2); if (/amanha|dia seguinte/.test(t)) return dateAnswer(1); if (/ontem/.test(t)) return dateAnswer(-1); if (/hoje|data de hoje|dia sera|dia da semana/.test(t)) return dateAnswer(0); if (/que horas|hora atual|horario/.test(t)) return "Agora são " + timeAnswer() + "."; return null; }
+  function localDate(text) {
+    var t = norm(text);
+    var relative = t.match(/(?:daqui a|em)\s+(\d{1,3})\s+dias?/);
+    if (relative) return dateAnswer(Number(relative[1]));
+    var targetYearMatch = t.match(/quantos dias faltam para (20\d{2})/);
+    if (targetYearMatch) {
+      var now = new Date(); var target = new Date(Number(targetYearMatch[1]), 0, 1);
+      return "Faltam " + Math.max(0, Math.ceil((target - now) / 86400000)) + " dias para 01/01/" + target.getFullYear() + ".";
+    }
+    if (/primeiro dia do proximo mes/.test(t)) { var first = new Date(); return "O primeiro dia do próximo mês será " + day(new Date(first.getFullYear(), first.getMonth() + 1, 1)) + "."; }
+    if (/ultimo dia deste mes/.test(t)) { var last = new Date(); return "O último dia deste mês será " + day(new Date(last.getFullYear(), last.getMonth() + 1, 0)) + "."; }
+    if (/que mes vem depois deste/.test(t)) { var month = new Date(); month.setMonth(month.getMonth() + 1); return "Depois deste mês vem " + new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(month) + "."; }
+    if (/depois de amanha/.test(t)) return dateAnswer(2);
+    if (/anteontem|antes de ontem/.test(t)) return dateAnswer(-2);
+    if (/amanha|dia seguinte/.test(t)) return dateAnswer(1);
+    if (/ontem/.test(t)) return dateAnswer(-1);
+    if (/hoje|data de hoje|dia sera|dia da semana/.test(t)) return dateAnswer(0);
+    if (/que horas|hora atual|horario/.test(t)) return "Agora são " + timeAnswer() + ".";
+    return null;
+  }
   function evaluate(expression) {
     var text = norm(expression).replace(/quanto e|quanto é|calcule|calcular|faz a conta|conta/g, "").replace(/dividido por|vezes/g, "*").replace(/\bmais\b/g, "+").replace(/\bmenos\b/g, "-").replace(/\bde\b/g, "").trim();
     var percent = text.match(/([\d.]+)\s*%\s*(?:de|do|da)?\s*([\d.]+)/);

@@ -230,6 +230,7 @@
     const alreadyHasAction =
       text.indexOf("quer que eu") >= 0 ||
       text.indexOf("proximo passo") >= 0 ||
+      text.indexOf("proxima acao") >= 0 ||
       text.indexOf("me envie") >= 0 ||
       text.indexOf("posso montar") >= 0 ||
       text.indexOf("posso transformar") >= 0;

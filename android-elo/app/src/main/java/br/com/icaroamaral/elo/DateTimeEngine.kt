@@ -17,6 +17,7 @@ class DateTimeEngine(
         val text = normalize(input)
         val today = LocalDate.now(clock)
         return when {
+            text.matches(Regex("(amanha|ontem|anteontem|depois de amanha)")) -> relativeDateAnswer(text, today)
             text.contains("depois de amanha") -> "Depois de amanhã será ${format(today.plusDays(2))}."
             text.contains("amanha") -> "Amanhã será ${format(today.plusDays(1))}."
             text.contains("ontem") -> "Ontem foi ${format(today.minusDays(1))}."
@@ -34,6 +35,13 @@ class DateTimeEngine(
     }
 
     private fun format(date: LocalDate): String = date.format(dateFormatter)
+
+    private fun relativeDateAnswer(text: String, today: LocalDate): String = when {
+        text == "depois de amanha" -> "Depois de amanhã será ${format(today.plusDays(2))}."
+        text == "anteontem" -> "Anteontem foi ${format(today.minusDays(2))}."
+        text == "ontem" -> "Ontem foi ${format(today.minusDays(1))}."
+        else -> "Amanhã será ${format(today.plusDays(1))}."
+    }
 
     private fun normalize(value: String): String = java.text.Normalizer.normalize(value.lowercase(locale), java.text.Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")

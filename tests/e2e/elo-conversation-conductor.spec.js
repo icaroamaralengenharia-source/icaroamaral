@@ -66,4 +66,9 @@ test.describe("EloConversationConductor", function () {
     expectText(answer, /objetivo agora/i);
     expect(String(answer || "")).not.toMatch(/assinar|contratar|mensalidade/i);
   });
+
+  test("não duplica próxima ação quando a resposta já contém o bloco", async function ({ page }) {
+    const answer = await enhance(page, "tenho uma fissura diagonal na parede", "Triagem técnica\\n\\nPróxima ação:\\n- registrar fotos e medidas.");
+    expect((String(answer || "").match(/próxima ação/gi) || []).length).toBe(1);
+  });
 });

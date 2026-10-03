@@ -8429,6 +8429,17 @@ async function callOpenAiElo_(payload, env, metrics = null) {
 }
 
 export function buildEloSystemPrompt_(context = {}) {
+  const runtimeNow = new Date();
+  const runtimeDateTime = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Bahia",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(runtimeNow);
   const eloContext = normalizeEloContext_(context.eloContext);
   const permanentUserMemorySummary = clean_(context.permanentUserMemorySummary || "").slice(0, 1800);
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
@@ -8455,6 +8466,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
     "ELO_CONVERSATIONAL_POLICY (CANONICAL / WEB + ANDROID WEBVIEW):\n" + getEloConversationalPolicyPrompt_(),
+    "RUNTIME CLOCK (SOURCE OF TRUTH): " + runtimeDateTime + " (America/Bahia). Para hoje, amanhã, ontem e depois de amanhã, calcule a partir deste relógio; nunca use data de treinamento, exemplo antigo ou data fixa. Não invente feriado/evento sem fonte fornecida.",
     proactiveReasoningPlan && getEloProactiveReasoningPolicy_() ? "ELO_PROACTIVE_REASONING_PLAN (INTERNAL):\n" + getEloProactiveReasoningPolicy_().buildPrompt(proactiveReasoningPlan) : "",
     buildEloMasterContext_(context),
     "Você é o Elo, um companheiro digital com memória recente.",

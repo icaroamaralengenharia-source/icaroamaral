@@ -77,7 +77,7 @@
 
   function isDateCommand(text) {
     const lower = normalize(text);
-    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje)\b/.test(lower);
+    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje|amanha|ontem|anteontem|depois de amanha|daqui a \d{1,3} dias?|em \d{1,3} dias?)\b/.test(lower);
   }
 
   function isTimeCommand(text) {
@@ -183,6 +183,24 @@
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const yyyy = date.getFullYear();
     return dd + "/" + mm + "/" + yyyy;
+  }
+
+  function formatRelativeDate(date, offset) {
+    const target = new Date(date.getTime());
+    target.setDate(target.getDate() + offset);
+    const label = offset === 1 ? "Amanhã" : offset === -1 ? "Ontem" : offset === 2 ? "Depois de amanhã" : offset === -2 ? "Anteontem" : "A data calculada";
+    return label + (offset < 0 ? " foi " : " será ") + formatDate(target) + ".";
+  }
+
+  function relativeDateOffset(text) {
+    const lower = normalize(text);
+    const days = lower.match(/(?:daqui a|em)\s+(\d{1,3})\s+dias?/);
+    if (days) return Number(days[1]);
+    if (/depois de amanha/.test(lower)) return 2;
+    if (/anteontem/.test(lower)) return -2;
+    if (/ontem/.test(lower)) return -1;
+    if (/amanha/.test(lower)) return 1;
+    return 0;
   }
 
   function formatTime(date) {
@@ -332,7 +350,8 @@
 
       if (intent === "DATE_LOCAL") {
         const now = getNow(config);
-        return Object.assign(createBase(intent, connectivity), { message: "Hoje é " + formatDate(now) + "." });
+        const offset = relativeDateOffset(command);
+        return Object.assign(createBase(intent, connectivity), { message: offset ? formatRelativeDate(now, offset) : "Hoje é " + formatDate(now) + "." });
       }
 
       if (intent === "TIME_LOCAL") {

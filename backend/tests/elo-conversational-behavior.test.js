@@ -74,3 +74,9 @@ test("T14-T15: memória disponível é contextual e memória ausente não é inv
   assert.match(withoutMemory, /não invente fatos/i);
   assert.match(withoutMemory, /memória permanente/i);
 });
+
+test("P0: prompt online recebe relógio de execução para datas relativas", () => {
+  const prompt = buildEloSystemPrompt_({ eloContext: "geral" });
+  assert.match(prompt, /RUNTIME CLOCK \(SOURCE OF TRUTH\)/);
+  assert.match(prompt, /America\/Bahia/);
+});
