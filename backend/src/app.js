@@ -6,6 +6,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { createClient } from "@supabase/supabase-js";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
 import { resolveAuthenticatedEloContext, resolveAuthContext } from "./auth-context.js";
@@ -2349,7 +2350,10 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database.auth.signInWithPassword({ email, password });
+      const loginDatabase = clean_(env.SUPABASE_ANON_KEY)
+        ? createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
+        : database;
+      const { data, error } = await loginDatabase.auth.signInWithPassword({ email, password });
       const user = data && data.user;
       const session = data && data.session;
       if (error || !user || !session || !clean_(session.access_token)) {
