@@ -99,15 +99,95 @@
     else storage.setItem("stockFullSession", JSON.stringify(appSession));
   }
 
+  function redactDiagnosticValue(value, key) {
+    if (/password|token|secret|api[_-]?key|service[_-]?role|authorization|cookie/i.test(String(key || ""))) {
+      return "[REDACTED]";
+    }
+    if (Array.isArray(value)) return value.map(function (item) { return redactDiagnosticValue(item, ""); });
+    if (value && typeof value === "object") {
+      return Object.keys(value).reduce(function (result, childKey) {
+        result[childKey] = redactDiagnosticValue(value[childKey], childKey);
+        return result;
+      }, {});
+    }
+    return value;
+  }
+
+  function safeDiagnosticText(value) {
+    const text = String(value == null ? "" : value);
+    try {
+      return JSON.stringify(redactDiagnosticValue(JSON.parse(text), ""));
+    } catch (_) {
+      return text
+        .replace(/Bearer\s+[^\s]+/ig, "Bearer [REDACTED]")
+        .replace(/(password|token|secret|api[_-]?key|service[_-]?role|authorization)\s*[:=]\s*[^,;\s]+/ig, "$1=[REDACTED]")
+        .slice(0, 2000);
+    }
+  }
+
+  function safeDiagnosticBody(rawBody) {
+    const body = safeDiagnosticText(rawBody);
+    return body || "(empty)";
+  }
+
+  function createLoginDiagnosticError(error, requestUrl, httpStatus, statusText, responseBody) {
+    const diagnostic = new Error(safeDiagnosticText(error && error.message || error || "Unknown login error"));
+    diagnostic.name = error && error.name || "Error";
+    diagnostic.requestUrl = requestUrl;
+    diagnostic.httpStatus = httpStatus == null ? null : httpStatus;
+    diagnostic.statusText = safeDiagnosticText(statusText || "");
+    diagnostic.responseBody = responseBody == null ? "(none)" : safeDiagnosticBody(responseBody);
+    return diagnostic;
+  }
+
+  function getLoginDiagnostic(error, requestUrl) {
+    return {
+      errorName: safeDiagnosticText(error && error.name || "Error"),
+      errorMessage: safeDiagnosticText(error && error.message || error || "Unknown login error"),
+      requestUrl: requestUrl,
+      httpStatus: error && error.httpStatus == null ? null : error && error.httpStatus,
+      statusText: safeDiagnosticText(error && error.statusText || ""),
+      responseBody: error && error.responseBody ? safeDiagnosticBody(error.responseBody) : "(none)"
+    };
+  }
+
+  function formatLoginDiagnostic(diagnostic) {
+    return [
+      "ERROR NAME: " + diagnostic.errorName,
+      "ERROR MESSAGE: " + diagnostic.errorMessage,
+      "REQUEST URL: " + diagnostic.requestUrl,
+      "HTTP STATUS: " + (diagnostic.httpStatus == null ? "(none)" : diagnostic.httpStatus),
+      "STATUS TEXT: " + (diagnostic.statusText || "(none)"),
+      "RESPONSE BODY: " + diagnostic.responseBody
+    ].join(" | ");
+  }
+
   async function loginWithBackend(email, password) {
-    const response = await originalFetch(apiUrl("login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: String(email || "").trim(), password: String(password || "") })
-    });
-    const data = await response.json().catch(function () { return {}; });
+    const requestUrl = apiUrl("login");
+    let response;
+    try {
+      response = await originalFetch(requestUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: String(email || "").trim(), password: String(password || "") })
+      });
+    } catch (error) {
+      throw createLoginDiagnosticError(error, requestUrl, null, "", "(none)");
+    }
+
+    const rawBody = await response.text().catch(function () { return "(unreadable response body)"; });
+    let data = {};
+    try {
+      data = rawBody ? JSON.parse(rawBody) : {};
+    } catch (_) {}
     if (!response.ok || !data.ok) {
-      throw new Error(data.error || "stock_full_backend_login_failed");
+      throw createLoginDiagnosticError(
+        new Error(data.error || "stock_full_backend_login_failed"),
+        requestUrl,
+        response.status,
+        response.statusText,
+        rawBody
+      );
     }
     storeBackendSession(data);
     return data;
@@ -142,7 +222,9 @@
       setLoginStatus("Login online realizado. Carregando dados da empresa...", "success");
       window.location.reload();
     } catch (error) {
-      setLoginStatus("Servidor indisponivel. Nao foi possivel carregar dados online.", "error");
+      const diagnostic = getLoginDiagnostic(error, apiUrl("login"));
+      console.error("[Stock Full login diagnostic]", diagnostic);
+      setLoginStatus(formatLoginDiagnostic(diagnostic), "error");
     }
   }, true);
 
