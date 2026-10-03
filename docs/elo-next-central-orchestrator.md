@@ -113,6 +113,6 @@ Nenhuma ferramenta Stock Full é registrada pelo núcleo. Stock Full permanece u
 
 ## Gate desta etapa
 
-O gate focal passa com 20 testes: registro sem Stock Full, 50 variantes documentais, fast paths, memória, documento longo de 150 páginas com recuperação tardia e reload, classificação de report/work/budget/writing/media, comparação shadow, canary determinístico e promoção reversível.
+O gate focal passa com 20 testes: registro sem Stock Full, 50 variantes documentais, fast paths, memória, documento longo de 150 páginas com recuperação tardia e reload, classificação de report/work/budget/writing/media/conversation, comparação shadow, canary determinístico e promoção reversível.
 
 Isto ainda não é certificação final do produto. Permanecem abertos os gates de 1000+ interações, conversa longa de 50/200 turnos, torture de arquivos/memória, anexos/mídia/RDO, paridade Android, produção Web e as falhas já registradas no ledger de certificação.

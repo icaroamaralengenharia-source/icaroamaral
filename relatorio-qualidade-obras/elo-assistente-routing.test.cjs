@@ -277,6 +277,7 @@ test('ELO central primary: adapters legados são registrados no orquestrador', (
   assert.ok(tools.includes('primary.budget'));
   assert.ok(tools.includes('primary.writing'));
   assert.ok(tools.includes('primary.media'));
+  assert.ok(tools.includes('primary.conversation'));
   assert.equal(orchestrator.plan('15% de 500').tool.id, 'primary.fast-path');
 });
 test('ELO layout: login centralizado por estrutura 100dvh', () => {

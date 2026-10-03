@@ -23,5 +23,5 @@ Result: `FAIL` before Kotlin compilation because Gradle could not establish its 
 - No secrets were read, printed, committed or copied.
 - No database, Supabase, authentication or production environment mutation was performed.
 - Stock Full implementation remains untouched; it is not registered as a central implementation.
-- Web central mode is primary only for the first migrated cluster: deterministic fast paths, explicit memory, active document, engineering, report-from-context, active-work, budget, writing, explicit tool navigation and explicit media. Attachments, RDO and Stock Full retain their existing contracts.
+- Web central mode is primary only for the first migrated cluster: deterministic fast paths, explicit memory, active document, engineering, report-from-context, active-work, budget, writing, general conversation, explicit tool navigation and explicit media. Attachments, RDO and Stock Full retain their existing contracts.
 - The rollout exposes shadow comparison and promotion-gate telemetry with fallback reasons.

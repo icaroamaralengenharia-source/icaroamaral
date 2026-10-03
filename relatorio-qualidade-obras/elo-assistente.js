@@ -30221,13 +30221,27 @@ function isEloResidentialNewPipelineEnabled_() {
         return { handled: true, text: answer, shortAnswer: answer, fullAnswer: "", canSave: false, sessionTheme: "media", sessionIntent: "media_command", media: media };
       }
     });
+    orchestrator.registerTool({
+      id: "primary.conversation",
+      description: "Conversa geral pelo núcleo central com fallback online/legado seguro.",
+      capabilities: ["conversation", "naturalness", "general_assistant", "fallback"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "conversation" || plan.intent === "empty" ? 100 : 0; },
+      run: function (plan) {
+        const local = buildEloCorePureConversationalAnswer_(plan.message);
+        if (local) return centralResponseFromLegacy_(local, "conversation");
+        return requestEloOnlineAnswer(plan.message, [], { technicalContinuation: false, activeTopic: "conversation" }).then(function (answer) {
+          return answer ? { handled: true, text: sanitizeEloMultilineText_(answer), shortAnswer: sanitizeEloMultilineText_(answer), fullAnswer: "", canSave: true, sessionTheme: "central_conversation", sessionIntent: "conversation_general" } : { handled: false, reason: "conversation_tool_unavailable" };
+        });
+      }
+    });
     return true;
   }
   function handleEloCentralPrimary_(question, attachments, source) {
     const orchestrator = window.EloCentralOrchestrator;
     if (!orchestrator || typeof orchestrator.isPrimary !== "function" || (typeof orchestrator.shouldUsePrimary === "function" ? !orchestrator.shouldUsePrimary(question) : !orchestrator.isPrimary()) || (attachments && attachments.length)) return false;
     const plan = typeof orchestrator.plan === "function" ? orchestrator.plan(question, { source: source || "manual", surface: "web" }) : null;
-    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "media", "visual_media", "engineering", "tool_request"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
+    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "media", "visual_media", "engineering", "tool_request", "conversation"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
     if (plan.confidence < 0.83) return false;
     appendMessage("user", question);
     appendTypingIndicator();

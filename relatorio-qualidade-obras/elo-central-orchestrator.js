@@ -306,7 +306,7 @@
       if (/\b(?:fissura|trinca|rachadura|infiltracao|infiltração|parede|laje|pilar|viga|fundacao|fundação|reboco|argamassa|alvenaria|sinapi|orse|quantitativo|patologia|vistoria)\b/.test(value)) add("engineering", 0.84, "engineering_domain_signal");
       if (/\b(?:abrir|abra|acessar|acesse|navegar|me leve|usar)\b/.test(value) && /\b(?:relatorio|relatório|cadista|estoque|stock|rdo|orcamento|orçamento|planta)\b/.test(value)) add("tool_request", 0.9, "explicit_tool_request");
       if (/^(oi|ola|olá|bom dia|boa tarde|boa noite|obrigado|obrigada|valeu|show|beleza|tudo bem)[!.? ]*$/i.test(raw)) add("conversation", 0.9, "social_message");
-      if (!candidates.length) add("conversation", 0.55, "default_conversation");
+      if (!candidates.length) add("conversation", 0.84, "default_conversation");
       return candidates.sort(function (left, right) { return right.confidence - left.confidence; });
     }
 

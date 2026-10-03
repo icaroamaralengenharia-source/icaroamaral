@@ -119,6 +119,7 @@ test('phase two intent map separates report, work, budget and writing requests',
   assert.equal(api.plan('redija uma mensagem para o cliente').intent, 'writing');
   assert.equal(api.plan('mostre uma foto de uma fachada').intent, 'visual_media');
   assert.equal(api.plan('pause a música').intent, 'media');
+  assert.equal(api.plan('me ajude a organizar o próximo passo').intent, 'conversation');
 });
 
 test('explicit memory survives a new orchestrator instance using the same storage', async () => {
