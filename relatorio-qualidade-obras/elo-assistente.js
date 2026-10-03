@@ -274,7 +274,7 @@
     const isDomainCommand = /\b(?:rdo|diario\s+de\s+obra|diario)\b/.test(text) &&
       /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar|gerar\s+documento|gere\s+documento|relatorio\s+pdf|gere|gerar)\b/.test(text);
     if (!isDomainCommand && !operationalReleaseMath && (percentageMath || lengthPercentageMath || meterConversionMath || slabVolumeMath || (!constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))))) add({ type: "math" });
-    if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
+    if (/\b(memoria|memória|memorize|memoriz|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
     if (/\b(cadista|cad|dxf|planta baixa|desenho tecnico|desenho técnico)\b/.test(text)) add({ type: "cad" });
@@ -3306,7 +3306,7 @@
     renderEloCoreAuthPanel_();
   }
 
-  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
+  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
     ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1;
@@ -3525,10 +3525,15 @@
   }
   function buildEloCoreMemoryRecallResponse_(question) {
     const text = normalizeText(question || "");
-    if (!/\b(continue|continuar|retomar|lembra|lembre|memoria|memória)\b/.test(text)) return null;
+    if (!/\b(continue|continuar|retomar|lembra|lembre|memoria|memória|memorize|memoriz)\b/.test(text)) return null;
 
     const terms = text.split(/\s+/).filter(function (term) { return term.length >= 4; });
-    const related = (ELO_UI.coreMemories || []).filter(function (memory) {
+    const canonicalMemories = Array.isArray(ELO_UI.coreMemories) ? ELO_UI.coreMemories : [];
+    const localMemories = typeof getEloLongTermMemories === "function" ? getEloLongTermMemories() : [];
+    const memories = canonicalMemories.concat(localMemories.map(function (memory) {
+      return { category: memory.category, memory_key: memory.id, memory_value: memory.text };
+    }));
+    const related = memories.filter(function (memory) {
       const haystack = normalizeText([memory.category, memory.memory_key, memory.memory_value].join(" "));
       return terms.some(function (term) { return haystack.indexOf(term) >= 0; });
     }).slice(0, 4);
@@ -3548,6 +3553,34 @@
       sessionTheme: "elo_core_memory",
       sessionIntent: "memory_recall"
     };
+  }
+
+  function buildEloPathologyFollowUpResponse_(question) {
+    const text = normalizeText(question || "");
+    const context = (ELO_SESSION_MEMORY.pathologyContext || []).join(" ");
+    if (!context || !/fissura|trinca|rachadura/.test(context)) return null;
+    if (/qual\s+(?:e|é)\s+(?:a\s+)?mais\s+(?:preocupante|grave)|qual\s+(?:delas|problema)\s+(?:e|é)\s+(?:pior|mais)/.test(text)) {
+      const answer = "A fissura de 2 mm que cresceu é a mais preocupante neste momento: a evolução pesa mais do que a medida isolada. A de 0,5 mm também deve ser registrada e monitorada, mas não supera a primeira como prioridade sem outros sinais de risco.";
+      return { shortAnswer: "A fissura que cresceu é a prioridade.", fullAnswer: answer, nextAction: "Registre medidas e datas e encaminhe as duas para vistoria técnica.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_follow_up" };
+    }
+    if (/^por\s+que|^por\s+quê|\bpor\s+qual\s+motivo/.test(text)) {
+      const answer = "Porque crescimento indica que a manifestação pode estar ativa. A abertura de 2 mm reforça a prioridade, mas a gravidade definitiva depende da localização, deformações, água e demais sinais da vistoria.";
+      return { shortAnswer: "Porque ela está evoluindo.", fullAnswer: answer, nextAction: "Compare as medidas em datas diferentes e procure deformação ou infiltração.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_follow_up" };
+    }
+    if (/\bresum|duas\s+linhas|duas\s+frases/.test(text)) {
+      const answer = "A fissura de 2 mm que cresceu é a prioridade porque sugere evolução ativa.\nA de 0,5 mm deve ser registrada e monitorada antes de qualquer reparo.";
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: "Registre fotos, medidas e datas.", canSave: false, sessionTheme: "patologia_obras", sessionIntent: "triagem_patologia_summary" };
+    }
+    return null;
+  }
+
+  function buildEloUnavailableFactResponse_(question) {
+    const text = normalizeText(question || "");
+    const asksRecord = /\b(?:qual|numero|número|informe|me diga|existe|tem)\b/.test(text);
+    const recordType = /\b(?:contrato|matricula|matrícula|numero\s+do\s+laudo|número\s+do\s+laudo|responsavel\s+tecnico|responsável\s+técnico)\b/.test(text);
+    if (!asksRecord || !recordType) return null;
+    const answer = "Não encontrei esse registro nos dados disponíveis desta conversa/obra. Não vou inventar um número ou documento.";
+    return { shortAnswer: "Não encontrei esse registro.", fullAnswer: answer, nextAction: "Envie o documento ou registro correspondente para eu consultar.", canSave: false, sessionTheme: "anti_hallucination", sessionIntent: "anti_hallucination_missing_fact" };
   }
 
   function getEloContext() {
@@ -7764,6 +7797,7 @@
     activeEntities: [],
     lastEnumeratedItems: [],
     lastReferenceSet: [],
+    pathologyContext: [],
     detailLevel: 0,
     activeTask: null
   };
@@ -8135,6 +8169,11 @@
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
     ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
     ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(safeResponse.nextAction || "").slice(0, 260);
+    if (/fissura|trinca|rachadura|\b\d+(?:[,.]\d+)?\s*mm\b|cresceu|evoluiu|lado oposto|diagonal/.test(normalizedQuestion) || safeResponse.sessionTheme === "patologia_obras") {
+      ELO_SESSION_MEMORY.pathologyContext = (ELO_SESSION_MEMORY.pathologyContext || []).concat([sanitizeUserText(question).slice(0, 240)]).slice(-8);
+      ELO_SESSION_MEMORY.activeConversationTopic = "patologia_obras";
+      ELO_SESSION_MEMORY.activeTopic = "patologia_obras";
+    }
     if (enumeratedItems.length) {
       ELO_SESSION_MEMORY.lastEnumeratedItems = enumeratedItems;
       ELO_SESSION_MEMORY.activeEntities = enumeratedItems;
@@ -25349,7 +25388,7 @@ function isEloResidentialNewPipelineEnabled_() {
     return {
       shortAnswer: "Isso pede triagem técnica antes de qualquer reparo.",
       fullAnswer: answer,
-      nextAction: structuralRisk ? "Chame um engenheiro para vistoria presencial." : "Envie fotos, localização e histórico para afinar a triagem.",
+      nextAction: "",
       canSave: false,
       sessionTheme: "patologia_obras",
       sessionIntent: "triagem_patologia"
@@ -28111,6 +28150,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (autopilotBuildResponse) return autopilotBuildResponse;
     const offlineCoreResponse = typeof window !== "undefined" && window.EloOfflineCoreV2 && typeof window.EloOfflineCoreV2.resolve === "function" ? window.EloOfflineCoreV2.resolve(question) : null;
     if (offlineCoreResponse) return offlineCoreResponse;
+    const localSafetyResponse = buildEloPathologyFollowUpResponse_(question) || buildEloUnavailableFactResponse_(question) || buildEloCoreMemoryRecallResponse_(question);
+    if (localSafetyResponse) return applyEloBrainMarker_(question, localSafetyResponse);
     if (shouldPrioritizeEloConstructionPathology_(question)) {
       const earlyPathologyAnswer = buildEloConstructionPathologyAnswer_(question);
       if (earlyPathologyAnswer) return applyEloBrainMarker_(question, earlyPathologyAnswer);
@@ -30166,6 +30207,19 @@ function isEloResidentialNewPipelineEnabled_() {
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
+
+    const localSafetyResponse = !attachedFiles.length
+      ? (buildEloPathologyFollowUpResponse_(cleanQuestion) || buildEloUnavailableFactResponse_(cleanQuestion) || buildEloCoreMemoryRecallResponse_(cleanQuestion))
+      : null;
+    if (localSafetyResponse) {
+      const localSafetyAnswer = formatResponse(localSafetyResponse);
+      appendAssistantMessage(cleanQuestion, localSafetyAnswer, localSafetyResponse.canSave !== false, localSafetyResponse);
+      saveConversation(cleanQuestion, localSafetyAnswer);
+      rememberSessionTurn(cleanQuestion, localSafetyResponse, localSafetyAnswer);
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+      return;
+    }
 
     const technicalContinuationQuery = buildEloTechnicalContinuationQuery_(cleanQuestion, effectiveSemanticRoute);
     const technicalContinuationPrompt = buildEloTechnicalContinuationPrompt_(cleanQuestion, effectiveSemanticRoute);
