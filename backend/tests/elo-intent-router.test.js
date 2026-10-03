@@ -479,6 +479,19 @@ test("IntentRouter nao encaminha patologia de fachada para CADISTA", () => {
   assertNoTechnicalCalls(calls);
 });
 
+test("P0: triagem de fissura informa tratamento por cenário sem orçamento e sem ação duplicada no núcleo", () => {
+  const { assistant, calls } = loadAssistant();
+  const response = assistant.buildResponseForTest("Tenho uma fissura diagonal perto da janela e ela está aumentando.");
+
+  assert.equal(response.sessionTheme, "patologia_obras");
+  assert.equal(response.sessionIntent, "triagem_patologia");
+  assert.match(response.fullAnswer, /Tratamento conforme o cenário/i);
+  assert.match(response.fullAnswer, /verga|contraverga/i);
+  assert.match(response.fullAnswer, /fissura ativa|investigar/i);
+  assert.doesNotMatch(response.fullAnswer, /composição SINAPI|preço unitário|custo direto/i);
+  assertNoTechnicalCalls(calls);
+});
+
 test("IntentRouter preserva CADISTA grafico legitimo", () => {
   const { assistant, calls } = loadAssistant();
   [

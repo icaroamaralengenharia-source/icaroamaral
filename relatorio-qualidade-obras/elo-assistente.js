@@ -284,8 +284,28 @@
     return intents;
   }
 
-  function formatEloCoreDateTimeAnswer_(date) {
+  function getEloCoreRelativeDateOffset_(message) {
+    const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    if (/\b(?:depois de amanha|depois de amanhã)\b/.test(text)) return 2;
+    if (/\b(?:anteontem|antes de ontem)\b/.test(text)) return -2;
+    if (/\bamanha\b/.test(text)) return 1;
+    if (/\bontem\b/.test(text)) return -1;
+    return 0;
+  }
+
+  function formatEloCoreDateTimeAnswer_(date, message) {
     const current = date || new Date();
+    const offset = getEloCoreRelativeDateOffset_(message);
+    if (offset) {
+      const target = new Date(current.getTime());
+      target.setDate(target.getDate() + offset);
+      const label = offset === 1 ? "Amanhã" : offset === -1 ? "Ontem" : offset === 2 ? "Depois de amanhã" : "Anteontem";
+      try {
+        return label + (offset < 0 ? " foi " : " será ") + target.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) + ".";
+      } catch (error) {
+        return label + " será " + target.toISOString().slice(0, 10) + ".";
+      }
+    }
     try {
       const formattedDate = current.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
       const formattedTime = current.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -298,7 +318,8 @@
   function isEloCoreExplicitDateTimeRequest_(message) {
     const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
     if (!text) return false;
-    return /\b(?:que\s+dia\s+e\s+hoje|hoje\s+e\s+que\s+dia|qual\s+(?:e\s+)?a\s+data(?:\s+de\s+hoje)?|data\s+(?:de\s+hoje|atual)|qual\s+(?:e\s+)?(?:o\s+)?dia\s+de\s+hoje|que\s+horas\s+sao|qual\s+(?:e\s+)?(?:a\s+)?hora(?:\s+agora|\s+atual)?|hora\s+atual|horario\s+atual)\b/.test(text);
+    const relativeDateQuestion = /^(?:amanha|ontem|anteontem|depois\s+de\s+amanha)$/.test(text) || /\b(?:que\s+dia|qual\s+(?:e\s+o\s+)?dia|que\s+e|que\s+é|qual\s+a\s+data|o\s+que\s+e|o\s+que\s+é)\b[\s\S]{0,30}\b(?:amanha|ontem|anteontem)\b/.test(text);
+    return relativeDateQuestion || /\b(?:que\s+dia\s+e\s+hoje|hoje\s+e\s+que\s+dia|qual\s+(?:e\s+)?a\s+data(?:\s+de\s+hoje)?|data\s+(?:de\s+hoje|atual)|qual\s+(?:e\s+)?(?:o\s+)?dia\s+de\s+hoje|que\s+horas\s+sao|qual\s+(?:e\s+)?(?:a\s+)?hora(?:\s+agora|\s+atual)?|hora\s+atual|horario\s+atual)\b/.test(text);
   }
 
   function calculateSimpleEloCoreMath_(message) {
@@ -384,7 +405,7 @@
         handled: true
       };
     }
-    if (intent.type === "date_time") return { text: formatEloCoreDateTimeAnswer_(context && context.now), handled: true };
+    if (intent.type === "date_time") return { text: formatEloCoreDateTimeAnswer_(context && context.now, message), handled: true };
     if (intent.type === "meta_workflow") {
       return {
         text: [
@@ -25018,12 +25039,13 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   function isEloConstructionPathologyQuestion_(message) {
     const text = normalizeText(message || "");
-    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
+    return /trinca|fissura|rachadura|rachando|rachou|infiltra|umidade|mofo|vazamento|destacamento|destacando|eflorescencia|eflorescência|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
   function hasEloBudgetOrCompositionIntent_(message) {
     const text = normalizeText(message || "");
-    return /orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
+    const compositionRequest = /composi..o|composicao|sinapi|orse/.test(text) && !/(?:sem|nao|não)\s+(?:abrir\s+|fazer\s+|usar\s+|tratar\s+)?(?:a\s+)?(?:composi..o|composicao|sinapi|orse)/.test(text);
+    return /orcamento|custo|valor|preco|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text) || compositionRequest;
   }
 
 
@@ -25250,10 +25272,12 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function buildEloConstructionPathologyAnswer_(message) {
-    if (!isEloConstructionPathologyQuestion_(message) || hasEloBudgetOrCompositionIntent_(message)) {
+    const text = normalizeText(message || "");
+    if (/rdo|diario/.test(text) && /resum|mostre|qual\s+foi|registro|registr|compar/.test(text) && !/analise|avali|causa|patolog|tecnic/.test(text)) return null;
+    const analysisFirst = /(?:antes|primeiro|primeiro\s+analise|primeiro\s+avalie|sem\s+(?:falar\s+de\s+|abrir\s+|tratar\s+)?(?:custo|orcamento|composi..o|composicao)|nao\s+(?:(?:quero|preciso)\s+(?:de\s+)?|vou\s+)?(?:custo|orcamento|composi..o|composicao))/.test(text) && /analise|avali|causa|tecnic/.test(text);
+    if (!isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !analysisFirst)) {
       return null;
     }
-    const text = normalizeText(message || "");
     const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundação|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vão/.test(text);
     const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
     const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
@@ -25264,14 +25288,29 @@ function isEloResidentialNewPipelineEnabled_() {
     if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");
     if (!causes.length) causes.push("execução inadequada", "movimentação da base", "umidade ou falta de manutenção");
     const uniqueCauses = causes.filter(function (item, index) { return causes.indexOf(item) === index; }).slice(0, 4);
-    const risk = structuralRisk
+    const diagonal = /diagonal/.test(text);
+    const opening = /porta|janela|vao|vão/.test(text);
+    const active = /aument|evolu|cresce|ativa|recorr/.test(text);
+    const stable = /inativ|estabil/.test(text);
+    const risk = structuralRisk || (diagonal && active)
       ? "Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial."
       : moisture
         ? "Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento."
         : "Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.";
+    const treatments = [];
+    if (opening) treatments.push("- Em canto de porta ou janela: conferir verga, contraverga, encunhamento e ligação da alvenaria; corrigir essa causa antes de recompor o revestimento.");
+    if (diagonal && !opening) treatments.push("- Se a diagonal atravessa a parede ou reaparece após o reparo: medir a abertura, acompanhar a evolução e investigar movimentação da alvenaria, estrutura ou fundação antes de apenas selar.");
+    if (coating && !structuralRisk && !active) treatments.push("- Se estiver restrita ao revestimento e estável: remover partes soltas, preparar a base, usar sistema compatível com a movimentação e respeitar a cura antes do acabamento.");
+    if (active || stable) treatments.push(active ? "- Fissura ativa: não mascarar com massa rígida; registrar medidas e datas e investigar a origem antes do reparo." : "- Fissura aparentemente inativa: confirmar com monitoramento e só então definir selagem/recomposição compatível.");
+    const treatmentBlock = treatments.length ? ["Tratamento conforme o cenário:", treatments.join("\n")].join("\n") : "Tratamento conforme o cenário: primeiro confirme se a manifestação está ativa e se pertence ao revestimento ou à parede; o reparo deve seguir a causa confirmada.";
+    const contextLine = /rdo|diario/.test(text) ? "O RDO entra como contexto documental; a causa e a gravidade ainda precisam de inspeção física confirmada." : "";
+    const budgetDeferralLine = analysisFirst ? "O orçamento fica para depois da análise da causa; não vou transformar a manifestação em composição antes da triagem." : "";
     const answer = [
       "Triagem técnica",
       "Não dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.",
+      contextLine,
+      budgetDeferralLine,
+      budgetDeferralLine ? "A etapa de diagnóstico vem antes de qualquer orçamento." : "",
       "",
       "Possíveis causas:",
       uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
@@ -25284,6 +25323,8 @@ function isEloResidentialNewPipelineEnabled_() {
       "",
       "Risco:",
       "- " + risk,
+      "",
+      treatmentBlock,
       "",
       "Próxima ação:",
       structuralRisk
@@ -25298,6 +25339,12 @@ function isEloResidentialNewPipelineEnabled_() {
       sessionTheme: "patologia_obras",
       sessionIntent: "triagem_patologia"
     };
+  }
+  function shouldPrioritizeEloConstructionPathology_(message) {
+    const text = normalizeText(message || "");
+    if (!isEloConstructionPathologyQuestion_(message)) return false;
+    if (/rdo|diario/.test(text) && /resum|mostre|qual\s+foi|registro|registr|compar/.test(text) && !/analise|avali|causa|patolog|tecnic/.test(text)) return false;
+    return true;
   }
   function buildResponseCore_(question, options) {
     const routeOptions = options || {};
@@ -25439,6 +25486,13 @@ function isEloResidentialNewPipelineEnabled_() {
     const reportImageRoutingAnswer = buildEloReportImageRoutingAnswer_(cleanQuestion);
     if (reportImageRoutingAnswer) {
       return reportImageRoutingAnswer;
+    }
+
+    if (shouldPrioritizeEloConstructionPathology_(cleanQuestion)) {
+      const prioritizedPathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+      if (prioritizedPathologyAnswer) {
+        return prioritizedPathologyAnswer;
+      }
     }
 
     const operationalEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
@@ -28042,6 +28096,10 @@ function isEloResidentialNewPipelineEnabled_() {
     if (autopilotBuildResponse) return autopilotBuildResponse;
     const offlineCoreResponse = typeof window !== "undefined" && window.EloOfflineCoreV2 && typeof window.EloOfflineCoreV2.resolve === "function" ? window.EloOfflineCoreV2.resolve(question) : null;
     if (offlineCoreResponse) return offlineCoreResponse;
+    if (shouldPrioritizeEloConstructionPathology_(question)) {
+      const earlyPathologyAnswer = buildEloConstructionPathologyAnswer_(question);
+      if (earlyPathologyAnswer) return applyEloBrainMarker_(question, earlyPathologyAnswer);
+    }
     const socialFastPathResponse = buildEloSocialFastPathAnswer_(question);
     if (socialFastPathResponse) return socialFastPathResponse;
     const visualMediaResponse = buildEloVisualMediaResponse_(question);

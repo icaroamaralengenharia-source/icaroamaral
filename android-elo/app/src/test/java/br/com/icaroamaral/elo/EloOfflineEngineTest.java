@@ -28,6 +28,8 @@ public class EloOfflineEngineTest {
 
     @Test public void viradaDeAno() { assertEquals("Depois de amanhã será 02/01/2026.", engine("2025-12-31T15:00:00Z").handle("Depois de amanhã").getText()); }
 
+    @Test public void anteontem() { assertEquals("Anteontem foi 29/12/2025.", engine("2025-12-31T15:00:00Z").handle("Anteontem").getText()); }
+
     @Test public void fevereiroAnoBissexto() { assertEquals("Amanhã será 01/03/2024.", engine("2024-02-29T15:00:00Z").handle("amanhã").getText()); }
 
     @Test public void mesEAno() {
