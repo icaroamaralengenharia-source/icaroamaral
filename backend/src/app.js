@@ -2407,12 +2407,27 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data: created, error: createError } = await database.auth.admin.createUser({
+      let created;
+      let createError;
+      ({ data: created, error: createError } = await database.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: { name: "Stock Full E2E Admin", role: "admin" }
-      });
+      }));
+      if (createError || !created?.user?.id) {
+        const { data: listed, error: listError } = await database.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existing = !listError && listed?.users?.find((candidate) => String(candidate.email || "").toLowerCase() === email);
+        if (existing?.id) {
+          const updated = await database.auth.admin.updateUserById(existing.id, {
+            password,
+            email_confirm: true,
+            user_metadata: { name: "Stock Full E2E Admin", role: "admin" }
+          });
+          created = { user: updated.data?.user || existing };
+          createError = updated.error;
+        }
+      }
       if (createError || !created?.user?.id) {
         response.status(409).json({ ok: false, error: "stock_full_e2e_account_create_failed" });
         return;
