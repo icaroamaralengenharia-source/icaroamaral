@@ -47,6 +47,12 @@ test("offline core answers technical knowledge and internet boundary locally", (
   assert.equal(core.knowledgeCount >= 15, true);
 });
 
+test("offline core does not confuse próxima ação with música", () => {
+  const { core } = load();
+  const result = core.resolve("Teste mobile: resumir uma fissura diagonal e indicar a próxima ação.");
+  assert.equal(result, null);
+});
+
 test("offline core plays local Für Elise and controls it without URL", () => {
   const { core, calls } = load();
   assert.match(core.resolve("Toque Für Elise").fullAnswer, /offline/);
