@@ -32,6 +32,7 @@ create table if not exists public.profiles (
 create table if not exists public.stock_full_items (
   id uuid primary key default gen_random_uuid(),
   institution_id text not null,
+  project_id text references public.obrareport_projects(id),
   name text not null,
   unit text,
   category text,
@@ -50,6 +51,7 @@ create table if not exists public.stock_full_items (
 create table if not exists public.stock_full_entries (
   id uuid primary key default gen_random_uuid(),
   institution_id text not null,
+  project_id text references public.obrareport_projects(id),
   offline_uuid text,
   operation_id text,
   device_id text,
@@ -74,6 +76,7 @@ create table if not exists public.stock_full_entries (
 create table if not exists public.stock_full_exits (
   id uuid primary key default gen_random_uuid(),
   institution_id text not null,
+  project_id text references public.obrareport_projects(id),
   offline_uuid text,
   operation_id text,
   device_id text,
@@ -95,6 +98,7 @@ create table if not exists public.stock_full_exits (
 
 
 alter table if exists public.stock_full_entries
+  add column if not exists project_id text,
   add column if not exists offline_uuid text,
   add column if not exists operation_id text,
   add column if not exists device_id text,
@@ -104,6 +108,7 @@ alter table if exists public.stock_full_entries
   add column if not exists nfe_access_key text;
 
 alter table if exists public.stock_full_exits
+  add column if not exists project_id text,
   add column if not exists offline_uuid text,
   add column if not exists operation_id text,
   add column if not exists device_id text,
@@ -111,9 +116,16 @@ alter table if exists public.stock_full_exits
   add column if not exists source text default 'online',
   add column if not exists synced_at timestamptz;
 
+alter table if exists public.stock_full_items
+  add column if not exists project_id text;
+
+alter table if exists public.stock_full_audit_log
+  add column if not exists project_id text;
+
 create table if not exists public.stock_full_audit_log (
   id uuid primary key default gen_random_uuid(),
   institution_id text not null,
+  project_id text references public.obrareport_projects(id),
   action text not null,
   entity_type text,
   entity_id uuid,
@@ -142,11 +154,17 @@ create index if not exists profiles_institution_id_idx
 create index if not exists stock_full_items_institution_id_idx
   on public.stock_full_items(institution_id);
 
+create index if not exists stock_full_items_institution_project_idx
+  on public.stock_full_items(institution_id, project_id, name);
+
 create index if not exists stock_full_items_is_active_idx
   on public.stock_full_items(is_active);
 
 create index if not exists stock_full_entries_institution_id_idx
   on public.stock_full_entries(institution_id);
+
+create index if not exists stock_full_entries_institution_project_idx
+  on public.stock_full_entries(institution_id, project_id, created_at desc);
 
 create index if not exists stock_full_entries_item_id_idx
   on public.stock_full_entries(item_id);
@@ -162,6 +180,9 @@ create unique index if not exists stock_full_entries_nfe_access_key_idx
 create index if not exists stock_full_exits_institution_id_idx
   on public.stock_full_exits(institution_id);
 
+create index if not exists stock_full_exits_institution_project_idx
+  on public.stock_full_exits(institution_id, project_id, created_at desc);
+
 create index if not exists stock_full_exits_item_id_idx
   on public.stock_full_exits(item_id);
 
@@ -171,6 +192,9 @@ create unique index if not exists stock_full_exits_offline_uuid_idx
 
 create index if not exists stock_full_audit_log_institution_id_idx
   on public.stock_full_audit_log(institution_id);
+
+create index if not exists stock_full_audit_log_institution_project_idx
+  on public.stock_full_audit_log(institution_id, project_id, created_at desc);
 
 create index if not exists stock_full_audit_log_product_id_idx
   on public.stock_full_audit_log(product_id);

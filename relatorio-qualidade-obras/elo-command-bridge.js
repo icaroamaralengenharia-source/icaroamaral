@@ -222,11 +222,18 @@
     return {
       companyId: clean(context.companyId || context.institutionId || identity.companyId || identity.institutionId || identity.company_id || identity.institution_id),
       userId: clean(context.userId || identity.userId || identity.id || identity.user_id),
-      deviceId: clean(context.deviceId || identity.deviceId || "elo-web")
+      deviceId: clean(context.deviceId || identity.deviceId || "elo-web"),
+      projectId: clean(context.projectId || context.project_id || context.workId || context.work_id || identity.projectId || identity.project_id || identity.workId || identity.work_id)
     };
   }
 
+  function getCurrentWorkId_(input) {
+    return getIdentity(input).projectId;
+  }
+
   function getStockEndpoint(path) {
+    const stockBase = clean(window.STOCK_FULL_API_BASE_URL || "https://obrareport-backend-stockfull.onrender.com").replace(/\/+$/g, "");
+    if (/^\/api\/stock-full(?:\/|$)/i.test(path)) return stockBase + path;
     const configuredBaseUrl = clean(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL).replace(/\/+$/g, "");
     const location = window.location || {};
     const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || "") || location.protocol === "file:";
@@ -238,6 +245,8 @@
     const headers = { "Content-Type": "application/json" };
     const token = getAuthToken(input && input.context || {});
     if (token) headers.Authorization = /^Bearer\s+/i.test(token) ? token : "Bearer " + token;
+    const projectId = getCurrentWorkId_(input);
+    if (projectId) headers["X-Project-ID"] = projectId;
     return headers;
   }
 
@@ -245,7 +254,21 @@
     if (typeof window.fetch !== "function") return Promise.reject(new Error("stock_full_fetch_unavailable"));
     const config = Object.assign({ method: "GET" }, options || {});
     config.headers = Object.assign({}, stockHeaders(input), config.headers || {});
-    return window.fetch(getStockEndpoint(path), config).then(function (response) {
+    const projectId = getCurrentWorkId_(input);
+    if (!projectId) return Promise.reject(new Error("WORK_REQUIRED"));
+    if (config.body && typeof config.body === "string") {
+      try {
+        const body = JSON.parse(config.body);
+        if (body && typeof body === "object" && !Array.isArray(body)) {
+          body.projectId = body.projectId || body.project_id || projectId;
+          if (Array.isArray(body.movements)) body.movements = body.movements.map(function (movement) { return Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || projectId }); });
+          config.body = JSON.stringify(body);
+        }
+      } catch (error) {}
+    }
+    let endpoint = getStockEndpoint(path);
+    if (String(config.method || "GET").toUpperCase() === "GET") endpoint += (endpoint.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
+    return window.fetch(endpoint, config).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false) {
           const error = new Error(clean(data.error) || "stock_full_api_error");
@@ -403,8 +426,8 @@
   function makePending(input, intent, item, destinationItem) {
     const identity = getIdentity(input);
     const operationId = makeOperationId(intent, item, identity);
-    const token = checksum([intent.action, getItemId(item) || intent.name, getItemId(destinationItem), intent.quantity || intent.initialQuantity, identity.companyId, identity.userId, operationId].join("|"));
-    return { action: intent.action.replace(".preview", ".execute"), createdAt: Date.now(), operationId, offlineUuid: operationId, token, item: item || null, destinationItem: destinationItem || null, name: clean(intent.name), category: clean(intent.category) || "Geral", minQuantity: Number(intent.minQuantity || 0) || 0, initialQuantity: Number(intent.initialQuantity || 0) || 0, quantity: intent.quantity, unit: intent.unit, destinationQuery: clean(intent.destinationQuery), identity, raw: intent.raw, status: "pending" };
+    const token = checksum([intent.action, getItemId(item) || intent.name, getItemId(destinationItem), intent.quantity || intent.initialQuantity, identity.companyId, identity.projectId, identity.userId, operationId].join("|"));
+    return { action: intent.action.replace(".preview", ".execute"), createdAt: Date.now(), operationId, offlineUuid: operationId, token, item: item || null, destinationItem: destinationItem || null, projectId: identity.projectId, name: clean(intent.name), category: clean(intent.category) || "Geral", minQuantity: Number(intent.minQuantity || 0) || 0, initialQuantity: Number(intent.initialQuantity || 0) || 0, quantity: intent.quantity, unit: intent.unit, destinationQuery: clean(intent.destinationQuery), identity, raw: intent.raw, status: "pending" };
   }
 
   function stockResult(input, values) { return result(input, Object.assign({ module: "stock_full" }, values || {})); }
@@ -443,6 +466,7 @@
           "MINIMUM STOCK: " + pending.minQuantity,
           "INITIAL QUANTITY: " + pending.initialQuantity,
           "TENANT: " + (pending.identity.companyId || "tenant atual"),
+          "WORK: " + (pending.projectId || "obra atual"),
           "CONFIRMATION REQUIRED: SIM",
           "WRITE EXECUTED: 0",
           "/api/stock-full/items POST: 0",
@@ -615,13 +639,13 @@
 
   function postConfirmedMovement(input, pending) {
     if (pending.action === "stock.create_product.execute") {
-      return fetchStockJson(input, "/api/stock-full/items", { method: "POST", body: JSON.stringify({ name: pending.name, unit: pending.unit, category: pending.category, minQuantity: pending.minQuantity, currentQuantity: pending.initialQuantity, notes: "Cadastro confirmado pelo ELO. operationId=" + pending.operationId }) });
+      return fetchStockJson(input, "/api/stock-full/items", { method: "POST", body: JSON.stringify({ projectId: pending.projectId, name: pending.name, unit: pending.unit, category: pending.category, minQuantity: pending.minQuantity, currentQuantity: pending.initialQuantity, notes: "Cadastro confirmado pelo ELO. operationId=" + pending.operationId }) });
     }
     if (pending.action === "stock.transfer.execute") {
-      return fetchStockJson(input, "/api/stock-full/transfers", { method: "POST", body: JSON.stringify({ sourceItemId: getItemId(pending.item), destinationItemId: getItemId(pending.destinationItem), quantity: pending.quantity, destination: pending.destinationQuery || getItemName(pending.destinationItem), operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }) });
+      return fetchStockJson(input, "/api/stock-full/transfers", { method: "POST", body: JSON.stringify({ projectId: pending.projectId, sourceItemId: getItemId(pending.item), destinationItemId: getItemId(pending.destinationItem), quantity: pending.quantity, destination: pending.destinationQuery || getItemName(pending.destinationItem), operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }) });
     }
     const type = pending.action === "stock.exit.execute" ? "saida" : "entrada";
-    return fetchStockJson(input, "/api/stock-full/sync", { method: "POST", body: JSON.stringify({ movements: [{ type, itemId: getItemId(pending.item), quantity: pending.quantity, operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }] }) });
+    return fetchStockJson(input, "/api/stock-full/sync", { method: "POST", body: JSON.stringify({ projectId: pending.projectId, movements: [{ projectId: pending.projectId, type, itemId: getItemId(pending.item), quantity: pending.quantity, operationId: pending.operationId, offlineUuid: pending.offlineUuid, deviceId: pending.identity && pending.identity.deviceId, source: "elo_action_bus" }] }) });
   }
 
   function executePendingStock(input) {

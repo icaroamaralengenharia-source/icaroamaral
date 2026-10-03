@@ -4,6 +4,7 @@
   const STOCK_FULL_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const STOCK_FULL_SESSION_STORAGE_KEY = "stockFullSession";
   const STOCK_FULL_DEVICE_STORAGE_KEY = "stockFullDeviceId";
+  const STOCK_FULL_WORK_STORAGE_KEY = "stockFullCurrentWork";
   const STOCK_FULL_PRODUCTION_API_BASE_URL = "https://obrareport-backend-stockfull.onrender.com/api/stock-full";
   const STOCK_FULL_ROLE_PERMISSIONS = {
     admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
@@ -140,6 +141,32 @@
     return writeJson(STOCK_FULL_SESSION_STORAGE_KEY, session || {});
   }
 
+  function getCurrentWork() {
+    const stored = readJson(STOCK_FULL_WORK_STORAGE_KEY, {});
+    return stored && typeof stored === "object" ? stored : {};
+  }
+
+  function setCurrentWork(work) {
+    const source = work && typeof work === "object" ? work : {};
+    return writeJson(STOCK_FULL_WORK_STORAGE_KEY, {
+      id: clean(source.id || source.projectId || source.project_id || source.workId || source.work_id),
+      projectId: clean(source.projectId || source.project_id || source.id || source.workId || source.work_id),
+      workId: clean(source.workId || source.work_id || source.projectId || source.project_id || source.id),
+      clientId: clean(source.clientId || source.client_id),
+      name: clean(source.name || source.title || source.projectName || source.workName),
+      address: clean(source.address)
+    });
+  }
+
+  function clearCurrentWork() {
+    return writeJson(STOCK_FULL_WORK_STORAGE_KEY, {});
+  }
+
+  function getCurrentWorkId() {
+    const work = getCurrentWork();
+    return clean(work.projectId || work.project_id || work.workId || work.work_id || work.id);
+  }
+
   function getDeviceId() {
     const storage = getLocalStorage();
     if (!storage) return "device_memory";
@@ -159,6 +186,7 @@
   window.StockFullCore = {
     storageKey: STOCK_FULL_STORAGE_KEY,
     sessionStorageKey: STOCK_FULL_SESSION_STORAGE_KEY,
+    workStorageKey: STOCK_FULL_WORK_STORAGE_KEY,
     clean,
     parseNumber,
     roundQuantity,
@@ -176,6 +204,10 @@
     getProfile,
     getSession,
     setSession,
+    getCurrentWork,
+    setCurrentWork,
+    clearCurrentWork,
+    getCurrentWorkId,
     getDeviceId,
     canStockFull,
     rolePermissions: STOCK_FULL_ROLE_PERMISSIONS

@@ -37,6 +37,7 @@ import { generateApartmentHandoverInspectionPdf } from "./apartment-handover-pdf
 import { reviewApartmentHandoverInspection } from "./apartment-handover-review.js";
 import { authorizeApartmentHandoverInspectionUsage, resolveApartmentHandoverAccess, toApartmentHandoverAccessResponse } from "./apartment-handover-access-service.js";
 import { APARTMENT_HANDOVER_MODULE_KEY, DEFAULT_SESSION_TTL_MINUTES, getApartmentHandoverEntitlement, mapEntitlementAccess, mapInviteRedeemError, redeemApartmentHandoverInvite, verifyApartmentHandoverInviteSession } from "./apartment-handover-invite-service.js";
+import { getStockFullProjectId, mapStockFullWork, STOCK_FULL_WORK_NOT_ALLOWED, STOCK_FULL_WORK_REQUIRED } from "./stock-full-work-scope.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -2433,6 +2434,36 @@ export function createApp(options = {}) {
     });
   });
 
+  app.get("/api/stock-full/works", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("obrareport_projects")
+        .select("id,institution_id,client_id,name,address")
+        .eq("institution_id", session.profile.institution_id)
+        .order("name", { ascending: true });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        works: (data || []).map(mapStockFullWork)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_works_query_failed" });
+    }
+  });
+
   app.get("/api/stock-saude/me", async (request, response) => {
     const database = getStockSaudeDatabase(response);
     if (!database) {
@@ -2471,12 +2502,17 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const { data, error } = await database
         .from("stock_full_items")
         .select("*")
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .eq("is_active", true)
         .order("name", { ascending: true });
       if (error) {
@@ -2507,7 +2543,12 @@ export function createApp(options = {}) {
       return;
     }
 
-    const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile, { workId: workScope.projectId });
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -2542,8 +2583,13 @@ export function createApp(options = {}) {
       return;
     }
 
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
     const itemId = clean_(request.params.id);
-    const validation = validateStockFullItemPayload_(request.body || {}, session.profile, { update: true });
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile, { update: true, workId: workScope.projectId });
     if (!itemId) {
       response.status(400).json({ ok: false, error: "item_id_required" });
       return;
@@ -2559,6 +2605,7 @@ export function createApp(options = {}) {
         .update(validation.payload)
         .eq("id", itemId)
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2589,6 +2636,11 @@ export function createApp(options = {}) {
       return;
     }
 
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
     const itemId = clean_(request.params.id);
     if (!itemId) {
       response.status(400).json({ ok: false, error: "item_id_required" });
@@ -2601,6 +2653,7 @@ export function createApp(options = {}) {
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("id", itemId)
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2627,12 +2680,17 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const { data, error } = await database
         .from("stock_full_entries")
         .select("*")
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -2658,7 +2716,12 @@ export function createApp(options = {}) {
       return;
     }
 
-    const validation = validateStockFullEntryPayload_(request.body || {}, session.profile);
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
+    const validation = validateStockFullEntryPayload_(request.body || {}, session.profile, workScope.projectId);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -2667,7 +2730,7 @@ export function createApp(options = {}) {
     try {
       const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_entries", validation.payload, session.profile);
       if (duplicate) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile);
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile, workScope.projectId);
         response.json({
           ok: true,
           mode: "remote",
@@ -2679,7 +2742,7 @@ export function createApp(options = {}) {
       }
       const duplicateNfe = await findStockFullEntryByNfeAccessKey_(database, validation.payload, session.profile);
       if (duplicateNfe) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicateNfe.item_id, session.profile);
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicateNfe.item_id, session.profile, workScope.projectId);
         response.status(409).json({
           ok: false,
           mode: "remote",
@@ -2691,7 +2754,7 @@ export function createApp(options = {}) {
         return;
       }
 
-      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
+      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile, workScope.projectId);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
         return;
@@ -2704,6 +2767,7 @@ export function createApp(options = {}) {
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
         .eq("id", item.id)
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2730,6 +2794,7 @@ export function createApp(options = {}) {
         entityType: "stock_full_entry",
         entityId: entry.id,
         productId: updatedItem.id,
+        projectId: workScope.projectId,
         operationId: validation.payload.operation_id,
         offlineUuid: validation.payload.offline_uuid,
         deviceId: validation.payload.device_id,
@@ -2761,12 +2826,17 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const { data, error } = await database
         .from("stock_full_exits")
         .select("*")
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -2792,7 +2862,12 @@ export function createApp(options = {}) {
       return;
     }
 
-    const validation = validateStockFullExitPayload_(request.body || {}, session.profile);
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
+    const validation = validateStockFullExitPayload_(request.body || {}, session.profile, workScope.projectId);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -2801,7 +2876,7 @@ export function createApp(options = {}) {
     try {
       const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_exits", validation.payload, session.profile);
       if (duplicate) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile);
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile, workScope.projectId);
         response.json({
           ok: true,
           mode: "remote",
@@ -2812,7 +2887,7 @@ export function createApp(options = {}) {
         return;
       }
 
-      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
+      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile, workScope.projectId);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
         return;
@@ -2830,6 +2905,7 @@ export function createApp(options = {}) {
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
         .eq("id", item.id)
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2856,6 +2932,7 @@ export function createApp(options = {}) {
         entityType: "stock_full_exit",
         entityId: exit.id,
         productId: updatedItem.id,
+        projectId: workScope.projectId,
         operationId: validation.payload.operation_id,
         offlineUuid: validation.payload.offline_uuid,
         deviceId: validation.payload.device_id,
@@ -2888,12 +2965,17 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const { data, error } = await database
         .from("stock_full_audit_log")
         .select("*")
         .eq("institution_id", session.profile.institution_id)
+        .eq("project_id", workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -2919,6 +3001,11 @@ export function createApp(options = {}) {
       return;
     }
 
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
     const body = request.body || {};
     const movementInput = body.movement && typeof body.movement === "object" ? body.movement : body;
     const productInput = body.product && typeof body.product === "object" ? body.product : null;
@@ -2930,7 +3017,7 @@ export function createApp(options = {}) {
 
     const rawItemId = clean_(movementInput.itemId ?? movementInput.item_id ?? movementInput.productId ?? movementInput.product_id);
     const useExistingItem = rawItemId && rawItemId.indexOf("tmp_") !== 0;
-    const productValidation = productInput && !useExistingItem ? validateStockFullItemPayload_(Object.assign({}, productInput, { currentQuantity: 0, current_quantity: 0, initialQuantity: 0 }), session.profile) : null;
+    const productValidation = productInput && !useExistingItem ? validateStockFullItemPayload_(Object.assign({}, productInput, { currentQuantity: 0, current_quantity: 0, initialQuantity: 0 }), session.profile, { workId: workScope.projectId }) : null;
     if (productValidation && !productValidation.ok) {
       response.status(400).json({ ok: false, error: productValidation.error });
       return;
@@ -2948,6 +3035,7 @@ export function createApp(options = {}) {
 
     const movementPayload = {
       item_id: useExistingItem ? rawItemId : null,
+      project_id: workScope.projectId,
       quantity,
       unit_cost: movementInput.unitCost === undefined && movementInput.unit_cost === undefined ? null : parsePositiveNumber_(movementInput.unitCost ?? movementInput.unit_cost, null),
       supplier: clean_(movementInput.supplier),
@@ -2970,7 +3058,8 @@ export function createApp(options = {}) {
         p_nfe_access_key: accessKey,
         p_item_id: useExistingItem ? rawItemId : null,
         p_product: productValidation ? productValidation.payload : null,
-        p_movement: movementPayload
+        p_movement: movementPayload,
+        p_project_id: workScope.projectId
       });
       if (error) {
         throw error;
@@ -3012,6 +3101,11 @@ export function createApp(options = {}) {
       return;
     }
 
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
     const body = request.body || {};
     const sourceItemId = clean_(body.sourceItemId ?? body.source_item_id ?? body.itemId ?? body.item_id);
     const destinationItemId = clean_(body.destinationItemId ?? body.destination_item_id);
@@ -3036,8 +3130,8 @@ export function createApp(options = {}) {
 
     try {
       const [sourceItem, destinationItem] = await Promise.all([
-        getStockFullItemForProfile_(database, sourceItemId, session.profile),
-        getStockFullItemForProfile_(database, destinationItemId, session.profile)
+        getStockFullItemForProfile_(database, sourceItemId, session.profile, workScope.projectId),
+        getStockFullItemForProfile_(database, destinationItemId, session.profile, workScope.projectId)
       ]);
       if (!sourceItem || !destinationItem) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
@@ -3084,6 +3178,7 @@ export function createApp(options = {}) {
       const exitResult = await processStockFullSyncMovement_(database, {
         type: "saida",
         itemId: sourceItem.id,
+        projectId: workScope.projectId,
         quantity,
         destination,
         operationId: exitPayload.operation_id,
@@ -3099,6 +3194,7 @@ export function createApp(options = {}) {
       const entryResult = await processStockFullSyncMovement_(database, {
         type: "entrada",
         itemId: destinationItem.id,
+        projectId: workScope.projectId,
         quantity,
         operationId: entryPayload.operation_id,
         offlineUuid: entryPayload.offline_uuid,
@@ -3116,6 +3212,7 @@ export function createApp(options = {}) {
         entityType: "stock_full_transfer",
         entityId: sourceItem.id,
         productId: sourceItem.id,
+        projectId: workScope.projectId,
         operationId,
         offlineUuid,
         deviceId,
@@ -3163,6 +3260,11 @@ export function createApp(options = {}) {
       return;
     }
 
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
     const movements = Array.isArray(request.body && request.body.movements) ? request.body.movements.slice(0, 50) : [];
     if (!movements.length) {
       response.status(400).json({ ok: false, error: "movements_required" });
@@ -3171,7 +3273,7 @@ export function createApp(options = {}) {
 
     const results = [];
     for (const movement of movements) {
-      results.push(await processStockFullSyncMovement_(database, movement, session.profile));
+      results.push(await processStockFullSyncMovement_(database, Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || workScope.projectId }), session.profile, workScope.projectId));
     }
 
     response.json({
@@ -3191,12 +3293,16 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const [entriesResult, exitsResult, auditResult] = await Promise.all([
-        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
-        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
-        database.from("stock_full_audit_log").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false })
+        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
+        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
+        database.from("stock_full_audit_log").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false })
       ]);
       if (entriesResult.error || exitsResult.error || auditResult.error) {
         throw entriesResult.error || exitsResult.error || auditResult.error;
@@ -3242,12 +3348,16 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
 
     try {
       const [itemsResult, entriesResult, exitsResult] = await Promise.all([
-        database.from("stock_full_items").select("*").eq("institution_id", session.profile.institution_id).eq("is_active", true).order("name", { ascending: true }),
-        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
-        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false })
+        database.from("stock_full_items").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).eq("is_active", true).order("name", { ascending: true }),
+        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
+        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false })
       ]);
       if (itemsResult.error || entriesResult.error || exitsResult.error) {
         throw itemsResult.error || entriesResult.error || exitsResult.error;
@@ -5091,6 +5201,38 @@ async function requireStockFullAuth_(request, response, supabase) {
   }
 }
 
+async function requireStockFullWork_(request, response, supabase, profile) {
+  const projectId = getStockFullProjectId(request);
+  if (!projectId) {
+    response.status(400).json({ ok: false, error: STOCK_FULL_WORK_REQUIRED });
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("obrareport_projects")
+      .select("id,institution_id,client_id,name,address")
+      .eq("id", projectId)
+      .eq("institution_id", profile.institution_id)
+      .maybeSingle();
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      response.status(403).json({ ok: false, error: STOCK_FULL_WORK_NOT_ALLOWED });
+      return null;
+    }
+    return {
+      projectId,
+      work: mapStockFullWork(data),
+      project: data
+    };
+  } catch (error) {
+    response.status(500).json({ ok: false, error: "stock_full_work_lookup_failed" });
+    return null;
+  }
+}
+
 function sanitizeStockFullProfile_(profile) {
   const source = profile || {};
   return {
@@ -5105,6 +5247,7 @@ function sanitizeStockFullProfile_(profile) {
 
 async function findStockFullMovementByIdempotency_(database, table, payload, profile) {
   const institutionId = clean_(profile && profile.institution_id);
+  const projectId = clean_(payload && payload.project_id);
   const offlineUuid = clean_(payload && payload.offline_uuid);
   const operationId = clean_(payload && payload.operation_id);
   if (!institutionId || (!offlineUuid && !operationId)) {
@@ -5118,6 +5261,7 @@ async function findStockFullMovementByIdempotency_(database, table, payload, pro
       .from(table)
       .select("*")
       .eq("institution_id", institutionId)
+      .eq("project_id", projectId)
       .eq(filter.column, filter.value)
       .maybeSingle();
     if (error) {
@@ -5131,6 +5275,7 @@ async function findStockFullMovementByIdempotency_(database, table, payload, pro
 }
 async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
   const institutionId = clean_(profile && profile.institution_id);
+  const projectId = clean_(payload && payload.project_id);
   const accessKey = clean_(payload && payload.nfe_access_key);
   if (!institutionId || !accessKey) {
     return null;
@@ -5139,6 +5284,7 @@ async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
     .from("stock_full_entries")
     .select("*")
     .eq("institution_id", institutionId)
+    .eq("project_id", projectId)
     .eq("nfe_access_key", accessKey)
     .maybeSingle();
   if (error) {
@@ -5147,7 +5293,7 @@ async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
   return data || null;
 }
 
-async function processStockFullSyncMovement_(database, movement, profile) {
+async function processStockFullSyncMovement_(database, movement, profile, projectIdOverride = "") {
   const type = normalizeStockFullMovementType_(movement && movement.type);
   const base = {
     operation_id: clean_(movement && (movement.operationId ?? movement.operation_id)),
@@ -5161,6 +5307,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
     }
     const body = Object.assign({}, movement || {}, {
       itemId: movement && (movement.itemId ?? movement.item_id ?? movement.productId ?? movement.product_id),
+      projectId: clean_(movement && (movement.projectId ?? movement.project_id ?? movement.workId ?? movement.work_id)) || clean_(projectIdOverride),
       offlineUuid: base.offline_uuid,
       operationId: base.operation_id,
       deviceId: base.device_id,
@@ -5169,7 +5316,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
       syncedAt: new Date().toISOString()
     });
     const table = type === "saida" ? "stock_full_exits" : "stock_full_entries";
-    const validation = type === "saida" ? validateStockFullExitPayload_(body, profile) : validateStockFullEntryPayload_(body, profile);
+    const validation = type === "saida" ? validateStockFullExitPayload_(body, profile, clean_(projectIdOverride) || clean_(body.projectId || body.project_id)) : validateStockFullEntryPayload_(body, profile, clean_(projectIdOverride) || clean_(body.projectId || body.project_id));
     if (!validation.ok) {
       await auditStockFullSyncRejection_(database, profile, base, validation.error, body);
       return Object.assign({}, base, { status: "rejected", message: validation.error });
@@ -5177,7 +5324,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
 
     const duplicate = await findStockFullMovementByIdempotency_(database, table, validation.payload, profile);
     if (duplicate) {
-      const item = await getStockFullItemForProfile_(database, duplicate.item_id, profile);
+      const item = await getStockFullItemForProfile_(database, duplicate.item_id, profile, validation.payload.project_id);
       const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
       return Object.assign({}, base, {
         status: "duplicate",
@@ -5189,7 +5336,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
     }
     const duplicateNfe = type === "entrada" ? await findStockFullEntryByNfeAccessKey_(database, validation.payload, profile) : null;
     if (duplicateNfe) {
-      const item = await getStockFullItemForProfile_(database, duplicateNfe.item_id, profile);
+      const item = await getStockFullItemForProfile_(database, duplicateNfe.item_id, profile, validation.payload.project_id);
       const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
       return Object.assign({}, base, {
         status: "duplicate",
@@ -5201,7 +5348,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
       });
     }
 
-    const item = await getStockFullItemForProfile_(database, validation.payload.item_id, profile);
+    const item = await getStockFullItemForProfile_(database, validation.payload.item_id, profile, validation.payload.project_id);
     if (!item) {
       await auditStockFullSyncRejection_(database, profile, base, "stock_full_item_not_found", body);
       return Object.assign({}, base, { status: "rejected", message: "stock_full_item_not_found" });
@@ -5224,6 +5371,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
       .update({ current_quantity: newBalance, updated_at: new Date().toISOString() })
       .eq("id", item.id)
       .eq("institution_id", profile.institution_id)
+      .eq("project_id", validation.payload.project_id)
       .eq("is_active", true)
       .select("*")
       .maybeSingle();
@@ -5250,6 +5398,7 @@ async function processStockFullSyncMovement_(database, movement, profile) {
       entityType: type === "saida" ? "stock_full_exit" : "stock_full_entry",
       entityId: movementRecord.id,
       productId: item.id,
+      projectId: validation.payload.project_id,
       operationId: validation.payload.operation_id,
       offlineUuid: validation.payload.offline_uuid,
       deviceId: validation.payload.device_id,
@@ -5287,6 +5436,7 @@ async function auditStockFullSyncRejection_(database, profile, base, message, so
     action: "stock_full_offline_sync_rejected",
     entityType: "stock_full_sync",
     productId: item && item.id || clean_(source && (source.itemId || source.item_id || source.productId || source.product_id)) || null,
+    projectId: clean_(source && (source.projectId || source.project_id || source.workId || source.work_id)) || null,
     operationId: base && base.operation_id,
     offlineUuid: base && base.offline_uuid,
     deviceId: base && base.device_id,
@@ -5303,6 +5453,8 @@ function mapStockFullSyncStatusMovement_(record, type) {
     id: source.id || "",
     type,
     itemId: source.item_id || "",
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     quantity: parsePositiveNumber_(source.quantity, 0),
     status: source.sync_status || "synced",
     operationId: source.operation_id || "",
@@ -5328,6 +5480,8 @@ function mapStockFullLiveMovement_(record, type, itemIndex) {
     id: source.id || "",
     type,
     itemId: source.item_id || "",
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     itemName: item.name || source.item_name || "",
     quantity: parsePositiveNumber_(source.quantity, 0),
     unit: item.unit || "un",
@@ -5364,6 +5518,7 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
   const update = Boolean(options.update);
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
+    project_id: clean_(options.workId || options.projectId),
     name: clean_(body.name),
     unit: clean_(body.unit) || "un",
     category: clean_(body.category) || "Geral",
@@ -5377,6 +5532,9 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
+  if (!payload.project_id && !update) {
+    return { ok: false, error: "WORK_REQUIRED" };
+  }
   if (!payload.name) {
     return { ok: false, error: "name_required" };
   }
@@ -5388,6 +5546,8 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
   }
   if (!update) {
     payload.created_by = clean_(profile && profile.id);
+  } else {
+    delete payload.project_id;
   }
   return { ok: true, payload };
 }
@@ -5411,6 +5571,8 @@ function mapStockFullItemFromDatabase_(item) {
   return {
     id: source.id,
     institution_id: source.institution_id,
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     name: source.name || "",
     unit: source.unit || "un",
     category: source.category || "Geral",
@@ -5425,9 +5587,10 @@ function mapStockFullItemFromDatabase_(item) {
   };
 }
 
-function validateStockFullEntryPayload_(body, profile) {
+function validateStockFullEntryPayload_(body, profile, projectId = "") {
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
+    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id),
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     unit_cost: body.unitCost === undefined && body.unit_cost === undefined
@@ -5449,6 +5612,9 @@ function validateStockFullEntryPayload_(body, profile) {
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
+  if (!payload.project_id) {
+    return { ok: false, error: "WORK_REQUIRED" };
+  }
   if (!payload.item_id) {
     return { ok: false, error: "item_id_required" };
   }
@@ -5461,9 +5627,10 @@ function validateStockFullEntryPayload_(body, profile) {
   return { ok: true, payload };
 }
 
-function validateStockFullExitPayload_(body, profile) {
+function validateStockFullExitPayload_(body, profile, projectId = "") {
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
+    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id),
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     destination: clean_(body.destination),
@@ -5481,6 +5648,9 @@ function validateStockFullExitPayload_(body, profile) {
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
+  if (!payload.project_id) {
+    return { ok: false, error: "WORK_REQUIRED" };
+  }
   if (!payload.item_id) {
     return { ok: false, error: "item_id_required" };
   }
@@ -5490,14 +5660,15 @@ function validateStockFullExitPayload_(body, profile) {
   return { ok: true, payload };
 }
 
-async function getStockFullItemForProfile_(database, itemId, profile) {
-  const { data, error } = await database
+async function getStockFullItemForProfile_(database, itemId, profile, projectId = "") {
+  let query = database
     .from("stock_full_items")
     .select("*")
     .eq("id", itemId)
     .eq("institution_id", profile.institution_id)
-    .eq("is_active", true)
-    .maybeSingle();
+    .eq("is_active", true);
+  if (clean_(projectId)) query = query.eq("project_id", clean_(projectId));
+  const { data, error } = await query.maybeSingle();
   if (error) {
     throw error;
   }
@@ -5509,6 +5680,8 @@ function mapStockFullEntryFromDatabase_(entry) {
   return {
     id: source.id,
     institution_id: source.institution_id,
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     itemId: source.item_id || "",
     quantity: parsePositiveNumber_(source.quantity, 0),
     unitCost: source.unit_cost === null || source.unit_cost === undefined ? null : parsePositiveNumber_(source.unit_cost, 0),
@@ -5532,6 +5705,8 @@ function mapStockFullExitFromDatabase_(exit) {
   return {
     id: source.id,
     institution_id: source.institution_id,
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     itemId: source.item_id || "",
     quantity: parsePositiveNumber_(source.quantity, 0),
     destination: source.destination || "",
@@ -5555,6 +5730,7 @@ async function createStockFullAuditLog_(database, data) {
     entity_type: clean_(data.entityType),
     entity_id: clean_(data.entityId) || null,
     product_id: clean_(data.productId) || null,
+    project_id: clean_(data.projectId || data.project_id) || null,
     before_data: data.beforeData || null,
     after_data: data.afterData || null,
     device_id: clean_(data.deviceId) || null,
@@ -5585,6 +5761,8 @@ function mapStockFullAuditLogFromDatabase_(record) {
   return {
     id: source.id,
     institution_id: source.institution_id,
+    projectId: source.project_id || "",
+    workId: source.project_id || "",
     action: source.action || "",
     entityType: source.entity_type || "",
     entityId: source.entity_id || "",

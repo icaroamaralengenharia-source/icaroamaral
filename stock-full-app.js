@@ -193,6 +193,93 @@
     return data;
   }
 
+  function getBackendToken() {
+    try {
+      const raw = storage && storage.getItem("sb-stock-full-backend-auth-token");
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed.access_token || parsed.currentSession && parsed.currentSession.access_token || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  async function loadStockFullWorks() {
+    const token = getBackendToken();
+    if (!token || !originalFetch) return [];
+    const response = await originalFetch(apiUrl("works"), { headers: { Authorization: "Bearer " + token } });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok || !data.ok) throw new Error(data.error || "stock_full_works_query_failed");
+    return Array.isArray(data.works) ? data.works : [];
+  }
+
+  function renderStockFullWorkSelector(works) {
+    const dashboard = document.getElementById("stockFullDashboard");
+    if (!dashboard) return;
+    let panel = document.getElementById("stockFullWorkScopePanel");
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "stockFullWorkScopePanel";
+      panel.className = "stock-full-work-scope-panel";
+      panel.innerHTML = '<div><strong>Obra ativa</strong><span id="stockFullWorkScopeStatus">Selecione a obra antes de operar o estoque.</span></div><label>Obra<select id="stockFullWorkScopeSelect"><option value="">Selecione uma obra</option></select></label>';
+      const hero = dashboard.querySelector(".stock-full-dashboard-hero");
+      if (hero && hero.parentNode) hero.parentNode.insertBefore(panel, hero);
+      else dashboard.insertBefore(panel, dashboard.firstChild);
+    }
+    const select = document.getElementById("stockFullWorkScopeSelect");
+    const status = document.getElementById("stockFullWorkScopeStatus");
+    const currentId = core.getCurrentWorkId ? core.getCurrentWorkId() : "";
+    select.innerHTML = '<option value="">Selecione uma obra</option>' + works.map(function (work) {
+      return '<option value="' + String(work.id || "").replace(/"/g, "&quot;") + '">' + String(work.name || work.id || "Obra").replace(/[&<>]/g, function (value) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[value]; }) + '</option>';
+    }).join("");
+    const matching = works.find(function (work) { return String(work.id) === currentId; });
+    if (matching) {
+      select.value = matching.id;
+      status.textContent = "Dados e movimentações limitados a: " + (matching.name || matching.id) + ".";
+    } else if (works.length === 1) {
+      core.setCurrentWork(works[0]);
+      select.value = works[0].id;
+      status.textContent = "Dados e movimentações limitados a: " + (works[0].name || works[0].id) + ".";
+    } else {
+      core.clearCurrentWork && core.clearCurrentWork();
+      status.textContent = "Selecione a obra antes de operar o estoque.";
+    }
+    if (!select.dataset.bound) {
+      select.dataset.bound = "true";
+      select.addEventListener("change", function () {
+        const work = works.find(function (item) { return String(item.id) === select.value; });
+        if (!work) {
+          core.clearCurrentWork && core.clearCurrentWork();
+          status.textContent = "Selecione a obra antes de operar o estoque.";
+          return;
+        }
+        core.setCurrentWork(work);
+        window.location.reload();
+      });
+    }
+  }
+
+  async function installStockFullWorkScope() {
+    if (!production) return;
+    try {
+      renderStockFullWorkSelector(await loadStockFullWorks());
+    } catch (error) {
+      const status = document.getElementById("stockFullWorkScopeStatus");
+      if (status) status.textContent = "Não foi possível carregar as obras autorizadas.";
+      console.error("[Stock Full work scope]", { error: String(error && error.message || error) });
+    }
+  }
+
+  document.addEventListener("click", function (event) {
+    if (!production || !core.getCurrentWorkId || core.getCurrentWorkId()) return;
+    const target = event.target && event.target.closest ? event.target.closest("[data-almox-action],[data-stock-full-dashboard-action],[data-almox-flow-action]") : null;
+    const action = target && (target.getAttribute("data-almox-action") || target.getAttribute("data-stock-full-dashboard-action") || target.getAttribute("data-almox-flow-action"));
+    if (!target || !/(item|entry|exit)/i.test(action || "")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const status = document.getElementById("stockFullWorkScopeStatus");
+    if (status) status.textContent = "Selecione a obra antes de operar o estoque.";
+  }, true);
+
   function installProductionGuards() {
     if (!production) return;
     document.querySelectorAll("[data-stock-full-demo-login]").forEach(function (button) {
@@ -230,8 +317,10 @@
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", installProductionGuards);
+    document.addEventListener("DOMContentLoaded", installStockFullWorkScope);
   } else {
     installProductionGuards();
+    installStockFullWorkScope();
   }
 
   window.StockFullAppRuntime = {

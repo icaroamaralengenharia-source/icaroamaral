@@ -167,6 +167,12 @@
     return clean(session.role) || "funcionario";
   }
 
+  function getCurrentWorkId(payload) {
+    const source = payload || {};
+    const stored = core.getCurrentWorkId ? core.getCurrentWorkId() : "";
+    return clean(source.projectId || source.project_id || source.workId || source.work_id || stored);
+  }
+
   function buildOperationKey(operation, payload) {
     const source = payload || {};
     const id = clean(source.id || source.localId || source.itemId || source.productId || source.movementId);
@@ -200,6 +206,7 @@
       type: safeOperation,
       payload: Object.assign({}, safePayload, { operationId: operationId, deviceId: deviceId, companyId: companyId }),
       companyId: companyId,
+      projectId: getCurrentWorkId(safePayload),
       createdAt: now,
       updatedAt: now,
       syncedAt: "",
@@ -250,8 +257,29 @@
   async function fetchJson(url, options) {
     const token = getAuthToken();
     if (!token) throw new Error("stock_full_auth_unavailable");
-    const response = await window.fetch(buildApiUrl(url), Object.assign({}, options || {}, {
-      headers: Object.assign({ Authorization: "Bearer " + token, "Content-Type": "application/json" }, options && options.headers || {})
+    const requestOptions = Object.assign({}, options || {});
+    const projectId = getCurrentWorkId();
+    if (!projectId) throw new Error("WORK_REQUIRED");
+    if (requestOptions.body && typeof requestOptions.body === "string") {
+      try {
+        const parsed = JSON.parse(requestOptions.body);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          parsed.projectId = parsed.projectId || parsed.project_id || projectId;
+          if (Array.isArray(parsed.movements)) {
+            parsed.movements = parsed.movements.map(function (movement) {
+              return Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || projectId });
+            });
+          }
+          requestOptions.body = JSON.stringify(parsed);
+        }
+      } catch (error) {}
+    }
+    let requestUrl = buildApiUrl(url);
+    if (String(requestOptions.method || "GET").toUpperCase() === "GET") {
+      requestUrl += (requestUrl.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
+    }
+    const response = await window.fetch(requestUrl, Object.assign({}, requestOptions, {
+      headers: Object.assign({ Authorization: "Bearer " + token, "Content-Type": "application/json" }, requestOptions.headers || {})
     }));
     const data = await response.json().catch(function () { return {}; });
     if (!response.ok || !data.ok) throw new Error(data.error || "stock_full_sync_request_failed");
@@ -299,6 +327,7 @@
       offlineUuid: clean(source.offlineUuid || source.offline_uuid || source.operationId),
       deviceId: clean(source.deviceId) || getDeviceId(),
       companyId: getCompanyId(source),
+      projectId: getCurrentWorkId(source),
       name: clean(source.name),
       sku: clean(source.sku || source.fiscalCode),
       unit: clean(source.unit) || "un",
@@ -323,6 +352,7 @@
       offlineUuid: clean(source.offlineUuid || source.offline_uuid || source.operationId),
       deviceId: clean(source.deviceId) || getDeviceId(),
       companyId: getCompanyId(source),
+      projectId: getCurrentWorkId(source),
       itemId: idMap[itemId] || itemId,
       quantity: parseNumber(source.quantity),
       unitCost: parseNumber(source.unitCost),
