@@ -22,6 +22,14 @@ function load() {
   return { api: window.EloCentralOrchestratorFactory({ storage: storage(), now: () => 1728000000000, random: () => 0.123456, shadow: true }), window };
 }
 
+function loadWithStorage(sharedStorage) {
+  const window = { localStorage: sharedStorage };
+  const context = { window, globalThis: window, console, Date, Math, setTimeout, clearTimeout };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'elo-central-orchestrator.js'), 'utf8'), context, { filename: 'elo-central-orchestrator.js' });
+  return window.EloCentralOrchestratorFactory({ storage: sharedStorage, now: () => 1728000000000, random: () => 0.123456, mode: 'primary' });
+}
+
 test('orchestrator exposes version and registry without legacy route duplication', () => {
   const { api } = load();
   assert.match(api.version, /^20261003-vnext/);
@@ -72,4 +80,117 @@ test('verifier redacts secret-shaped output and records warning', () => {
   const result = api.verify({ text: 'token=abc123 e resposta segura' });
   assert.doesNotMatch(result.text, /abc123/);
   assert.ok(result.warnings.includes('sensitive_output_redacted'));
+});
+
+test('document routing wins over painting/engineering for fifty generic follow-ups', () => {
+  const { api } = load();
+  api.setActiveDocument({ id: 'doc-50', type: 'pdf', title: 'Vistoria', documents: [{ fileName: 'vistoria.pdf', type: 'pdf' }] });
+  const variants = [
+    'resuma os principais problemas encontrados', 'quais os problemas encontrados?', 'qual o mais grave?',
+    'e o mais grave?', 'resuma este documento', 'o que o PDF mostra?', 'liste os achados',
+    'extraia os pontos críticos', 'quais riscos aparecem?', 'o que foi encontrado no arquivo?'
+  ];
+  for (let index = 0; index < 50; index += 1) {
+    const plan = api.plan(variants[index % variants.length]);
+    assert.equal(plan.intent, 'document_context', variants[index % variants.length]);
+    assert.equal(plan.tool.id, 'context.document');
+  }
+});
+
+test('deterministic math remains math while document context is active', () => {
+  const { api } = load();
+  api.setActiveDocument({ id: 'doc-math', type: 'pdf', title: 'Memorial' });
+  assert.equal(api.plan('15% de 500').intent, 'math');
+  assert.equal(api.plan('120m2 x 5cm').intent, 'math');
+  assert.equal(api.plan('amanhã').intent, 'date_time');
+});
+
+test('explicit media intent does not hijack an engineering follow-up', () => {
+  const { api } = load();
+  assert.equal(api.plan('toque música clássica').intent, 'media');
+  assert.equal(api.plan('qual a próxima ação para essa fissura?').intent, 'engineering');
+});
+
+test('phase two intent map separates report, work, budget and writing requests', () => {
+  const { api } = load();
+  assert.equal(api.plan('gere um relatório com base nessa análise').intent, 'report_context');
+  assert.equal(api.plan('qual é a obra ativa?').intent, 'work_context');
+  assert.equal(api.plan('preciso de um orçamento SINAPI').intent, 'budget');
+  assert.equal(api.plan('redija uma mensagem para o cliente').intent, 'writing');
+});
+
+test('explicit memory survives a new orchestrator instance using the same storage', async () => {
+  const shared = storage();
+  const first = loadWithStorage(shared);
+  await first.orchestrate('memorize que usamos bloco estrutural');
+  const second = loadWithStorage(shared);
+  const result = await second.orchestrate('qual bloco eu disse que usamos?');
+  assert.equal(result.plan.intent, 'memory_recall');
+  assert.match(result.result.text, /bloco estrutural/i);
+});
+
+test('primary mode is explicit and verifier removes duplicate lines', () => {
+  const { api } = load();
+  api.configure({ mode: 'primary', enabled: true });
+  assert.equal(api.isPrimary(), true);
+  const result = api.verify({ text: 'Resposta\nPróxima ação:\nFaça isso.\nPróxima ação:\nFaça isso.' });
+  assert.ok(result.warnings.includes('duplicate_content_removed'));
+  assert.equal((result.text.match(/Próxima ação:/g) || []).length, 1);
+});
+
+test('long documents are chunked and retrieved by relevant section without whole-document replay', () => {
+  const { api } = load();
+  const pages = Array.from({ length: 150 }, (_, index) => {
+    const marker = index === 89 ? 'MARCADOR-CANARIO-PAGINA-90' : index === 149 ? 'MARCADOR-FINAL-DOCUMENTO' : 'conteudo tecnico da pagina ' + (index + 1);
+    return 'Página ' + (index + 1) + '. ' + marker + '. ' + 'detalhe '.repeat(180);
+  }).join('\n');
+  api.setActiveDocument({ id: 'doc-long-150', type: 'pdf', title: 'Laudo longo', text: pages });
+  const index = api.getDocumentIndex('doc-long-150');
+  assert.ok(index.chunkCount > 100);
+  assert.ok(index.characters > 100000);
+  const result = api.retrieveDocument('MARCADOR-CANARIO-PAGINA-90', { documentId: 'doc-long-150', limit: 2 });
+  assert.equal(result.found, true);
+  assert.match(result.chunks[0].text, /MARCADOR-CANARIO-PAGINA-90/);
+});
+
+test('document index survives a new orchestrator instance and keeps late-page retrieval', () => {
+  const shared = storage();
+  const first = loadWithStorage(shared);
+  first.setActiveDocument({ id: 'doc-reload', type: 'pdf', title: 'Documento persistente', text: 'início '.repeat(5000) + ' MARCADOR-ULTIMA-PAGINA ' + 'fim '.repeat(5000) });
+  first.setActiveDocument({ id: 'doc-reload', type: 'pdf', title: 'Documento persistente', documents: [{ fileName: 'documento.pdf', type: 'pdf' }] });
+  const second = loadWithStorage(shared);
+  assert.ok(second.getDocumentIndex('doc-reload').chunkCount > 1);
+  const result = second.retrieveDocument('MARCADOR-ULTIMA-PAGINA', { documentId: 'doc-reload' });
+  assert.match(result.chunks[0].text, /MARCADOR-ULTIMA-PAGINA/);
+});
+
+test('document route exposes retrieved context for the primary verifier', async () => {
+  const api = loadWithStorage(storage());
+  api.setActiveDocument({ id: 'doc-context', type: 'pdf', title: 'Contexto', text: 'achado crítico: fissura vertical na fachada' });
+  const result = await api.orchestrate('liste os achados deste documento');
+  assert.equal(result.plan.intent, 'document_context');
+  assert.equal(result.result.documentContext.found, true);
+  assert.match(result.result.documentContext.chunks[0].text, /fissura vertical/i);
+});
+
+test('shadow comparison and promotion gate expose a reversible rollout signal', async () => {
+  const { api } = load();
+  const shadow = api.observe('15% de 500');
+  const envelope = await api.orchestrate('15% de 500');
+  const comparison = api.compareShadow(envelope, shadow);
+  assert.equal(comparison.intentMatch, true);
+  api.recordEvent('central_primary_completed', { intent: 'math' });
+  const gate = api.promotionGate();
+  assert.equal(gate.counts.comparisons, 1);
+  assert.equal(gate.counts.primaryCompleted, 1);
+  assert.equal(gate.readyForPromotion, true);
+});
+
+test('canary mode is deterministic and respects the configured percentage', () => {
+  const { api } = load();
+  api.configure({ mode: 'canary', canaryPercent: 0 });
+  assert.equal(api.shouldUsePrimary('teste'), false);
+  api.configure({ canaryPercent: 100 });
+  assert.equal(api.shouldUsePrimary('teste'), true);
+  assert.equal(api.isPrimary(), false);
 });

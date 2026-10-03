@@ -30083,6 +30083,175 @@ function isEloResidentialNewPipelineEnabled_() {
       return null;
     }
   }
+  function centralResponseFromLegacy_(response, metadata) {
+    if (!response) return { handled: false, reason: "legacy_adapter_empty" };
+    const legacy = response && typeof response === "object" ? response : { shortAnswer: String(response) };
+    const answer = sanitizeEloMultilineText_(legacy.fullAnswer || legacy.shortAnswer || legacy.text || "");
+    return Object.assign({}, legacy, {
+      handled: true,
+      text: answer,
+      responseMeta: legacy,
+      centralAdapter: metadata || "legacy"
+    });
+  }
+  function registerEloCentralPrimaryTools_() {
+    const orchestrator = window.EloCentralOrchestrator;
+    if (!orchestrator || typeof orchestrator.registerTool !== "function" || window.__ELO_CENTRAL_PRIMARY_ADAPTERS_REGISTERED) return false;
+    window.__ELO_CENTRAL_PRIMARY_ADAPTERS_REGISTERED = true;
+    orchestrator.registerTool({
+      id: "primary.fast-path",
+      description: "Fast paths determinísticos existentes sob o orquestrador central.",
+      capabilities: ["date_time", "math", "unit_conversion", "offline"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "math" || plan.intent === "date_time" ? 100 : 0; },
+      run: function (plan) {
+        return centralResponseFromLegacy_(buildEloLocalToolFastPathResponse_(plan.message), "fast-path");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.memory",
+      description: "Memória explícita e busca de memória sob contrato central.",
+      capabilities: ["memory_store", "memory_search", "identity_scope"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "memory_write" || plan.intent === "memory_recall" ? 100 : 0; },
+      run: function (plan) {
+        const response = plan.intent === "memory_write"
+          ? buildEloExplicitMemoryCommandResponse_(plan.message)
+          : (buildEloCoreMemoryRecallResponse_(plan.message) || { shortAnswer: "Ainda não encontrei uma memória explícita sobre isso.", fullAnswer: "Não vou inventar uma lembrança que não esteja registrada.", canSave: false, sessionIntent: "memory_recall_missing" });
+        return centralResponseFromLegacy_(response, "memory");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.document",
+      description: "Documento ativo e follow-up documental usando o contexto já extraído.",
+      capabilities: ["document_context", "long_document", "retrieval", "follow_up"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "document_context" || (plan.intent === "follow_up" && plan.references && plan.references.document) ? 100 : 0; },
+      run: function (plan) {
+        const activeDocument = getEloActiveDocumentContext_();
+        if (!activeDocument) return { handled: false, reason: "active_document_missing" };
+        const contextHint = "Com base neste documento ativo, " + plan.message;
+        return requestEloOnlineAnswer(contextHint, [], { technicalContinuation: true, activeTopic: "documento", referent: activeDocument.documents && activeDocument.documents[0] && activeDocument.documents[0].fileName }).then(function (answer) {
+          if (!answer) return { handled: false, reason: "document_tool_unavailable" };
+          return { handled: true, text: sanitizeEloMultilineText_(answer), shortAnswer: sanitizeEloMultilineText_(answer), fullAnswer: "", canSave: true, sessionTheme: "central_document", sessionIntent: "document_context_answer", activeDocument: activeDocument, documentAnalysis: { source: "active_document", question: plan.message } };
+        });
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.engineering",
+      description: "Motores técnicos existentes expostos como adaptador central.",
+      capabilities: ["engineering", "pathology", "budget", "sequence", "stage_gate", "composition"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "engineering" ? 100 : 0; },
+      run: function (plan) {
+        const pathology = buildEloConstructionPathologyAnswer_(plan.message);
+        const response = pathology || buildResponse(plan.message, { surface: "relatorio-qualidade-obras", useSession: true, skipLocalCommunicationFallback: true });
+        return centralResponseFromLegacy_(response, "engineering");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.explicit-tool",
+      description: "Comandos explícitos de ferramenta com navegação e contexto auditados.",
+      capabilities: ["tool_request", "navigation", "context_handoff"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "tool_request" ? 100 : 0; },
+      run: function (plan) {
+        return centralResponseFromLegacy_(buildEloCoreToolIntentResponse_(plan.message), "explicit-tool");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.report-context",
+      description: "Geração de relatório limitada à análise/evidência já disponível.",
+      capabilities: ["report_from_context", "evidence_bound", "document_generation"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "report_context" ? 100 : 0; },
+      run: function (plan) {
+        return centralResponseFromLegacy_(buildEloReportFromAnalysisContextResponse_(plan.message), "report-context");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.work-context",
+      description: "Consulta a obra ativa sem inventar identificadores ausentes.",
+      capabilities: ["active_work", "entity_resolution", "anti_hallucination"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "work_context" ? 100 : 0; },
+      run: function (plan) {
+        const project = getActiveEloWorkProject_();
+        const summary = project ? formatEloWorkMemorySavedSummary_(project) : "obra atual";
+        const answer = project ? "A obra ativa é: " + summary + "." : "Ainda não tenho uma obra ativa registrada com segurança.";
+        return centralResponseFromLegacy_({ shortAnswer: answer, fullAnswer: answer, nextAction: project ? "Pode fazer a próxima pergunta sobre esta obra." : "Informe o nome da obra e a cidade/UF para eu guardar o contexto.", canSave: false, sessionTheme: "active_work", sessionIntent: "active_work_query" }, "work-context");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.budget",
+      description: "Orçamento, SINAPI, ORSE e quantitativos sob o roteador central.",
+      capabilities: ["budget", "sinapi", "orse", "quantities", "legacy_adapter"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "budget" ? 100 : 0; },
+      run: function (plan) {
+        return centralResponseFromLegacy_(buildEloOperationalEcosystemAnswer_(plan.message) || buildResponse(plan.message, { surface: "relatorio-qualidade-obras", useSession: true, skipLocalCommunicationFallback: true }), "budget");
+      }
+    });
+    orchestrator.registerTool({
+      id: "primary.writing",
+      description: "Escrita e reformulação preservando contexto e limites de evidência.",
+      capabilities: ["writing", "rewrite", "context"],
+      priority: 300,
+      matches: function (plan) { return plan.intent === "writing" ? 100 : 0; },
+      run: function (plan) {
+        const local = buildEloCorePureConversationalAnswer_(plan.message);
+        if (local) return centralResponseFromLegacy_(local, "writing");
+        return requestEloOnlineAnswer(plan.message, [], { technicalContinuation: false, activeTopic: "writing" }).then(function (answer) {
+          return answer ? { handled: true, text: sanitizeEloMultilineText_(answer), shortAnswer: sanitizeEloMultilineText_(answer), fullAnswer: "", canSave: true, sessionTheme: "central_writing", sessionIntent: "writing_request" } : { handled: false, reason: "writing_tool_unavailable" };
+        });
+      }
+    });
+    return true;
+  }
+  function handleEloCentralPrimary_(question, attachments, source) {
+    const orchestrator = window.EloCentralOrchestrator;
+    if (!orchestrator || typeof orchestrator.isPrimary !== "function" || (typeof orchestrator.shouldUsePrimary === "function" ? !orchestrator.shouldUsePrimary(question) : !orchestrator.isPrimary()) || (attachments && attachments.length)) return false;
+    const plan = typeof orchestrator.plan === "function" ? orchestrator.plan(question, { source: source || "manual", surface: "web" }) : null;
+    if (!plan || ["math", "date_time", "memory_write", "memory_recall", "document_context", "report_context", "work_context", "budget", "writing", "engineering", "tool_request"].indexOf(plan.intent) < 0 && !(plan.intent === "follow_up" && plan.references && plan.references.document)) return false;
+    if (plan.confidence < 0.83) return false;
+    appendMessage("user", question);
+    appendTypingIndicator();
+    orchestrator.orchestrate(question, { source: source || "manual", surface: "web" }).then(function (envelope) {
+      if (typeof orchestrator.compareShadow === "function") orchestrator.compareShadow(envelope);
+      const result = envelope && envelope.result ? envelope.result : {};
+      if (result.handled !== true) {
+        const fallback = buildResponse(question, { surface: "relatorio-qualidade-obras", useSession: true, skipLocalCommunicationFallback: true });
+        const fallbackAnswer = formatResponse(fallback || { shortAnswer: "Não consegui concluir essa etapa agora.", canSave: false });
+        appendAssistantMessage(question, fallbackAnswer, fallback && fallback.canSave !== false, fallback);
+        saveConversation(question, fallbackAnswer);
+        rememberSessionTurn(question, fallback || {}, fallbackAnswer);
+        if (typeof orchestrator.recordEvent === "function") orchestrator.recordEvent("central_primary_fallback", { intent: envelope.plan && envelope.plan.intent, reason: result.reason || "adapter_not_handled" });
+        recordEloCoreReliabilityEvent_("central_primary_fallback", { fallbackReason: result.reason || "adapter_not_handled", intent: envelope.plan && envelope.plan.intent });
+        return;
+      }
+      const response = result.responseMeta && typeof result.responseMeta === "object" ? Object.assign({}, result.responseMeta) : { shortAnswer: result.text || "", fullAnswer: "", canSave: false };
+      response.centralOrchestrator = true;
+      response.centralIntent = envelope.plan && envelope.plan.intent;
+      const answer = formatResponse(response);
+      appendAssistantMessage(question, answer, response.canSave !== false, response);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, response, answer);
+      if (envelope.plan && envelope.plan.intent === "tool_request") navigateEloCoreTool_(response);
+      if (typeof orchestrator.recordEvent === "function") orchestrator.recordEvent("central_primary_completed", { intent: envelope.plan && envelope.plan.intent, tool: envelope.plan && envelope.plan.tool && envelope.plan.tool.id });
+      recordEloCoreReliabilityEvent_("central_primary_completed", { intent: envelope.plan && envelope.plan.intent, tool: envelope.plan && envelope.plan.tool && envelope.plan.tool.id, verified: result.verified !== false });
+    }).catch(function () {
+      const response = { shortAnswer: "Não consegui concluir essa etapa com segurança agora.", fullAnswer: "O contexto foi preservado e o caminho legado não foi acionado como roteador concorrente.", canSave: false, sessionIntent: "central_primary_failed" };
+      const answer = formatResponse(response);
+      appendAssistantMessage(question, answer, false, response);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, response, answer);
+      if (typeof orchestrator.recordEvent === "function") orchestrator.recordEvent("central_primary_failed", { intent: plan && plan.intent });
+    }).finally(function () {
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+    });
+    return true;
+  }
   function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -30094,6 +30263,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const attachedFiles = Array.prototype.slice.call(attachments || []);
     const submitSource = sanitizeUserText(source || ELO_UI.lastSubmitSource || "manual");
     observeEloCentralOrchestrator_(cleanQuestion, attachedFiles, submitSource);
+    if (handleEloCentralPrimary_(cleanQuestion, attachedFiles, submitSource)) return;
     const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
     const routeQuestion = stripEloWakePrefixForRouting_(cleanQuestion);
     const musicIntent = parseEloMusicPlayIntent_(routeQuestion);
@@ -35015,6 +35185,7 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  registerEloCentralPrimaryTools_();
   window.EloAssistente = Object.assign({}, window.EloAssistente || {}, {
     ask: askElo,
     mountMinimal: mountMinimalEloChat,

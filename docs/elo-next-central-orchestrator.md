@@ -2,7 +2,7 @@
 
 ## Estado da implementação
 
-Esta etapa estabelece a camada de coordenação do ELO sem tocar no Stock Full e sem remover os motores legados. O objetivo é permitir uma migração observável e reversível: o novo núcleo já planeja cada turno em modo shadow, enquanto o fluxo atual continua responsável pela resposta visível até que cada família de ferramentas tenha seu gate próprio.
+Esta etapa estabelece a camada de coordenação do ELO sem tocar no Stock Full e sem remover os motores legados. O objetivo é permitir uma migração observável e reversível: o novo núcleo já é primário para o primeiro cluster aprovado, enquanto os demais caminhos continuam atrás de adaptadores e fallback mensurável.
 
 Versão do núcleo: `20261003-vnext-1`
 
@@ -49,6 +49,8 @@ O núcleo mantém:
 - documento ativo e obra/projeto ativo;
 - memória de trabalho, memória explícita e itens recuperados;
 - última intenção, rota, resposta e até 50 turnos resumidos;
+- pilha de assuntos para retorno seguro a temas anteriores;
+- índice local de documentos em chunks com recuperação por relevância e persistência entre instâncias;
 - trace sanitizado, limitado a 80 eventos, sem senha, token, cookie, API key ou service role.
 
 ## Registro de ferramentas
@@ -62,8 +64,14 @@ As ferramentas são registradas por `id`, descrição, capacidades, prioridade, 
 | `memory.explicit` | memória explícita e recall | habilitada no núcleo |
 | `context.follow-up` | follow-up e resolução de referentes | habilitada no núcleo |
 | `context.document` | documento ativo e texto longo | habilitada no núcleo |
-| `domain.engineering` | adaptação para motor técnico legado | shadow/delegação |
+| `domain.engineering` | adaptação para motor técnico legado | adaptador primário Web |
+| `domain.report-context` | relatório limitado a evidência anterior | adaptador primário Web |
+| `domain.work-context` | obra/projeto ativo | adaptador primário Web |
+| `domain.budget` | orçamento/SINAPI/ORSE/quantitativos | adaptador primário Web |
+| `domain.writing` | escrita e reformulação | adaptador primário Web |
 | `conversation.general` | conversa segura/fallback | habilitada no núcleo |
+
+No navegador, os adaptadores `primary.*` envolvem os motores existentes sob o contrato central. Isso promove o roteamento e a verificação sem duplicar a implementação legada. Stock Full não é registrado no núcleo e continua somente como contrato/API externo.
 
 Nenhuma ferramenta Stock Full é registrada pelo núcleo. Stock Full permanece uma frente paralela, com suas próprias rotas e testes.
 
@@ -75,8 +83,9 @@ Nenhuma ferramenta Stock Full é registrada pelo núcleo. Stock Full permanece u
 - O verificador redige saídas com formato de segredo e marca claims sem evidência.
 - O estado persistido passa por clone limitado e filtragem de chaves sensíveis.
 - A versão atual é carregada como script clássico, portanto é compatível com a WebView que usa os mesmos assets Web.
-- A integração com `elo-assistente.js` é shadow-only nesta fase: cada envio gera um plano central sanitizado; a resposta continua no fluxo existente até os gates de migração.
-- A chave `window.ELO_ORCHESTRATOR_VNEXT` deixa `enabled: false` e `shadow: true` no primeiro rollout; isso permite medir planos sem dar autoridade de resposta ao núcleo novo.
+- A integração com `elo-assistente.js` é primária para matemática/data, memória explícita, documento ativo, engenharia, relatório por contexto, obra ativa, orçamento, escrita e ferramentas explícitas; anexos novos, mídia, RDO e Stock Full permanecem nos contratos legados.
+- A chave atual é `window.ELO_ORCHESTRATOR_VNEXT = { enabled: true, shadow: true, mode: "primary" }`. O shadow continua gerando plano e comparação; qualquer adaptador não tratado volta ao fluxo legado e registra o motivo.
+- `compareShadow()` e `promotionGate()` expõem aderência de intenção, rota, falhas e fallback antes de ampliar a promoção.
 
 ## Inventário de motores legados
 
@@ -92,17 +101,17 @@ Nenhuma ferramenta Stock Full é registrada pelo núcleo. Stock Full permanece u
 
 ## Plano de migração
 
-1. Shadow planning e observabilidade — concluído nesta etapa.
-2. Fast paths determinísticos — executar pelo núcleo após gate Web/Android.
-3. Documento longo e follow-up — validar com canaries, 30/80/150 páginas e reload.
-4. Memória explícita e restauração — validar por identidade, sessão e limpeza.
-5. Adaptadores de conversa/engenharia — migrar por família, com fallback legado.
+1. Shadow planning e observabilidade — concluído.
+2. Fast paths determinísticos — primário no Web; contrato Android segue em validação.
+3. Documento longo e follow-up — índice/retrieval primário, validado com canaries, 150 páginas e reload.
+4. Memória explícita e restauração — primário no Web; validação por identidade continua aberta.
+5. Adaptadores de conversa/engenharia — primeiro cluster primário; anexos e ações seguem por família.
 6. Ações de obra/documento — exigir intenção, contexto e confirmação apropriados.
 7. Ativação gradual por feature flag; rollback para shadow-only se houver regressão.
 8. Paridade Android — transportar o contrato sem misturar estado entre tenants/superfícies.
 
 ## Gate desta etapa
 
-Os seis testes do núcleo passam: registro sem Stock Full, follow-up com documento/obra, retenção de documento através de fast path, precedência de memória explícita, falha segura de ferramenta e redaction do verificador.
+O gate focal passa com 20 testes: registro sem Stock Full, 50 variantes documentais, fast paths, memória, documento longo de 150 páginas com recuperação tardia e reload, classificação de report/work/budget/writing, comparação shadow, canary determinístico e promoção reversível.
 
-Isto é uma fundação arquitetural, não uma certificação final do produto. Permanecem abertos os gates de 1000+ interações, conversa longa de 50/200 turnos, torture de arquivos/memória, migração dos motores legados, paridade Android, produção Web e as falhas já registradas no ledger de certificação.
+Isto ainda não é certificação final do produto. Permanecem abertos os gates de 1000+ interações, conversa longa de 50/200 turnos, torture de arquivos/memória, anexos/mídia/RDO, paridade Android, produção Web e as falhas já registradas no ledger de certificação.

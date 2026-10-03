@@ -260,6 +260,24 @@ test('ELO gate: setAuthenticated abre e fecha o ELO', () => {
   gate.context.window.EloCoreAuthGate.setAuthenticated(false);
   assertEloGateClosed(gate);
 });
+
+test('ELO central primary: adapters legados são registrados no orquestrador', () => {
+  const loaded = loadEloContext({
+    preloadScripts: ['elo-central-orchestrator.js'],
+    window: { ELO_ORCHESTRATOR_VNEXT: { enabled: true, shadow: true, mode: 'primary' } }
+  });
+  const orchestrator = loaded.context.window.EloCentralOrchestrator;
+  assert.equal(orchestrator.isPrimary(), true);
+  const tools = orchestrator.listTools().map((tool) => tool.id);
+  assert.ok(tools.includes('primary.fast-path'));
+  assert.ok(tools.includes('primary.document'));
+  assert.ok(tools.includes('primary.memory'));
+  assert.ok(tools.includes('primary.report-context'));
+  assert.ok(tools.includes('primary.work-context'));
+  assert.ok(tools.includes('primary.budget'));
+  assert.ok(tools.includes('primary.writing'));
+  assert.equal(orchestrator.plan('15% de 500').tool.id, 'primary.fast-path');
+});
 test('ELO layout: login centralizado por estrutura 100dvh', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'elo.html'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
