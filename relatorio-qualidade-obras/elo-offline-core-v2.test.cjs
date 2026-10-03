@@ -33,6 +33,7 @@ test("offline core calculates percentage, volume and continuity", () => {
   const { core } = load();
   assert.match(core.resolve("Quanto é 125 x 8").fullAnswer, /1\.000/);
   assert.match(core.resolve("Quanto é 15% de 200").fullAnswer, /30/);
+  assert.match(core.resolve("Quanto é 15% de 38.000").fullAnswer, /5700|5\.700/);
   assert.match(core.resolve("Uma laje de 8 x 6 x 0,12 m tem quantos m³").fullAnswer, /5,76/);
   assert.match(core.resolve("Quanto é 20 x 5").fullAnswer, /100/);
   assert.match(core.resolve("E vezes 3").fullAnswer, /300/);
