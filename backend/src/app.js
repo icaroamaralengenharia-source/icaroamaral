@@ -2384,6 +2384,60 @@ export function createApp(options = {}) {
     }
   });
 
+  // Temporary, token-gated provisioning for the isolated Stock Full E2E account.
+  // It is disabled unless the operator explicitly supplies the one-time env token.
+  app.post("/api/stock-full/e2e/bootstrap", async (request, response) => {
+    const configuredToken = clean_(env.STOCK_FULL_E2E_BOOTSTRAP_TOKEN);
+    const requestToken = clean_(request.headers["x-stock-full-e2e-bootstrap-token"]);
+    if (!configuredToken || !requestToken || requestToken !== configuredToken) {
+      response.status(404).json({ ok: false, error: "not_found" });
+      return;
+    }
+
+    const database = getStockFullDatabase(response);
+    if (!database || !database.auth?.admin?.createUser) {
+      return;
+    }
+
+    const email = clean_(request.body && request.body.email).toLowerCase();
+    const password = String(request.body && request.body.password || "");
+    if (!email.endsWith("@elo-e2e.test") || password.length < 12) {
+      response.status(400).json({ ok: false, error: "dedicated_e2e_credentials_required" });
+      return;
+    }
+
+    try {
+      const { data: created, error: createError } = await database.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name: "Stock Full E2E Admin", role: "admin" }
+      });
+      if (createError || !created?.user?.id) {
+        response.status(409).json({ ok: false, error: "stock_full_e2e_account_create_failed" });
+        return;
+      }
+
+      const profilePayload = {
+        auth_user_id: created.user.id,
+        institution_id: "stockfull-e2e",
+        unit_id: "stockfull-e2e-unit",
+        name: "Stock Full E2E Admin",
+        email,
+        role: "admin",
+        status: "active"
+      };
+      const { error: profileError } = await database.from("profiles").insert(profilePayload);
+      if (profileError) {
+        response.status(500).json({ ok: false, error: "stock_full_e2e_profile_create_failed" });
+        return;
+      }
+      response.json({ ok: true, account: "dedicated_e2e", profile: true });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_e2e_bootstrap_failed" });
+    }
+  });
+
   app.get("/api/stock-full/me", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
