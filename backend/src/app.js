@@ -2406,90 +2406,7 @@ export function createApp(options = {}) {
         }
       });
     } catch (error) {
-      const diagnostic = {
-        name: clean_(error && error.name).slice(0, 80) || "Error",
-        message: clean_(error && error.message).slice(0, 240) || "unknown_error",
-        code: clean_(error && error.code).slice(0, 80),
-        status: Number.isFinite(Number(error && error.status)) ? Number(error.status) : null
-      };
-      console.error("STOCK_FULL_LOGIN_DIAG", JSON.stringify(diagnostic));
-      response.status(500).json({ ok: false, error: "stock_full_login_failed", diagnostic });
-    }
-  });
-
-  // Temporary, token-gated provisioning for the isolated Stock Full E2E account.
-  // It is disabled unless the operator explicitly supplies the one-time env token.
-  app.post("/api/stock-full/e2e/bootstrap", async (request, response) => {
-    const configuredToken = clean_(env.STOCK_FULL_E2E_BOOTSTRAP_TOKEN);
-    const requestToken = clean_(request.headers["x-stock-full-e2e-bootstrap-token"]);
-    if (!configuredToken || !requestToken || requestToken !== configuredToken) {
-      response.status(404).json({ ok: false, error: "not_found" });
-      return;
-    }
-
-    const database = getStockFullDatabase(response);
-    if (!database || !database.auth?.admin?.createUser) {
-      return;
-    }
-
-    const email = clean_(request.body && request.body.email).toLowerCase();
-    const password = String(request.body && request.body.password || "");
-    if (!email.endsWith("@elo-e2e.test") || password.length < 12) {
-      response.status(400).json({ ok: false, error: "dedicated_e2e_credentials_required" });
-      return;
-    }
-
-    try {
-      let created;
-      let createError;
-      ({ data: created, error: createError } = await database.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name: "Stock Full E2E Admin", role: "admin" }
-      }));
-      if (createError || !created?.user?.id) {
-        const { data: listed, error: listError } = await database.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        const existing = !listError && listed?.users?.find((candidate) => String(candidate.email || "").toLowerCase() === email);
-        if (existing?.id) {
-          const updated = await database.auth.admin.updateUserById(existing.id, {
-            password,
-            email_confirm: true,
-            user_metadata: { name: "Stock Full E2E Admin", role: "admin" }
-          });
-          created = { user: updated.data?.user || existing };
-          createError = updated.error;
-        }
-      }
-      if (createError || !created?.user?.id) {
-        response.status(409).json({
-          ok: false,
-          error: "stock_full_e2e_account_create_failed",
-          phase: "auth_create",
-          authCode: clean_(createError && createError.code) || null,
-          authStatus: Number(createError && createError.status) || null,
-          authMessage: clean_(createError && createError.message).slice(0, 120) || null
-        });
-        return;
-      }
-
-      const profilePayload = {
-        auth_user_id: created.user.id,
-        institution_id: "stockfull-e2e",
-        unit_id: "stockfull-e2e-unit",
-        name: "Stock Full E2E Admin",
-        email,
-        role: "admin",
-        status: "active"
-      };
-      const { error: profileError } = await database.from("profiles").insert(profilePayload);
-      if (profileError) {
-        response.status(500).json({ ok: false, error: "stock_full_e2e_profile_create_failed" });
-        return;
-      }
-      response.json({ ok: true, account: "dedicated_e2e", profile: true });
-    } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_e2e_bootstrap_failed" });
+      response.status(500).json({ ok: false, error: "stock_full_login_failed" });
     }
   });
 
@@ -2566,14 +2483,12 @@ export function createApp(options = {}) {
         throw error;
       }
       const items = (data || []).map(mapStockFullItemFromDatabase_);
-      logStockFullItemsDiag_(env, database, session, { data, responseCount: items.length });
       response.json({
         ok: true,
         mode: "remote",
         items
       });
     } catch (error) {
-      logStockFullItemsDiag_(env, database, session, { error, responseCount: 0 });
       response.status(500).json({ ok: false, error: "stock_full_items_query_failed" });
     }
   });
@@ -2609,14 +2524,7 @@ export function createApp(options = {}) {
       }
       response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
     } catch (error) {
-      const diagnostic = {
-        name: clean_(error && error.name).slice(0, 80) || "Error",
-        message: clean_(error && error.message).slice(0, 240) || "unknown_error",
-        code: clean_(error && error.code).slice(0, 80) || null,
-        status: Number.isFinite(Number(error && error.status)) ? Number(error.status) : null
-      };
-      console.error("STOCK_FULL_ITEM_CREATE_DIAG", JSON.stringify(diagnostic));
-      response.status(500).json({ ok: false, error: "stock_full_items_create_failed", diagnostic });
+      response.status(500).json({ ok: false, error: "stock_full_items_create_failed" });
     }
   });
 
@@ -5040,54 +4948,6 @@ function requireStockFullDatabase_(env, response, databaseOverride = null) {
     return null;
   }
   return database;
-}
-
-function maskStockFullDiagValue_(value) {
-  const text = clean_(value);
-  if (!text) return "";
-  if (text.length <= 12) return "***";
-  return text.slice(0, 8) + "..." + text.slice(-4);
-}
-
-function getSupabaseProjectRefFromUrl_(url) {
-  try {
-    const hostname = new URL(clean_(url)).hostname || "";
-    return hostname.split(".")[0] || "";
-  } catch (error) {
-    return "";
-  }
-}
-
-function getStockFullQueryClientType_(env, database) {
-  if (database && database.__obrareportClientType) return clean_(database.__obrareportClientType);
-  if (clean_(env.SUPABASE_SERVICE_ROLE_KEY)) return "service_role";
-  if (clean_(env.SUPABASE_ANON_KEY)) return "anon";
-  return "unknown";
-}
-
-function logStockFullItemsDiag_(env, database, session, result = {}) {
-  try {
-    const data = Array.isArray(result.data) ? result.data : null;
-    const queryError = result.error || null;
-    console.info("STOCK_ITEMS_DIAG " + JSON.stringify({
-      projectRef: getSupabaseProjectRefFromUrl_(env.SUPABASE_URL),
-      userIdMasked: maskStockFullDiagValue_(session && session.user && session.user.id),
-      profileIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.id),
-      institutionIdMasked: maskStockFullDiagValue_(session && session.profile && session.profile.institution_id),
-      table: "stock_full_items",
-      filters: {
-        institution_id: "masked",
-        is_active: true
-      },
-      serviceRoleConfigured: Boolean(clean_(env.SUPABASE_SERVICE_ROLE_KEY)),
-      queryClientType: getStockFullQueryClientType_(env, database),
-      queryCount: data ? data.length : null,
-      queryErrorCode: clean_(queryError && (queryError.code || queryError.message), 120),
-      responseCount: Number.isFinite(Number(result.responseCount)) ? Number(result.responseCount) : 0
-    }));
-  } catch (error) {
-    console.info("STOCK_ITEMS_DIAG_FAILED");
-  }
 }
 
 async function getSupabaseUserFromRequest_(request, supabase) {
