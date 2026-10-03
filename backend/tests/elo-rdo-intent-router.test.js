@@ -77,6 +77,7 @@ test("follow-ups coerentes reutilizam documento ativo sem prender assuntos indep
     "resuma isso",
     "continue"
   ].forEach((question) => assert.equal(assistant.isActiveDocumentReferenceForTest(question), true, question));
+  assert.equal(assistant.detectCommandBridgeRequestForTest("faça um relatório disso"), null);
   assert.equal(assistant.isActiveDocumentReferenceForTest("quanto e 15% de 38000?"), false);
   assert.equal(assistant.isActiveDocumentReferenceForTest("por que o ceu e azul?"), false);
   assert.equal(assistant.isActiveDocumentReferenceForTest("agora fale sobre a prefeitura"), false);
