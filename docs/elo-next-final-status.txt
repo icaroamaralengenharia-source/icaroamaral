@@ -9,7 +9,7 @@ ANDROID CONTRACT: ADDED
 ANDROID COMPILE: BLOCKED BY GRADLE LOOPBACK ENVIRONMENT
 STOCK FULL: OUT OF SCOPE / UNTOUCHED
 
-COMMIT: fb08dff
+COMMITS: fb08dff, 6afcf17
 PR: https://github.com/icaroamaralengenharia-source/icaroamaral/pull/122
 
 FEATURE FLAG:
