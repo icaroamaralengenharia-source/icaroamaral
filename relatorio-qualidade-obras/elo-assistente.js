@@ -1663,7 +1663,7 @@
       if (state.activeDocumentContext && Array.isArray(state.activeDocumentContext.documents)) {
         ELO_SESSION_MEMORY.activeDocumentContext = state.activeDocumentContext;
       }
-      if (state.activeAnalysisContext && state.activeAnalysisContext.type === "analysis_result") {
+      if (state.activeAnalysisContext && state.activeAnalysisContext.type === "analysis_result" && isEloAnalysisContextCurrentForDocument_(state.activeAnalysisContext, state.activeDocumentContext)) {
         ELO_SESSION_MEMORY.activeAnalysisContext = state.activeAnalysisContext;
       }
       ELO_SESSION_MEMORY.subjectStack = Array.isArray(state.subjectStack) ? state.subjectStack.slice(0, 6) : [];
@@ -1673,9 +1673,30 @@
     }
   }
 
+  function clearEloActiveAnalysisMemory_() {
+    ELO_SESSION_MEMORY.activeAnalysisContext = null;
+    ELO_SESSION_MEMORY.activeEntities = [];
+    ELO_SESSION_MEMORY.lastEnumeratedItems = [];
+    ELO_SESSION_MEMORY.lastReferenceSet = [];
+  }
+
+  function isEloAnalysisContextCurrentForDocument_(analysisContext, documentContext) {
+    if (!analysisContext || !documentContext) return true;
+    const activeDocumentId = sanitizeUserText(documentContext.activeDocumentId || documentContext.documents && documentContext.documents[0] && documentContext.documents[0].documentId || "");
+    const analysisDocumentId = sanitizeUserText(analysisContext.documentId || analysisContext.activeDocumentId || analysisContext.document_id || "");
+    const sourceType = normalizeText(analysisContext.sourceType || "");
+    const activeSubject = normalizeText(analysisContext.activeSubject || analysisContext.active_subject || "");
+    if (sourceType === "file" || activeSubject === "pdf" || analysisDocumentId) {
+      return !!activeDocumentId && analysisDocumentId === activeDocumentId;
+    }
+    const documentUpdatedAt = Date.parse(String(documentContext.updatedAt || ""));
+    const analysisCreatedAt = Date.parse(String(analysisContext.createdAt || ""));
+    return !(documentUpdatedAt && analysisCreatedAt && documentUpdatedAt > analysisCreatedAt);
+  }
+
   function clearEloActiveContextState_() {
     ELO_SESSION_MEMORY.activeDocumentContext = null;
-    ELO_SESSION_MEMORY.activeAnalysisContext = null;
+    clearEloActiveAnalysisMemory_();
     ELO_SESSION_MEMORY.subjectStack = [];
     try { window.localStorage.removeItem(getEloActiveContextStorageKey_()); } catch (error) {}
   }
@@ -1978,6 +1999,7 @@
   function getEloActiveAnalysisContext_() {
     const context = ELO_SESSION_MEMORY.activeAnalysisContext;
     if (!context || context.type !== "analysis_result") return null;
+    if (!isEloAnalysisContextCurrentForDocument_(context, getEloActiveDocumentContext_())) return null;
     return Object.assign({}, context, {
       findings: Array.isArray(context.findings) ? context.findings.slice() : [],
       risks: Array.isArray(context.risks) ? context.risks.slice() : [],
@@ -9057,9 +9079,15 @@
   function rememberEloActiveDocumentContext_(entries) {
     const documents = Array.prototype.slice.call(entries || []).map(normalizeEloActiveDocumentEntry_).filter(Boolean).slice(0, 4);
     if (!documents.length) return null;
+    const nextDocumentId = documents[0] && documents[0].documentId || "";
+    const previousAnalysis = ELO_SESSION_MEMORY.activeAnalysisContext;
+    const previousAnalysisDocumentId = sanitizeUserText(previousAnalysis && (previousAnalysis.documentId || previousAnalysis.activeDocumentId || previousAnalysis.document_id) || "");
+    if (previousAnalysis && previousAnalysisDocumentId !== nextDocumentId) {
+      clearEloActiveAnalysisMemory_();
+    }
     ELO_SESSION_MEMORY.activeDocumentContext = {
       documents: documents,
-      activeDocumentId: documents[0] && documents[0].documentId || "",
+      activeDocumentId: nextDocumentId,
       activeSubject: "pdf",
       updatedAt: new Date().toISOString()
     };
