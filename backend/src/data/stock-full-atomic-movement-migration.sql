@@ -75,7 +75,7 @@ begin
   select * into v_profile
   from public.profiles
   where id = p_profile_id
-    and institution_id = p_institution_id
+    and institution_id::text = p_institution_id
     and auth_user_id = auth.uid()
   limit 1;
   if not found then

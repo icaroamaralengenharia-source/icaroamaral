@@ -21,6 +21,7 @@ test("Stock Full movement RPC keeps balance, movement and audit in one invoker t
   assert.match(migration, /insert into public\.stock_full_exits[\s\S]*?insert into public\.stock_full_audit_log/i);
   assert.match(migration, /p_movement_type = 'saida' and p_quantity > v_previous_balance/i);
   assert.match(migration, /auth_user_id = auth\.uid\(\)/i);
+  assert.match(migration, /institution_id::text = p_institution_id/i);
   assert.match(migration, /public\.stock_full_current_institution_id\(\)/i);
   assert.match(migration, /public\.stock_full_work_allowed\(v_project_id\)/i);
   assert.match(migration, /v_project_id text := nullif\(btrim\(p_project_id\), ''\)/i);
