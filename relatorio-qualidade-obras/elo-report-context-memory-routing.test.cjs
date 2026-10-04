@@ -172,6 +172,19 @@ test("orquestrador central resolve referencias antes da chamada online", () => {
   assert.equal(api.handleAnalysisReferenceForTest("qual deles e mais grave?"), true);
 });
 
+test("restaura a ultima analise a partir do historico visual da conversa", () => {
+  const { api } = loadElo();
+  const answer = "Problemas encontrados: 1. Cliente não informado. 2. Fundação e estrutura sem validação.";
+  const restored = api.restoreAnalysisContextFromStoredMessagesForTest([
+    { kind: "user", text: "quais os principais problemas encontrados?" },
+    { kind: "assistant", text: answer }
+  ]);
+
+  assert.ok(restored);
+  assert.equal(restored.lastAnswerEntities.length, 2);
+  assert.ok(api.buildAnalysisReferenceResponseForTest("qual deles aparece primeiro?"));
+});
+
 test("relatorio contextual conserva fonte, entidades e precedencia quando o PDF continua ativo", () => {
   const { api } = loadElo();
   api.rememberActiveDocumentForTest([{ fileName: "analise-pdf.pdf", text: "Problema: ausencia de precos oficiais." }]);
