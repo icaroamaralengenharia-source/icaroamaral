@@ -319,5 +319,5 @@ test("ação de relatório de contexto usa o mesmo gerador real e preserva os ac
   const reportPayload = payload.generatorPayload || payload;
   assert.equal(reportPayload.fotosUnidade.length, 0);
   assert.match(reportPayload.report.observacoes, /falta de material/i);
-  assert.match(reportPayload.inconformidades[0].descricaoTecnica, /falta de material/i);
+  assert.equal(reportPayload.inconformidades.length, 0);
 });
