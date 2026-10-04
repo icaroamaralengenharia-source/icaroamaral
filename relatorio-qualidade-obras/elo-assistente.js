@@ -28616,7 +28616,7 @@ function isEloResidentialNewPipelineEnabled_() {
         emailDestino: "icaroamaralengenharia@gmail.com"
       },
       fotosUnidade: photo ? [{ numero: "01", descricao: visualReport, foto: photo }] : [],
-      inconformidades: [inconformidade]
+      inconformidades: photo ? [inconformidade] : []
     };
   }
   async function generateEloReportPdfFromChat_(message, attachments, analysisContext) {
