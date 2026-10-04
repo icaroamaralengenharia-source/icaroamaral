@@ -66,6 +66,61 @@ grant execute on function public.stock_full_work_allowed(text) to authenticated;
 revoke all on function public.stock_full_scope_allowed(text) from public;
 grant execute on function public.stock_full_scope_allowed(text) to authenticated;
 
+-- Expose only the current tenant's canonical works to Stock Full. The source
+-- table remains protected; this RPC keeps the work selector and work lookup
+-- tenant-scoped without relaxing its own RLS.
+create or replace function public.stock_full_list_works()
+returns table (
+  id text,
+  institution_id text,
+  client_id text,
+  name text,
+  address text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id, p.institution_id, p.client_id, p.name, p.address
+  from public.obrareport_projects p
+  where p.institution_id = public.stock_full_current_institution_id()
+  order by p.name asc nulls last, p.id asc;
+$$;
+
+revoke all on function public.stock_full_list_works() from public;
+grant execute on function public.stock_full_list_works() to authenticated;
+
+-- Keep the legacy item/work consistency trigger compatible with tenant-level
+-- inventory. General movements intentionally have a NULL project_id; when a
+-- work is selected, the item must still belong to that same work.
+create or replace function public.stock_full_validate_movement_scope()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  item_project_id text;
+  new_project_id text := nullif(btrim(new.project_id), '');
+begin
+  if new_project_id is null then
+    return new;
+  end if;
+
+  select project_id into item_project_id
+  from public.stock_full_items
+  where id = new.item_id
+    and institution_id = new.institution_id
+    and is_active = true;
+
+  if not found or item_project_id is distinct from new_project_id then
+    raise exception 'stock_full_item_work_mismatch';
+  end if;
+  return new;
+end;
+$$;
+
 alter table public.stock_full_items enable row level security;
 alter table public.stock_full_entries enable row level security;
 alter table public.stock_full_exits enable row level security;
