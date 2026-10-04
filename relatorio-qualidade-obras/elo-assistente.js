@@ -321,7 +321,7 @@
     const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
     if (!text) return false;
     const relativeDateQuestion = /^(?:amanha|ontem|anteontem|depois\s+de\s+amanha)$/.test(text) || /\b(?:que\s+dia|qual\s+(?:e\s+o\s+)?dia|que\s+e|que\s+é|qual\s+a\s+data|o\s+que\s+e|o\s+que\s+é)\b[\s\S]{0,30}\b(?:amanha|ontem|anteontem)\b/.test(text);
-    return relativeDateQuestion || /\b(?:que\s+dia\s+e\s+hoje|hoje\s+e\s+que\s+dia|qual\s+(?:e\s+)?a\s+data(?:\s+de\s+hoje)?|data\s+(?:de\s+hoje|atual)|qual\s+(?:e\s+)?(?:o\s+)?dia\s+de\s+hoje|que\s+horas\s+sao|qual\s+(?:e\s+)?(?:a\s+)?hora(?:\s+agora|\s+atual)?|hora\s+atual|horario\s+atual)\b/.test(text);
+    return relativeDateQuestion || /\b(?:que\s+dia\s+e\s+hoje|hoje\s+e\s+que\s+dia|qual\s+(?:e\s+)?(?:o\s+)?dia\s+(?:e\s+)?hoje|qual\s+(?:e\s+)?a\s+data(?:\s+de\s+hoje)?|data\s+(?:de\s+hoje|atual)|qual\s+(?:e\s+)?(?:o\s+)?dia\s+de\s+hoje|que\s+horas\s+sao|qual\s+(?:e\s+)?(?:a\s+)?hora(?:\s+agora|\s+atual)?|hora\s+atual|horario\s+atual)\b/.test(text);
   }
 
   function calculateSimpleEloCoreMath_(message) {
@@ -1315,6 +1315,54 @@
   }
   function needsLiveSearch(userText) {
     return classifyEloSemanticRoute_(userText).intent === "busca_atual";
+  }
+  function classifyEloLiveDataNeed_(question, context) {
+    const router = window.EloLiveDataRouter;
+    if (router && typeof router.classifyLiveDataNeed === "function") {
+      return router.classifyLiveDataNeed(question, context || {});
+    }
+    return {
+      needsLiveData: hasEloSemanticLiveSearchIntent_(question),
+      category: "search",
+      confidence: 0.5,
+      reason: "semantic_live_search_fallback",
+      lookup: "web_search",
+      searchQuery: sanitizeUserText(question)
+    };
+  }
+  function buildEloLiveDataDirectAnswer_(question, context) {
+    const classifiedLiveData = classifyEloLiveDataNeed_(question, context);
+    if (!classifiedLiveData || classifiedLiveData.needsLiveData !== true) return null;
+    if (classifiedLiveData.lookup === "local_clock" && classifiedLiveData.category === "date_time") {
+      const answer = formatEloCoreDateTimeAnswer_(new Date(), question);
+      return {
+        shortAnswer: answer,
+        fullAnswer: answer,
+        nextAction: "",
+        canSave: false,
+        route: "local_live_data",
+        fastPath: "LIVE_DATA_LOCAL_CLOCK",
+        sessionTheme: "data_atual",
+        sessionIntent: "live_date_time",
+        liveData: classifiedLiveData,
+        action: null
+      };
+    }
+    const query = sanitizeUserText(classifiedLiveData.searchQuery || question);
+    return {
+      shortAnswer: "Vou consultar e te respondo direto.",
+      fullAnswer: "Vou consultar e te respondo direto.",
+      nextAction: "",
+      canSave: false,
+      route: "web_search",
+      needsLiveSearch: true,
+      fastPath: "LIVE_DATA_WEB_SEARCH",
+      sessionTheme: "data_atual",
+      sessionIntent: "live_" + sanitizeUserText(classifiedLiveData.category || "search"),
+      webSearchQuery: query,
+      liveData: classifiedLiveData,
+      action: null
+    };
   }
   function buildEloWebSearchRouteResponse_(question) {
     if (!needsLiveSearch(question)) return null;
@@ -3690,7 +3738,7 @@
     renderEloCoreAuthPanel_();
   }
 
-  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
+  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; ELO_UI.liveDataContext = {}; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
     ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1;
@@ -8569,6 +8617,14 @@
     const detectedIntent = safeResponse.sessionIntent || detectConversationIntent(normalizedQuestion);
     const enumeratedItems = extractEloWorkingMemoryItems_(answer);
     const isDeepening = isEloWorkingMemoryDeepeningRequest_(question);
+    if (safeResponse.liveData && typeof safeResponse.liveData === "object") {
+      ELO_UI.liveDataContext = {
+        category: sanitizeUserText(safeResponse.liveData.category || ""),
+        location: sanitizeUserText(safeResponse.liveData.location || ""),
+        timeZone: sanitizeUserText(safeResponse.liveData.timeZone || ""),
+        locationLabel: sanitizeUserText(safeResponse.liveData.locationLabel || "")
+      };
+    }
     ELO_SESSION_MEMORY.lastQuestion = sanitizeUserText(question).slice(0, 220);
     ELO_SESSION_MEMORY.lastAnswer = sanitizeUserText(answer || "").slice(0, 900);
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
@@ -28111,6 +28167,7 @@ function isEloResidentialNewPipelineEnabled_() {
     currentVisualSubject: "",
     currentVisualMedia: null,
     socialFastPathMetrics: null,
+    liveDataContext: {},
     coreBootstrapGeneration: 0,
     coreConversationRevision: 0,
     coreSurfaceMounted: false,
@@ -30725,6 +30782,35 @@ function isEloResidentialNewPipelineEnabled_() {
       appendAssistantMessage(cleanQuestion, localSafetyAnswer, localSafetyResponse.canSave !== false, localSafetyResponse);
       saveConversation(cleanQuestion, localSafetyAnswer);
       rememberSessionTurn(cleanQuestion, localSafetyResponse, localSafetyAnswer);
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    const directLiveDataResponse = !attachedFiles.length
+      ? buildEloLiveDataDirectAnswer_(cleanQuestion, ELO_UI.liveDataContext || {})
+      : null;
+    if (directLiveDataResponse) {
+      if (directLiveDataResponse.liveData && directLiveDataResponse.liveData.lookup === "web_search") {
+        const classifiedLiveData = directLiveDataResponse.liveData;
+        requestEloWebSearchAnswer_(classifiedLiveData.searchQuery || cleanQuestion).then(function (searchAnswer) {
+          const finalAnswer = sanitizeEloMultilineText_(searchAnswer) || "Nao consegui consultar informacoes em tempo real agora.";
+          const searchResponse = Object.assign({}, directLiveDataResponse, { shortAnswer: finalAnswer, fullAnswer: finalAnswer, action: null });
+          appendAssistantMessage(cleanQuestion, finalAnswer, false, searchResponse);
+          saveConversation(cleanQuestion, finalAnswer);
+          rememberSessionTurn(cleanQuestion, searchResponse, finalAnswer);
+        }).catch(function () {
+          appendMessage("system", "Nao consegui consultar informacoes em tempo real agora.");
+        }).finally(function () {
+          removeTypingIndicator();
+          clearProductAttachmentPreview();
+        });
+        return;
+      }
+      const directLiveAnswer = formatResponse(directLiveDataResponse);
+      appendAssistantMessage(cleanQuestion, directLiveAnswer, false, directLiveDataResponse);
+      saveConversation(cleanQuestion, directLiveAnswer);
+      rememberSessionTurn(cleanQuestion, directLiveDataResponse, directLiveAnswer);
       removeTypingIndicator();
       clearProductAttachmentPreview();
       return;
