@@ -981,9 +981,17 @@
     const hasStockFullPending = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo|nao|cancelar|cancela|abortar)$/.test(text) && window.EloActionBusStockFull && typeof window.EloActionBusStockFull.readPending === "function" && window.EloActionBusStockFull.readPending();
     const wantsStockProductList = /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:estoque|stock|almoxarifado)\b/.test(text) || /\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:do|no|na)?\s*(?:estoque|stock|almoxarifado)\b/.test(text) && !/\b(?:saldo|quanto|quantos|quantas|entrada|saida|retire|retirar|chegaram|chegou|recebemos)\b/.test(text);
     const wantsStockBalance = /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text);
-    const stockFullQuestion = /\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo|baixo\s+estoque|acabando|transfira|transferir|chegaram|chegou|recebemos|retirar|retire)\b/.test(text) || /\bquanto\b[\s\S]{0,60}\btemos\b/.test(text);
+    const activeStockContext = typeof ELO_SESSION_MEMORY !== "undefined" && (ELO_SESSION_MEMORY.activeConversationTopic === "stock" || ELO_SESSION_MEMORY.activeTopic === "stock" || (ELO_SESSION_MEMORY.lastStockItems && ELO_SESSION_MEMORY.lastStockItems.length));
+    const stockMaterialListQuestion = /\b(?:quais|liste|listar|mostre|mostrar|ver|consultar|consulta)\b[\s\S]{0,80}\b(?:produtos|itens|materiais)\b[\s\S]{0,80}\b(?:cadastrad\w*|registrad\w*|exist\w*|disponiv\w*|estoque|stock|almoxarifado)\b/.test(text);
+    const stockFollowUp = activeStockContext && (/^e\s+(?:de|do|da|dos|das)\b/.test(text) || /\b(?:dos dois|entre os dois|qual.*menos|qual.*menor)\b/.test(text) || /^(?:quanto|qual|quais|tem|existe|existem)\b/.test(text));
+    const stockLowestQuestion = /\b(?:menor|menos|mais baixo|mais baixa)\b[\s\S]{0,40}\b(?:estoque|saldo|quantidade)\b/.test(text) || /\b(?:estoque|saldo|quantidade)\b[\s\S]{0,40}\b(?:menor|menos|mais baixo|mais baixa)\b/.test(text);
+    const stockLastEntryQuestion = /\b(?:ultima|última|ultimo|último|mais recente)\b[\s\S]{0,30}\bentrada\b/.test(text) || /\bentrada\b[\s\S]{0,30}\b(?:ultima|última|mais recente)\b/.test(text);
+    const stockLastExitQuestion = /\b(?:ultima|última|ultimo|último|mais recente)\b[\s\S]{0,30}\b(?:saida|saída)\b/.test(text) || /\b(?:saida|saída)\b[\s\S]{0,30}\b(?:ultima|última|mais recente)\b/.test(text);
+    const stockCompareQuestion = activeStockContext && /\b(?:qual\s+dos\s+dois|dos dois|entre os dois)\b/.test(text);
+    const stockProductLookupQuestion = /\btem\s+(?:telha|cimento|vergalh(?:a|ão)|material|produto|item)\b/.test(text);
+    const stockFullQuestion = /\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo|baixo\s+estoque|acabando|transfira|transferir|chegaram|chegou|recebemos|retirar|retire)\b/.test(text) || /\bquanto\b[\s\S]{0,60}\btemos\b/.test(text) || stockMaterialListQuestion || stockFollowUp || stockProductLookupQuestion;
     if (hasStockFullPending || stockFullQuestion) {
-      const stockFullAction = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) ? "stock_history" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : isEloExplicitStockProductCreateRequest_(text) ? "create_product" : wantsStockProductList ? "list_products" : wantsStockBalance ? "get_balance" : "stock_query";
+      const stockFullAction = /^(?:sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text) ? "stock_confirm" : stockCompareQuestion ? "stock_compare" : stockLastEntryQuestion ? "stock_last_entry" : stockLastExitQuestion ? "stock_last_exit" : stockLowestQuestion ? "stock_lowest" : /\b(?:historico|movimentacao|movimentacoes|movimentos?|entradas?\s+e\s+saidas?|saidas?\s+e\s+entradas?|ultimas?\s+entradas?|ultimas?\s+saidas?)\b/.test(text) ? "stock_history" : /acabando|baixo\s+estoque|estoque\s+baixo/.test(text) ? "stock_low_stock" : /transfira|transferir/.test(text) ? "stock_transfer" : /entrada|chegaram|chegou|recebemos/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : isEloExplicitStockProductCreateRequest_(text) ? "create_product" : wantsStockProductList || stockMaterialListQuestion ? "list_products" : wantsStockBalance || (stockFollowUp && /^e\s+/.test(text)) ? "get_balance" : "stock_query";
       return { module: "stock_full", action: stockFullAction, payload: payload };
     }
     if (/\b(?:orcamento|orcamentos|bdi|padrao|escopo|eap|estimativa|custo|pdf\s+profissional\s+desse\s+orcamento|pendencias\s+do\s+orcamento|dados\s+ainda\s+estao\s+faltando)\b/.test(text)) {
@@ -1031,14 +1039,16 @@
     if (!bridge || typeof bridge.execute !== "function") return null;
     const request = detectEloCommandBridgeRequest_(message);
     if (!request) return null;
+    const bridgeContext = Object.assign({
+      authToken: getEloCoreAuthToken_(),
+      role: normalizeEloCoreAuthContext_(getEloCoreAuthContext_()).role,
+      permissions: normalizeEloCoreAuthContext_(getEloCoreAuthContext_()).permissions,
+      identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
+      municipal: getEloMunicipalContext_()
+    }, options && options.context || {});
+    if (ELO_SESSION_MEMORY.lastStockItems && ELO_SESSION_MEMORY.lastStockItems.length) bridgeContext.stockItems = ELO_SESSION_MEMORY.lastStockItems.slice(-8);
     const result = bridge.execute(Object.assign({}, request, {
-      context: Object.assign({
-        authToken: getEloCoreAuthToken_(),
-        role: normalizeEloCoreAuthContext_(getEloCoreAuthContext_()).role,
-        permissions: normalizeEloCoreAuthContext_(getEloCoreAuthContext_()).permissions,
-        identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
-        municipal: getEloMunicipalContext_()
-      }, options && options.context || {}),
+      context: bridgeContext,
       dryRun: request.module !== "stock_full"
     }));
     if (isEloAsyncResponse_(result)) return result.then(buildEloCommandBridgeAnswer_);
@@ -3690,7 +3700,7 @@
     renderEloCoreAuthPanel_();
   }
 
-  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
+  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.activeTopic = ""; ELO_SESSION_MEMORY.lastStockItems = []; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
     ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1;
@@ -8182,6 +8192,7 @@
     pendingQuantitativePremises: null,
     pendingStockRelease: null,
     pendingStockProductCreate: null,
+    lastStockItems: [],
     pendingAutopilotPublication: null,
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
@@ -8574,6 +8585,20 @@
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
     ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
     ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(safeResponse.nextAction || "").slice(0, 260);
+    const stockBridge = safeResponse.commandBridge && safeResponse.commandBridge.module === "stock_full" ? safeResponse.commandBridge : null;
+    if (stockBridge) {
+      ELO_SESSION_MEMORY.activeConversationTopic = "stock";
+      ELO_SESSION_MEMORY.activeTopic = "stock";
+      const stockData = stockBridge.data || {};
+      const freshStockItems = Array.isArray(stockData.items) ? stockData.items : stockData.item ? [stockData.item] : [];
+      if (freshStockItems.length) {
+        const mergedStockItems = (ELO_SESSION_MEMORY.lastStockItems || []).concat(freshStockItems);
+        ELO_SESSION_MEMORY.lastStockItems = mergedStockItems.filter(function (item, index, list) {
+          const key = String(item && (item.id || item.itemId || item.name) || "");
+          return key && list.findIndex(function (candidate) { return String(candidate && (candidate.id || candidate.itemId || candidate.name) || "") === key; }) === index;
+        }).slice(-8);
+      }
+    }
     if (/fissura|trinca|rachadura|\b\d+(?:[,.]\d+)?\s*mm\b|cresceu|evoluiu|lado oposto|diagonal/.test(normalizedQuestion) || safeResponse.sessionTheme === "patologia_obras") {
       ELO_SESSION_MEMORY.pathologyContext = (ELO_SESSION_MEMORY.pathologyContext || []).concat([sanitizeUserText(question).slice(0, 240)]).slice(-8);
       ELO_SESSION_MEMORY.activeConversationTopic = "patologia_obras";
