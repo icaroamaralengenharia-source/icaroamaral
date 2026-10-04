@@ -173,6 +173,16 @@ test("usa entidades do PDF quando a resposta analitica chega agregada em prosa",
   assert.match(api.buildAnalysisReferenceResponseForTest("e o segundo?").fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
 });
 
+test("separa clausulas tecnicas de analise sem numeracao", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "clausulas.pdf", text: "Orçamento preliminar." }]);
+  const answer = "Os principais problemas identificados são a ausência do projeto executivo completo e a falta de composições oficiais para fundação e estrutura. Além disso, há pendências de preços vigentes e BDI. Também se destaca que o orçamento é preliminar.";
+  api.rememberActiveAnalysisForTest("quais os principais problemas encontrados?", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+  const context = api.getActiveAnalysisForTest();
+  assert.ok(context.lastAnswerEntities.length >= 3);
+  assert.match(api.buildAnalysisReferenceResponseForTest("e o segundo?").fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
+});
+
 test("orquestrador central resolve referencias antes da chamada online", () => {
   const { api } = loadElo();
   const answer = "Problemas encontrados: 1. Cliente não informado. 2. Fundação e estrutura sem validação.";
