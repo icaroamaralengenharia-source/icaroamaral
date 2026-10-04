@@ -3255,6 +3255,25 @@ test('ELO media command: sem botao real nao bloqueia chat normal', () => {
   assert.equal(regularChat.action, null);
 });
 
+test('ELO media command: anterior e proxima respeitam player ativo sem roubar data ou conversa', () => {
+  const calls = [];
+  const { elo, context } = loadEloContext();
+  const controls = installMediaButtonControls(context, calls);
+  controls.push(
+    createMediaButtonControl('◀ Anterior', 'previous', 'PLAYING', calls, context.document),
+    createMediaButtonControl('▶| Próxima', 'next', 'PLAYING', calls, context.document)
+  );
+
+  assert.equal(elo.detectMediaCommandForTest('próxima'), 'next');
+  assert.equal(elo.detectMediaCommandForTest('anterior'), 'previous');
+  assert.equal(elo.detectMediaCommandForTest('qual é a próxima segunda-feira?'), null);
+  assert.equal(elo.detectMediaCommandForTest('continue explicando'), null);
+
+  assert.equal(elo.handleMediaCommandForTest('próxima').handled, true);
+  assert.equal(elo.handleMediaCommandForTest('anterior').handled, true);
+  assert.deepEqual(calls.slice(-2), ['▶| Próxima', '◀ Anterior']);
+});
+
 function createMusicResolverFixture(playCalls) {
   const candidates = [
     { id: 'sultans', title: 'Sultans of Swing', artist: 'Dire Straits', relevance: 1 },

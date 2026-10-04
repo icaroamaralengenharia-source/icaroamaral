@@ -3790,6 +3790,46 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-memory-
   min-height: min(300px, calc(100svh - 300px));
 }
 
+/* Player de mídia compacto: controles sempre baixos e utilizáveis no celular. */
+#elo-real-media-player {
+  width: min(420px, calc(100vw - 24px)) !important;
+  border-radius: 16px !important;
+}
+
+#elo-real-media-player #elo-real-media-controls {
+  align-items: center;
+  min-height: 42px;
+}
+
+#elo-real-media-player #elo-real-media-controls > button {
+  min-height: 30px;
+  padding: 6px 5px;
+  border-radius: 999px;
+}
+
+#elo-real-media-player[data-elo-media-source="LOCAL_CLASSICAL"] #elo-real-media-host {
+  height: 38px;
+  aspect-ratio: auto !important;
+  background: transparent;
+}
+
+#elo-real-media-player[data-elo-media-source="LOCAL_CLASSICAL"] #elo-real-media-host audio {
+  width: 100%;
+  height: 34px;
+  display: block;
+}
+
+@media (max-width: 640px) {
+  #elo-real-media-player {
+    width: min(420px, calc(100vw - 16px)) !important;
+  }
+
+  #elo-real-media-player #elo-real-media-controls > button {
+    min-height: 28px;
+    font-size: 12px;
+  }
+}
+
 body[data-elo-product="chat"] .elo-product-chat .elo-core-utility-panel .elo-memory-list {
   display: flex;
   flex-direction: column;
