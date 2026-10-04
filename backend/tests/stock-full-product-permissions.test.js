@@ -14,8 +14,8 @@ function createSupabaseProductMock() {
     }
   };
   const items = [
-    { id: "item-a", institution_id: "inst-a", name: "Cimento", unit: "saco", category: "Obra", min_quantity: 5, current_quantity: 12, location: "A1", notes: "", is_active: true },
-    { id: "item-b", institution_id: "inst-b", name: "Argamassa", unit: "saco", category: "Obra", min_quantity: 3, current_quantity: 9, location: "B1", notes: "", is_active: true }
+    { id: "item-a", institution_id: "inst-a", project_id: null, name: "Cimento", unit: "saco", category: "Obra", min_quantity: 5, current_quantity: 12, location: "A1", notes: "", is_active: true },
+    { id: "item-b", institution_id: "inst-b", project_id: null, name: "Argamassa", unit: "saco", category: "Obra", min_quantity: 3, current_quantity: 9, location: "B1", notes: "", is_active: true }
   ];
   const writes = [];
   let activeUserId = "";
@@ -59,6 +59,17 @@ function createSupabaseProductMock() {
       select() {
         return this;
       },
+      order() {
+        return this;
+      },
+      then(resolve, reject) {
+        try {
+          const data = items.filter((item) => filters.every((filter) => filter.isNull ? item[filter.column] == null : item[filter.column] === filter.value));
+          return Promise.resolve(resolve({ data, error: null }));
+        } catch (error) {
+          return Promise.reject(reject ? reject(error) : error);
+        }
+      },
       async maybeSingle() {
         const row = items.find((item) => filters.every((filter) => filter.isNull ? item[filter.column] == null : item[filter.column] === filter.value));
         if (!row) return { data: null, error: null };
@@ -97,7 +108,6 @@ function createSupabaseProductMock() {
           }
         };
       }
-      assert.equal(table, "stock_full_items");
       return createItemQuery(table);
     }
   };
@@ -204,5 +214,35 @@ test("Stock Full permite admin escrever produto somente no proprio tenant", asyn
     assert.equal(remove.response.status, 200);
     assert.equal(supabase.items.find((item) => item.id === "item-a").is_active, false);
     assert.equal(supabase.items.find((item) => item.id === "item-b").name, "Argamassa");
+  });
+});
+
+test("Stock Full permite listar estoque geral sem obra e mantem isolamento por tenant", async () => {
+  await withServer(async (base) => {
+    const result = await json(base + "/api/stock-full/items", {
+      headers: { Authorization: "Bearer token-admin-a" }
+    });
+
+    assert.equal(result.response.status, 200);
+    assert.equal(result.data.ok, true);
+    assert.deepEqual(result.data.items.map((item) => item.name), ["Cimento"]);
+    assert.equal(result.data.items[0].projectId, "");
+  });
+});
+
+test("Stock Full não retorna WORK_REQUIRED para validações de entrada e saída sem obra", async () => {
+  await withServer(async (base) => {
+    const authAdmin = { Authorization: "Bearer token-admin-a" };
+    for (const path of ["entries", "exits"]) {
+      const result = await json(base + "/api/stock-full/" + path, {
+        method: "POST",
+        headers: authAdmin,
+        body: JSON.stringify({ quantity: 5 })
+      });
+
+      assert.equal(result.response.status, 400);
+      assert.notEqual(result.data.error, "WORK_REQUIRED");
+      assert.equal(result.data.error, "item_id_required");
+    }
   });
 });
