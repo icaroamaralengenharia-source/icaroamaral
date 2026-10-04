@@ -2446,11 +2446,7 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
-        .from("obrareport_projects")
-        .select("id,institution_id,client_id,name,address")
-        .eq("institution_id", session.profile.institution_id)
-        .order("name", { ascending: true });
+      const { data, error } = await database.rpc("stock_full_list_works");
       if (error) {
         throw error;
       }
@@ -5204,15 +5200,11 @@ async function requireStockFullWork_(request, response, supabase, profile) {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("obrareport_projects")
-      .select("id,institution_id,client_id,name,address")
-      .eq("id", projectId)
-      .eq("institution_id", profile.institution_id)
-      .maybeSingle();
+    const { data: works, error } = await supabase.rpc("stock_full_list_works");
     if (error) {
       throw error;
     }
+    const data = (works || []).find((work) => String(work.id || "") === projectId) || null;
     if (!data) {
       response.status(403).json({ ok: false, error: STOCK_FULL_WORK_NOT_ALLOWED });
       return null;
