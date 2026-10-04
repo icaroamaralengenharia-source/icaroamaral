@@ -163,6 +163,16 @@ test("separa entidades numeradas quando a resposta chega em um unico paragrafo",
   assert.match(response.fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
 });
 
+test("usa entidades do PDF quando a resposta analitica chega agregada em prosa", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "prosa.pdf", text: "Cliente não informado.\nFundação e estrutura sem validação.\nBDI pendente de confirmação." }]);
+  const answer = "Os principais problemas são a falta de informações do cliente. Além disso, fundação e estrutura permanecem sem validação. Sem esses elementos, o BDI também não pode ser confirmado.";
+  api.rememberActiveAnalysisForTest("quais os principais problemas encontrados?", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+  const context = api.getActiveAnalysisForTest();
+  assert.equal(context.lastAnswerEntities.length, 3);
+  assert.match(api.buildAnalysisReferenceResponseForTest("e o segundo?").fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
+});
+
 test("orquestrador central resolve referencias antes da chamada online", () => {
   const { api } = loadElo();
   const answer = "Problemas encontrados: 1. Cliente não informado. 2. Fundação e estrutura sem validação.";

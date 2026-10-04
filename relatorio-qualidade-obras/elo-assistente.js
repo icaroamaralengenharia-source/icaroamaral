@@ -1717,9 +1717,13 @@
     const entities = [];
     const documents = documentContext && Array.isArray(documentContext.documents) ? documentContext.documents : [];
     documents.forEach(function (document) {
-      const text = sanitizeUserText(document && document.text || "");
-      const lines = text.split(/\n+/).filter(function (line) {
-        return /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|sem )\b/i.test(normalizeText(line));
+      const rawText = String(document && document.text || "").replace(/\r/g, "");
+      const lines = rawText.split(/\n+/).reduce(function (result, line) {
+        return result.concat(line.replace(/([.!?])\s+/g, "$1\n").split(/\n+/));
+      }, []).map(function (line) {
+        return sanitizeUserText(line);
+      }).filter(function (line) {
+        return /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|bdi|sem )\b/i.test(normalizeText(line));
       });
       lines.slice(0, 8).forEach(function (line, index) {
         const entity = normalizeEloAnalysisEntity_(line, index, "active_document");
@@ -1732,7 +1736,15 @@
   function getEloAnalysisEntities_(context) {
     const safe = context && typeof context === "object" ? context : {};
     const candidates = safe.lastAnswerEntities || safe.last_answer_entities || safe.entities || safe.findings || [];
-    return dedupeEloAnalysisEntities_(candidates);
+    const answerEntities = dedupeEloAnalysisEntities_(candidates);
+    const documentEntities = dedupeEloAnalysisEntities_(safe.lastDocumentEntities || safe.last_document_entities || []);
+    if (answerEntities.length === 1 && documentEntities.length >= 2) {
+      const label = sanitizeUserText(answerEntities[0] && (answerEntities[0].label || answerEntities[0].text) || "");
+      if (label.length >= 220 || /\b(?:os\s+principais\s+problemas|al[eé]m\s+disso|sem\s+esses\s+elementos)\b/i.test(normalizeText(label))) {
+        return documentEntities;
+      }
+    }
+    return answerEntities.length ? answerEntities : documentEntities;
   }
 
   function isEloAnalysisReferenceResolutionRequest_(question) {
