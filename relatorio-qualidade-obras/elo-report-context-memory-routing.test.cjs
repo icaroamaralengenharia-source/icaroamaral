@@ -88,6 +88,21 @@ test("gera relatório a partir da última análise sem cair na ponte genérica",
   assert.equal(route.action, "generate_report_from_context");
 });
 
+test("novo PDF invalida a analise anterior para impedir relatorio com contexto obsoleto", () => {
+  const { api } = loadElo();
+  const oldAnswer = "Analise do contexto A: infiltração na cobertura e risco de umidade persistente.";
+  api.rememberActiveAnalysisForTest("analise o contexto A", { fullAnswer: oldAnswer, sessionIntent: "document_analysis" }, oldAnswer);
+  api.rememberActiveDocumentForTest([{
+    fileName: "contexto-b.pdf",
+    text: "CODIGO_PDF_ELO_20261004. Problema principal: fissura diagonal próxima ao vão da janela."
+  }]);
+
+  const response = api.buildReportFromAnalysisContextForTest("faça um relatório disso");
+  assert.equal(response.sessionIntent, "generate_report_from_context_missing_context");
+  assert.doesNotMatch(response.fullAnswer, /infiltração|infiltracao/i);
+  assert.doesNotMatch(response.fullAnswer, /contexto A/i);
+});
+
 test("consulta de relatórios existentes continua na rota de listagem", () => {
   const { api } = loadElo();
   const route = api.detectCommandBridgeRequestForTest("liste meus relatórios");
