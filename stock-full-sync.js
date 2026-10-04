@@ -259,13 +259,12 @@
     if (!token) throw new Error("stock_full_auth_unavailable");
     const requestOptions = Object.assign({}, options || {});
     const projectId = getCurrentWorkId();
-    if (!projectId) throw new Error("WORK_REQUIRED");
     if (requestOptions.body && typeof requestOptions.body === "string") {
       try {
         const parsed = JSON.parse(requestOptions.body);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          parsed.projectId = parsed.projectId || parsed.project_id || projectId;
-          if (Array.isArray(parsed.movements)) {
+          if (projectId && !parsed.projectId && !parsed.project_id) parsed.projectId = projectId;
+          if (Array.isArray(parsed.movements) && projectId) {
             parsed.movements = parsed.movements.map(function (movement) {
               return Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || projectId });
             });
@@ -275,7 +274,7 @@
       } catch (error) {}
     }
     let requestUrl = buildApiUrl(url);
-    if (String(requestOptions.method || "GET").toUpperCase() === "GET") {
+    if (String(requestOptions.method || "GET").toUpperCase() === "GET" && projectId) {
       requestUrl += (requestUrl.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
     }
     const response = await window.fetch(requestUrl, Object.assign({}, requestOptions, {
