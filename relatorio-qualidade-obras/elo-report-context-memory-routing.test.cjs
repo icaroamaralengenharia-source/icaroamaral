@@ -181,11 +181,14 @@ test("restaura a ultima analise a partir do historico visual da conversa", () =>
   const answer = "Problemas encontrados: 1. Cliente não informado. 2. Fundação e estrutura sem validação.";
   const restored = api.restoreAnalysisContextFromStoredMessagesForTest([
     { kind: "user", text: "quais os principais problemas encontrados?" },
-    { kind: "assistant", text: answer }
+    { kind: "assistant", text: answer },
+    { kind: "user", text: "qual deles e mais grave?" },
+    { kind: "assistant", text: "Entre os problemas identificados no arquivo orcamento.pdf, o mais grave é: Cliente não informado." }
   ]);
 
   assert.ok(restored);
   assert.equal(restored.lastAnswerEntities.length, 2);
+  assert.doesNotMatch(restored.analysis, /Entre os problemas identificados/i);
   assert.ok(api.buildAnalysisReferenceResponseForTest("qual deles aparece primeiro?"));
 });
 
