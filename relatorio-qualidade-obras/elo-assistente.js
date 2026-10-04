@@ -922,10 +922,12 @@
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
-    const activeDocumentTakesPrecedence = Boolean(getEloActiveDocumentContext_() && isEloActiveDocumentReference_(raw));
-    if (!activeDocumentTakesPrecedence && isEloReportFromAnalysisContextRequest_(raw)) {
+    // Contextual reports are resolved before the generic ObraReport bridge.
+    // This preserves the last meaningful analysis even while a PDF remains active.
+    if (isEloReportFromAnalysisContextRequest_(raw)) {
       return { module: "obrareport_report", action: "generate_report_from_context", payload: payload };
     }
+    const activeDocumentTakesPrecedence = Boolean(getEloActiveDocumentContext_() && isEloActiveDocumentReference_(raw));
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
     const hasMunicipalContext = /\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|notifica[cç][oõ]es)\b/.test(text);
     const hasSentinelContext = /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text);
@@ -1092,9 +1094,31 @@
     };
   }
 
+  function handleEloReportFromAnalysisContextFastPath_(cleanQuestion) {
+    const response = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    const context = getEloActiveAnalysisContext_();
+    if (!context) {
+      const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      clearProductAttachmentPreview();
+      return true;
+    }
+    appendTypingIndicator();
+    generateEloReportPdfFromChat_(cleanQuestion, [], context);
+    return true;
+  }
+
   function handleEloDomainCommandFastPath_(cleanQuestion) {
     const request = detectEloCommandBridgeRequest_(cleanQuestion);
     if (!isEloCommandBridgePriorityRequest_(request)) return false;
+    if (request.module === "obrareport_report" && request.action === "generate_report_from_context") {
+      logEloRoutingTrace_(cleanQuestion, { request: request, stage: "domain_guard", matcher: "contextual_report", matchResult: true, selectedAction: request.action, earlyReturn: true, responseSource: "analysis_context" });
+      return handleEloReportFromAnalysisContextFastPath_(cleanQuestion);
+    }
     logEloRoutingTrace_(cleanQuestion, {
       request: request,
       stage: "domain_guard",
@@ -1524,7 +1548,7 @@
     if (!text) return false;
     if (/\b(?:ponte\s+com\s+relatorios|documentos\s+da\s+obra|historico\s+de\s+conversas)\b/.test(text)) return false;
     const hasAnalysisIntent = /\b(?:analise|analisar|analisado|analisada|problemas?|achados?|risco|riscos|recomendacoes?|recomendo|evidencias?|falta\s+de\s+material|produtividade|cronograma|vistoria|fotos?|arquivo|documento|rdo|obra)\b/.test(text);
-    const hasTechnicalContext = /\b(?:obra|arquivo|foto|fotos|vistoria|documento|rdo|concreto|fissura|trinca|infiltracao|estoque|materiais?|produtividade|equipe|cronograma|consumo)\b/.test(text);
+    const hasTechnicalContext = /\b(?:obra|pdf|anexo|arquivo|foto|fotos|vistoria|documento|rdo|concreto|fissura|trinca|infiltracao|estoque|materiais?|produtividade|equipe|cronograma|consumo)\b/.test(text);
     return hasAnalysisIntent && hasTechnicalContext;
   }
 
@@ -1602,27 +1626,220 @@
     }).slice(0, 10);
   }
 
+  function normalizeEloAnalysisEntity_(value, index, source) {
+    const label = sanitizeUserText(value || "").replace(/^[-*•\d.)\s]+/, "").trim().slice(0, 320);
+    if (!label || label.length < 3) return null;
+    const normalized = normalizeText(label);
+    if (/^(?:analise tecnica|principais problemas?|problemas? encontrados?|achados?|recomendacoes?|conclusao|resumo executivo)\s*:??$/i.test(normalized)) return null;
+    return {
+      id: "elo_entity_" + String(index + 1),
+      index: index + 1,
+      label: label,
+      text: label,
+      kind: "problem",
+      source: source || "last_analysis"
+    };
+  }
+
+  function dedupeEloAnalysisEntities_(entities) {
+    const seen = {};
+    return (Array.isArray(entities) ? entities : []).map(function (item, index) {
+      const entity = item && typeof item === "object" ? item : normalizeEloAnalysisEntity_(item, index, "last_analysis");
+      if (!entity) return null;
+      const label = sanitizeUserText(entity.label || entity.text || "").slice(0, 320);
+      const key = normalizeText(label);
+      if (!key || seen[key]) return null;
+      seen[key] = true;
+      return Object.assign({}, entity, {
+        id: sanitizeUserText(entity.id || "elo_entity_" + String(index + 1)).slice(0, 80),
+        index: seen[key] ? Object.keys(seen).length : index + 1,
+        label: label,
+        text: label
+      });
+    }).filter(Boolean).slice(0, 8).map(function (entity, index) {
+      return Object.assign({}, entity, { index: index + 1 });
+    });
+  }
+
+  function extractEloAnalysisEntities_(answer, findings, enumeratedItems) {
+    const clean = sanitizeUserText(answer || "").replace(/\r/g, "");
+    const candidates = [];
+    (Array.isArray(findings) ? findings : []).forEach(function (item) { candidates.push(item); });
+    (Array.isArray(enumeratedItems) ? enumeratedItems : []).forEach(function (item) { candidates.push(item); });
+    clean.split(/\n+/).forEach(function (line) {
+      const normalized = normalizeText(line);
+      if (!/^\s*(?:[-*•]|\d+[.)])\s+/.test(line)) return;
+      if (normalized && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|não informado|sem )\b/.test(normalized)) {
+        candidates.push(line);
+      }
+    });
+    return dedupeEloAnalysisEntities_(candidates.map(function (item, index) {
+      return normalizeEloAnalysisEntity_(item, index, "last_analysis");
+    }).filter(Boolean));
+  }
+
+  function extractEloDocumentEntities_(documentContext) {
+    const entities = [];
+    const documents = documentContext && Array.isArray(documentContext.documents) ? documentContext.documents : [];
+    documents.forEach(function (document) {
+      const text = sanitizeUserText(document && document.text || "");
+      const lines = text.split(/\n+/).filter(function (line) {
+        return /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|sem )\b/i.test(normalizeText(line));
+      });
+      lines.slice(0, 8).forEach(function (line, index) {
+        const entity = normalizeEloAnalysisEntity_(line, index, "active_document");
+        if (entity) entities.push(entity);
+      });
+    });
+    return dedupeEloAnalysisEntities_(entities);
+  }
+
+  function getEloAnalysisEntities_(context) {
+    const safe = context && typeof context === "object" ? context : {};
+    const candidates = safe.lastAnswerEntities || safe.last_answer_entities || safe.entities || safe.findings || [];
+    return dedupeEloAnalysisEntities_(candidates);
+  }
+
+  function isEloAnalysisReferenceResolutionRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text) return false;
+    const pluralReference = /\b(?:qual\s+deles|qual\s+delas|entre\s+eles|entre\s+elas|dentre\s+eles|dentre\s+elas|os\s+(?:dois|tres|quatro|cinco)|as\s+(?:duas|tres|quatro|cinco))\b/.test(text);
+    const ordinalReference = /\b(?:o|a)?\s*(?:primeiro|primeira|segundo|segunda|terceiro|terceira|ultimo|ultima)\b/.test(text);
+    const comparisonIntent = /\b(?:mais\s+grave|mais\s+serio|mais\s+cr[ití]tico|pior|maior\s+impacto|aparece\s+primeiro|compare|comparar|resuma|resumir|explique|impacto|gravidade)\b/.test(text);
+    const shortOrdinal = /^(?:e\s+)?(?:o|a)\s*(?:primeiro|primeira|segundo|segunda|terceiro|terceira|ultimo|ultima)\b/.test(text);
+    return pluralReference || shortOrdinal || (ordinalReference && comparisonIntent) || (/\b(?:e|qual)\b/.test(text) && ordinalReference && /\b(?:problema|problemas|achado|achados|item|itens|eles|elas)\b/.test(text));
+  }
+
+  function scoreEloAnalysisEntity_(entity) {
+    const text = normalizeText(entity && (entity.label || entity.text) || "");
+    let score = 0;
+    [
+      [/(?:seguranca|estrutural|colapso|interdicao|risco grave|critico)/, 8],
+      [/(?:infiltracao|vazamento|umidade|falha|compromete|comprometer|atraso|cronograma)/, 6],
+      [/(?:preco|precos|custo|orcamento|valor|financeir)/, 5],
+      [/(?:falta|ausencia|incomplet|pendencia|nao informado|sem )/, 3],
+      [/(?:recomend|verificar|revisar|acompanhar)/, -1]
+    ].forEach(function (entry) { if (entry[0].test(text)) score += entry[1]; });
+    return score;
+  }
+
+  function resolveEloAnalysisReference_(question, context) {
+    if (!isEloAnalysisReferenceResolutionRequest_(question)) return null;
+    const entities = getEloAnalysisEntities_(context);
+    if (!entities.length) return null;
+    const text = normalizeText(question || "");
+    const indexes = [];
+    [["primeiro", 0], ["primeira", 0], ["segundo", 1], ["segunda", 1], ["terceiro", 2], ["terceira", 2], ["quarto", 3], ["quarta", 3], ["quinto", 4], ["quinta", 4]].forEach(function (entry) {
+      if (text.indexOf(entry[0]) >= 0 && entities[entry[1]]) indexes.push(entry[1]);
+    });
+    if (/\bultimo|ultima\b/.test(text) && entities.length) indexes.push(entities.length - 1);
+    const uniqueIndexes = indexes.filter(function (index, position) { return indexes.indexOf(index) === position; });
+    const wantsSummary = /\b(?:resuma|resumir|resumo)\b/.test(text);
+    const wantsComparison = /\b(?:compare|comparar|entre\s+eles|entre\s+elas)\b/.test(text) && uniqueIndexes.length >= 2;
+    const wantsSeverity = /\b(?:mais\s+grave|mais\s+serio|mais\s+cr[ití]tico|pior|maior\s+impacto|gravidade)\b/.test(text);
+    let selected = uniqueIndexes.map(function (index) { return entities[index]; });
+    let mode = wantsSummary ? "summary" : wantsComparison ? "comparison" : "reference";
+    let resolved = selected[0] || null;
+    if (wantsSeverity) {
+      resolved = entities.slice().sort(function (a, b) { return scoreEloAnalysisEntity_(b) - scoreEloAnalysisEntity_(a); })[0] || null;
+      selected = resolved ? [resolved] : [];
+      mode = "severity";
+    } else if (!selected.length && /\b(?:os\s+(?:tres|tr[eê]s|dois)|as\s+(?:tres|tr[eê]s|duas))\b/.test(text)) {
+      selected = entities.slice(0, /\b(?:dois|duas)\b/.test(text) ? 2 : 3);
+      mode = "summary";
+    }
+    return {
+      mode: mode,
+      selected: selected,
+      selectedIndexes: selected.map(function (item) { return Number(item.index) || entities.indexOf(item) + 1; }),
+      resolved: resolved,
+      all: entities
+    };
+  }
+
+  function buildEloAnalysisReferenceResponse_(question) {
+    if (!isEloAnalysisReferenceResolutionRequest_(question)) return null;
+    const context = getEloActiveAnalysisContext_();
+    const resolution = resolveEloAnalysisReference_(question, context);
+    if (!context || !resolution) return null;
+    const selected = resolution.selected.length ? resolution.selected : resolution.all;
+    const source = context.sourceRefs && context.sourceRefs.length ? " no arquivo " + context.sourceRefs[0] : " na última análise";
+    let answer = "";
+    if (resolution.mode === "severity") {
+      answer = "Entre os problemas identificados" + source + ", o mais grave é: " + resolution.resolved.label + ". A prioridade foi inferida pelo impacto técnico descrito na análise; confirme em vistoria se necessário.";
+    } else if (resolution.mode === "comparison") {
+      answer = "Comparação dos itens solicitados" + source + ":\n" + selected.map(function (item) { return item.index + ". " + item.label; }).join("\n") + "\n\nA diferença deve ser avaliada pelo impacto, risco e dependências indicados na análise.";
+    } else if (resolution.mode === "summary") {
+      answer = "Resumo dos itens solicitados" + source + ":\n" + selected.map(function (item) { return item.index + ". " + item.label; }).join("\n");
+    } else {
+      answer = "O item solicitado" + source + " é: " + selected[0].label;
+    }
+    return {
+      shortAnswer: answer.split("\n")[0],
+      fullAnswer: answer,
+      nextAction: "Você pode comparar outro item ou pedir um relatório desta análise.",
+      canSave: false,
+      sessionTheme: context.activeSubject || "pdf",
+      sessionIntent: "document_context_follow_up",
+      activeSubject: context.activeSubject || "",
+      active_subject: context.activeSubject || "",
+      contextResolution: {
+        source: "last_meaningful_analysis",
+        mode: resolution.mode,
+        selectedEntities: selected,
+        lastAnswerEntities: context.lastAnswerEntities || context.entities || [],
+        lastDocumentEntities: context.lastDocumentEntities || [],
+        documentId: context.documentId || context.activeDocumentId || "",
+        conversationId: context.conversationId || ""
+      }
+    };
+  }
+
   function rememberEloActiveAnalysisContext_(question, response, answer) {
     const cleanAnswer = sanitizeUserText(answer || response && (response.fullAnswer || response.shortAnswer) || "").slice(0, 5000);
     if (!cleanAnswer || !isEloAnalysisLikeResponse_(question, response, cleanAnswer)) return null;
     const cleanQuestion = sanitizeUserText(question || "");
     const documentContext = getEloActiveDocumentContext_ && getEloActiveDocumentContext_();
     const sourceType = /\bfotos?|imagem\b/.test(normalizeText(cleanQuestion)) ? "photos" : documentContext ? "file" : /\brdo|diario\b/.test(normalizeText(cleanQuestion)) ? "rdo" : /\bvistoria\b/.test(normalizeText(cleanQuestion)) ? "inspection" : "analysis";
+    const findings = extractEloAnalysisLines_(cleanAnswer, /\b(?:falta|baixa|atraso|problema|falha|ausencia|risco|baixo|infiltracao|fissura|trinca|inconformidade|pendencia)\b/);
+    const risks = extractEloAnalysisLines_(cleanAnswer, /\b(?:risco|impacto|compromete|comprometer|atraso|cronograma|confiabilidade|seguranca)\b/);
+    const recommendations = extractEloAnalysisLines_(cleanAnswer, /\b(?:recomendo|recomenda|regularizacao|melhoria|corrigir|ajustar|verificar|acompanhar)\b/);
+    const answerEntities = extractEloAnalysisEntities_(cleanAnswer, findings, extractEloWorkingMemoryItems_(cleanAnswer));
+    const documentEntities = extractEloDocumentEntities_(documentContext);
+    const documentId = documentContext && documentContext.documents && documentContext.documents[0] ? sanitizeUserText(documentContext.documents[0].documentId || "") : "";
+    const conversationId = typeof getEloCoreCurrentConversationId_ === "function" ? sanitizeUserText(getEloCoreCurrentConversationId_()) : "";
+    const activeSubject = documentContext ? "pdf" : sourceType;
     const context = {
       type: "analysis_result",
       sourceType: sourceType,
       title: "Analise tecnica recente do ELO",
       summary: cleanAnswer.slice(0, 1200),
-      findings: extractEloAnalysisLines_(cleanAnswer, /\b(?:falta|baixa|atraso|problema|falha|ausencia|risco|baixo|infiltracao|fissura|trinca|inconformidade|pendencia)\b/),
-      risks: extractEloAnalysisLines_(cleanAnswer, /\b(?:risco|impacto|compromete|comprometer|atraso|cronograma|confiabilidade|seguranca)\b/),
-      recommendations: extractEloAnalysisLines_(cleanAnswer, /\b(?:recomendo|recomenda|regularizacao|melhoria|corrigir|ajustar|verificar|acompanhar)\b/),
+      findings: findings,
+      risks: risks,
+      recommendations: recommendations,
+      analysis: cleanAnswer,
+      entities: answerEntities,
+      lastAnswerEntities: answerEntities,
+      last_answer_entities: answerEntities,
+      lastDocumentEntities: documentEntities,
+      last_document_entities: documentEntities,
       sourceRefs: documentContext && documentContext.documents ? documentContext.documents.map(function (doc) { return sanitizeUserText(doc.fileName || doc.type || "documento").slice(0, 140); }) : [],
-      activeDocumentId: documentContext && documentContext.documents && documentContext.documents[0] ? sanitizeUserText(documentContext.documents[0].documentId || "") : "",
-      activeSubject: "pdf",
+      activeDocumentId: documentId,
+      documentId: documentId,
+      document_id: documentId,
+      activeSubject: activeSubject,
+      active_subject: activeSubject,
+      conversationId: conversationId,
+      conversation_id: conversationId,
       createdAt: new Date().toISOString(),
       question: cleanQuestion.slice(0, 500)
     };
     ELO_SESSION_MEMORY.activeAnalysisContext = context;
+    if (answerEntities.length) {
+      ELO_SESSION_MEMORY.activeEntities = answerEntities.map(function (item) { return item.label; });
+      ELO_SESSION_MEMORY.lastEnumeratedItems = ELO_SESSION_MEMORY.activeEntities.slice();
+      ELO_SESSION_MEMORY.lastReferenceSet = ELO_SESSION_MEMORY.activeEntities.slice();
+    }
     rememberEloSubject_(question, response, cleanAnswer);
     persistEloActiveContextState_();
     return context;
@@ -1635,7 +1852,19 @@
       findings: Array.isArray(context.findings) ? context.findings.slice() : [],
       risks: Array.isArray(context.risks) ? context.risks.slice() : [],
       recommendations: Array.isArray(context.recommendations) ? context.recommendations.slice() : [],
-      sourceRefs: Array.isArray(context.sourceRefs) ? context.sourceRefs.slice() : []
+      sourceRefs: Array.isArray(context.sourceRefs) ? context.sourceRefs.slice() : [],
+      entities: getEloAnalysisEntities_(context),
+      lastAnswerEntities: getEloAnalysisEntities_(context),
+      last_answer_entities: getEloAnalysisEntities_(context),
+      lastDocumentEntities: Array.isArray(context.lastDocumentEntities) ? context.lastDocumentEntities.slice() : [],
+      last_document_entities: Array.isArray(context.last_document_entities) ? context.last_document_entities.slice() : [],
+      analysis: sanitizeUserText(context.analysis || context.summary || ""),
+      documentId: sanitizeUserText(context.documentId || context.activeDocumentId || ""),
+      document_id: sanitizeUserText(context.document_id || context.documentId || context.activeDocumentId || ""),
+      activeSubject: sanitizeUserText(context.activeSubject || context.active_subject || ""),
+      active_subject: sanitizeUserText(context.active_subject || context.activeSubject || ""),
+      conversationId: sanitizeUserText(context.conversationId || context.conversation_id || ""),
+      conversation_id: sanitizeUserText(context.conversation_id || context.conversationId || "")
     });
   }
 
@@ -1651,11 +1880,13 @@
 
   function formatEloAnalysisContextReport_(context) {
     const safe = context || {};
-    const findings = Array.isArray(safe.findings) && safe.findings.length ? safe.findings : [safe.summary || "Analise tecnica recente do ELO."];
+    const entityLabels = getEloAnalysisEntities_(safe).map(function (item) { return item.label || item.text || ""; }).filter(Boolean);
+    const findings = Array.isArray(safe.findings) && safe.findings.length ? safe.findings : entityLabels.length ? entityLabels : [safe.summary || "Analise tecnica recente do ELO."];
     const risks = Array.isArray(safe.risks) && safe.risks.length ? safe.risks : [];
     const recommendations = Array.isArray(safe.recommendations) && safe.recommendations.length ? safe.recommendations : [];
     const refs = Array.isArray(safe.sourceRefs) ? safe.sourceRefs.filter(Boolean) : [];
-    return ["RELATORIO TECNICO SIMPLES", "", "IDENTIFICACAO DA OBRA/ARQUIVO", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Nao informado.", "", "DATA", "- " + (safe.createdAt ? String(safe.createdAt).slice(0, 10) : "Nao informada."), "", "OBJETIVO", "- Registrar em formato de relatorio a analise tecnica anterior feita pelo ELO, sem inventar dados ausentes.", "", "RESUMO EXECUTIVO", safe.summary || "Nao havia resumo estruturado; usei a ultima resposta tecnica valida como base.", "", "PROBLEMAS IDENTIFICADOS", findings.map(function (item) { return "- " + item; }).join("\n"), "", "IMPACTOS/RISCOS", risks.length ? risks.map(function (item) { return "- " + item; }).join("\n") : "- Nao informados na analise anterior.", "", "EVIDENCIAS", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Base: analise anterior registrada na conversa.", "", "RECOMENDACOES", recommendations.length ? recommendations.map(function (item) { return "- " + item; }).join("\n") : "- Revisar tecnicamente os pontos identificados antes de emitir documento formal.", "", "CONCLUSAO", "- O relatorio foi preparado a partir da analise anterior do ELO. Dados nao informados, como responsavel tecnico, ART/RRT, assinatura, endereco e identificacao completa da obra, nao foram inventados."].join("\n");
+    const documentId = sanitizeUserText(safe.documentId || safe.activeDocumentId || "");
+    return ["RELATORIO TECNICO SIMPLES", "", "IDENTIFICACAO DA OBRA/ARQUIVO", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Nao informado.", documentId ? "- Document ID: " + documentId : "", "", "DATA", "- " + (safe.createdAt ? String(safe.createdAt).slice(0, 10) : "Nao informada."), "", "OBJETIVO", "- Registrar em formato de relatorio a analise tecnica anterior feita pelo ELO, sem inventar dados ausentes.", "", "RESUMO EXECUTIVO", safe.summary || "Nao havia resumo estruturado; usei a ultima resposta tecnica valida como base.", "", "PROBLEMAS IDENTIFICADOS", findings.map(function (item) { return "- " + item; }).join("\n"), "", "IMPACTOS/RISCOS", risks.length ? risks.map(function (item) { return "- " + item; }).join("\n") : "- Nao informados na analise anterior.", "", "EVIDENCIAS", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Base: analise anterior registrada na conversa.", "", "RECOMENDACOES", recommendations.length ? recommendations.map(function (item) { return "- " + item; }).join("\n") : "- Revisar tecnicamente os pontos identificados antes de emitir documento formal.", "", "CONCLUSAO", "- O relatorio foi preparado a partir da analise anterior do ELO. Dados nao informados, como responsavel tecnico, ART/RRT, assinatura, endereco e identificacao completa da obra, nao foram inventados."].join("\n");
   }
 
   function buildEloReportFromAnalysisContextResponse_(message) {
@@ -1665,7 +1896,8 @@
       return { shortAnswer: "Nao tenho uma analise recente para transformar em relatorio.", fullAnswer: "Nao tenho uma analise recente para transformar em relatorio. Envie ou cole a analise, ou anexe o arquivo/foto para eu analisar primeiro.", nextAction: "Analise um arquivo, foto, RDO ou vistoria antes de pedir o relatorio disso.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context_missing_context", action: "generate_report_from_context" };
     }
     const report = formatEloAnalysisContextReport_(context);
-    return { shortAnswer: "Vou gerar o relatorio real com base na analise anterior.", fullAnswer: "Vou gerar o relatorio real com base na analise anterior.\n\n" + report, nextAction: "Revise o arquivo gerado antes de entregar ao cliente.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: "last_analysis", context: context, text: report, realReportAction: true } };
+    const source = context.activeSubject === "pdf" || context.sourceType === "file" ? "document_analysis" : "last_analysis";
+    return { shortAnswer: "Vou gerar o relatorio real com base na analise anterior.", fullAnswer: "Vou gerar o relatorio real com base na analise anterior.\n\n" + report, nextAction: "Revise o arquivo gerado antes de entregar ao cliente.", canSave: false, sessionTheme: "relatorio_contexto", sessionIntent: "generate_report_from_context", action: "generate_report_from_context", reportFromAnalysisContext: { source: source, context: context, text: report, realReportAction: true, documentId: context.documentId || context.activeDocumentId || "", analysis: context.analysis || context.summary || "", entities: context.entities || [], activeSubject: context.activeSubject || "", conversationId: context.conversationId || "" } };
   }
   function applyEloBudgetRouteContext_() {
     const context = getEloBudgetRouteContext_();
@@ -8240,10 +8472,19 @@
       ? ELO_SESSION_MEMORY.lastReferenceSet
       : (ELO_SESSION_MEMORY.lastEnumeratedItems && ELO_SESSION_MEMORY.lastEnumeratedItems.length ? ELO_SESSION_MEMORY.lastEnumeratedItems : ELO_SESSION_MEMORY.activeEntities);
     const resolvedOrdinal = resolveEloWorkingMemoryOrdinal_(question, items) || resolveEloWorkingMemoryNamedReference_(question, items);
+    const analysisContext = getEloActiveAnalysisContext_();
+    const analysisEntities = analysisContext ? getEloAnalysisEntities_(analysisContext) : [];
+    const analysisResolution = analysisContext ? resolveEloAnalysisReference_(question, analysisContext) : null;
     const lines = [];
     if (ELO_SESSION_MEMORY.activeTopic) lines.push("activeTopic: " + ELO_SESSION_MEMORY.activeTopic);
     if (items && items.length) lines.push("activeEntities: " + items.join(", "));
     if (resolvedOrdinal) lines.push("resolvedReference: " + resolvedOrdinal);
+    if (analysisContext) {
+      lines.push("activeSubject: " + sanitizeUserText(analysisContext.activeSubject || ""));
+      lines.push("lastAnswerEntities: " + analysisEntities.map(function (item) { return item.index + ". " + item.label; }).join(" | "));
+      if (analysisResolution && analysisResolution.resolved) lines.push("resolvedAnalysisReference: " + analysisResolution.resolved.label);
+      if (analysisResolution && analysisResolution.mode) lines.push("analysisReferenceMode: " + analysisResolution.mode);
+    }
     lines.push("detailLevel: " + String(ELO_SESSION_MEMORY.detailLevel || 0));
     if (isEloWorkingMemoryDeepeningRequest_(question)) lines.push("instruction: trate a pergunta atual como continuidade do tópico/lista ativa e aumente uma camada de profundidade sem repetir a resposta anterior.");
     return lines.filter(Boolean).join("\n");
@@ -8723,6 +8964,38 @@
     return true;
   }
 
+  function applyEloActiveAnalysisContextToPayload_(payload, question) {
+    const context = getEloActiveAnalysisContext_();
+    if (!context) return false;
+    const activeDocumentReference = isEloActiveDocumentReference_(question);
+    const analysisReference = resolveEloAnalysisReference_(question, context);
+    if (!activeDocumentReference && !analysisReference) return false;
+    const entities = getEloAnalysisEntities_(context);
+    const source = {
+      source: "last_meaningful_analysis",
+      documentId: context.documentId || context.activeDocumentId || "",
+      document_id: context.document_id || context.documentId || context.activeDocumentId || "",
+      analysis: context.analysis || context.summary || "",
+      entities: entities,
+      lastAnswerEntities: entities,
+      last_answer_entities: entities,
+      lastDocumentEntities: context.lastDocumentEntities || [],
+      last_document_entities: context.last_document_entities || [],
+      activeSubject: context.activeSubject || context.active_subject || "",
+      active_subject: context.active_subject || context.activeSubject || "",
+      conversationId: context.conversationId || context.conversation_id || "",
+      conversation_id: context.conversation_id || context.conversationId || ""
+    };
+    payload.context.lastMeaningfulAnalysis = source;
+    payload.context.last_meaningful_analysis = source;
+    payload.context.analysisEntities = entities;
+    payload.context.last_answer_entities = entities;
+    payload.context.activeSubject = source.activeSubject;
+    payload.context.active_subject = source.active_subject;
+    if (analysisReference) payload.context.resolvedAnalysisReference = analysisReference;
+    return true;
+  }
+
   function prepareEloPdfAttachmentContext_(question, files) {
     const pdfFiles = Array.prototype.slice.call(files || []).filter(isEloPdfAttachment_);
     if (!pdfFiles.length) {
@@ -8877,6 +9150,7 @@
     });
     if (!files.length) {
       applyEloActiveDocumentContextToPayload_(payload, payload.message);
+      applyEloActiveAnalysisContextToPayload_(payload, payload.message);
     }
 
     if (files.length) {
@@ -35191,6 +35465,9 @@ function isEloResidentialNewPipelineEnabled_() {
     generateReportFromAnalysisContextForTest: function (message) { return generateEloReportPdfFromChat_(message, [], getEloActiveAnalysisContext_()); },
     rememberActiveAnalysisForTest: rememberEloActiveAnalysisContext_,
     getActiveAnalysisForTest: getEloActiveAnalysisContext_,
+    resolveAnalysisReferenceForTest: function (message) { return resolveEloAnalysisReference_(message, getEloActiveAnalysisContext_()); },
+    buildAnalysisReferenceResponseForTest: buildEloAnalysisReferenceResponse_,
+    isAnalysisReferenceRequestForTest: isEloAnalysisReferenceResolutionRequest_,
     detectExplicitMemoryCommandForTest: isEloExplicitMemoryCommand_,
     buildExplicitMemoryCommandForTest: buildEloExplicitMemoryCommandResponse_,
     getPersonalMemoriesForTest: getPersonalMemories,

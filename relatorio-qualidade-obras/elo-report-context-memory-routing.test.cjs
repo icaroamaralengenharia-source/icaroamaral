@@ -115,6 +115,86 @@ test("reutiliza o PDF ativo em follow-ups curtos e preserva o contexto após mat
   assert.equal(afterMath.documents[0].documentId.length > 0, true);
 });
 
+test("resolve referencias plurais contra as entidades da ultima analise, sem depender da frase exata", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "orcamento-e2e.pdf", text: "Area construida: 70 m2. Problemas: precos oficiais ausentes; fundacao e piso sem detalhes; escopo incompleto." }]);
+  const answer = [
+    "Analise tecnica do PDF do orcamento.",
+    "Principais problemas encontrados:",
+    "1. Ausencia de precos oficiais, impedindo fechar um custo confiavel.",
+    "2. Fundacao e piso sem detalhes tecnicos suficientes.",
+    "3. Escopo do orcamento incompleto, com servicos e quantidades faltantes."
+  ].join("\n");
+  api.rememberActiveAnalysisForTest("resuma este PDF", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+
+  for (const phrase of [
+    "qual deles e mais grave?",
+    "qual deles aparece primeiro?",
+    "e o segundo?",
+    "e o ultimo?",
+    "entre eles qual e pior?",
+    "compare o primeiro com o terceiro",
+    "qual deles tem maior impacto?",
+    "resuma os tres"
+  ]) {
+    assert.equal(api.isAnalysisReferenceRequestForTest(phrase), true, phrase);
+    const response = api.buildAnalysisReferenceResponseForTest(phrase);
+    assert.ok(response, phrase);
+    assert.equal(response.sessionIntent, "document_context_follow_up", phrase);
+    assert.ok(response.contextResolution.selectedEntities.length > 0, phrase);
+  }
+
+  const severity = api.buildAnalysisReferenceResponseForTest("qual deles e mais grave?");
+  assert.match(severity.fullAnswer, /precos oficiais/i);
+  const comparison = api.buildAnalysisReferenceResponseForTest("compare o primeiro com o terceiro");
+  assert.match(comparison.fullAnswer, /precos oficiais/i);
+  assert.match(comparison.fullAnswer, /escopo.*incompleto/i);
+});
+
+test("relatorio contextual conserva fonte, entidades e precedencia quando o PDF continua ativo", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "analise-pdf.pdf", text: "Problema: ausencia de precos oficiais." }]);
+  const answer = "Analise do documento: falta de precos oficiais e risco de custo nao confiavel.";
+  api.rememberActiveAnalysisForTest("analise este PDF", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+
+  const route = api.detectCommandBridgeRequestForTest("gere um relatorio disso");
+  assert.equal(route.module, "obrareport_report");
+  assert.equal(route.action, "generate_report_from_context");
+  const response = api.buildReportFromAnalysisContextForTest("gere um relatorio disso");
+  assert.equal(response.reportFromAnalysisContext.source, "document_analysis");
+  assert.equal(response.reportFromAnalysisContext.activeSubject, "pdf");
+  assert.ok(response.reportFromAnalysisContext.entities.length > 0);
+  assert.match(response.fullAnswer, /precos oficiais/i);
+});
+
+test("cobre os quatro fluxos obrigatorios de relatorio contextual", () => {
+  const pdfAnswer = "Analise tecnica do PDF: falta de precos oficiais e escopo incompleto.";
+
+  const scenarioA = loadElo();
+  scenarioA.api.rememberActiveDocumentForTest([{ fileName: "a.pdf", text: "Problemas: falta de precos oficiais e escopo incompleto." }]);
+  scenarioA.api.rememberActiveAnalysisForTest("analise este PDF", { fullAnswer: pdfAnswer, sessionIntent: "document_analysis" }, pdfAnswer);
+  assert.equal(scenarioA.api.buildReportFromAnalysisContextForTest("gere um relatorio disso").reportFromAnalysisContext.source, "document_analysis");
+
+  const scenarioB = loadElo();
+  scenarioB.api.rememberActiveDocumentForTest([{ fileName: "b.pdf", text: "Problemas: falta de precos oficiais e escopo incompleto." }]);
+  scenarioB.api.rememberActiveAnalysisForTest("analise este PDF", { fullAnswer: pdfAnswer, sessionIntent: "document_analysis" }, pdfAnswer);
+  scenarioB.api.rememberSessionTurnForTest("calcule 15% de 38000", { sessionTheme: "matematica", sessionIntent: "math" }, "Resultado: 5700");
+  assert.ok(scenarioB.api.buildReportFromAnalysisContextForTest("gere um relatorio disso").reportFromAnalysisContext.entities.length > 0);
+
+  const scenarioC = loadElo();
+  scenarioC.api.rememberActiveDocumentForTest([{ fileName: "c.pdf", text: "Problemas: falta de precos oficiais e escopo incompleto." }]);
+  scenarioC.api.rememberActiveAnalysisForTest("analise este PDF", { fullAnswer: pdfAnswer, sessionIntent: "document_analysis" }, pdfAnswer);
+  scenarioC.api.rememberSessionTurnForTest("por que o ceu e azul?", { sessionTheme: "conversa_geral", sessionIntent: "general" }, "A luz azul se espalha mais na atmosfera.");
+  assert.equal(scenarioC.api.buildReportFromAnalysisContextForTest("gere um relatorio disso").reportFromAnalysisContext.documentId.length > 0, true);
+
+  const scenarioD = loadElo();
+  const engineeringAnswer = "Analise tecnica de engenharia: risco estrutural na viga e necessidade de vistoria.";
+  scenarioD.api.rememberActiveAnalysisForTest("analise esta vistoria de engenharia", { fullAnswer: engineeringAnswer, sessionIntent: "engineering_analysis" }, engineeringAnswer);
+  const reportD = scenarioD.api.buildReportFromAnalysisContextForTest("gere um relatorio disso");
+  assert.equal(reportD.reportFromAnalysisContext.source, "last_analysis");
+  assert.match(reportD.fullAnswer, /risco estrutural/i);
+});
+
 test("memorize tem precedência sobre relatório, salva memória canônica e preserva fallback local genérico", async () => {
   const { api, fetchCalls, fetchRequests } = loadElo();
   api.rememberActiveAnalysisForTest("analise a residência teste", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
