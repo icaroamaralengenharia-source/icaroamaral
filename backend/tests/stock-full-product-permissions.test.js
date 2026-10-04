@@ -52,11 +52,15 @@ function createSupabaseProductMock() {
         filters.push({ column, value });
         return this;
       },
+      is(column, value) {
+        filters.push({ column, value, isNull: value === null });
+        return this;
+      },
       select() {
         return this;
       },
       async maybeSingle() {
-        const row = items.find((item) => filters.every((filter) => item[filter.column] === filter.value));
+        const row = items.find((item) => filters.every((filter) => filter.isNull ? item[filter.column] == null : item[filter.column] === filter.value));
         if (!row) return { data: null, error: null };
         Object.assign(row, updatePayload || {});
         return { data: row, error: null };

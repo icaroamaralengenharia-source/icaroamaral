@@ -2508,11 +2508,10 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_items")
         .select("*")
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .eq("is_active", true)
         .order("name", { ascending: true });
       if (error) {
@@ -2600,12 +2599,11 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_items")
         .update(validation.payload)
         .eq("id", itemId)
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2648,12 +2646,11 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_items")
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("id", itemId)
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2686,11 +2683,10 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_entries")
         .select("*")
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -2762,12 +2758,11 @@ export function createApp(options = {}) {
 
       const previousBalance = parsePositiveNumber_(item.current_quantity, 0);
       const nextQuantity = previousBalance + validation.payload.quantity;
-      const { data: updatedItem, error: updateError } = await database
+      const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
         .from("stock_full_items")
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
         .eq("id", item.id)
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2832,11 +2827,10 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_exits")
         .select("*")
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -2900,12 +2894,11 @@ export function createApp(options = {}) {
       }
 
       const nextQuantity = currentQuantity - validation.payload.quantity;
-      const { data: updatedItem, error: updateError } = await database
+      const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
         .from("stock_full_items")
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
         .eq("id", item.id)
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .eq("is_active", true)
         .select("*")
         .maybeSingle();
@@ -2971,11 +2964,10 @@ export function createApp(options = {}) {
     }
 
     try {
-      const { data, error } = await database
+      const { data, error } = await applyStockFullProjectScope_(database
         .from("stock_full_audit_log")
         .select("*")
-        .eq("institution_id", session.profile.institution_id)
-        .eq("project_id", workScope.projectId)
+        .eq("institution_id", session.profile.institution_id), workScope.projectId)
         .order("created_at", { ascending: false });
       if (error) {
         throw error;
@@ -3300,9 +3292,9 @@ export function createApp(options = {}) {
 
     try {
       const [entriesResult, exitsResult, auditResult] = await Promise.all([
-        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
-        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
-        database.from("stock_full_audit_log").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false })
+        applyStockFullProjectScope_(database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).order("created_at", { ascending: false }),
+        applyStockFullProjectScope_(database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).order("created_at", { ascending: false }),
+        applyStockFullProjectScope_(database.from("stock_full_audit_log").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).order("created_at", { ascending: false })
       ]);
       if (entriesResult.error || exitsResult.error || auditResult.error) {
         throw entriesResult.error || exitsResult.error || auditResult.error;
@@ -3355,9 +3347,9 @@ export function createApp(options = {}) {
 
     try {
       const [itemsResult, entriesResult, exitsResult] = await Promise.all([
-        database.from("stock_full_items").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).eq("is_active", true).order("name", { ascending: true }),
-        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false }),
-        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).eq("project_id", workScope.projectId).order("created_at", { ascending: false })
+        applyStockFullProjectScope_(database.from("stock_full_items").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).eq("is_active", true).order("name", { ascending: true }),
+        applyStockFullProjectScope_(database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).order("created_at", { ascending: false }),
+        applyStockFullProjectScope_(database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id), workScope.projectId).order("created_at", { ascending: false })
       ]);
       if (itemsResult.error || entriesResult.error || exitsResult.error) {
         throw itemsResult.error || entriesResult.error || exitsResult.error;
@@ -5204,8 +5196,11 @@ async function requireStockFullAuth_(request, response, supabase) {
 async function requireStockFullWork_(request, response, supabase, profile) {
   const projectId = getStockFullProjectId(request);
   if (!projectId) {
-    response.status(400).json({ ok: false, error: STOCK_FULL_WORK_REQUIRED });
-    return null;
+    return {
+      projectId: null,
+      work: null,
+      project: null
+    };
   }
 
   try {
@@ -5231,6 +5226,11 @@ async function requireStockFullWork_(request, response, supabase, profile) {
     response.status(500).json({ ok: false, error: "stock_full_work_lookup_failed" });
     return null;
   }
+}
+
+function applyStockFullProjectScope_(query, projectId) {
+  const normalizedProjectId = clean_(projectId);
+  return normalizedProjectId ? query.eq("project_id", normalizedProjectId) : query.is("project_id", null);
 }
 
 function sanitizeStockFullProfile_(profile) {
@@ -5518,7 +5518,7 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
   const update = Boolean(options.update);
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
-    project_id: clean_(options.workId || options.projectId),
+    project_id: clean_(options.workId || options.projectId) || null,
     name: clean_(body.name),
     unit: clean_(body.unit) || "un",
     category: clean_(body.category) || "Geral",
@@ -5531,9 +5531,6 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
 
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
-  }
-  if (!payload.project_id && !update) {
-    return { ok: false, error: "WORK_REQUIRED" };
   }
   if (!payload.name) {
     return { ok: false, error: "name_required" };
@@ -5590,7 +5587,7 @@ function mapStockFullItemFromDatabase_(item) {
 function validateStockFullEntryPayload_(body, profile, projectId = "") {
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
-    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id),
+    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id) || null,
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     unit_cost: body.unitCost === undefined && body.unit_cost === undefined
@@ -5612,9 +5609,6 @@ function validateStockFullEntryPayload_(body, profile, projectId = "") {
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
-  if (!payload.project_id) {
-    return { ok: false, error: "WORK_REQUIRED" };
-  }
   if (!payload.item_id) {
     return { ok: false, error: "item_id_required" };
   }
@@ -5630,7 +5624,7 @@ function validateStockFullEntryPayload_(body, profile, projectId = "") {
 function validateStockFullExitPayload_(body, profile, projectId = "") {
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
-    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id),
+    project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id) || null,
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     destination: clean_(body.destination),
@@ -5648,9 +5642,6 @@ function validateStockFullExitPayload_(body, profile, projectId = "") {
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
-  if (!payload.project_id) {
-    return { ok: false, error: "WORK_REQUIRED" };
-  }
   if (!payload.item_id) {
     return { ok: false, error: "item_id_required" };
   }
@@ -5667,7 +5658,7 @@ async function getStockFullItemForProfile_(database, itemId, profile, projectId 
     .eq("id", itemId)
     .eq("institution_id", profile.institution_id)
     .eq("is_active", true);
-  if (clean_(projectId)) query = query.eq("project_id", clean_(projectId));
+  query = applyStockFullProjectScope_(query, projectId);
   const { data, error } = await query.maybeSingle();
   if (error) {
     throw error;

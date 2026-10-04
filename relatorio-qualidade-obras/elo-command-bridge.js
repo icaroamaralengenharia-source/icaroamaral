@@ -255,19 +255,18 @@
     const config = Object.assign({ method: "GET" }, options || {});
     config.headers = Object.assign({}, stockHeaders(input), config.headers || {});
     const projectId = getCurrentWorkId_(input);
-    if (!projectId) return Promise.reject(new Error("WORK_REQUIRED"));
     if (config.body && typeof config.body === "string") {
       try {
         const body = JSON.parse(config.body);
         if (body && typeof body === "object" && !Array.isArray(body)) {
-          body.projectId = body.projectId || body.project_id || projectId;
-          if (Array.isArray(body.movements)) body.movements = body.movements.map(function (movement) { return Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || projectId }); });
+          if (projectId && !body.projectId && !body.project_id) body.projectId = projectId;
+          if (Array.isArray(body.movements) && projectId) body.movements = body.movements.map(function (movement) { return Object.assign({}, movement, { projectId: movement.projectId || movement.project_id || projectId }); });
           config.body = JSON.stringify(body);
         }
       } catch (error) {}
     }
     let endpoint = getStockEndpoint(path);
-    if (String(config.method || "GET").toUpperCase() === "GET") endpoint += (endpoint.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
+    if (String(config.method || "GET").toUpperCase() === "GET" && projectId) endpoint += (endpoint.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
     return window.fetch(endpoint, config).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false) {
