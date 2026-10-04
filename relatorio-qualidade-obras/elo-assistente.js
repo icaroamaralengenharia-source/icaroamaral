@@ -23,7 +23,8 @@
     criticalHealthEndpoint: getEloBackendEndpoint_("/api/health"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory"),
     budgetRecordsStorageKey: "elo_budget_records_v1",
-    budgetCounterStorageKey: "elo_budget_counter_v1"
+    budgetCounterStorageKey: "elo_budget_counter_v1",
+    activeContextStorageKey: "elo_active_document_analysis_context_v2"
   };
   const ELO_CORE_CONTEXT_STORAGE_KEY = "elo_core_tool_contexts_v1";
   const ELO_CORE_LAST_CONTEXT_KEY = "elo_core_last_context_id_v1";
@@ -1527,6 +1528,72 @@
     return hasAnalysisIntent && hasTechnicalContext;
   }
 
+  function getEloActiveContextStorageKey_() {
+    try {
+      const anonymousId = typeof getEloCoreAnonymousId_ === "function" ? getEloCoreAnonymousId_() : "local";
+      return ELO_CONFIG.activeContextStorageKey + "_" + sanitizeUserText(anonymousId || "local").slice(0, 120);
+    } catch (error) {
+      return ELO_CONFIG.activeContextStorageKey;
+    }
+  }
+
+  function persistEloActiveContextState_() {
+    try {
+      const state = {
+        activeDocumentContext: ELO_SESSION_MEMORY.activeDocumentContext || null,
+        activeAnalysisContext: ELO_SESSION_MEMORY.activeAnalysisContext || null,
+        subjectStack: Array.isArray(ELO_SESSION_MEMORY.subjectStack) ? ELO_SESSION_MEMORY.subjectStack.slice(0, 6) : [],
+        savedAt: new Date().toISOString()
+      };
+      window.localStorage.setItem(getEloActiveContextStorageKey_(), JSON.stringify(state));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function restoreEloActiveContextState_() {
+    try {
+      const raw = window.localStorage.getItem(getEloActiveContextStorageKey_());
+      const state = raw ? JSON.parse(raw) : null;
+      if (!state || typeof state !== "object") return false;
+      if (state.activeDocumentContext && Array.isArray(state.activeDocumentContext.documents)) {
+        ELO_SESSION_MEMORY.activeDocumentContext = state.activeDocumentContext;
+      }
+      if (state.activeAnalysisContext && state.activeAnalysisContext.type === "analysis_result") {
+        ELO_SESSION_MEMORY.activeAnalysisContext = state.activeAnalysisContext;
+      }
+      ELO_SESSION_MEMORY.subjectStack = Array.isArray(state.subjectStack) ? state.subjectStack.slice(0, 6) : [];
+      return !!(ELO_SESSION_MEMORY.activeDocumentContext || ELO_SESSION_MEMORY.activeAnalysisContext);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function clearEloActiveContextState_() {
+    ELO_SESSION_MEMORY.activeDocumentContext = null;
+    ELO_SESSION_MEMORY.activeAnalysisContext = null;
+    ELO_SESSION_MEMORY.subjectStack = [];
+    try { window.localStorage.removeItem(getEloActiveContextStorageKey_()); } catch (error) {}
+  }
+
+  function getEloSubjectKey_(question, response, answer) {
+    const text = normalizeText([question, response && response.sessionTheme, response && response.sessionIntent, answer].filter(Boolean).join(" "));
+    if (isEloActiveDocumentReference_(question) || /\b(?:pdf|arquivo|documento|anexo|livro|contrato|inconformidade|problemas?\s+encontrados?)\b/.test(text)) return "pdf";
+    if (/\b(?:quanto|calcule|calcular|resultado|porcentagem|percentual|\d+\s*[+\-x*\/÷]\s*\d+)\b/.test(text)) return "math";
+    if (/\b(?:engenharia|engenheiro|viga|pilar|fundacao|fundação|concreto|inspecao|inspeção|obra|tecnico|técnico)\b/.test(text)) return "engineering";
+    return "general";
+  }
+
+  function rememberEloSubject_(question, response, answer) {
+    const key = getEloSubjectKey_(question, response, answer);
+    const stack = Array.isArray(ELO_SESSION_MEMORY.subjectStack) ? ELO_SESSION_MEMORY.subjectStack : [];
+    ELO_SESSION_MEMORY.subjectStack = [{ key: key, updatedAt: new Date().toISOString() }].concat(stack.filter(function (item) {
+      return item && item.key !== key;
+    })).slice(0, 6);
+    return ELO_SESSION_MEMORY.subjectStack;
+  }
+
   function extractEloAnalysisLines_(text, pattern) {
     const clean = sanitizeUserText(text || "");
     if (!clean) return [];
@@ -1550,10 +1617,14 @@
       risks: extractEloAnalysisLines_(cleanAnswer, /\b(?:risco|impacto|compromete|comprometer|atraso|cronograma|confiabilidade|seguranca)\b/),
       recommendations: extractEloAnalysisLines_(cleanAnswer, /\b(?:recomendo|recomenda|regularizacao|melhoria|corrigir|ajustar|verificar|acompanhar)\b/),
       sourceRefs: documentContext && documentContext.documents ? documentContext.documents.map(function (doc) { return sanitizeUserText(doc.fileName || doc.type || "documento").slice(0, 140); }) : [],
+      activeDocumentId: documentContext && documentContext.documents && documentContext.documents[0] ? sanitizeUserText(documentContext.documents[0].documentId || "") : "",
+      activeSubject: "pdf",
       createdAt: new Date().toISOString(),
       question: cleanQuestion.slice(0, 500)
     };
     ELO_SESSION_MEMORY.activeAnalysisContext = context;
+    rememberEloSubject_(question, response, cleanAnswer);
+    persistEloActiveContextState_();
     return context;
   }
 
@@ -3315,7 +3386,7 @@
     renderEloCoreAuthPanel_();
   }
 
-  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
+  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
     ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1;
@@ -7811,6 +7882,8 @@
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
     activeDocumentContext: null,
+    activeAnalysisContext: null,
+    subjectStack: [],
     activeConversationTopic: "",
     activeTopic: "",
     activeEntities: [],
@@ -8210,6 +8283,8 @@
         return item !== detectedIntent;
       })).slice(0, 3);
     }
+    rememberEloSubject_(question, safeResponse, answer);
+    persistEloActiveContextState_();
   }
   function getSessionContinuationResponse(normalizedQuestion) {
     if (!isSessionContinuationQuestion(normalizedQuestion)) {
@@ -8570,10 +8645,18 @@
     const safe = entry && typeof entry === "object" ? entry : {};
     const text = sanitizeUserText(safe.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
     if (!text) return null;
+    const fileName = sanitizeUserText(safe.fileName || "documento.pdf") || "documento.pdf";
+    const source = fileName + "\n" + text;
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = ((hash << 5) - hash) + source.charCodeAt(index);
+      hash |= 0;
+    }
     return {
-      fileName: sanitizeUserText(safe.fileName || "documento.pdf") || "documento.pdf",
+      fileName: fileName,
       text: text,
-      type: sanitizeUserText(safe.type || "pdf") || "pdf"
+      type: sanitizeUserText(safe.type || "pdf") || "pdf",
+      documentId: sanitizeUserText(safe.documentId || ("elo_doc_" + Math.abs(hash).toString(36))).slice(0, 140)
     };
   }
 
@@ -8582,8 +8665,12 @@
     if (!documents.length) return null;
     ELO_SESSION_MEMORY.activeDocumentContext = {
       documents: documents,
+      activeDocumentId: documents[0] && documents[0].documentId || "",
+      activeSubject: "pdf",
       updatedAt: new Date().toISOString()
     };
+    rememberEloSubject_("PDF/anexo", { sessionTheme: "pdf", sessionIntent: "document_analysis" }, "");
+    persistEloActiveContextState_();
     return ELO_SESSION_MEMORY.activeDocumentContext;
   }
 
@@ -8591,7 +8678,11 @@
     const context = ELO_SESSION_MEMORY.activeDocumentContext;
     if (!context || !Array.isArray(context.documents)) return null;
     const documents = context.documents.map(normalizeEloActiveDocumentEntry_).filter(Boolean);
-    return documents.length ? Object.assign({}, context, { documents: documents }) : null;
+    return documents.length ? Object.assign({}, context, {
+      documents: documents,
+      activeDocumentId: sanitizeUserText(context.activeDocumentId || documents[0].documentId || ""),
+      activeSubject: "pdf"
+    }) : null;
   }
 
   function isEloActiveDocumentReference_(question) {
@@ -8627,6 +8718,8 @@
     payload.message = buildEloQuestionWithPdfContext_(payload.message, activeDocument.documents);
     payload.context.documentsSummary = buildEloActiveDocumentSummary_(activeDocument);
     payload.context.activeDocumentReused = true;
+    payload.context.activeDocumentId = activeDocument.activeDocumentId || activeDocument.documents[0].documentId || "";
+    payload.context.activeSubject = "pdf";
     return true;
   }
 
@@ -34856,6 +34949,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.form = form;
     ELO_UI.attachments = [];
     ELO_UI.awaitingStandaloneName = false;
+    restoreEloActiveContextState_();
     ensureEloVoiceControls_(form, input);
 
     if (attachmentButton && attachmentInput && !attachmentButton.dataset.eloEngineBound) {

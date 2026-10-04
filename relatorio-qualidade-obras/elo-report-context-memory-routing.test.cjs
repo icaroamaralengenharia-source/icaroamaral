@@ -95,6 +95,26 @@ test("consulta de relatórios existentes continua na rota de listagem", () => {
   assert.equal(route.action, "list_reports");
 });
 
+test("reutiliza o PDF ativo em follow-ups curtos e preserva o contexto após matematica", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "contrato-e2e.pdf", text: "Contrato 13/2024. Codigo 42. Principal problema: falta de tampa." }]);
+
+  assert.equal(api.isActiveDocumentReferenceForTest("quais os principais problemas encontrados?"), true);
+  assert.equal(api.isActiveDocumentReferenceForTest("qual e o codigo?"), true);
+  assert.equal(api.isActiveDocumentReferenceForTest("e o segundo?"), true);
+  assert.equal(api.isActiveDocumentReferenceForTest("voltando ao PDF, qual era o codigo?"), true);
+
+  const payload = { message: "qual e o codigo?", context: {} };
+  assert.equal(api.applyActiveDocumentContextToPayloadForTest(payload, payload.message), true);
+  assert.match(payload.context.documentsSummary, /contrato-e2e\.pdf/i);
+  assert.match(payload.message, /Codigo 42/i);
+
+  api.rememberSessionTurnForTest("quanto e 15% de 38000", { sessionTheme: "matematica", sessionIntent: "math" }, "Resultado: 5700");
+  const afterMath = api.getActiveDocumentForTest();
+  assert.ok(afterMath);
+  assert.equal(afterMath.documents[0].documentId.length > 0, true);
+});
+
 test("memorize tem precedência sobre relatório, salva memória canônica e preserva fallback local genérico", async () => {
   const { api, fetchCalls, fetchRequests } = loadElo();
   api.rememberActiveAnalysisForTest("analise a residência teste", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
@@ -187,9 +207,10 @@ test("ação de relatório de contexto usa o mesmo gerador real e preserva os ac
   api.rememberActiveAnalysisForTest("analise essa foto", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
   await api.generateReportFromAnalysisContextForTest("gere um relatório disso");
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://script.test/report");
+  assert.match(calls[0].url, /(?:\/api\/obrareport\/documents\/generate|https:\/\/script\.test\/report)$/);
   const payload = JSON.parse(calls[0].options.body);
-  assert.equal(payload.fotosUnidade.length, 0);
-  assert.match(payload.report.observacoes, /falta de material/i);
-  assert.match(payload.inconformidades[0].descricaoTecnica, /falta de material/i);
+  const reportPayload = payload.generatorPayload || payload;
+  assert.equal(reportPayload.fotosUnidade.length, 0);
+  assert.match(reportPayload.report.observacoes, /falta de material/i);
+  assert.match(reportPayload.inconformidades[0].descricaoTecnica, /falta de material/i);
 });
