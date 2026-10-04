@@ -163,6 +163,15 @@ test("separa entidades numeradas quando a resposta chega em um unico paragrafo",
   assert.match(response.fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
 });
 
+test("orquestrador central resolve referencias antes da chamada online", () => {
+  const { api } = loadElo();
+  const answer = "Problemas encontrados: 1. Cliente não informado. 2. Fundação e estrutura sem validação.";
+  api.rememberActiveDocumentForTest([{ fileName: "orquestrador.pdf", text: "Problemas de orçamento." }]);
+  api.rememberActiveAnalysisForTest("quais os principais problemas encontrados?", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+
+  assert.equal(api.handleAnalysisReferenceForTest("qual deles e mais grave?"), true);
+});
+
 test("relatorio contextual conserva fonte, entidades e precedencia quando o PDF continua ativo", () => {
   const { api } = loadElo();
   api.rememberActiveDocumentForTest([{ fileName: "analise-pdf.pdf", text: "Problema: ausencia de precos oficiais." }]);
