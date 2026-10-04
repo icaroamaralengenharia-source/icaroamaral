@@ -181,6 +181,7 @@ test("separa clausulas tecnicas de analise sem numeracao", () => {
   const context = api.getActiveAnalysisForTest();
   assert.ok(context.lastAnswerEntities.length >= 3);
   assert.match(api.buildAnalysisReferenceResponseForTest("e o segundo?").fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
+  assert.doesNotMatch(api.buildAnalysisReferenceResponseForTest("e o ultimo?").fullAnswer, /Recomendo priorizar/i);
 });
 
 test("orquestrador central resolve referencias antes da chamada online", () => {
