@@ -1704,7 +1704,7 @@
     lines.forEach(function (line) {
       const normalized = normalizeText(line);
       if (!/^\s*(?:[-*•]|\d+[.)])\s+/.test(line)) return;
-      if (normalized && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|não informado|sem )\b/.test(normalized)) {
+      if (normalized && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|não informado|fundacao|estrutura|quantitativos|projeto executivo|bdi|sem )\b/.test(normalized)) {
         candidates.push(line);
       }
     });
@@ -1815,6 +1815,7 @@
       nextAction: "Você pode comparar outro item ou pedir um relatório desta análise.",
       canSave: false,
       skipAutoTts: true,
+      skipActiveAnalysisContext: true,
       responseOrigin: "local_tool",
       sessionTheme: context.activeSubject || "pdf",
       sessionIntent: "document_context_follow_up",
@@ -1833,6 +1834,7 @@
   }
 
   function rememberEloActiveAnalysisContext_(question, response, answer) {
+    if (response && (response.skipActiveAnalysisContext === true || response.sessionIntent === "document_context_follow_up" || response.sessionIntent === "generate_report_from_context")) return null;
     const cleanAnswer = sanitizeUserText(answer || response && (response.fullAnswer || response.shortAnswer) || "").slice(0, 5000);
     if (!cleanAnswer || !isEloAnalysisLikeResponse_(question, response, cleanAnswer)) return null;
     const cleanQuestion = sanitizeUserText(question || "");

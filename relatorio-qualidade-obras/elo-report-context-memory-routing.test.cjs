@@ -170,6 +170,10 @@ test("orquestrador central resolve referencias antes da chamada online", () => {
   api.rememberActiveAnalysisForTest("quais os principais problemas encontrados?", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
 
   assert.equal(api.handleAnalysisReferenceForTest("qual deles e mais grave?"), true);
+  const nextReference = api.buildAnalysisReferenceResponseForTest("qual deles aparece primeiro?");
+  assert.ok(nextReference);
+  assert.match(nextReference.fullAnswer, /Cliente não informado|Cliente nao informado/i);
+  assert.doesNotMatch(nextReference.fullAnswer, /Entre os problemas identificados.*Entre os problemas identificados/i);
 });
 
 test("restaura a ultima analise a partir do historico visual da conversa", () => {
