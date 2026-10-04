@@ -1722,6 +1722,7 @@
         .split(/\s+(?=e\s+(?:a\s+)?(?:falta|aus[eê]ncia|pend[eê]ncia|o\s+or[cç]amento)|al[eé]m\s+disso\b)/i);
       clauses.forEach(function (clause) {
         const cleanClause = sanitizeUserText(clause).replace(/^(?:al[eé]m\s+disso|tamb[eé]m\s+se\s+destaca),?\s*/i, "");
+        if (/^(?:recomendo|recomenda-se|o\s+pr[oó]ximo\s+passo|pr[oó]xima\s+a[cç][aã]o|sugiro)\b/i.test(cleanClause)) return;
         if (cleanClause && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|fundacao|estrutura|quantitativos|projeto executivo|bdi|orcamento preliminar)\b/i.test(normalizeText(cleanClause))) {
           proseCandidates.push(cleanClause);
         }
