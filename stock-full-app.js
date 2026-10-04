@@ -220,7 +220,7 @@
       panel = document.createElement("section");
       panel.id = "stockFullWorkScopePanel";
       panel.className = "stock-full-work-scope-panel";
-      panel.innerHTML = '<div><strong>Obra ativa</strong><span id="stockFullWorkScopeStatus">Selecione a obra antes de operar o estoque.</span></div><label>Obra<select id="stockFullWorkScopeSelect"><option value="">Selecione uma obra</option></select></label>';
+      panel.innerHTML = '<div><strong>Escopo do estoque</strong><span id="stockFullWorkScopeStatus">Operação da empresa/loja sem obra ativa.</span></div><label>Obra<select id="stockFullWorkScopeSelect"><option value="">Empresa/loja (sem obra)</option></select></label>';
       const hero = dashboard.querySelector(".stock-full-dashboard-hero");
       if (hero && hero.parentNode) hero.parentNode.insertBefore(panel, hero);
       else dashboard.insertBefore(panel, dashboard.firstChild);
@@ -228,7 +228,7 @@
     const select = document.getElementById("stockFullWorkScopeSelect");
     const status = document.getElementById("stockFullWorkScopeStatus");
     const currentId = core.getCurrentWorkId ? core.getCurrentWorkId() : "";
-    select.innerHTML = '<option value="">Selecione uma obra</option>' + works.map(function (work) {
+    select.innerHTML = '<option value="">Empresa/loja (sem obra)</option>' + works.map(function (work) {
       return '<option value="' + String(work.id || "").replace(/"/g, "&quot;") + '">' + String(work.name || work.id || "Obra").replace(/[&<>]/g, function (value) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[value]; }) + '</option>';
     }).join("");
     const matching = works.find(function (work) { return String(work.id) === currentId; });
@@ -241,7 +241,7 @@
       status.textContent = "Dados e movimentações limitados a: " + (works[0].name || works[0].id) + ".";
     } else {
       core.clearCurrentWork && core.clearCurrentWork();
-      status.textContent = "Selecione a obra antes de operar o estoque.";
+      status.textContent = "Operação da empresa/loja sem obra ativa.";
     }
     if (!select.dataset.bound) {
       select.dataset.bound = "true";
@@ -249,7 +249,7 @@
         const work = works.find(function (item) { return String(item.id) === select.value; });
         if (!work) {
           core.clearCurrentWork && core.clearCurrentWork();
-          status.textContent = "Selecione a obra antes de operar o estoque.";
+          status.textContent = "Operação da empresa/loja sem obra ativa.";
           return;
         }
         core.setCurrentWork(work);
@@ -268,17 +268,6 @@
       console.error("[Stock Full work scope]", { error: String(error && error.message || error) });
     }
   }
-
-  document.addEventListener("click", function (event) {
-    if (!production || !core.getCurrentWorkId || core.getCurrentWorkId()) return;
-    const target = event.target && event.target.closest ? event.target.closest("[data-almox-action],[data-stock-full-dashboard-action],[data-almox-flow-action]") : null;
-    const action = target && (target.getAttribute("data-almox-action") || target.getAttribute("data-stock-full-dashboard-action") || target.getAttribute("data-almox-flow-action"));
-    if (!target || !/(item|entry|exit)/i.test(action || "")) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const status = document.getElementById("stockFullWorkScopeStatus");
-    if (status) status.textContent = "Selecione a obra antes de operar o estoque.";
-  }, true);
 
   function installProductionGuards() {
     if (!production) return;
