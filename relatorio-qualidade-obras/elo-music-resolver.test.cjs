@@ -437,12 +437,30 @@ test('ELO service worker: cache v5 inclui router, adapter, library.json e 7 audi
     'chopin/nocturne-op-9-no-2.ogg'
   ];
 
-  assert.match(sw, /elo-web-offline-v20-20261003-player-v2/);
+  assert.match(sw, /elo-web-offline-v21-20261004-audio-v1/);
   assert.match(sw, /elo-offline-media-library\.js/);
   assert.match(sw, /elo-offline-memory-adapter\.js/);
   assert.match(sw, /elo-offline-router\.js/);
   assert.match(sw, /offline-media\/classical\/library\.json/);
   for (const audioPath of audioPaths) assert.match(sw, new RegExp(audioPath.replace(/[./-]/g, '\\$&')));
+});
+
+test('ELO offline pack: faixas essenciais apontam para arquivos publicados', () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media', 'pack-v1', 'catalog.json'), 'utf8'));
+  const essentialIds = [
+    'beethoven-fur-elise',
+    'debussy-clair-de-lune',
+    'vivaldi-four-seasons-spring',
+    'pachelbel-canon-in-d',
+    'chopin-nocturne-op-9-no-2'
+  ];
+  for (const id of essentialIds) {
+    const item = catalog.find((candidate) => candidate.id === id);
+    assert.ok(item, id);
+    for (const file of item.files || []) {
+      assert.equal(fs.existsSync(path.join(__dirname, file.path)), true, id + ': ' + file.path);
+    }
+  }
 });
 
 test('ELO media player: local classical toca fila pausa continua e para', async () => {
