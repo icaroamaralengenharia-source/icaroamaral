@@ -43,12 +43,24 @@
     try {
       if (document && document.body) document.body.dataset.eloMediaState = state;
     } catch (error) {}
+    syncPlayPauseControl_();
     log("MEDIA_PLAYER_STATE", {
       state: state,
       videoId: currentMedia && currentMedia.videoId,
       source: currentMedia && currentMedia.source,
       title: currentMedia && currentMedia.title
     });
+  }
+
+  function syncPlayPauseControl_() {
+    const root = document.getElementById(PLAYER_ID);
+    const button = root && root.querySelector('[data-elo-media-action="play-pause"]');
+    if (!button) return;
+    const playing = state === STATE_PLAYING || state === STATE_BUFFERING;
+    button.textContent = playing ? "Ⅱ" : "▶";
+    button.setAttribute("aria-label", playing ? "Pausar mídia" : "Continuar mídia");
+    button.title = playing ? "Pausar mídia" : "Continuar mídia";
+    button.dataset.eloMediaState = playing ? "playing" : "paused";
   }
 
   function readPlayerLayout_() {
@@ -248,7 +260,7 @@
     root.style.top = "0px";
     root.style.right = "auto";
     root.style.bottom = "auto";
-    root.style.width = "min(360px, calc(100vw - 24px))";
+    root.style.width = "min(420px, calc(100vw - 24px))";
     root.style.maxWidth = "calc(100vw - 24px)";
     root.style.background = "#101820";
     root.style.color = "#fff";
@@ -257,7 +269,7 @@
     root.style.zIndex = "9999";
     root.style.display = "none";
     root.style.overflow = "hidden";
-    root.style.borderRadius = "8px";
+    root.style.borderRadius = "16px";
 
     const header = document.createElement("div");
     header.setAttribute("data-elo-media-drag-handle", "true");
@@ -265,7 +277,7 @@
     header.style.alignItems = "center";
     header.style.justifyContent = "space-between";
     header.style.gap = "8px";
-    header.style.padding = "10px 12px";
+    header.style.padding = "7px 10px";
     header.style.background = "rgba(255,255,255,.08)";
     header.style.userSelect = "none";
 
@@ -282,8 +294,8 @@
     minimizeButton.style.border = "1px solid rgba(255,255,255,.22)";
     minimizeButton.style.background = "rgba(255,255,255,.1)";
     minimizeButton.style.color = "#fff";
-    minimizeButton.style.padding = "6px 8px";
-    minimizeButton.style.borderRadius = "6px";
+    minimizeButton.style.padding = "5px 7px";
+    minimizeButton.style.borderRadius = "999px";
     minimizeButton.style.font = "600 11px/1 Inter, system-ui, sans-serif";
     minimizeButton.style.cursor = "pointer";
     header.appendChild(headerTitle);
@@ -296,8 +308,8 @@
 
     const title = document.createElement("div");
     title.setAttribute("data-elo-media-title", "true");
-    title.style.padding = "0 2px";
-    title.style.font = "600 13px/1.35 Inter, system-ui, sans-serif";
+    title.style.padding = "5px 10px 0";
+    title.style.font = "600 12px/1.25 Inter, system-ui, sans-serif";
     title.style.whiteSpace = "nowrap";
     title.style.overflow = "hidden";
     title.style.textOverflow = "ellipsis";
@@ -305,22 +317,25 @@
     const controls = document.createElement("div");
     controls.id = CONTROLS_ID;
     controls.style.display = "flex";
-    controls.style.gap = "8px";
-    controls.style.padding = "10px 12px 12px";
+    controls.style.gap = "5px";
+    controls.style.padding = "7px 8px 8px";
 
-    [["play", "Tocar"], ["pause", "Pausar"], ["resume", "Continuar"], ["stop", "Parar"]].forEach(function (item) {
+    [["previous", "◀"], ["play-pause", "▶"], ["next", "▶|"], ["stop", "■"]].forEach(function (item) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = item[1];
       button.setAttribute("data-elo-media-action", item[0]);
+      button.setAttribute("aria-label", item[0] === "previous" ? "Mídia anterior" : item[0] === "next" ? "Próxima mídia" : item[0] === "stop" ? "Parar mídia" : "Continuar mídia");
+      button.title = button.getAttribute("aria-label");
       button.style.flex = "1";
       button.style.minWidth = "0";
       button.style.border = "1px solid rgba(255,255,255,.22)";
       button.style.background = "rgba(255,255,255,.1)";
       button.style.color = "#fff";
-      button.style.padding = "8px";
-      button.style.borderRadius = "6px";
-      button.style.font = "600 12px/1 Inter, system-ui, sans-serif";
+      button.style.padding = "6px 5px";
+      button.style.borderRadius = "999px";
+      button.style.font = "700 13px/1 Inter, system-ui, sans-serif";
+      button.style.minHeight = "30px";
       controls.appendChild(button);
     });
 
@@ -330,13 +345,14 @@
     root.appendChild(controls);
     document.body.appendChild(root);
 
-    controls.querySelector('[data-elo-media-action="play"]').onclick = function () { return resume(); };
-    controls.querySelector('[data-elo-media-action="pause"]').onclick = function () { return pause(); };
-    controls.querySelector('[data-elo-media-action="resume"]').onclick = function () { return resume(); };
+    controls.querySelector('[data-elo-media-action="previous"]').onclick = function () { return previous(); };
+    controls.querySelector('[data-elo-media-action="play-pause"]').onclick = function () { return togglePlayPause_(); };
+    controls.querySelector('[data-elo-media-action="next"]').onclick = function () { return next(); };
     controls.querySelector('[data-elo-media-action="stop"]').onclick = function () { return stop(); };
     minimizeButton.onclick = function () { return togglePlayerMinimized_(); };
     bindPlayerMovement_(root, header);
     restorePlayerLayout_(root);
+    syncPlayPauseControl_();
 
     log("MEDIA_PLAYER_LOADED", { provider: "youtube_iframe_api" });
     return root;
@@ -480,6 +496,7 @@
     root.style.display = "block";
     destroyPlayer();
     currentMedia = Object.assign({}, media, { source: "LOCAL_CLASSICAL" });
+    if (root.dataset) root.dataset.eloMediaSource = "LOCAL_CLASSICAL";
     localQueue = media.files.map(function (file, index) {
       return Object.assign({}, file, { index: index + 1 });
     });
@@ -501,6 +518,7 @@
       const host = document.getElementById(PLAYER_HOST_ID);
       if (!host) return false;
       root.style.display = "block";
+      if (root.dataset) root.dataset.eloMediaSource = candidate.source || "youtube";
       if (title) title.textContent = candidate.title + (candidate.artist ? " - " + candidate.artist : "");
       currentMedia = candidate;
       setState(STATE_BUFFERING);
@@ -636,9 +654,45 @@
     return true;
   }
 
+  function playLocalLibraryOffset(offset) {
+    if (!currentMedia || currentMedia.source !== "LOCAL_CLASSICAL") return Promise.resolve(false);
+    const library = window.EloOfflineMediaLibrary;
+    if (!library || typeof library.list !== "function") return Promise.resolve(false);
+    const choose = function () {
+      const items = library.list() || [];
+      if (!items.length) return false;
+      const currentIndex = items.findIndex(function (item) { return item && item.id === currentMedia.id; });
+      const nextIndex = (Math.max(0, currentIndex) + offset + items.length) % items.length;
+      const nextMedia = items[nextIndex];
+      if (!nextMedia || !isLocalClassicalMedia(nextMedia)) return false;
+      return playLocalMedia(nextMedia);
+    };
+    const ready = typeof library.init === "function" ? library.init() : Promise.resolve();
+    return Promise.resolve(ready).then(choose);
+  }
+
   function next(media) {
-    if (!media || !isLocalClassicalMedia(media)) return Promise.resolve(false);
-    return playLocalMedia(media);
+    if (media && isLocalClassicalMedia(media)) return playLocalMedia(media);
+    if (ytPlayer && typeof ytPlayer.nextVideo === "function") {
+      ytPlayer.nextVideo();
+      setState(STATE_BUFFERING);
+      return true;
+    }
+    return playLocalLibraryOffset(1);
+  }
+
+  function previous(media) {
+    if (media && isLocalClassicalMedia(media)) return playLocalMedia(media);
+    if (ytPlayer && typeof ytPlayer.previousVideo === "function") {
+      ytPlayer.previousVideo();
+      setState(STATE_BUFFERING);
+      return true;
+    }
+    return playLocalLibraryOffset(-1);
+  }
+
+  function togglePlayPause_() {
+    return state === STATE_PLAYING || state === STATE_BUFFERING ? pause() : resume();
   }
 
   window.EloMediaPlayer = {
@@ -648,6 +702,7 @@
     resume: resume,
     stop: stop,
     next: next,
+    previous: previous,
     getState: function () { return state; },
     getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
     getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },

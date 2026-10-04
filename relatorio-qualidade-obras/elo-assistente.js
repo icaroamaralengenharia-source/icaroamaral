@@ -30089,6 +30089,10 @@ function isEloResidentialNewPipelineEnabled_() {
       logEloMusicEvent_("MUSIC_OFFLINE_BLOCKED", { query: query, candidate: getEloMusicCandidateLabel_(normalized), status: normalized.validationStatus || "" });
       return Promise.resolve(false);
     }
+    if (normalized.source === "LOCAL_CLASSICAL" && Array.isArray(normalized.files) && normalized.files.length) {
+      logEloMusicEvent_("MUSIC_LOCAL_DIRECT_EXECUTION", { query: query, candidate: getEloMusicCandidateLabel_(normalized) });
+      return callEloMusicPlayHandler_(resolver, normalized, query);
+    }
     logEloMusicEvent_("MUSIC_EXECUTE_START", { query: query, candidate: getEloMusicCandidateLabel_(normalized), source: normalized.source });
     const needsRealResolution = options && options.forceResolve === true || normalized.source === "bootstrap" || normalized.source === "local_index" || normalized.source === "catalog" || normalized.source === "elo-music-catalog" || !normalized.videoId || /^known:/i.test(String(normalized.id || ""));
     if (needsRealResolution) {
@@ -30224,8 +30228,14 @@ function isEloResidentialNewPipelineEnabled_() {
   function isEloMediaControlVisible_(element) {
     if (!element || element.disabled || element.getAttribute && element.getAttribute("aria-disabled") === "true") return false;
     if (element.hidden) return false;
-    const style = element.style || {};
-    return style.display !== "none" && style.visibility !== "hidden";
+    let current = element;
+    while (current) {
+      if (current.hidden || current.getAttribute && current.getAttribute("aria-hidden") === "true") return false;
+      const style = current.style || {};
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      current = current.parentElement;
+    }
+    return true;
   }
 
   function scoreEloMediaControl_(element, action) {
@@ -30234,7 +30244,11 @@ function isEloResidentialNewPipelineEnabled_() {
     const expected = action === "resume" ? ["continuar", "continue", "retomar", "retome"] :
       action === "pause" ? ["pausar", "pause", "pausa"] :
         action === "stop" ? ["parar", "pare", "stop"] :
-          ["tocar", "play"];
+          action === "next" ? ["proxima", "proximo", "next", "pula", "troca"] :
+            action === "previous" ? ["anterior", "previous", "volta uma"] :
+              ["tocar", "play"];
+    const mediaState = readEloExistingMediaState_();
+    if (dataAction === "play-pause" && action === (mediaState === ELO_MEDIA_STATE_PLAYING || mediaState === ELO_MEDIA_STATE_BUFFERING ? "pause" : "resume")) return 100;
     if (dataAction === action || (action === "resume" && dataAction === "continue")) return 100;
     for (let index = 0; index < expected.length; index += 1) {
       if (text === expected[index]) return 90;
@@ -30311,6 +30325,8 @@ function isEloResidentialNewPipelineEnabled_() {
       play: function () { return executeEloMediaControl_("play"); },
       pause: function () { return executeEloMediaControl_("pause"); },
       resume: function () { return executeEloMediaControl_("resume"); },
+      next: function () { return executeEloMediaControl_("next"); },
+      previous: function () { return executeEloMediaControl_("previous"); },
       stop: function () { return executeEloMediaControl_("stop"); }
     };
     window.EloMediaPlayer = api;
@@ -30330,8 +30346,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const text = normalizeEloMediaCommandText_(message);
     if (!text) return null;
     if (/^(?:pare temporariamente|para temporariamente|pare por enquanto|para por enquanto)$/.test(text)) return "pause";
-    if (/^(?:pause|pausa|pausar|da uma pausa|de uma pausa)$/.test(text)) return "pause";
-    if (/^(?:continue|continua|continuar|retome|retoma|volte|volta)$/.test(text)) return "resume";
+    if (/^(?:pause|pausa|pausar|pause a musica|pausar a musica|pausa a musica|da uma pausa|de uma pausa)$/.test(text)) return "pause";
+    if (/^(?:continue|continua|continuar|continue a musica|continuar a musica|continue musica|continuar musica|retome a musica|retomar a musica|volta a tocar|volte a tocar|resume|retome|retomar)$/.test(text)) return "resume";
+    if (/^(?:proxima|proximo|next|pula|pular|pule|troca|troque|proxima musica|proximo musica|pula musica|troca a musica)$/.test(text)) return "next";
+    if (/^(?:anterior|previous|volta uma|voltar uma|faixa anterior|musica anterior)$/.test(text)) return "previous";
     if (/^(?:tocar|toca|toque)$/.test(text)) return "play";
     if (/^(?:pare|para|parar|pare a musica|para a musica)$/.test(text)) return "stop";
     return null;
@@ -30437,7 +30455,9 @@ function isEloResidentialNewPipelineEnabled_() {
     const result = action === "pause" ? player.pause() :
       action === "resume" ? player.resume() :
         action === "play" ? player.play() :
-          player.stop();
+          action === "next" ? player.next() :
+            action === "previous" ? player.previous() :
+              player.stop();
     logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: result.executed === true, handler: result.handler });
     if (!result.executed) {
       logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "handler_not_executed", state: result.state });

@@ -61,6 +61,34 @@
     return /^(?:pare|para|parar|stop|interrompa)\b/.test(normalize(text));
   }
 
+  function isPauseCommand(text) {
+    return /^(?:pause|pausa|pausar|pause a musica|pausar a musica|pausa a musica|da uma pausa|de uma pausa)$/.test(normalize(text));
+  }
+
+  function isResumeCommand(text) {
+    return /^(?:continue|continua|continuar|retome|retoma|retomar|resume|continue a musica|continuar a musica|retome a musica|retomar a musica|volta a tocar|volte a tocar)$/.test(normalize(text));
+  }
+
+  function isNextCommand(text) {
+    return /^(?:proxima|proximo|next|pula|pular|pule|troca|troque|proxima musica|proximo musica|pula musica|troca a musica)$/.test(normalize(text));
+  }
+
+  function isPreviousCommand(text) {
+    return /^(?:anterior|previous|volta uma|voltar uma|faixa anterior|musica anterior)$/.test(normalize(text));
+  }
+
+  function readMediaPlayerState() {
+    const player = global.EloMediaPlayer;
+    if (!player || typeof player.getState !== "function") return "";
+    try { return String(player.getState() || "").toUpperCase(); } catch (error) { return ""; }
+  }
+
+  function isMediaActive(state) {
+    const explicit = state && typeof state.mediaActive === "boolean" ? state.mediaActive : null;
+    if (explicit !== null) return explicit;
+    return /^(?:PLAYING|PAUSED|BUFFERING)$/.test(readMediaPlayerState());
+  }
+
   function isMemoryWriteCommand(text) {
     return /^(?:lembre|memorize)\b/.test(normalize(text));
   }
@@ -77,7 +105,7 @@
 
   function isDateCommand(text) {
     const lower = normalize(text);
-    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje|amanha|ontem|anteontem|depois de amanha|daqui a \d{1,3} dias?|em \d{1,3} dias?)\b/.test(lower);
+    return /\b(?:que dia e hoje|qual a data de hoje|data de hoje|dia de hoje|amanha|ontem|anteontem|depois de amanha|daqui a \d{1,3} dias?|em \d{1,3} dias?|proxima (?:segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:(?:-|\s)?feira)?)\b/.test(lower);
   }
 
   function isTimeCommand(text) {
@@ -121,7 +149,12 @@
 
   function detectIntent(text, state) {
     if (state && state.pendingLocalMedia && isConfirmationYes(text)) return "MUSIC_CONFIRMATION";
+    if (isDateCommand(text)) return "DATE_LOCAL";
     if (isStopCommand(text)) return "MUSIC_STOP";
+    if (isMediaActive(state) && isPauseCommand(text)) return "MUSIC_PAUSE";
+    if (isMediaActive(state) && isResumeCommand(text)) return "MUSIC_RESUME";
+    if (isMediaActive(state) && isNextCommand(text)) return "MUSIC_NEXT";
+    if (isMediaActive(state) && isPreviousCommand(text)) return "MUSIC_PREVIOUS";
     if (isMusicSuggestionCommand(text)) return "MUSIC_SUGGESTION";
     if (isMusicPlayCommand(text)) return "MUSIC_PLAY";
     if (isMemoryWriteCommand(text)) return "MEMORY_WRITE";
@@ -254,6 +287,17 @@
     }
   }
 
+  function controlLocalMusic(action) {
+    const player = global.EloMediaPlayer;
+    if (!player || typeof player[action] !== "function") return false;
+    try {
+      const result = player[action]();
+      return result && typeof result.then === "function" ? result.then(function (value) { return value !== false; }).catch(function () { return false; }) : result !== false;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function createBase(intent, connectivity) {
     return { handled: true, intent, providerCalls: 0, chatCalls: 0, connectivity };
   }
@@ -284,6 +328,15 @@
         return Object.assign(createBase(intent, connectivity), {
           localStop: stopLocalMusic(),
           message: "Música interrompida."
+        });
+      }
+
+      if (intent === "MUSIC_PAUSE" || intent === "MUSIC_RESUME" || intent === "MUSIC_NEXT" || intent === "MUSIC_PREVIOUS") {
+        const action = intent === "MUSIC_PAUSE" ? "pause" : intent === "MUSIC_RESUME" ? "resume" : intent === "MUSIC_NEXT" ? "next" : "previous";
+        const executed = await controlLocalMusic(action);
+        return Object.assign(createBase(intent, connectivity), {
+          localControl: executed,
+          message: executed ? (action === "pause" ? "Música pausada." : action === "resume" ? "Música retomada." : action === "next" ? "Próxima mídia." : "Mídia anterior.") : "Não consegui controlar a mídia ativa."
         });
       }
 

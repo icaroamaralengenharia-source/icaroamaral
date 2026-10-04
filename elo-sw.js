@@ -1,19 +1,19 @@
-const ELO_CACHE_NAME = "elo-web-offline-v19-20261003-intelligence-v5";
+const ELO_CACHE_NAME = "elo-web-offline-v20-20261003-player-v2";
 const ELO_CORE_ASSETS = [
   "./elo.html",
-  "./elo.css",
+  "./elo.css?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-runtime-config.js?v=20260920-observability-final-v1",
   "./relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-final-v1",
   "./relatorio-qualidade-obras/elo-proactive-reasoning-policy.js?v=20260920-proactive-v1",
   "./relatorio-qualidade-obras/elo-communication-policy.js?v=20260920-conversational-v1",
   "./relatorio-qualidade-obras/elo-command-bridge.js?v=20260922-rdo-routing-v2",
-  "./relatorio-qualidade-obras/elo-assistente.js?v=20261003-intelligence-v2",
-  "./relatorio-qualidade-obras/elo-music-catalog.js",
-  "./relatorio-qualidade-obras/elo-music-resolver.js",
-  "./relatorio-qualidade-obras/elo-media-player.js",
-  "./relatorio-qualidade-obras/elo-offline-media-library.js",
+  "./relatorio-qualidade-obras/elo-assistente.js?v=20261003-player-v2",
+  "./relatorio-qualidade-obras/elo-music-catalog.js?v=20261003-player-v2",
+  "./relatorio-qualidade-obras/elo-music-resolver.js?v=20261003-player-v2",
+  "./relatorio-qualidade-obras/elo-media-player.js?v=20261003-player-v2",
+  "./relatorio-qualidade-obras/elo-offline-media-library.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-offline-memory-adapter.js",
-  "./relatorio-qualidade-obras/elo-offline-router.js",
+  "./relatorio-qualidade-obras/elo-offline-router.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/offline-media/classical/library.json",
   "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json"
 ];
