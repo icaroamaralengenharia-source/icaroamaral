@@ -94,7 +94,7 @@
     "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
-        "path": "offline-media/optimized/beethoven-fur-elise-1.opus",
+        "path": "offline-media/classical/beethoven/fur-elise.ogg",
         "format": "opus",
         "duration": "2:57",
         "bitrate": "~97 kbps",
@@ -148,7 +148,7 @@
     "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
-        "path": "offline-media/optimized/debussy-clair-de-lune-1.opus",
+        "path": "offline-media/classical/debussy/clair-de-lune.ogg",
         "format": "opus",
         "duration": "5:04",
         "bitrate": "414 kbps",
@@ -198,7 +198,7 @@
     "origin": "Wikimedia Commons / CC BY-SA 4.0 recording",
     "files": [
       {
-        "path": "offline-media/optimized/vivaldi-four-seasons-spring-1.opus",
+        "path": "offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
         "format": "opus",
         "duration": "3:35",
         "bitrate": "160 kbps",
@@ -218,7 +218,7 @@
         "optimizedChannels": 2
       },
       {
-        "path": "offline-media/optimized/vivaldi-four-seasons-spring-2.opus",
+        "path": "offline-media/classical/vivaldi/spring-mvt-2-largo.oga",
         "format": "opus",
         "duration": "2:52",
         "bitrate": "153 kbps",
@@ -238,7 +238,7 @@
         "optimizedChannels": 2
       },
       {
-        "path": "offline-media/optimized/vivaldi-four-seasons-spring-3.opus",
+        "path": "offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
         "format": "opus",
         "duration": "4:04",
         "bitrate": "162 kbps",
@@ -290,7 +290,7 @@
     "origin": "Wikimedia Commons / CC BY 3.0 recording",
     "files": [
       {
-        "path": "offline-media/optimized/pachelbel-canon-in-d-1.opus",
+        "path": "offline-media/classical/pachelbel/canon-in-d.mp3",
         "format": "opus",
         "duration": "4:25",
         "bitrate": "158 kbps",
@@ -340,7 +340,7 @@
     "origin": "Wikimedia Commons / CC0 recording",
     "files": [
       {
-        "path": "offline-media/optimized/chopin-nocturne-op-9-no-2-1.opus",
+        "path": "offline-media/classical/chopin/nocturne-op-9-no-2.ogg",
         "format": "opus",
         "duration": "4:00",
         "bitrate": "142 kbps",

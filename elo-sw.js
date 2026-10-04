@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v20-20261003-player-v2";
+const ELO_CACHE_NAME = "elo-web-offline-v21-20261004-audio-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css?v=20261003-player-v2",
@@ -11,11 +11,11 @@ const ELO_CORE_ASSETS = [
   "./relatorio-qualidade-obras/elo-music-catalog.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-music-resolver.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-media-player.js?v=20261003-player-v2",
-  "./relatorio-qualidade-obras/elo-offline-media-library.js?v=20261003-player-v2",
+  "./relatorio-qualidade-obras/elo-offline-media-library.js?v=20261004-audio-v1",
   "./relatorio-qualidade-obras/elo-offline-memory-adapter.js",
   "./relatorio-qualidade-obras/elo-offline-router.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/offline-media/classical/library.json",
-  "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json"
+  "./relatorio-qualidade-obras/offline-media/pack-v1/catalog.json?v=20261004-audio-v1"
 ];
 
 const ELO_OPTIONAL_MEDIA_ASSETS = [

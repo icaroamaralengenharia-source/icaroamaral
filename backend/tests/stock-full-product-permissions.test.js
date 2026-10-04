@@ -216,7 +216,6 @@ test("Stock Full permite admin escrever produto somente no proprio tenant", asyn
     assert.equal(supabase.items.find((item) => item.id === "item-b").name, "Argamassa");
   });
 });
-
 test("Stock Full permite listar estoque geral sem obra e mantem isolamento por tenant", async () => {
   await withServer(async (base) => {
     const result = await json(base + "/api/stock-full/items", {
