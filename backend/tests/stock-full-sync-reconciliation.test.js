@@ -27,7 +27,7 @@ function response(body, status = 200) {
   };
 }
 
-function loadSync(fetchImpl) {
+function loadSync(fetchImpl, initialAlmoxState) {
   const storage = createStorage();
   storage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "token.test" }));
   storage.setItem("stockFullSession", JSON.stringify({
@@ -37,6 +37,7 @@ function loadSync(fetchImpl) {
     companyId: "tenant-e2e",
     role: "admin"
   }));
+  if (initialAlmoxState) storage.setItem("obraReportAlmoxarifadoData", JSON.stringify(initialAlmoxState));
   const document = {
     readyState: "complete",
     addEventListener() {},
@@ -99,4 +100,32 @@ test("Stock Full reconcilia fila confirmada sem repetir POSTs", async () => {
   assert.equal(requests.filter((url) => url.includes("/sync/status")).length, 1);
   assert.equal(requests.filter((url) => url.includes("/items")).length, 1);
   assert.equal(requests.some((url) => url.includes("/sync\"")), false);
+});
+
+test("Stock Full sessão cloud não converte snapshot local em CRUD implícito", () => {
+  const win = loadSync(async () => { throw new Error("no network expected"); }, {
+    items: [{ id: "stale-0", name: "LOCAL ONLY E2E STALE 0", unit: "un", currentQuantity: 99 }],
+    movements: []
+  });
+  const cloudItems = Array.from({ length: 40 }, (_, index) => ({
+    id: "cloud-item-" + index,
+    name: "Cloud E2E " + index,
+    unit: "un",
+    currentQuantity: index
+  }));
+
+  win.localStorage.setItem("obraReportAlmoxarifadoData", JSON.stringify({ items: cloudItems, movements: [] }));
+
+  assert.equal(win.StockFullSync.getQueue().length, 0);
+  const persisted = JSON.parse(win.localStorage.getItem("obraReportAlmoxarifadoData"));
+  assert.equal(persisted.items.length, 40);
+  assert.equal(persisted.items.some((item) => item.id === "stale-0"), false);
+
+  win.StockFullSync.enqueue("stock:entry", {
+    itemId: "cloud-item-0",
+    quantity: 1,
+    notes: "E2E explicit offline movement"
+  }, { operationId: "e2e-explicit-offline-entry", localOnly: false });
+  assert.equal(win.StockFullSync.getQueue().length, 1);
+  assert.equal(win.StockFullSync.getQueue()[0].operation, "stock:entry");
 });

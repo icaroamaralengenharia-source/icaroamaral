@@ -298,6 +298,7 @@
     role: "local"
   };
   let stockFullRemoteItems = [];
+  let stockFullRemoteAccessUnavailable = false;
   let stockFullSupabaseClient = null;
   let stockFullSupabaseClientPromise = null;
   let stockFullRemoteItemsLoaded = false;
@@ -1529,6 +1530,13 @@
 
   function getStockFullSupabaseToken_() {
     const stores = [getLocalStorage_(), window.sessionStorage || null].filter(Boolean);
+    const preferredKeys = ["sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"];
+    for (let keyIndex = 0; keyIndex < preferredKeys.length; keyIndex += 1) {
+      for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
+        const token = findStockFullSupabaseAccessToken_(stores[storeIndex].getItem(preferredKeys[keyIndex]), 0);
+        if (token) return token;
+      }
+    }
     for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
       const store = stores[storeIndex];
       for (let index = 0; index < store.length; index += 1) {
@@ -1544,6 +1552,23 @@
       }
     }
     return "";
+  }
+
+  function hasStockFullBackendToken_() {
+    const stores = [getLocalStorage_(), window.sessionStorage || null].filter(Boolean);
+    return stores.some(function (store) {
+      return Boolean(findStockFullSupabaseAccessToken_(store.getItem("sb-stock-full-backend-auth-token"), 0));
+    });
+  }
+
+  function shouldBlockStockFullLocalWrites_() {
+    return isStockFullContext_() && hasStockFullBackendToken_() &&
+      (!isStockFullRemoteActive_() || stockFullRemoteAccessUnavailable);
+  }
+
+  function stockFullCreateOperationId_() {
+    const cryptoApi = window.crypto;
+    return "stock-full:" + (cryptoApi && typeof cryptoApi.randomUUID === "function" ? cryptoApi.randomUUID() : createId_("movement"));
   }
 
   async function fetchStockFullMe_() {
@@ -1574,9 +1599,13 @@
         Authorization: "Bearer " + token
       }
     }, options || {});
-    requestOptions.headers = Object.assign({}, requestOptions.headers || {}, {
-      Authorization: "Bearer " + token
-    });
+    requestOptions.headers = Object.assign({}, requestOptions.headers || {}, { Authorization: "Bearer " + token });
+    const activeProjectId = window.StockFullCore && typeof window.StockFullCore.getCurrentWorkId === "function"
+      ? clean(window.StockFullCore.getCurrentWorkId())
+      : "";
+    if (activeProjectId && !requestOptions.headers["x-project-id"]) {
+      requestOptions.headers["x-project-id"] = activeProjectId;
+    }
 
     const response = await fetch(url, requestOptions);
     if (!response.ok) {
@@ -1804,6 +1833,7 @@
     }
     stockFullRemoteItems = data.items.map(mapStockFullRemoteItemToAlmox_);
     stockFullRemoteItemsLoaded = true;
+    stockFullRemoteAccessUnavailable = false;
     updateAlmoxOfflineStatus_();
     return { ok: true, items: stockFullRemoteItems };
   }
@@ -1927,6 +1957,33 @@
     if (!isStockFullContext_()) {
       return stockFullAuthContext;
     }
+    if (window.StockFullWorkScopeReady && typeof window.StockFullWorkScopeReady.then === "function") {
+      await window.StockFullWorkScopeReady;
+    }
+
+    if (hasStockFullBackendToken_()) {
+      stockFullAlmoxStateCache = null;
+      stockFullAlmoxStateCacheKey = "";
+      stockFullRemoteAccessUnavailable = true;
+      try {
+        const backendSession = await fetchStockFullMe_();
+        if (!backendSession || !backendSession.ok || !backendSession.profile) {
+          throw new Error("stock_full_backend_session_unavailable");
+        }
+        setStockFullRuntimeMode_("remote", backendSession);
+        await loadStockFullRemoteItems_();
+        stockFullRemoteAccessUnavailable = false;
+        await loadStockFullRemoteEntries_().catch(function () { stockFullRemoteEntries = []; });
+        await loadStockFullRemoteExits_().catch(function () { stockFullRemoteExits = []; });
+        await loadStockFullRemoteAuditLog_().catch(function () { stockFullRemoteAuditLog = []; });
+      } catch (error) {
+        stockFullRemoteItems = [];
+        stockFullRemoteItemsLoaded = false;
+        console.info("Stock Full: sessão autenticada indisponível; operações locais bloqueadas.");
+      }
+      updateAlmoxOfflineStatus_();
+      return stockFullAuthContext;
+    }
 
     try {
       const supabaseSession = await getStockFullSupabaseSession_();
@@ -2006,6 +2063,22 @@
     }
 
     const stockFullAuthInit = initStockFullAuthContext_();
+    if (!window.__stockFullRemoteSyncRefreshBound) {
+      window.__stockFullRemoteSyncRefreshBound = true;
+      window.addEventListener("stockfull:sync-complete", async function () {
+        if (!isStockFullRemoteActive_()) return;
+        try {
+          await loadStockFullRemoteItems_();
+          await loadStockFullRemoteEntries_();
+          await loadStockFullRemoteExits_();
+          await loadStockFullRemoteAuditLog_();
+          renderAlmoxarifadoPanel_();
+        } catch (error) {
+          stockFullRemoteAccessUnavailable = true;
+          updateAlmoxOfflineStatus_();
+        }
+      });
+    }
     if (isStockFullIsolatedApp_ && stockFullAuthInit && typeof stockFullAuthInit.then === "function") {
       stockFullAuthInit.then(function () {
         renderAlmoxarifadoPanel_();
@@ -10145,10 +10218,13 @@
         return stockFullAlmoxStateCache;
       }
       const parsed = raw ? JSON.parse(raw) : {};
+      const backendSessionExpected = isStockFullContext_() && hasStockFullBackendToken_();
       const mutedUntil = clean(parsed.alertsMutedUntil) || (parsed.alertsMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "");
       const alertsMuted = Boolean(parsed.alertsMuted) && (!mutedUntil || new Date(mutedUntil).getTime() > Date.now());
       const normalized = normalizeAlmoxEnvironmentState_({
-        items: isStockFullRemoteActive_() && stockFullRemoteItemsLoaded ? stockFullRemoteItems : (Array.isArray(parsed.items) ? parsed.items : []),
+        items: backendSessionExpected || isStockFullRemoteActive_
+          ? (stockFullRemoteItemsLoaded && !stockFullRemoteAccessUnavailable ? stockFullRemoteItems : [])
+          : (Array.isArray(parsed.items) ? parsed.items : []),
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         alertsMuted: alertsMuted,
         alertsMutedUntil: alertsMuted ? mutedUntil : "",
@@ -10400,6 +10476,10 @@
     }
 
     const connection = navigator.onLine === false ? "Offline" : "Online";
+    if (isStockFullContext_() && hasStockFullBackendToken_() && stockFullRemoteAccessUnavailable) {
+      almoxOfflineStatus.textContent = connection + " · Sessão da nuvem indisponível · Operações locais bloqueadas";
+      return;
+    }
     if (isStockFullContext_() && stockFullRuntimeMode === "remote") {
       const profile = stockFullAuthContext.profile || {};
       const organization = clean(profile.institution_name || profile.organization_name || profile.institution_id) || "organização autenticada";
@@ -10952,6 +11032,10 @@
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockFullContext_() && !requireStockFullPermission_("products:create", "Funcionario nao pode cadastrar produto.")) return;
+    if (shouldBlockStockFullLocalWrites_()) {
+      showAlmoxToast_("Sessão da nuvem indisponível. Operação local bloqueada para evitar divergência de estoque.", "error");
+      return;
+    }
     const result = isStockFullRemoteActive_()
       ? await saveStockFullRemoteItemFromFormData_(formData)
       : saveAlmoxItemFromFormData_(formData);
@@ -11030,6 +11114,9 @@
       if (clean(error && error.message) === "stock_full_sku_duplicate") {
         return buildStockFullDuplicateSkuResult_(sku);
       }
+      if (hasStockFullBackendToken_()) {
+        return { ok: false, message: "Não foi possível confirmar o cadastro na nuvem. Nenhum dado local foi alterado." };
+      }
       console.info("Stock Full: cadastro remoto indisponivel; salvando item no modo local.");
       setStockFullRuntimeMode_("local");
       return saveAlmoxItemFromFormData_(formData);
@@ -11106,6 +11193,10 @@
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockFullContext_() && !requireStockFullPermission_("movements:in", "Usuario sem permissao para registrar entrada.")) return;
+    if (shouldBlockStockFullLocalWrites_()) {
+      showAlmoxToast_("Sessão da nuvem indisponível. Operação local bloqueada para evitar divergência de estoque.", "error");
+      return;
+    }
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
       const requestResult = createStockApprovalRequestFromFormData_("entry", formData);
       if (!requestResult.ok) {
@@ -11129,7 +11220,7 @@
 
     event.target.reset();
     renderAlmoxarifadoPanel_();
-    showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
+    showAlmoxToast_(result.queued ? "Entrada salva na fila deste dispositivo; será sincronizada quando a conexão voltar." : "Entrada registrada no almoxarifado.", "success");
   }
 
   async function saveStockFullRemoteEntryFromFormData_(formData) {
@@ -11143,15 +11234,24 @@
       };
     }
 
+    const operationId = stockFullCreateOperationId_();
+    const movement = {
+      itemId: itemId,
+      quantity: quantity,
+      supplier: clean(formData.get("responsible")),
+      documentNumber: clean(formData.get("documentNumber")),
+      notes: clean(formData.get("notes")),
+      reason: "Entrada manual",
+      operationId: operationId,
+      offlineUuid: operationId
+    };
+    if (navigator.onLine === false && window.StockFullSync && typeof window.StockFullSync.enqueue === "function") {
+      window.StockFullSync.enqueue("stock:entry", movement, { operationId: operationId, localOnly: false });
+      return { ok: true, queued: true };
+    }
+
     try {
-      const result = await createStockFullRemoteEntry_({
-        itemId: itemId,
-        quantity: quantity,
-        supplier: clean(formData.get("responsible")),
-        invoiceNumber: clean(formData.get("documentNumber")),
-        notes: clean(formData.get("notes")),
-        reason: "Entrada manual"
-      });
+      const result = await createStockFullRemoteEntry_(Object.assign({}, movement, { invoiceNumber: movement.documentNumber }));
       if (!result || !result.ok || !result.item || !result.entry) {
         throw new Error("stock_full_remote_entry_create_failed");
       }
@@ -11174,6 +11274,9 @@
         item: updatedItem
       };
     } catch (error) {
+      if (hasStockFullBackendToken_()) {
+        return { ok: false, message: "Não foi possível confirmar a entrada na nuvem. Nenhum saldo local foi alterado." };
+      }
       console.info("Stock Full: entrada remota indisponivel; registrando entrada no modo local.");
       setStockFullRuntimeMode_("local");
       return saveAlmoxEntryFromFormData_(formData);
@@ -11184,6 +11287,10 @@
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockFullContext_() && !requireStockFullPermission_("movements:out", "Usuario sem permissao para registrar saida.")) return;
+    if (shouldBlockStockFullLocalWrites_()) {
+      showAlmoxToast_("Sessão da nuvem indisponível. Operação local bloqueada para evitar divergência de estoque.", "error");
+      return;
+    }
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
       const requestResult = createStockApprovalRequestFromFormData_("exit", formData);
       if (!requestResult.ok) {
@@ -11207,7 +11314,7 @@
 
     event.target.reset();
     renderAlmoxarifadoPanel_();
-    showAlmoxToast_("Saida registrada com responsavel e setor.", "success");
+    showAlmoxToast_(result.queued ? "Saída salva na fila deste dispositivo; será sincronizada quando a conexão voltar." : "Saida registrada com responsavel e setor.", "success");
   }
 
   async function saveStockFullRemoteExitFromFormData_(formData) {
@@ -11221,15 +11328,24 @@
       };
     }
 
+    const operationId = stockFullCreateOperationId_();
+    const movement = {
+      itemId: itemId,
+      quantity: quantity,
+      destination: clean(formData.get("sector")) || clean(formData.get("recipient")),
+      responsible: clean(formData.get("responsible")),
+      notes: clean(formData.get("notes")),
+      reason: "Saída manual",
+      operationId: operationId,
+      offlineUuid: operationId
+    };
+    if (navigator.onLine === false && window.StockFullSync && typeof window.StockFullSync.enqueue === "function") {
+      window.StockFullSync.enqueue("stock:exit", movement, { operationId: operationId, localOnly: false });
+      return { ok: true, queued: true };
+    }
+
     try {
-      const result = await createStockFullRemoteExit_({
-        itemId: itemId,
-        quantity: quantity,
-        destination: clean(formData.get("sector")) || clean(formData.get("recipient")),
-        responsible: clean(formData.get("responsible")),
-        notes: clean(formData.get("notes")),
-        reason: "Entrada manual"
-      });
+      const result = await createStockFullRemoteExit_(movement);
       if (result && result.error === "stock_full_insufficient_quantity") {
         return {
           ok: false,
@@ -11258,6 +11374,9 @@
         item: updatedItem
       };
     } catch (error) {
+      if (hasStockFullBackendToken_()) {
+        return { ok: false, message: "Não foi possível confirmar a saída na nuvem. Nenhum saldo local foi alterado." };
+      }
       console.info("Stock Full: saida remota indisponivel; registrando saida no modo local.");
       setStockFullRuntimeMode_("local");
       return saveAlmoxExitFromFormData_(formData);
@@ -13687,6 +13806,10 @@
     if (isStockFullContext_()) {
       const permission = type === "entry" ? "movements:in" : (type === "exit" ? "movements:out" : (type === "edit" ? "products:update" : "products:create"));
       if (!requireStockFullPermission_(permission, "Usuario sem permissao para esta acao.")) return;
+      if (shouldBlockStockFullLocalWrites_()) {
+        showAlmoxToast_("Sessão da nuvem indisponível. Operação local bloqueada para evitar divergência de estoque.", "error");
+        return;
+      }
       if (type === "exit") {
         const state = loadAlmoxState_();
         const itemId = clean(formData.get("itemId"));
@@ -13737,9 +13860,9 @@
     closeAlmoxModal_();
     renderAlmoxarifadoPanel_();
     if (type === "entry") {
-      showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
+      showAlmoxToast_(result.queued ? "Entrada salva na fila deste dispositivo; será sincronizada quando a conexão voltar." : "Entrada registrada no almoxarifado.", "success");
     } else if (type === "exit") {
-      showAlmoxToast_("Saida registrada com responsavel e setor.", "success");
+      showAlmoxToast_(result.queued ? "Saída salva na fila deste dispositivo; será sincronizada quando a conexão voltar." : "Saida registrada com responsavel e setor.", "success");
     } else if (type === "edit") {
       showAlmoxToast_("Item atualizado com sucesso.", "success");
     } else {

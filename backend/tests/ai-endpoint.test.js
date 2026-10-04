@@ -1530,6 +1530,128 @@ test("stock full saida com mesma offline_uuid nao duplica baixa", async () => {
   }
 });
 
+test("stock full movimentos concorrentes na mesma referencia preservam saldo e auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [
+      { id: "sf_item_atomic", institution_id: "inst_auth", name: "Item E2E de teste", unit: "un", current_quantity: 25, is_active: true }
+    ]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const operations = Array.from({ length: 30 }, (_, index) => {
+      const entry = index % 2 === 0;
+      const type = entry ? "entries" : "exits";
+      const operationId = "atomic-concurrency-test-" + index;
+      return fetch(testServer.baseUrl + "/api/stock-full/" + type, {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: "sf_item_atomic", quantity: 1, operationId, offlineUuid: operationId })
+      });
+    });
+    const responses = await Promise.all(operations);
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+
+    assert.ok(responses.every((response) => response.status === 200));
+    assert.ok(bodies.every((body) => body.ok));
+    assert.equal(supabase.stockFullItems[0].current_quantity, 25);
+    assert.equal(supabase.stockFullEntries.length, 15);
+    assert.equal(supabase.stockFullExits.length, 15);
+    assert.equal(supabase.stockFullAuditLogs.length, 30);
+    assert.ok(supabase.stockFullItems[0].current_quantity >= 0);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full retry concorrente do mesmo operationId cria uma movimentacao e uma auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [
+      { id: "sf_item_retry", institution_id: "inst_auth", name: "Item E2E idempotente", unit: "un", current_quantity: 7, is_active: true }
+    ]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const requestBody = JSON.stringify({ itemId: "sf_item_retry", quantity: 3, operationId: "atomic-retry-once", offlineUuid: "atomic-retry-once" });
+    const responses = await Promise.all(Array.from({ length: 10 }, () => fetch(testServer.baseUrl + "/api/stock-full/entries", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: requestBody
+    })));
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+
+    assert.ok(responses.every((response) => response.status === 200));
+    assert.equal(bodies.filter((body) => body.duplicate !== true).length, 1);
+    assert.equal(bodies.filter((body) => body.duplicate === true).length, 9);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 10);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullAuditLogs.length, 1);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full concorrencia A-E passa 20 rodadas por cenario sem perder saldo", async () => {
+  const rounds = 20;
+  const supabase = createMockStockSaudeSupabase_({ stockFullItems: [] });
+  const items = supabase.stockFullItems;
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  const send = async (type, itemId, quantity, operationId) => fetch(testServer.baseUrl + "/api/stock-full/" + type, {
+    method: "POST",
+    headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ itemId, quantity, operationId, offlineUuid: operationId })
+  });
+
+  try {
+    for (let round = 0; round < rounds; round += 1) {
+      const run = async (scenario, initial) => {
+        const itemId = "sf_stress_" + scenario + "_" + round;
+        items.push({ id: itemId, institution_id: "inst_auth", name: "Item E2E " + scenario, unit: "un", current_quantity: initial, is_active: true });
+        return itemId;
+      };
+
+      const a = await run("A", 100);
+      const aResponses = await Promise.all(Array.from({ length: 20 }, (_, i) => send("entries", a, 1, "stress-A-" + round + "-" + i)));
+      assert.ok(aResponses.every((response) => response.status === 200), "A round " + round);
+      assert.equal(items.find((item) => item.id === a).current_quantity, 120, "A round " + round);
+
+      const b = await run("B", 100);
+      const bResponses = await Promise.all(Array.from({ length: 10 }, (_, i) => send("exits", b, 1, "stress-B-" + round + "-" + i)));
+      assert.ok(bResponses.every((response) => response.status === 200), "B round " + round);
+      assert.equal(items.find((item) => item.id === b).current_quantity, 90, "B round " + round);
+
+      const c = await run("C", 100);
+      const cResponses = await Promise.all(Array.from({ length: 20 }, (_, i) => send(i % 2 ? "exits" : "entries", c, 1, "stress-C-" + round + "-" + i)));
+      assert.ok(cResponses.every((response) => response.status === 200), "C round " + round);
+      assert.equal(items.find((item) => item.id === c).current_quantity, 100, "C round " + round);
+
+      const d = await run("D", 5);
+      const dResponses = await Promise.all(Array.from({ length: 10 }, (_, i) => send("exits", d, 1, "stress-D-" + round + "-" + i)));
+      assert.equal(dResponses.filter((response) => response.status === 200).length, 5, "D accepted count round " + round);
+      assert.equal(dResponses.filter((response) => response.status === 409).length, 5, "D rejected count round " + round);
+      assert.equal(items.find((item) => item.id === d).current_quantity, 0, "D round " + round);
+
+      const e = await run("E", 100);
+      const retryId = "stress-E-" + round;
+      const eResponses = await Promise.all(Array.from({ length: 10 }, () => send("entries", e, 1, retryId)));
+      const eBodies = await Promise.all(eResponses.map((response) => response.json()));
+      assert.ok(eResponses.every((response) => response.status === 200), "E round " + round);
+      assert.equal(eBodies.filter((body) => body.duplicate !== true).length, 1, "E applied count round " + round);
+      assert.equal(eBodies.filter((body) => body.duplicate === true).length, 9, "E duplicate count round " + round);
+      assert.equal(items.find((item) => item.id === e).current_quantity, 101, "E round " + round);
+    }
+
+    assert.equal(supabase.stockFullEntries.length, rounds * 31);
+    assert.equal(supabase.stockFullExits.length, rounds * 25);
+    assert.equal(supabase.stockFullAuditLogs.length, rounds * 56);
+    assert.ok(items.every((item) => item.current_quantity >= 0));
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock full live mostra saida online e isola outra empresa", async () => {
   const app = createApp({
     env: { PORT: "0" },
@@ -2069,9 +2191,12 @@ test("frontend Stock Full detecta token Supabase e preserva modo local", async (
   const content = readFileSync(join("..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
 
   assert.match(content, /function getStockFullSupabaseToken_\(\)/);
+  assert.match(content, /preferredKeys = \["sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"\]/);
   assert.match(content, /async function fetchStockFullMe_\(\)/);
   assert.match(content, /async function initStockFullAuthContext_\(\)/);
   assert.match(content, /\/api\/stock-full\/me/);
+  assert.match(content, /hasStockFullBackendToken_\(\)[\s\S]*?operações locais bloqueadas/i);
+  assert.match(content, /Sessão da nuvem indisponível · Operações locais bloqueadas/);
   assert.match(content, /stockFullRuntimeMode = "local"/);
   assert.match(content, /Conectado ao Stock Full/);
   assert.match(content, /Não sincronizado na nuvem/);
@@ -2090,8 +2215,9 @@ test("frontend Stock Full prepara API remota de produtos sem sincronizar movimen
   assert.match(content, /Produtos, entradas e saídas na nuvem/);
 });
 
-test("frontend Stock Full prepara entradas e saidas remotas sem sincronizacao automatica", async () => {
+test("frontend Stock Full usa fila offline persistente para entradas e saidas", async () => {
   const content = readFileSync(join("..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
+  const sync = readFileSync(join("..", "stock-full-sync.js"), "utf8");
 
   assert.match(content, /async function createStockFullRemoteEntry_/);
   assert.match(content, /async function loadStockFullRemoteEntries_/);
@@ -2101,8 +2227,11 @@ test("frontend Stock Full prepara entradas e saidas remotas sem sincronizacao au
   assert.match(content, /\/api\/stock-full\/entries/);
   assert.match(content, /\/api\/stock-full\/exits/);
   assert.match(content, /\/api\/stock-full\/audit-log/);
-  assert.match(content, /TODO Fase futura: importação\/sincronização controlada de entradas locais para nuvem/);
-  assert.match(content, /TODO Fase futura: importação\/sincronização controlada de saídas locais para nuvem/);
+  assert.match(content, /StockFullSync\.enqueue\("stock:entry"/);
+  assert.match(content, /StockFullSync\.enqueue\("stock:exit"/);
+  assert.match(content, /stockfull:sync-complete/);
+  assert.match(sync, /async function sendMovementToSync\([\s\S]*?\/api\/stock-full\/sync/);
+  assert.match(sync, /\["sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"\]/);
 });
 
 test("stock saude items exige Authorization quando Supabase esta configurado", async () => {
@@ -7870,6 +7999,9 @@ function createMockStockSaudeSupabase_(options = {}) {
       }
     },
     async rpc(name, args) {
+      if (name === "stock_full_apply_movement") {
+        return executeMockStockFullAtomicMovementRpc_(client, args || {});
+      }
       if (name === "confirm_stock_full_nfe_import") {
         return executeMockStockFullNfeImportRpc_(client, args || {});
       }
@@ -7916,6 +8048,103 @@ function createMockStockSaudeSupabase_(options = {}) {
     }
   };
   return client;
+}
+
+function executeMockStockFullAtomicMovementRpc_(client, args) {
+  const snapshot = {
+    items: client.stockFullItems.map((item) => Object.assign({}, item)),
+    entries: client.stockFullEntries.map((entry) => Object.assign({}, entry)),
+    exits: client.stockFullExits.map((exit) => Object.assign({}, exit)),
+    audit: client.stockFullAuditLogs.map((record) => Object.assign({}, record))
+  };
+  const rollback = () => {
+    client.stockFullItems.splice(0, client.stockFullItems.length, ...snapshot.items.map((item) => Object.assign({}, item)));
+    client.stockFullEntries.splice(0, client.stockFullEntries.length, ...snapshot.entries.map((entry) => Object.assign({}, entry)));
+    client.stockFullExits.splice(0, client.stockFullExits.length, ...snapshot.exits.map((exit) => Object.assign({}, exit)));
+    client.stockFullAuditLogs.splice(0, client.stockFullAuditLogs.length, ...snapshot.audit.map((record) => Object.assign({}, record)));
+  };
+  const clean = (value) => String(value ?? "").trim();
+  const institutionId = clean(args.p_institution_id);
+  const profileId = clean(args.p_profile_id);
+  const itemId = clean(args.p_item_id);
+  const type = clean(args.p_movement_type);
+  const quantity = Number(args.p_quantity);
+  const movement = args.p_movement || {};
+  const operationId = clean(movement.operation_id);
+  const offlineUuid = clean(movement.offline_uuid);
+  const projectId = clean(args.p_project_id) || null;
+  try {
+    const profile = client.profiles.find((candidate) => candidate.id === profileId && candidate.institution_id === institutionId);
+    if (!profile) throw new Error("stock_full_profile_not_found");
+    if (["leitura", "viewer", "read_only"].includes(clean(profile.role).toLowerCase())) throw new Error("permission_denied");
+    if (!["entrada", "saida"].includes(type)) throw new Error("stock_full_movement_type_invalid");
+    if (!(quantity > 0)) throw new Error("quantity_required");
+    if (!operationId && !offlineUuid) throw new Error("stock_full_request_id_required");
+
+    const allMovements = [
+      ...client.stockFullEntries.map((record) => ({ type: "entrada", record })),
+      ...client.stockFullExits.map((record) => ({ type: "saida", record }))
+    ];
+    const existing = allMovements.find(({ record }) => record.institution_id === institutionId &&
+      ((operationId && record.operation_id === operationId) || (offlineUuid && record.offline_uuid === offlineUuid)));
+    if (existing) {
+      const record = existing.record;
+      if (existing.type !== type || record.item_id !== itemId || (record.project_id || null) !== projectId || Number(record.quantity) !== quantity) {
+        throw new Error("stock_full_idempotency_key_reused");
+      }
+      const item = client.stockFullItems.find((candidate) => candidate.id === record.item_id && candidate.institution_id === institutionId);
+      return { data: { status: "duplicate", duplicate: true, [type === "saida" ? "exit" : "entry"]: record, item }, error: null };
+    }
+    if (type === "entrada" && clean(movement.nfe_access_key) && client.stockFullEntries.some((entry) => entry.institution_id === institutionId && entry.nfe_access_key === clean(movement.nfe_access_key))) {
+      throw new Error("stock_full_nfe_already_imported");
+    }
+
+    const item = client.stockFullItems.find((candidate) => candidate.id === itemId && candidate.institution_id === institutionId && (candidate.project_id || null) === projectId && candidate.is_active !== false);
+    if (!item) throw new Error("stock_full_item_not_found");
+    const previousBalance = Number(item.current_quantity || 0);
+    if (type === "saida" && quantity > previousBalance) throw new Error("stock_full_insufficient_quantity");
+    const nextBalance = type === "saida" ? previousBalance - quantity : previousBalance + quantity;
+    item.current_quantity = nextBalance;
+    item.updated_at = new Date().toISOString();
+    const createdAt = new Date().toISOString();
+    const id = "stock_full_" + (type === "saida" ? "exit_" + (client.stockFullExits.length + 1) : "entry_" + (client.stockFullEntries.length + 1));
+    const record = Object.assign({}, movement, {
+      id,
+      institution_id: institutionId,
+      project_id: projectId,
+      item_id: itemId,
+      quantity,
+      operation_id: operationId,
+      offline_uuid: offlineUuid,
+      created_by: profileId,
+      created_at: createdAt,
+      sync_status: clean(movement.sync_status) || "synced",
+      source: clean(movement.source) || "online"
+    });
+    if (type === "saida") client.stockFullExits.push(record);
+    else client.stockFullEntries.push(record);
+    const audit = {
+      id: "stock_full_audit_" + (client.stockFullAuditLogs.length + 1),
+      institution_id: institutionId,
+      project_id: projectId,
+      action: record.source === "offline" ? "stock_full_offline_sync_completed" : "stock_full_" + (type === "saida" ? "exit_created" : "entry_created"),
+      entity_type: type === "saida" ? "stock_full_exit" : "stock_full_entry",
+      entity_id: id,
+      product_id: itemId,
+      before_data: { current_quantity: previousBalance },
+      after_data: { current_quantity: nextBalance, quantity, type },
+      operation_id: operationId,
+      offline_uuid: offlineUuid,
+      source: record.source,
+      created_by: profileId,
+      created_at: createdAt
+    };
+    client.stockFullAuditLogs.push(audit);
+    return { data: { status: record.source === "offline" ? "synced" : "created", duplicate: false, previousBalance, newBalance: nextBalance, [type === "saida" ? "exit" : "entry"]: record, item, audit }, error: null };
+  } catch (error) {
+    rollback();
+    return { data: null, error: { message: clean(error && error.message) || "stock_full_movement_atomic_failed" } };
+  }
 }
 
 function executeMockStockFullNfeImportRpc_(client, args) {

@@ -231,7 +231,7 @@
 
   function getAuthToken() {
     const storage = getStorage();
-    const keys = ["sb-stock-full-auth-token", "sb-stock-full-backend-auth-token", "stockFullSupabaseToken"];
+    const keys = ["sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"];
     for (let index = 0; index < keys.length; index += 1) {
       try {
         const raw = storage && storage.getItem(keys[index]);
@@ -516,6 +516,9 @@
       }
       saveMeta({ lastSuccessfulSyncAt: new Date().toISOString(), lastSyncError: "" });
       refreshLivePanel();
+      if (ordered.length > 0 && window.dispatchEvent && typeof window.CustomEvent === "function") {
+        window.dispatchEvent(new window.CustomEvent("stockfull:sync-complete"));
+      }
     } catch (error) {
       saveMeta({ lastSyncError: clean(error && error.message) || "sync_failed" });
     } finally {
@@ -602,6 +605,10 @@
 
   function normalizeOfflineState(previousState, nextState) {
     if (!nextState || typeof nextState !== "object") return nextState;
+    // Authenticated Stock Full sessions use the cloud catalog as canonical. A
+    // local snapshot/reconciliation must not become implicit product CRUD or
+    // movement writes; manual offline movements are queued explicitly by UI.
+    if (core.isStockFullContext && core.isStockFullContext() && getAuthToken()) return nextState;
     const previousItems = indexById(previousState && previousState.items);
     const previousMovements = indexById(previousState && previousState.movements);
     const itemIdMap = {};

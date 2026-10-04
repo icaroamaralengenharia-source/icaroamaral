@@ -282,10 +282,14 @@
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", installProductionGuards);
-    document.addEventListener("DOMContentLoaded", installStockFullWorkScope);
+    window.StockFullWorkScopeReady = new Promise(function (resolve) {
+      document.addEventListener("DOMContentLoaded", function () {
+        resolve(installStockFullWorkScope());
+      }, { once: true });
+    });
   } else {
     installProductionGuards();
-    installStockFullWorkScope();
+    window.StockFullWorkScopeReady = installStockFullWorkScope();
   }
 
   window.StockFullAppRuntime = {
