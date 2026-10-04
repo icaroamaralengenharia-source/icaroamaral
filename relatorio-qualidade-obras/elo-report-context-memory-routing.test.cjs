@@ -16,7 +16,7 @@ function createStorage() {
 
 function loadElo(options = {}) {
   const fetchRequests = [];
-  const storage = createStorage();
+  const storage = options.storage || createStorage();
   const fetchHandler = options.fetch;
   const document = {
     body: { dataset: {}, getAttribute() { return null; }, setAttribute() {}, appendChild() {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } } },
@@ -62,7 +62,7 @@ function loadElo(options = {}) {
   const context = vm.createContext({ window, document, navigator: window.navigator, localStorage: storage, sessionStorage: window.sessionStorage, console, setTimeout, clearTimeout, URLSearchParams, Date, Math, fetch: window.fetch });
   const source = fs.readFileSync(path.join(__dirname, "elo-assistente.js"), "utf8");
   vm.runInContext(source, context, { filename: "elo-assistente.js" });
-  return { api: context.window.EloAssistente, fetchCalls: () => fetchRequests.length, fetchRequests: () => fetchRequests.slice() };
+  return { api: context.window.EloAssistente, storage, fetchCalls: () => fetchRequests.length, fetchRequests: () => fetchRequests.slice() };
 }
 
 const analysisAnswer = [
@@ -385,4 +385,132 @@ test("ação de relatório de contexto usa o mesmo gerador real e preserva os ac
   assert.equal(reportPayload.fotosUnidade.length, 0);
   assert.match(reportPayload.report.observacoes, /falta de material/i);
   assert.equal(reportPayload.inconformidades.length, 0);
+});
+
+const oldRdoAnalysis = "Analise tecnica do RDO A: infiltracao recorrente na parede norte e registro anterior pendente.";
+const imageBAnalysis = "Analise tecnica da imagem B. Principal problema: trinca diagonal recente no encontro da viga.";
+const pdfBAnalysis = "Analise tecnica do PDF B. Principal problema: ausencia de projeto executivo atualizado.";
+
+function rememberOldRdoAnalysis(api) {
+  api.rememberActiveAnalysisForTest("analise o RDO anterior", { fullAnswer: oldRdoAnalysis, sessionIntent: "rdo_analysis" }, oldRdoAnalysis);
+}
+
+function rememberCurrentImageAnalysis(api) {
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageBAnalysis, sessionTheme: "analise-visual", sessionIntent: "image_analysis" }, imageBAnalysis);
+}
+
+function rememberCurrentPdfAnalysis(api) {
+  api.rememberActiveAnalysisForTest("Resuma este documento", { fullAnswer: pdfBAnalysis, sessionIntent: "document_analysis" }, pdfBAnalysis);
+}
+
+function getFollowUpAnalysis(api, question) {
+  const payload = { message: question, context: {} };
+  assert.equal(api.applyActiveAnalysisContextToPayloadForTest(payload, question), true);
+  return payload.context.lastMeaningfulAnalysis.analysis;
+}
+
+test("regressao A: novo attachment de imagem bloqueia RDO antigo e direciona follow-up para a imagem", () => {
+  const { api } = loadElo();
+  rememberOldRdoAnalysis(api);
+  api.beginImageAttachmentForTest({ name: "image-B.jpeg" });
+
+  assert.equal(api.getActiveAnalysisForTest(), null);
+  rememberCurrentImageAnalysis(api);
+  const context = getFollowUpAnalysis(api, "Qual e o principal problema?");
+  assert.match(context, /imagem B/i);
+  assert.doesNotMatch(context, /RDO A|infiltracao recorrente/i);
+});
+
+test("regressao B: relatorio apos imagem usa a analise da imagem atual", () => {
+  const { api } = loadElo();
+  rememberOldRdoAnalysis(api);
+  api.beginImageAttachmentForTest({ name: "image-B.jpeg" });
+  rememberCurrentImageAnalysis(api);
+
+  const report = api.buildReportFromAnalysisContextForTest("Faca um relatorio disso");
+  assert.equal(report.sessionIntent, "generate_report_from_context");
+  assert.match(report.reportFromAnalysisContext.analysis, /imagem B/i);
+  assert.doesNotMatch(report.reportFromAnalysisContext.analysis, /RDO A|infiltracao recorrente/i);
+});
+
+test("regressao C: resumo do PDF B substitui a elegibilidade do PDF/RDO A para follow-up", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "documento-A.pdf", text: "RDO A: infiltracao recorrente na parede norte." }]);
+  rememberOldRdoAnalysis(api);
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: projeto executivo ausente." }]);
+
+  assert.equal(api.getActiveAnalysisForTest(), null);
+  rememberCurrentPdfAnalysis(api);
+  const context = getFollowUpAnalysis(api, "Qual e o principal problema?");
+  assert.match(context, /PDF B/i);
+  assert.doesNotMatch(context, /RDO A|infiltracao recorrente/i);
+});
+
+test("regressao D: relatorio contextual do PDF usa a analise do PDF B", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "documento-A.pdf", text: "RDO A: infiltracao recorrente na parede norte." }]);
+  rememberOldRdoAnalysis(api);
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: projeto executivo ausente." }]);
+  rememberCurrentPdfAnalysis(api);
+
+  const report = api.buildReportFromAnalysisContextForTest("Gere um relatorio disso");
+  assert.equal(report.sessionIntent, "generate_report_from_context");
+  assert.match(report.reportFromAnalysisContext.analysis, /PDF B/i);
+  assert.doesNotMatch(report.reportFromAnalysisContext.analysis, /RDO A|infiltracao recorrente/i);
+});
+
+test("regressao E: ao trocar imagem A por PDF B, follow-up usa o attachment mais recente", () => {
+  const { api } = loadElo();
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: "Analise tecnica da imagem A: infiltracao antiga.", sessionIntent: "image_analysis" }, "Analise tecnica da imagem A: infiltracao antiga.");
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: projeto executivo ausente." }]);
+
+  assert.equal(api.getActiveAnalysisForTest(), null);
+  rememberCurrentPdfAnalysis(api);
+  const context = getFollowUpAnalysis(api, "Qual e o principal problema?");
+  assert.match(context, /PDF B/i);
+  assert.doesNotMatch(context, /imagem A|infiltracao antiga/i);
+});
+
+test("regressao F: referencia explicita ao historico evita injetar o attachment atual", () => {
+  const { api } = loadElo();
+  api.saveConversationForTest("Analise o relatorio anterior sobre infiltracao", oldRdoAnalysis);
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: projeto executivo ausente." }]);
+  rememberCurrentPdfAnalysis(api);
+
+  const question = "Volte ao relatorio anterior sobre a infiltracao";
+  const documentPayload = { message: question, context: {} };
+  const analysisPayload = { message: question, context: {} };
+  assert.equal(api.applyActiveDocumentContextToPayloadForTest(documentPayload, question), false);
+  assert.equal(api.applyActiveAnalysisContextToPayloadForTest(analysisPayload, question), false);
+  assert.ok(api.getOnlineHistoryForTest(question).some((item) => item.content === oldRdoAnalysis));
+  assert.match(api.getActiveAnalysisForTest().analysis, /PDF B/i);
+});
+
+test("regressao G: sessao sem attachment ou analise pede contexto em vez de reutilizar historico implicitamente", () => {
+  const { api } = loadElo();
+  api.saveConversationForTest("Analise o relatorio anterior", oldRdoAnalysis);
+
+  assert.equal(api.getActiveAnalysisForTest(), null);
+  const response = api.buildReportFromAnalysisContextForTest("Faca um relatorio disso");
+  assert.equal(response.sessionIntent, "generate_report_from_context_missing_context");
+  assert.doesNotMatch(response.fullAnswer, /infiltracao recorrente/i);
+});
+
+test("attachment ativo sobrevive ao reopen e historico antigo nao o substitui implicitamente", () => {
+  const firstSession = loadElo();
+  rememberOldRdoAnalysis(firstSession.api);
+  firstSession.api.saveConversationForTest("Analise o relatorio anterior sobre infiltracao", oldRdoAnalysis);
+  firstSession.api.beginImageAttachmentForTest({ name: "image-B.jpeg" });
+
+  assert.equal(firstSession.api.restoreAnalysisContextFromStoredMessagesForTest([
+    { role: "user", content: "Analise o RDO anterior" },
+    { role: "assistant", content: oldRdoAnalysis }
+  ]), null);
+  rememberCurrentImageAnalysis(firstSession.api);
+
+  const reopened = loadElo({ storage: firstSession.storage });
+  assert.equal(reopened.api.restoreActiveContextForTest(), true);
+  assert.match(reopened.api.getActiveAnalysisForTest().analysis, /imagem B/i);
+  assert.ok(reopened.api.getOnlineHistoryForTest("Volte ao relatorio anterior sobre infiltracao").some((item) => item.content === oldRdoAnalysis));
 });
