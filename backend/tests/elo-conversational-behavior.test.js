@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import test from "node:test";
-import { buildEloSystemPrompt_ } from "../src/app.js";
+import { buildEloSystemPrompt_, validateEloChatRequest_ } from "../src/app.js";
 
 const repoDir = join(fileURLToPath(new URL("..", import.meta.url)), "..");
 const policySource = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-communication-policy.js"), "utf8");
@@ -79,4 +79,45 @@ test("P0: prompt online recebe relógio de execução para datas relativas", () 
   const prompt = buildEloSystemPrompt_({ eloContext: "geral" });
   assert.match(prompt, /RUNTIME CLOCK \(SOURCE OF TRUTH\)/);
   assert.match(prompt, /America\/Bahia/);
+});
+
+test("contexto validado preserva analise da imagem e descarta campos arbitrarios", () => {
+  const analysis = "Imagem A: fissura vertical junto ao vao da janela.";
+  const validation = validateEloChatRequest_({
+    message: "Qual e o principal problema?",
+    context: {
+      imageAnalysisContext: {
+        type: "image",
+        source: "explicit_history",
+        available: true,
+        attachmentId: "attachment-image-a",
+        fileName: "image-A.jpeg",
+        conversationId: "conversation-current",
+        sequence: 1,
+        analysis
+      },
+      lastMeaningfulAnalysis: { analysis: "nao deveria passar pelo allowlist antigo" }
+    }
+  });
+
+  assert.equal(validation.ok, true);
+  assert.equal(validation.payload.context.imageAnalysisContext.source, "explicit_history");
+  assert.equal(validation.payload.context.imageAnalysisContext.analysis, analysis);
+  assert.equal(validation.payload.context.lastMeaningfulAnalysis, undefined);
+});
+
+test("prompt usa analise de imagem ativa ou historica sem alegar indisponibilidade", () => {
+  const prompt = buildEloSystemPrompt_({
+    imageAnalysisContext: {
+      type: "image",
+      source: "active_attachment",
+      available: true,
+      fileName: "image-A.jpeg",
+      analysis: "Problema principal: trinca diagonal no encontro da viga."
+    }
+  });
+  assert.match(prompt, /IMAGE ANALYSIS CONTEXT/);
+  assert.match(prompt, /trinca diagonal no encontro da viga/i);
+  assert.match(prompt, /Ground relevant follow-ups in its supplied analysis/i);
+  assert.match(buildEloSystemPrompt_({ imageAnalysisContext: { type: "image", source: "explicit_history", available: false } }), /Do not substitute the active PDF/i);
 });
