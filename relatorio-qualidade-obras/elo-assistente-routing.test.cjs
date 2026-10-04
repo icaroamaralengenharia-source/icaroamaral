@@ -1386,6 +1386,78 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
 });
 
+test('ELO Stock Full: mantém contexto cloud em follow-ups e reconhece consultas comerciais', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+
+  elo.rememberSessionTurnForTest(
+    'Quanto cimento temos?',
+    {
+      sessionTheme: 'elo_command_bridge',
+      sessionIntent: 'stock_full_balance',
+      commandBridge: {
+        module: 'stock_full',
+        action: 'get_balance',
+        data: { item: { id: 'cimento', name: 'Cimento CP II', unit: 'saco', currentQuantity: 85 } }
+      }
+    },
+    'Cimento CP II: saldo atual 85 saco.'
+  );
+
+  assert.equal(elo.getActiveTopicStateForTest().activeTopic, 'stock');
+  assert.equal(elo.detectCommandBridgeRequestForTest('E de vergalhão?').module, 'stock_full');
+  assert.equal(elo.detectCommandBridgeRequestForTest('E de vergalhão?').action, 'get_balance');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Qual dos dois tem menos?').action, 'stock_compare');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Quais materiais estão cadastrados?').action, 'list_products');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Qual material tem menor estoque?').action, 'stock_lowest');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Qual foi a última entrada?').action, 'stock_last_entry');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Qual foi a última saída?').action, 'stock_last_exit');
+  assert.equal(elo.detectCommandBridgeRequestForTest('Tem telha XZ-999?').action, 'get_balance');
+});
+
+test('ELO Stock Full: consultas derivadas usam o backend real e não inventam', async () => {
+  const token = createEloHotfixToken();
+  const calls = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: { STOCK_FULL_API_BASE_URL: 'https://backend.example' },
+    fetch(url) {
+      calls.push(String(url));
+      if (String(url).endsWith('/api/stock-full/items')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [
+          { id: 'cimento', name: 'Cimento CP II', unit: 'saco', currentQuantity: 85 },
+          { id: 'vergalhao', name: 'Vergalhão 10 mm', unit: 'un', currentQuantity: 12 }
+        ] }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, lastMovements: [
+        { type: 'entrada', itemName: 'Cimento CP II', quantity: 5, unit: 'saco', createdAt: '2026-10-04T10:00:00.000Z' },
+        { type: 'saida', itemName: 'Vergalhão 10 mm', quantity: 2, unit: 'un', createdAt: '2026-10-04T11:00:00.000Z' }
+      ] }) });
+    }
+  });
+
+  elo.rememberSessionTurnForTest('Quanto cimento temos?', {
+    sessionTheme: 'elo_command_bridge',
+    commandBridge: { module: 'stock_full', action: 'get_balance', data: { item: { id: 'cimento', name: 'Cimento CP II', unit: 'saco', currentQuantity: 85 } } }
+  }, 'Cimento CP II: saldo atual 85 saco.');
+  elo.rememberSessionTurnForTest('E de vergalhão?', {
+    sessionTheme: 'elo_command_bridge',
+    commandBridge: { module: 'stock_full', action: 'get_balance', data: { item: { id: 'vergalhao', name: 'Vergalhão 10 mm', unit: 'un', currentQuantity: 12 } } }
+  }, 'Vergalhão 10 mm: saldo atual 12 un.');
+
+  const compare = await elo.buildCommandBridgeResponseForTest('Qual dos dois tem menos?');
+  const lowest = await elo.buildCommandBridgeResponseForTest('Qual material tem menor estoque?');
+  const lastEntry = await elo.buildCommandBridgeResponseForTest('Qual foi a última entrada?');
+  const missing = await elo.buildCommandBridgeResponseForTest('Tem telha XZ-999?');
+
+  assert.match(compare.fullAnswer, /tem menos Vergalhão 10 mm: 12 un/i);
+  assert.match(lowest.fullAnswer, /menor saldo.*Vergalhão 10 mm/i);
+  assert.match(lastEntry.fullAnswer, /Última entrada.*Cimento CP II/i);
+  assert.match(missing.fullAnswer, /não encontrei esse produto/i);
+  assert.equal(calls.filter((url) => url.endsWith('/api/stock-full/items')).length, 3);
+  assert.equal(calls.filter((url) => url.endsWith('/api/stock-full/live')).length, 1);
+});
+
 test('ELO Action Bus RDO: exige intencao valida e nao inventa listagem', () => {
   const { elo } = loadEloContext();
 

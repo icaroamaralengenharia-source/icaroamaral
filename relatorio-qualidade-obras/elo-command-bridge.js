@@ -358,6 +358,10 @@
     const raw = clean(input && input.payload && input.payload.message);
     const text = normalize(raw);
     const qtyWord = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|vinte|trinta|quarenta|cinquenta|cem";
+    if (input && input.action === "stock_lowest") return { action: "stock.lowest", raw };
+    if (input && input.action === "stock_last_entry") return { action: "stock.last_entry", raw };
+    if (input && input.action === "stock_last_exit") return { action: "stock.last_exit", raw };
+    if (input && input.action === "stock_compare") return { action: "stock.compare", raw };
     if (/^(sim|confirmo|confirmar|pode confirmar|pode executar|pode lancar|ok|certo)$/.test(text)) return { action: "stock.confirm", raw };
     if (/^(nao|cancelar|cancela|abortar)$/.test(text)) return { action: "stock.cancel", raw };
     const createIntent = parseStockCreateIntent(input, raw, text);
@@ -501,6 +505,56 @@
       return stockResult(input, { action: "get_balance", mode: "read", humanAnswer: getItemName(item) + ": saldo atual " + formatQuantity(getItemQuantity(item), item.unit) + ".", data: { item } });
     }).catch(function (error) {
       return stockResult(input, { ok: false, action: "get_balance", mode: "error", humanAnswer: "Não consegui consultar o Stock Full agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
+
+  function executeLowestStock(input) {
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para consultar o estoque real do Stock Full."));
+    return loadItems(input).then(function (items) {
+      if (!items.length) return stockResult(input, { action: "stock.lowest", mode: "read", humanAnswer: "Consultei o Stock Full autenticado e não encontrei produtos cadastrados." });
+      const sorted = items.slice().sort(function (a, b) { return getItemQuantity(a) - getItemQuantity(b); });
+      const lowest = sorted[0];
+      const tied = sorted.filter(function (item) { return getItemQuantity(item) === getItemQuantity(lowest); }).slice(0, 5);
+      const label = tied.length > 1 ? tied.map(getItemName).join(", ") : getItemName(lowest);
+      return stockResult(input, { action: "stock.lowest", mode: "read", humanAnswer: "Material(is) com menor saldo no Stock Full: " + label + " — " + formatQuantity(getItemQuantity(lowest), lowest.unit) + ".", data: { items: tied } });
+    }).catch(function (error) {
+      return stockResult(input, { ok: false, action: "stock.lowest", mode: "error", humanAnswer: "Não consegui consultar o menor saldo agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
+
+  function executeLastMovement(input, type) {
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para consultar o histórico real do Stock Full."));
+    return fetchStockJson(input, "/api/stock-full/live").then(function (data) {
+      let movements = Array.isArray(data.lastMovements) ? data.lastMovements : Array.isArray(data.movements) ? data.movements : [];
+      if (!movements.length) {
+        const entries = Array.isArray(data.entries) ? data.entries.map(movementFromEntry) : [];
+        const exits = Array.isArray(data.exits) ? data.exits.map(movementFromExit) : [];
+        movements = entries.concat(exits);
+      }
+      const target = sortMovements(movements).find(function (movement) { return getMovementType(movement) === type; });
+      if (!target) return stockResult(input, { action: "stock.last_" + type, mode: "read", humanAnswer: "Não encontrei " + (type === "entrada" ? "entradas" : "saídas") + " registradas no Stock Full autenticado." });
+      return stockResult(input, { action: "stock.last_" + type, mode: "read", humanAnswer: "Última " + type + " no Stock Full: " + formatMovementLine(target).replace(/^-\s*/, ""), data: { movement: target } });
+    }).catch(function (error) {
+      return stockResult(input, { ok: false, action: "stock.last_" + type, mode: "error", humanAnswer: "Não consegui consultar a última " + type + " agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
+    });
+  }
+
+  function executeStockCompare(input) {
+    if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para comparar saldos reais do Stock Full."));
+    const references = Array.isArray(input.context && input.context.stockItems) ? input.context.stockItems : [];
+    if (references.length < 2) return Promise.resolve(stockResult(input, { ok: false, action: "stock.compare", mode: "blocked", humanAnswer: "Preciso de dois materiais identificados no contexto do Stock Full para comparar. Nenhum saldo foi inventado." }));
+    return loadItems(input).then(function (items) {
+      const selected = references.map(function (reference) {
+        const id = getItemId(reference);
+        const name = normalize(getItemName(reference));
+        return items.find(function (item) { return id && getItemId(item) === id; }) || items.find(function (item) { return normalize(getItemName(item)) === name; });
+      }).filter(Boolean).filter(function (item, index, list) { return list.findIndex(function (other) { return getItemId(other) === getItemId(item); }) === index; }).slice(-2);
+      if (selected.length < 2) return stockResult(input, { ok: false, action: "stock.compare", mode: "blocked", humanAnswer: "Não consegui identificar os dois materiais no Stock Full atual. Nenhum saldo foi inventado." });
+      const ordered = selected.slice().sort(function (a, b) { return getItemQuantity(a) - getItemQuantity(b); });
+      if (getItemQuantity(ordered[0]) === getItemQuantity(ordered[1])) return stockResult(input, { action: "stock.compare", mode: "read", humanAnswer: "Os dois materiais têm o mesmo saldo no Stock Full: " + formatQuantity(getItemQuantity(ordered[0]), ordered[0].unit) + ".", data: { items: selected } });
+      return stockResult(input, { action: "stock.compare", mode: "read", humanAnswer: "Entre " + getItemName(selected[0]) + " e " + getItemName(selected[1]) + ", tem menos " + getItemName(ordered[0]) + ": " + formatQuantity(getItemQuantity(ordered[0]), ordered[0].unit) + ".", data: { items: selected } });
+    }).catch(function (error) {
+      return stockResult(input, { ok: false, action: "stock.compare", mode: "error", humanAnswer: "Não consegui comparar os saldos agora. O backend retornou: " + (clean(error.message) || "erro de consulta") + ".", error: clean(error.message) });
     });
   }
 
@@ -1779,7 +1833,11 @@
     if (intent.action === "stock.listProducts") return executeListProducts(input);
     if (intent.action === "stock.query") return executeStockQuery(input, intent);
     if (intent.action === "stock.lowStock") return executeLowStock(input);
+    if (intent.action === "stock.lowest") return executeLowestStock(input);
     if (intent.action === "stock.history") return executeMovementHistory(input);
+    if (intent.action === "stock.last_entry") return executeLastMovement(input, "entrada");
+    if (intent.action === "stock.last_exit") return executeLastMovement(input, "saída");
+    if (intent.action === "stock.compare") return executeStockCompare(input);
     if (intent.action === "stock.create_product.preview") return executeCreateProductPreview(input, intent);
     if (/^stock\.(?:entry|exit|transfer)\.preview$/.test(intent.action)) return executeMovementPreview(input, intent);
     return unsupported(input, "Esse comando de Stock Full ainda não está liberado no Action Bus.");
