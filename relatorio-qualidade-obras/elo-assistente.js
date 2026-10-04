@@ -1094,24 +1094,6 @@
     };
   }
 
-  function handleEloReportFromAnalysisContextFastPath_(cleanQuestion) {
-    const response = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
-    if (!response) return false;
-    appendMessage("user", cleanQuestion);
-    const context = getEloActiveAnalysisContext_();
-    if (!context) {
-      const answer = formatResponse(response);
-      appendAssistantMessage(cleanQuestion, answer, false, response);
-      saveConversation(cleanQuestion, answer);
-      rememberSessionTurn(cleanQuestion, response, answer);
-      clearProductAttachmentPreview();
-      return true;
-    }
-    appendTypingIndicator();
-    generateEloReportPdfFromChat_(cleanQuestion, [], context);
-    return true;
-  }
-
   function handleEloDomainCommandFastPath_(cleanQuestion) {
     const request = detectEloCommandBridgeRequest_(cleanQuestion);
     if (!isEloCommandBridgePriorityRequest_(request)) return false;
@@ -1164,6 +1146,26 @@
       return true;
     }
     generateEloReportPdfFromChat_(cleanQuestion, [], context);
+    return true;
+  }
+
+  function handleEloAnalysisReferenceFastPath_(cleanQuestion) {
+    const response = buildEloAnalysisReferenceResponse_(cleanQuestion);
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    const answer = formatResponse(response);
+    appendAssistantMessage(cleanQuestion, answer, false, response);
+    saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
+    clearProductAttachmentPreview();
+    logEloRoutingTrace_(cleanQuestion, {
+      stage: "analysis_context",
+      matcher: "plural_or_ordinal_reference",
+      matchResult: true,
+      selectedAction: response.contextResolution && response.contextResolution.mode || "reference",
+      earlyReturn: true,
+      responseSource: "last_meaningful_analysis"
+    });
     return true;
   }
 
@@ -1812,6 +1814,8 @@
       fullAnswer: answer,
       nextAction: "Você pode comparar outro item ou pedir um relatório desta análise.",
       canSave: false,
+      skipAutoTts: true,
+      responseOrigin: "local_tool",
       sessionTheme: context.activeSubject || "pdf",
       sessionIntent: "document_context_follow_up",
       activeSubject: context.activeSubject || "",
@@ -30504,6 +30508,7 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
       return;
     }
+    if (!attachedFiles.length && handleEloAnalysisReferenceFastPath_(cleanQuestion)) return;
     if (handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
     if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest)) {
       if (handleEloDomainCommandFastPath_(routeQuestion)) return;
@@ -35466,6 +35471,7 @@ function isEloResidentialNewPipelineEnabled_() {
     detectReportFromAnalysisContextForTest: isEloReportFromAnalysisContextRequest_,
     buildReportFromAnalysisContextForTest: buildEloReportFromAnalysisContextResponse_,
     generateReportFromAnalysisContextForTest: function (message) { return generateEloReportPdfFromChat_(message, [], getEloActiveAnalysisContext_()); },
+    handleAnalysisReferenceForTest: handleEloAnalysisReferenceFastPath_,
     rememberActiveAnalysisForTest: rememberEloActiveAnalysisContext_,
     getActiveAnalysisForTest: getEloActiveAnalysisContext_,
     resolveAnalysisReferenceForTest: function (message) { return resolveEloAnalysisReference_(message, getEloActiveAnalysisContext_()); },
