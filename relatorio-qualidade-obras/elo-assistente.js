@@ -1708,9 +1708,29 @@
         candidates.push(line);
       }
     });
-    return dedupeEloAnalysisEntities_(candidates.map(function (item, index) {
+    const extracted = dedupeEloAnalysisEntities_(candidates.map(function (item, index) {
       return normalizeEloAnalysisEntity_(item, index, "last_analysis");
     }).filter(Boolean));
+    if (extracted.length > 1 || /(?:^|\s)(?:\d+[.)]|[-*•])\s+/.test(clean)) return extracted;
+
+    const proseCandidates = [];
+    const proseParts = clean.split(/(?<=[.!?])\s+|(?=\b(?:al[eé]m\s+disso|tamb[eé]m\s+se\s+destaca|adicionalmente)\b)/i);
+    proseParts.forEach(function (part) {
+      const normalizedPart = normalizeText(part);
+      if (!normalizedPart || !/\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|fundacao|estrutura|quantitativos|projeto executivo|bdi|orcamento preliminar)\b/.test(normalizedPart)) return;
+      const clauses = part.replace(/^\s*(?:os\s+principais\s+problemas[^:]*:\s*|os\s+principais\s+problemas[^:]*\s+s[aã]o\s+)/i, "")
+        .split(/\s+(?=e\s+(?:a\s+)?(?:falta|aus[eê]ncia|pend[eê]ncia|o\s+or[cç]amento)|al[eé]m\s+disso\b)/i);
+      clauses.forEach(function (clause) {
+        const cleanClause = sanitizeUserText(clause).replace(/^(?:al[eé]m\s+disso|tamb[eé]m\s+se\s+destaca),?\s*/i, "");
+        if (cleanClause && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|fundacao|estrutura|quantitativos|projeto executivo|bdi|orcamento preliminar)\b/i.test(normalizeText(cleanClause))) {
+          proseCandidates.push(cleanClause);
+        }
+      });
+    });
+    const proseEntities = dedupeEloAnalysisEntities_(proseCandidates.map(function (item, index) {
+      return normalizeEloAnalysisEntity_(item, index, "last_analysis");
+    }).filter(Boolean));
+    return proseEntities.length > extracted.length ? proseEntities : extracted;
   }
 
   function extractEloDocumentEntities_(documentContext) {
