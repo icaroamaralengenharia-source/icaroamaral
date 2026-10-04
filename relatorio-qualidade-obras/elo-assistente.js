@@ -28164,7 +28164,7 @@ function isEloResidentialNewPipelineEnabled_() {
           break;
         }
       }
-      if (!question || !answer || !isEloAnalysisLikeResponse_(question, {}, answer)) continue;
+      if (!question || !answer || isEloAnalysisReferenceResolutionRequest_(question) || isEloReportFromAnalysisContextRequest_(question) || !isEloAnalysisLikeResponse_(question, {}, answer)) continue;
       const restored = rememberEloActiveAnalysisContext_(question, { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
       if (restored) return restored;
     }
