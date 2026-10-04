@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-10-04T15:21:13.209Z",
-  "coletadoEm": "2026-10-04T15:21:13.209Z",
+  "atualizadoEm": "2026-10-04T19:36:00.336Z",
+  "coletadoEm": "2026-10-04T19:36:00.336Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "05a8039ceebc0bc9",
+      "titulo": "Idosos superam dificuldades e ressaltam importância do voto",
+      "resumo": "Elenita da Silva, 71 anos, tem dificuldade de locomoção por causa de uma cirurgia recente no joelho direito. Ela vota na maior zona eleitoral do Distrito Federal, em Águas Claras, e para chegar até a urna precisou da ajuda de uma bengala.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/politica/noticia/2026-10/idosos-superam-dificuldades-e-ressaltam-importancia-do-voto",
+      "publicadoEm": "2026-10-04T17:49:00.000Z",
+      "coletadoEm": "2026-10-04T19:36:00.336Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/pzDiHfPrbvo6CZ3LOSri5rAQ02U=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/10/04/0d4a2108.jpg?itok=sT6OGX4-",
+      "imagemAlt": "Idosos superam dificuldades e ressaltam importância do voto",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "c7ecc33194a12847",
       "titulo": "Semana CANPAT Construção 2026 começa nesta segunda-feira com debates sobre segurança nos canteiros",
