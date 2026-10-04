@@ -5257,11 +5257,10 @@ async function findStockFullMovementByIdempotency_(database, table, payload, pro
     offlineUuid ? { column: "offline_uuid", value: offlineUuid } : null,
     operationId ? { column: "operation_id", value: operationId } : null
   ].filter(Boolean)) {
-    const { data, error } = await database
+    const { data, error } = await applyStockFullProjectScope_(database
       .from(table)
       .select("*")
-      .eq("institution_id", institutionId)
-      .eq("project_id", projectId)
+      .eq("institution_id", institutionId), projectId)
       .eq(filter.column, filter.value)
       .maybeSingle();
     if (error) {
@@ -5280,11 +5279,10 @@ async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
   if (!institutionId || !accessKey) {
     return null;
   }
-  const { data, error } = await database
+  const { data, error } = await applyStockFullProjectScope_(database
     .from("stock_full_entries")
     .select("*")
-    .eq("institution_id", institutionId)
-    .eq("project_id", projectId)
+    .eq("institution_id", institutionId), projectId)
     .eq("nfe_access_key", accessKey)
     .maybeSingle();
   if (error) {
@@ -5366,12 +5364,11 @@ async function processStockFullSyncMovement_(database, movement, profile, projec
     }
 
     const newBalance = type === "saida" ? previousBalance - validation.payload.quantity : previousBalance + validation.payload.quantity;
-    const { data: updatedItem, error: updateError } = await database
+    const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
       .from("stock_full_items")
       .update({ current_quantity: newBalance, updated_at: new Date().toISOString() })
       .eq("id", item.id)
-      .eq("institution_id", profile.institution_id)
-      .eq("project_id", validation.payload.project_id)
+      .eq("institution_id", profile.institution_id), validation.payload.project_id)
       .eq("is_active", true)
       .select("*")
       .maybeSingle();
