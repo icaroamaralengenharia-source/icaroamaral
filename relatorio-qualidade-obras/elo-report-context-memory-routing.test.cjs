@@ -406,7 +406,11 @@ function rememberCurrentPdfAnalysis(api) {
 function getFollowUpAnalysis(api, question) {
   const payload = { message: question, context: {} };
   assert.equal(api.applyActiveAnalysisContextToPayloadForTest(payload, question), true);
-  return payload.context.lastMeaningfulAnalysis.analysis;
+  return payload.context.imageAnalysisContext && payload.context.imageAnalysisContext.analysis || payload.context.lastMeaningfulAnalysis.analysis;
+}
+
+function setCurrentConversation(api, id) {
+  api.setCurrentConversationIdForTest(id);
 }
 
 test("regressao A: novo attachment de imagem bloqueia RDO antigo e direciona follow-up para a imagem", () => {
@@ -513,4 +517,97 @@ test("attachment ativo sobrevive ao reopen e historico antigo nao o substitui im
   assert.equal(reopened.api.restoreActiveContextForTest(), true);
   assert.match(reopened.api.getActiveAnalysisForTest().analysis, /imagem B/i);
   assert.ok(reopened.api.getOnlineHistoryForTest("Volte ao relatorio anterior sobre infiltracao").some((item) => item.content === oldRdoAnalysis));
+});
+
+test("imagem ativa alimenta follow-ups vagos sem uma nova analise visual", () => {
+  const { api } = loadElo();
+  setCurrentConversation(api, "conversation-image-active");
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: problema principal: trinca diagonal no encontro da viga. Recomendo vistoria presencial.";
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+
+  for (const question of ["Qual e o principal problema?", "Isso e grave?"]) {
+    const payload = { message: question, context: {} };
+    assert.equal(api.applyAttachmentContextToPayloadForTest(payload, question), true);
+    assert.equal(payload.context.imageAnalysisContext.source, "active_attachment");
+    assert.match(payload.context.imageAnalysisContext.analysis, /trinca diagonal/i);
+  }
+});
+
+test("request de follow-up envia a analise de imagem no payload real de chat", async () => {
+  const { api, fetchRequests } = loadElo({
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, answer: "Resposta baseada na análise salva." }) })
+  });
+  setCurrentConversation(api, "conversation-image-request");
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: fissura vertical junto ao vao da janela.";
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+
+  await api.requestOnlineAnswerForTest("Qual e o principal problema?", [], {});
+  const chatRequest = fetchRequests().find((request) => String(request.url).includes("/api/elo/chat"));
+  assert.ok(chatRequest);
+  const payload = JSON.parse(chatRequest.options.body);
+  assert.equal(payload.context.imageAnalysisContext.source, "active_attachment");
+  assert.match(payload.context.imageAnalysisContext.analysis, /fissura vertical/i);
+});
+
+test("imagem A -> PDF B preserva precedencia PDF, retorna explicitamente a A e volta ao PDF", () => {
+  const { api } = loadElo();
+  setCurrentConversation(api, "conversation-image-pdf");
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: infiltracao antiga no encontro da parede com a cobertura.";
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: problema principal: projeto executivo ausente." }]);
+  rememberCurrentPdfAnalysis(api);
+
+  const activeQuestion = "Qual e o principal problema?";
+  const activePayload = { message: activeQuestion, context: {} };
+  assert.equal(api.applyAttachmentContextToPayloadForTest(activePayload, activeQuestion), true);
+  assert.match(activePayload.context.documentsSummary, /PDF B/);
+  assert.equal(activePayload.context.imageAnalysisContext, undefined);
+  assert.doesNotMatch(JSON.stringify(activePayload.context), /infiltracao antiga|imagem A/i);
+
+  const returnQuestion = "Volte para a imagem anterior. Qual era o principal problema?";
+  const imagePayload = { message: returnQuestion, context: {} };
+  assert.equal(api.applyAttachmentContextToPayloadForTest(imagePayload, returnQuestion), true);
+  assert.equal(imagePayload.context.imageAnalysisContext.source, "explicit_history");
+  assert.match(imagePayload.context.imageAnalysisContext.analysis, /infiltracao antiga/i);
+  assert.equal(imagePayload.context.documentsSummary, undefined);
+
+  const backToPdf = "Agora volte para o PDF. Qual era o problema?";
+  const pdfPayload = { message: backToPdf, context: {} };
+  assert.equal(api.applyAttachmentContextToPayloadForTest(pdfPayload, backToPdf), true);
+  assert.match(pdfPayload.context.documentsSummary, /PDF B/);
+  assert.doesNotMatch(JSON.stringify(pdfPayload.context), /infiltracao antiga|imagem A/i);
+});
+
+test("referencia nomeada recupera imagem do chat atual, mas nao cruza conversas", () => {
+  const first = loadElo();
+  setCurrentConversation(first.api, "conversation-image-history");
+  first.api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: problema principal: fissura vertical junto ao vão.";
+  first.api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+  first.api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: ausencia de detalhe de armadura." }]);
+
+  const reopened = loadElo({ storage: first.storage });
+  setCurrentConversation(reopened.api, "conversation-image-history");
+  assert.equal(reopened.api.restoreActiveContextForTest(), true);
+  const namedQuestion = "Na imagem A, qual era o principal problema?";
+  const namedPayload = { message: namedQuestion, context: {} };
+  assert.equal(reopened.api.applyAttachmentContextToPayloadForTest(namedPayload, namedQuestion), true);
+  assert.match(namedPayload.context.imageAnalysisContext.analysis, /fissura vertical/i);
+
+  const missingLabel = "Na imagem Z, qual era o principal problema?";
+  const missingPayload = { message: missingLabel, context: {} };
+  assert.equal(reopened.api.applyAttachmentContextToPayloadForTest(missingPayload, missingLabel), true);
+  assert.equal(missingPayload.context.imageAnalysisContext.available, false);
+  assert.equal(missingPayload.context.documentsSummary, undefined);
+
+  const otherChat = loadElo({ storage: first.storage });
+  setCurrentConversation(otherChat.api, "different-conversation");
+  assert.equal(otherChat.api.restoreActiveContextForTest(), false);
+  const crossChatPayload = { message: namedQuestion, context: {} };
+  assert.equal(otherChat.api.applyAttachmentContextToPayloadForTest(crossChatPayload, namedQuestion), true);
+  assert.equal(crossChatPayload.context.imageAnalysisContext.available, false);
+  assert.equal(crossChatPayload.context.imageAnalysisContext.analysis, undefined);
 });
