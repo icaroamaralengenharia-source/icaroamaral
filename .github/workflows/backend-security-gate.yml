@@ -77,3 +77,8 @@ jobs:
             test_files+=(tests/obrareport-rdo-tenant-isolation-p0.test.js)
           fi
           node --test "${test_files[@]}"
+
+      - name: Stock Full atomic movement, offline and UI regression gate
+        run: |
+          node --test tests/stock-full-*.test.js
+          node --test --test-name-pattern="stock full|frontend Stock Full" tests/ai-endpoint.test.js

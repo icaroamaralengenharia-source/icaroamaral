@@ -26,6 +26,8 @@ Para produção, mantenha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `ELO_RDO
 
 Para a observabilidade do ELO Oficial, aplique `src/data/elo-telemetry-migration.sql` no mesmo projeto Supabase de produção e configure `ELO_TELEMETRY_ADMIN_TOKEN` somente no serviço backend. O dashboard usa a sessão Bearer de uma role interna no navegador; o segredo administrativo não é enviado ao cliente. Não há job de retenção criado por esta migration: a política deve ser definida e automatizada separadamente antes de declarar retenção ativa.
 
+Antes de publicar uma versão que use a RPC transacional do Stock Full, aplique uma vez `src/data/stock-full-atomic-movement-migration.sql` no mesmo projeto Supabase. Ela instala somente a função de movimento atômico e suas permissões para `authenticated`; não altera tabelas, dados nem políticas RLS. A função valida `auth.uid()` com o perfil autenticado. Confirme a instalação antes do deploy do backend, pois as rotas de entrada, saída e sync passam a depender dessa RPC.
+
 Opcionalmente, ajuste:
 
 ```text

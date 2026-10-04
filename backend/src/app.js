@@ -2720,90 +2720,17 @@ export function createApp(options = {}) {
     }
 
     try {
-      const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_entries", validation.payload, session.profile);
-      if (duplicate) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile, workScope.projectId);
-        response.json({
-          ok: true,
-          mode: "remote",
-          duplicate: true,
-          entry: mapStockFullEntryFromDatabase_(duplicate),
-          item: mapStockFullItemFromDatabase_(duplicateItem)
-        });
-        return;
-      }
-      const duplicateNfe = await findStockFullEntryByNfeAccessKey_(database, validation.payload, session.profile);
-      if (duplicateNfe) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicateNfe.item_id, session.profile, workScope.projectId);
-        response.status(409).json({
-          ok: false,
-          mode: "remote",
-          duplicate: true,
-          error: "stock_full_nfe_already_imported",
-          entry: mapStockFullEntryFromDatabase_(duplicateNfe),
-          item: mapStockFullItemFromDatabase_(duplicateItem)
-        });
-        return;
-      }
-
-      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile, workScope.projectId);
-      if (!item) {
-        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
-        return;
-      }
-
-      const previousBalance = parsePositiveNumber_(item.current_quantity, 0);
-      const nextQuantity = previousBalance + validation.payload.quantity;
-      const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
-        .from("stock_full_items")
-        .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
-        .eq("id", item.id)
-        .eq("institution_id", session.profile.institution_id), workScope.projectId)
-        .eq("is_active", true)
-        .select("*")
-        .maybeSingle();
-      if (updateError) {
-        throw updateError;
-      }
-      if (!updatedItem) {
-        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
-        return;
-      }
-
-      const { data: entry, error: entryError } = await database
-        .from("stock_full_entries")
-        .insert(validation.payload)
-        .select("*")
-        .single();
-      if (entryError) {
-        throw entryError;
-      }
-
-      await createStockFullAuditLog_(database, {
-        institutionId: session.profile.institution_id,
-        action: "stock_full_entry_created",
-        entityType: "stock_full_entry",
-        entityId: entry.id,
-        productId: updatedItem.id,
-        projectId: workScope.projectId,
-        operationId: validation.payload.operation_id,
-        offlineUuid: validation.payload.offline_uuid,
-        deviceId: validation.payload.device_id,
-        source: validation.payload.source,
-        beforeData: { current_quantity: previousBalance },
-        afterData: { current_quantity: parsePositiveNumber_(updatedItem.current_quantity, 0), quantity: validation.payload.quantity },
-        description: "Entrada registrada para " + (updatedItem.name || "produto") + ".",
-        createdBy: session.profile.id
-      });
-
+      const result = await applyStockFullMovementAtomically_(database, "entrada", validation.payload, session.profile);
       response.json({
         ok: true,
         mode: "remote",
-        entry: mapStockFullEntryFromDatabase_(entry),
-        item: mapStockFullItemFromDatabase_(updatedItem)
+        duplicate: Boolean(result.duplicate),
+        entry: mapStockFullEntryFromDatabase_(result.entry),
+        item: mapStockFullItemFromDatabase_(result.item)
       });
     } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_entries_create_failed" });
+      const mapped = mapStockFullMovementError_(error, "stock_full_entries_create_failed");
+      response.status(mapped.status).json({ ok: false, duplicate: mapped.error === "stock_full_nfe_already_imported", error: mapped.error });
     }
   });
 
@@ -2864,83 +2791,18 @@ export function createApp(options = {}) {
     }
 
     try {
-      const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_exits", validation.payload, session.profile);
-      if (duplicate) {
-        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile, workScope.projectId);
-        response.json({
-          ok: true,
-          mode: "remote",
-          duplicate: true,
-          exit: mapStockFullExitFromDatabase_(duplicate),
-          item: mapStockFullItemFromDatabase_(duplicateItem)
-        });
-        return;
-      }
-
-      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile, workScope.projectId);
-      if (!item) {
-        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
-        return;
-      }
-
-      const currentQuantity = parsePositiveNumber_(item.current_quantity, 0);
-      if (validation.payload.quantity > currentQuantity) {
-        response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity" });
-        return;
-      }
-
-      const nextQuantity = currentQuantity - validation.payload.quantity;
-      const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
-        .from("stock_full_items")
-        .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
-        .eq("id", item.id)
-        .eq("institution_id", session.profile.institution_id), workScope.projectId)
-        .eq("is_active", true)
-        .select("*")
-        .maybeSingle();
-      if (updateError) {
-        throw updateError;
-      }
-      if (!updatedItem) {
-        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
-        return;
-      }
-
-      const { data: exit, error: exitError } = await database
-        .from("stock_full_exits")
-        .insert(validation.payload)
-        .select("*")
-        .single();
-      if (exitError) {
-        throw exitError;
-      }
-
-      await createStockFullAuditLog_(database, {
-        institutionId: session.profile.institution_id,
-        action: "stock_full_exit_created",
-        entityType: "stock_full_exit",
-        entityId: exit.id,
-        productId: updatedItem.id,
-        projectId: workScope.projectId,
-        operationId: validation.payload.operation_id,
-        offlineUuid: validation.payload.offline_uuid,
-        deviceId: validation.payload.device_id,
-        source: validation.payload.source,
-        beforeData: { current_quantity: currentQuantity },
-        afterData: { current_quantity: parsePositiveNumber_(updatedItem.current_quantity, 0), quantity: validation.payload.quantity },
-        description: "Saida registrada para " + (updatedItem.name || "produto") + ": " +
-          validation.payload.quantity + " " + (updatedItem.unit || "un") + ".",
-        createdBy: session.profile.id
-      });
+      const result = await applyStockFullMovementAtomically_(database, "saida", validation.payload, session.profile);
 
       response.json({
         ok: true,
         mode: "remote",
-        exit: mapStockFullExitFromDatabase_(exit),
-        item: mapStockFullItemFromDatabase_(updatedItem)
+        duplicate: Boolean(result.duplicate),
+        exit: mapStockFullExitFromDatabase_(result.exit),
+        item: mapStockFullItemFromDatabase_(result.item)
       });
     } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_exits_create_failed" });
+      const mapped = mapStockFullMovementError_(error, "stock_full_exits_create_failed");
+      response.status(mapped.status).json({ ok: false, error: mapped.error });
     }
   });
 
@@ -5283,6 +5145,55 @@ async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
   return data || null;
 }
 
+async function applyStockFullMovementAtomically_(database, type, payload, profile) {
+  const { data, error } = await database.rpc("stock_full_apply_movement", {
+    p_institution_id: clean_(profile && profile.institution_id),
+    p_profile_id: clean_(profile && profile.id),
+    p_project_id: clean_(payload && payload.project_id) || null,
+    p_item_id: clean_(payload && payload.item_id),
+    p_movement_type: type,
+    p_quantity: payload && payload.quantity,
+    p_movement: payload || {}
+  });
+  if (error) {
+    const mapped = mapStockFullMovementError_(error, "stock_full_movement_atomic_failed");
+    throw Object.assign(new Error(mapped.error), { status: mapped.status });
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  const movement = type === "saida" ? result && result.exit : result && result.entry;
+  if (!result || !result.item || !movement || !["created", "synced", "duplicate"].includes(clean_(result.status))) {
+    throw Object.assign(new Error("stock_full_movement_atomic_failed"), { status: 500 });
+  }
+  return Object.assign({}, result, { [type === "saida" ? "exit" : "entry"]: movement });
+}
+
+function mapStockFullMovementError_(error, fallback) {
+  const message = clean_(error && (error.message || error.error || error.code));
+  const known = [
+    "stock_full_insufficient_quantity",
+    "stock_full_item_not_found",
+    "stock_full_profile_not_found",
+    "stock_full_nfe_already_imported",
+    "stock_full_idempotency_key_reused",
+    "stock_full_request_id_required",
+    "stock_full_movement_type_invalid",
+    "stock_full_institution_not_allowed",
+    "WORK_NOT_ALLOWED",
+    "WORK_REQUIRED",
+    "institution_id_required",
+    "quantity_required",
+    "permission_denied"
+  ].find((code) => message.includes(code));
+  const code = known || fallback || "stock_full_movement_atomic_failed";
+  const status = code === "stock_full_item_not_found" ? 404
+    : code === "stock_full_profile_not_found" || code === "permission_denied" || code === "stock_full_institution_not_allowed" || code === "WORK_NOT_ALLOWED" ? 403
+      : code === "stock_full_insufficient_quantity" || code === "stock_full_nfe_already_imported" || code === "stock_full_idempotency_key_reused" ? 409
+        : code === "stock_full_request_id_required" || code === "stock_full_movement_type_invalid" || code === "WORK_REQUIRED" || code === "institution_id_required" || code === "quantity_required" ? 400
+          : 500;
+  return { status, error: code };
+}
+
 async function processStockFullSyncMovement_(database, movement, profile, projectIdOverride = "") {
   const type = normalizeStockFullMovementType_(movement && movement.type);
   const base = {
@@ -5305,110 +5216,41 @@ async function processStockFullSyncMovement_(database, movement, profile, projec
       syncStatus: "synced",
       syncedAt: new Date().toISOString()
     });
-    const table = type === "saida" ? "stock_full_exits" : "stock_full_entries";
     const validation = type === "saida" ? validateStockFullExitPayload_(body, profile, clean_(projectIdOverride) || clean_(body.projectId || body.project_id)) : validateStockFullEntryPayload_(body, profile, clean_(projectIdOverride) || clean_(body.projectId || body.project_id));
     if (!validation.ok) {
       await auditStockFullSyncRejection_(database, profile, base, validation.error, body);
       return Object.assign({}, base, { status: "rejected", message: validation.error });
     }
+    base.operation_id = validation.payload.operation_id;
+    base.offline_uuid = validation.payload.offline_uuid;
 
-    const duplicate = await findStockFullMovementByIdempotency_(database, table, validation.payload, profile);
-    if (duplicate) {
-      const item = await getStockFullItemForProfile_(database, duplicate.item_id, profile, validation.payload.project_id);
-      const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
+    const result = await applyStockFullMovementAtomically_(database, type, validation.payload, profile);
+    const movementRecord = type === "saida" ? result.exit : result.entry;
+    const currentBalance = parsePositiveNumber_(result.item.current_quantity, 0);
+    if (result.duplicate) {
       return Object.assign({}, base, {
         status: "duplicate",
-        movement_id: duplicate.id,
-        itemId: duplicate.item_id,
-        previousBalance: currentQuantity,
-        newBalance: currentQuantity
+        movement_id: movementRecord.id,
+        itemId: result.item.id,
+        previousBalance: currentBalance,
+        newBalance: currentBalance
       });
     }
-    const duplicateNfe = type === "entrada" ? await findStockFullEntryByNfeAccessKey_(database, validation.payload, profile) : null;
-    if (duplicateNfe) {
-      const item = await getStockFullItemForProfile_(database, duplicateNfe.item_id, profile, validation.payload.project_id);
-      const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
-      return Object.assign({}, base, {
-        status: "duplicate",
-        message: "stock_full_nfe_already_imported",
-        movement_id: duplicateNfe.id,
-        itemId: duplicateNfe.item_id,
-        previousBalance: currentQuantity,
-        newBalance: currentQuantity
-      });
-    }
-
-    const item = await getStockFullItemForProfile_(database, validation.payload.item_id, profile, validation.payload.project_id);
-    if (!item) {
-      await auditStockFullSyncRejection_(database, profile, base, "stock_full_item_not_found", body);
-      return Object.assign({}, base, { status: "rejected", message: "stock_full_item_not_found" });
-    }
-    const previousBalance = parsePositiveNumber_(item.current_quantity, 0);
-    if (type === "saida" && validation.payload.quantity > previousBalance) {
-      await auditStockFullSyncRejection_(database, profile, base, "stock_full_insufficient_quantity", body, item);
-      return Object.assign({}, base, {
-        status: "rejected",
-        message: "stock_full_insufficient_quantity",
-        itemId: item.id,
-        previousBalance,
-        newBalance: previousBalance
-      });
-    }
-
-    const newBalance = type === "saida" ? previousBalance - validation.payload.quantity : previousBalance + validation.payload.quantity;
-    const { data: updatedItem, error: updateError } = await applyStockFullProjectScope_(database
-      .from("stock_full_items")
-      .update({ current_quantity: newBalance, updated_at: new Date().toISOString() })
-      .eq("id", item.id)
-      .eq("institution_id", profile.institution_id), validation.payload.project_id)
-      .eq("is_active", true)
-      .select("*")
-      .maybeSingle();
-    if (updateError) {
-      throw updateError;
-    }
-    if (!updatedItem) {
-      await auditStockFullSyncRejection_(database, profile, base, "stock_full_item_not_found", body);
-      return Object.assign({}, base, { status: "rejected", message: "stock_full_item_not_found" });
-    }
-
-    const insertQuery = database
-      .from(table)
-      .insert(validation.payload)
-      .select("*");
-    const { data: movementRecord, error: insertError } = await insertQuery.single();
-    if (insertError) {
-      throw insertError;
-    }
-
-    await createStockFullAuditLog_(database, {
-      institutionId: profile.institution_id,
-      action: "stock_full_offline_sync_completed",
-      entityType: type === "saida" ? "stock_full_exit" : "stock_full_entry",
-      entityId: movementRecord.id,
-      productId: item.id,
-      projectId: validation.payload.project_id,
-      operationId: validation.payload.operation_id,
-      offlineUuid: validation.payload.offline_uuid,
-      deviceId: validation.payload.device_id,
-      source: "offline",
-      beforeData: { current_quantity: previousBalance },
-      afterData: { current_quantity: newBalance, quantity: validation.payload.quantity, type },
-      description: "Movimento offline sincronizado no Stock Full.",
-      createdBy: profile.id
-    });
-
     return Object.assign({}, base, {
       status: "synced",
       movement_id: movementRecord.id,
-      itemId: item.id,
-      previousBalance,
-      newBalance,
-      item: mapStockFullItemFromDatabase_(updatedItem)
+      itemId: result.item.id,
+      previousBalance: parsePositiveNumber_(result.previousBalance, currentBalance),
+      newBalance: parsePositiveNumber_(result.newBalance, currentBalance),
+      item: mapStockFullItemFromDatabase_(result.item)
     });
   } catch (error) {
-    await auditStockFullSyncRejection_(database, profile, base, clean_(error && error.message) || "stock_full_sync_error", movement);
-    return Object.assign({}, base, { status: "rejected", message: clean_(error && error.message) || "stock_full_sync_error" });
+    const mapped = mapStockFullMovementError_(error, "stock_full_sync_error");
+    if (mapped.error === "stock_full_nfe_already_imported") {
+      return Object.assign({}, base, { status: "duplicate", message: mapped.error });
+    }
+    await auditStockFullSyncRejection_(database, profile, base, mapped.error, movement);
+    return Object.assign({}, base, { status: "rejected", message: mapped.error });
   }
 }
 
@@ -5574,6 +5416,9 @@ function mapStockFullItemFromDatabase_(item) {
 }
 
 function validateStockFullEntryPayload_(body, profile, projectId = "") {
+  const suppliedOperationId = clean_(body.operationId ?? body.operation_id ?? body.requestId ?? body.request_id ?? body.idempotencyKey ?? body.idempotency_key);
+  const suppliedOfflineUuid = clean_(body.offlineUuid ?? body.offline_uuid);
+  const operationId = suppliedOperationId || suppliedOfflineUuid || randomUUID();
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
     project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id) || null,
@@ -5586,8 +5431,8 @@ function validateStockFullEntryPayload_(body, profile, projectId = "") {
     invoice_number: clean_(body.invoiceNumber ?? body.invoice_number ?? body.documentNumber),
     nfe_access_key: clean_(body.nfeAccessKey ?? body.nfe_access_key),
     notes: clean_(body.notes),
-    offline_uuid: clean_(body.offlineUuid ?? body.offline_uuid),
-    operation_id: clean_(body.operationId ?? body.operation_id),
+    offline_uuid: suppliedOfflineUuid || operationId,
+    operation_id: operationId,
     device_id: clean_(body.deviceId ?? body.device_id),
     sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
     source: clean_(body.source) || "online",
@@ -5611,6 +5456,9 @@ function validateStockFullEntryPayload_(body, profile, projectId = "") {
 }
 
 function validateStockFullExitPayload_(body, profile, projectId = "") {
+  const suppliedOperationId = clean_(body.operationId ?? body.operation_id ?? body.requestId ?? body.request_id ?? body.idempotencyKey ?? body.idempotency_key);
+  const suppliedOfflineUuid = clean_(body.offlineUuid ?? body.offline_uuid);
+  const operationId = suppliedOperationId || suppliedOfflineUuid || randomUUID();
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
     project_id: clean_(projectId || body.projectId || body.project_id || body.workId || body.work_id) || null,
@@ -5619,8 +5467,8 @@ function validateStockFullExitPayload_(body, profile, projectId = "") {
     destination: clean_(body.destination),
     responsible: clean_(body.responsible),
     notes: clean_(body.notes),
-    offline_uuid: clean_(body.offlineUuid ?? body.offline_uuid),
-    operation_id: clean_(body.operationId ?? body.operation_id),
+    offline_uuid: suppliedOfflineUuid || operationId,
+    operation_id: operationId,
     device_id: clean_(body.deviceId ?? body.device_id),
     sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
     source: clean_(body.source) || "online",
