@@ -30324,6 +30324,24 @@ function isEloResidentialNewPipelineEnabled_() {
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    if (!attachedFiles.length) {
+      const earlyReportContextResponse = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
+      if (earlyReportContextResponse) {
+        const earlyReportContext = getEloActiveAnalysisContext_();
+        if (!earlyReportContext) {
+          const missingContextAnswer = formatResponse(earlyReportContextResponse);
+          appendAssistantMessage(cleanQuestion, missingContextAnswer, false, earlyReportContextResponse);
+          saveConversation(cleanQuestion, missingContextAnswer);
+          rememberSessionTurn(cleanQuestion, earlyReportContextResponse, missingContextAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
+        generateEloReportPdfFromChat_(cleanQuestion, [], earlyReportContext);
+        return;
+      }
+    }
+
     const localSafetyResponse = !attachedFiles.length
       ? (buildEloPathologyFollowUpResponse_(cleanQuestion) || buildEloUnavailableFactResponse_(cleanQuestion) || buildEloCoreMemoryRecallResponse_(cleanQuestion))
       : null;
