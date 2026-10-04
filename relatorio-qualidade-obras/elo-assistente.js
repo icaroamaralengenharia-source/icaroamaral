@@ -28145,6 +28145,30 @@ function isEloResidentialNewPipelineEnabled_() {
     removeEloCoreStorageKey_(getEloCoreScopedStorageKey_(ELO_CORE_SURFACE_STATE_KEY));
     removeEloCoreStorageKey_(ELO_CORE_SURFACE_STATE_KEY);
   }
+
+  function restoreEloAnalysisContextFromStoredMessages_(storedMessages) {
+    const messages = Array.isArray(storedMessages) ? storedMessages : [];
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const item = messages[index] || {};
+      const kind = sanitizeUserText(item.kind || item.role || "").toLowerCase();
+      if (kind !== "assistant") continue;
+      const answer = sanitizeUserText(item.text || item.content || "");
+      let question = "";
+      for (let previous = index - 1; previous >= 0; previous -= 1) {
+        const previousItem = messages[previous] || {};
+        const previousKind = sanitizeUserText(previousItem.kind || previousItem.role || "").toLowerCase();
+        if (previousKind === "user") {
+          question = sanitizeUserText(previousItem.text || previousItem.content || "");
+          break;
+        }
+      }
+      if (!question || !answer || !isEloAnalysisLikeResponse_(question, {}, answer)) continue;
+      const restored = rememberEloActiveAnalysisContext_(question, { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+      if (restored) return restored;
+    }
+    return null;
+  }
+
   function restoreEloCoreSurfaceState_() {
     if (window.ELO_AUTH_SESSION_VALIDATED !== true || window.ELO_AUTH_SESSION_RESTORING) return false;
     if (!isStandaloneMode() || !ELO_UI.messages || !ELO_UI.input || ELO_UI.messages.children.length) return false;
@@ -28159,6 +28183,7 @@ function isEloResidentialNewPipelineEnabled_() {
       appendMessage(item && item.kind === "user" ? "user" : item && item.kind === "system" ? "system" : "assistant", item && item.text || "", { historical: true, responseLifecycle: "historical" });
     });
     ELO_UI.replayingCoreHistory = false;
+    restoreEloAnalysisContextFromStoredMessages_(storedMessages);
     if (state.conversationId) setEloCoreCurrentConversationId_(state.conversationId);
     ELO_UI.input.value = sanitizeUserText(state.draft || "").slice(0, 2000);
     refreshEloInputHeight_();
@@ -35472,6 +35497,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildReportFromAnalysisContextForTest: buildEloReportFromAnalysisContextResponse_,
     generateReportFromAnalysisContextForTest: function (message) { return generateEloReportPdfFromChat_(message, [], getEloActiveAnalysisContext_()); },
     handleAnalysisReferenceForTest: handleEloAnalysisReferenceFastPath_,
+    restoreAnalysisContextFromStoredMessagesForTest: restoreEloAnalysisContextFromStoredMessages_,
     rememberActiveAnalysisForTest: rememberEloActiveAnalysisContext_,
     getActiveAnalysisForTest: getEloActiveAnalysisContext_,
     resolveAnalysisReferenceForTest: function (message) { return resolveEloAnalysisReference_(message, getEloActiveAnalysisContext_()); },
