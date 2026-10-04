@@ -125,41 +125,23 @@
     }
   }
 
-  function safeDiagnosticBody(rawBody) {
-    const body = safeDiagnosticText(rawBody);
-    return body || "(empty)";
-  }
-
-  function createLoginDiagnosticError(error, requestUrl, httpStatus, statusText, responseBody) {
+  function createLoginDiagnosticError(error, httpStatus) {
     const diagnostic = new Error(safeDiagnosticText(error && error.message || error || "Unknown login error"));
     diagnostic.name = error && error.name || "Error";
-    diagnostic.requestUrl = requestUrl;
     diagnostic.httpStatus = httpStatus == null ? null : httpStatus;
-    diagnostic.statusText = safeDiagnosticText(statusText || "");
-    diagnostic.responseBody = responseBody == null ? "(none)" : safeDiagnosticBody(responseBody);
     return diagnostic;
   }
 
-  function getLoginDiagnostic(error, requestUrl) {
+  function getLoginDiagnostic(error) {
     return {
       errorName: safeDiagnosticText(error && error.name || "Error"),
       errorMessage: safeDiagnosticText(error && error.message || error || "Unknown login error"),
-      requestUrl: requestUrl,
-      httpStatus: error && error.httpStatus == null ? null : error && error.httpStatus,
-      statusText: safeDiagnosticText(error && error.statusText || ""),
-      responseBody: error && error.responseBody ? safeDiagnosticBody(error.responseBody) : "(none)"
+      httpStatus: error && error.httpStatus == null ? null : error && error.httpStatus
     };
   }
 
-  function formatLoginDiagnostic(diagnostic) {
-    return [
-      "ERROR NAME: " + diagnostic.errorName,
-      "ERROR MESSAGE: " + diagnostic.errorMessage,
-      "REQUEST URL: " + diagnostic.requestUrl,
-      "HTTP STATUS: " + (diagnostic.httpStatus == null ? "(none)" : diagnostic.httpStatus),
-      "STATUS TEXT: " + (diagnostic.statusText || "(none)"),
-      "RESPONSE BODY: " + diagnostic.responseBody
-    ].join(" | ");
+  function formatLoginFailure() {
+    return "Não foi possível entrar. Verifique e-mail e senha.";
   }
 
   async function loginWithBackend(email, password) {
@@ -172,7 +154,7 @@
         body: JSON.stringify({ email: String(email || "").trim(), password: String(password || "") })
       });
     } catch (error) {
-      throw createLoginDiagnosticError(error, requestUrl, null, "", "(none)");
+      throw createLoginDiagnosticError(error, null);
     }
 
     const rawBody = await response.text().catch(function () { return "(unreadable response body)"; });
@@ -181,13 +163,7 @@
       data = rawBody ? JSON.parse(rawBody) : {};
     } catch (_) {}
     if (!response.ok || !data.ok) {
-      throw createLoginDiagnosticError(
-        new Error(data.error || "stock_full_backend_login_failed"),
-        requestUrl,
-        response.status,
-        response.statusText,
-        rawBody
-      );
+      throw createLoginDiagnosticError(new Error(data.error || "stock_full_backend_login_failed"), response.status);
     }
     storeBackendSession(data);
     return data;
@@ -298,9 +274,9 @@
       setLoginStatus("Login online realizado. Carregando dados da empresa...", "success");
       window.location.reload();
     } catch (error) {
-      const diagnostic = getLoginDiagnostic(error, apiUrl("login"));
-      console.error("[Stock Full login diagnostic]", diagnostic);
-      setLoginStatus(formatLoginDiagnostic(diagnostic), "error");
+      const diagnostic = getLoginDiagnostic(error);
+      console.error("[Stock Full login failed]", { errorName: diagnostic.errorName, httpStatus: diagnostic.httpStatus });
+      setLoginStatus(formatLoginFailure(), "error");
     }
   }, true);
 

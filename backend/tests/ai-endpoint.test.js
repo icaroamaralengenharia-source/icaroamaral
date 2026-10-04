@@ -1677,13 +1677,13 @@ test("stock full transfer aceita operationId textual e preserva idempotencia", a
       deviceId: "elo-web-test",
       source: "elo_action_bus"
     });
-    const firstResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+    const firstResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfers", {
       method: "POST",
       headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
       body
     });
     const first = await firstResponse.json();
-    const secondResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfer", {
+    const secondResponse = await fetch(testServer.baseUrl + "/api/stock-full/transfers", {
       method: "POST",
       headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
       body
@@ -8156,6 +8156,10 @@ function createMockStockFullItemsQuery_(items) {
       filters.push({ column, value });
       return this;
     },
+    is(column, value) {
+      filters.push({ column, value, is: true });
+      return this;
+    },
     order() {
       return this;
     },
@@ -8182,7 +8186,7 @@ function createMockStockFullItemsQuery_(items) {
       return this;
     },
     async maybeSingle() {
-      const item = items.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      const item = items.find((candidate) => matchesMockStockFullFilter_(candidate, filters));
       if (item && updatePayload) {
         Object.assign(item, updatePayload);
       }
@@ -8192,7 +8196,7 @@ function createMockStockFullItemsQuery_(items) {
       };
     },
     then(resolve) {
-      const data = items.filter((item) => filters.every((filter) => item[filter.column] === filter.value));
+      const data = items.filter((item) => matchesMockStockFullFilter_(item, filters));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };
@@ -8207,6 +8211,10 @@ function createMockStockFullEntriesQuery_(entries) {
     },
     eq(column, value) {
       filters.push({ column, value });
+      return this;
+    },
+    is(column, value) {
+      filters.push({ column, value, is: true });
       return this;
     },
     order() {
@@ -8231,11 +8239,11 @@ function createMockStockFullEntriesQuery_(entries) {
       };
     },
     async maybeSingle() {
-      const entry = entries.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      const entry = entries.find((candidate) => matchesMockStockFullFilter_(candidate, filters));
       return { data: entry || null, error: null };
     },
     then(resolve) {
-      const data = entries.filter((entry) => filters.every((filter) => entry[filter.column] === filter.value));
+      const data = entries.filter((entry) => matchesMockStockFullFilter_(entry, filters));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };
@@ -8250,6 +8258,10 @@ function createMockStockFullExitsQuery_(exits) {
     },
     eq(column, value) {
       filters.push({ column, value });
+      return this;
+    },
+    is(column, value) {
+      filters.push({ column, value, is: true });
       return this;
     },
     order() {
@@ -8272,11 +8284,11 @@ function createMockStockFullExitsQuery_(exits) {
       };
     },
     async maybeSingle() {
-      const exit = exits.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      const exit = exits.find((candidate) => matchesMockStockFullFilter_(candidate, filters));
       return { data: exit || null, error: null };
     },
     then(resolve) {
-      const data = exits.filter((exit) => filters.every((filter) => exit[filter.column] === filter.value));
+      const data = exits.filter((exit) => matchesMockStockFullFilter_(exit, filters));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };
@@ -8291,6 +8303,10 @@ function createMockStockFullAuditLogQuery_(auditLogs) {
     },
     eq(column, value) {
       filters.push({ column, value });
+      return this;
+    },
+    is(column, value) {
+      filters.push({ column, value, is: true });
       return this;
     },
     order() {
@@ -8313,11 +8329,20 @@ function createMockStockFullAuditLogQuery_(auditLogs) {
       };
     },
     then(resolve) {
-      const data = auditLogs.filter((record) => filters.every((filter) => record[filter.column] === filter.value));
+      const data = auditLogs.filter((record) => matchesMockStockFullFilter_(record, filters));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };
   return query;
+}
+
+function matchesMockStockFullFilter_(record, filters) {
+  return filters.every((filter) => {
+    if (filter.is && filter.value === null) {
+      return record[filter.column] === null || record[filter.column] === undefined;
+    }
+    return record[filter.column] === filter.value;
+  });
 }
 
 function createMockStockEntriesQuery_(entries) {
