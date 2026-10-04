@@ -1567,7 +1567,7 @@
     if (!text) return false;
     if (/\b(?:ponte\s+com\s+relatorios|documentos\s+da\s+obra|historico\s+de\s+conversas)\b/.test(text)) return false;
     const hasAnalysisIntent = /\b(?:analise|analisar|analisado|analisada|problemas?|achados?|risco|riscos|recomendacoes?|recomendo|evidencias?|falta\s+de\s+material|produtividade|cronograma|vistoria|fotos?|arquivo|documento|rdo|obra)\b/.test(text);
-    const hasTechnicalContext = /\b(?:obra|pdf|anexo|arquivo|foto|fotos|vistoria|documento|rdo|concreto|fissura|trinca|infiltracao|estoque|materiais?|produtividade|equipe|cronograma|consumo)\b/.test(text);
+    const hasTechnicalContext = /\b(?:obra|pdf|anexo|arquivo|foto|fotos|vistoria|documento|rdo|orcamento|cliente|projeto|fundacao|estrutura|concreto|fissura|trinca|infiltracao|estoque|materiais?|produtividade|equipe|cronograma|consumo)\b/.test(text);
     return hasAnalysisIntent && hasTechnicalContext;
   }
 
@@ -1640,16 +1640,23 @@
   function extractEloAnalysisLines_(text, pattern) {
     const clean = sanitizeUserText(text || "");
     if (!clean) return [];
-    return clean.split(/\n+/).map(function (line) { return sanitizeUserText(line).replace(/^[-*•\d.)\s]+/, ""); }).filter(function (line) {
+    const lines = clean.split(/\n+/).reduce(function (result, line) {
+      return result.concat(line.replace(/\s+(?=\d+[.)]\s+)/g, "\n").split(/\n+/));
+    }, []);
+    return lines.map(function (line) { return sanitizeUserText(line).replace(/^[-*•\d.)\s]+/, ""); }).filter(function (line) {
       return line && pattern.test(normalizeText(line));
     }).slice(0, 10);
   }
 
   function normalizeEloAnalysisEntity_(value, index, source) {
-    const label = sanitizeUserText(value || "").replace(/^[-*•\d.)\s]+/, "").trim().slice(0, 320);
+    const label = sanitizeUserText(value || "")
+      .replace(/^[-*•\d.)\s]+/, "")
+      .replace(/[.;:]+$/g, "")
+      .trim()
+      .slice(0, 320);
     if (!label || label.length < 3) return null;
     const normalized = normalizeText(label);
-    if (/^(?:analise tecnica|principais problemas?|problemas? encontrados?|achados?|recomendacoes?|conclusao|resumo executivo)\s*:??$/i.test(normalized)) return null;
+    if (!label || /^(?:analise tecnica|(?:os\s+)?principais problemas(?:\s+(?:sao|encontrados?|identificados?))?|problemas? encontrados?|achados?|recomendacoes?|conclusao|resumo executivo)$/i.test(normalized)) return null;
     return {
       id: "elo_entity_" + String(index + 1),
       index: index + 1,
@@ -1662,21 +1669,25 @@
 
   function dedupeEloAnalysisEntities_(entities) {
     const seen = {};
-    return (Array.isArray(entities) ? entities : []).map(function (item, index) {
-      const entity = item && typeof item === "object" ? item : normalizeEloAnalysisEntity_(item, index, "last_analysis");
-      if (!entity) return null;
+    const result = [];
+    (Array.isArray(entities) ? entities : []).forEach(function (item) {
+      const entity = item && typeof item === "object"
+        ? normalizeEloAnalysisEntity_(item.label || item.text, result.length, item.source || "last_analysis")
+        : normalizeEloAnalysisEntity_(item, result.length, "last_analysis");
+      if (!entity) return;
       const label = sanitizeUserText(entity.label || entity.text || "").slice(0, 320);
       const key = normalizeText(label);
-      if (!key || seen[key]) return null;
+      if (!key || seen[key]) return;
       seen[key] = true;
-      return Object.assign({}, entity, {
-        id: sanitizeUserText(entity.id || "elo_entity_" + String(index + 1)).slice(0, 80),
-        index: seen[key] ? Object.keys(seen).length : index + 1,
+      result.push(Object.assign({}, entity, {
+        id: "elo_entity_" + String(result.length + 1),
+        index: result.length + 1,
         label: label,
         text: label
-      });
-    }).filter(Boolean).slice(0, 8).map(function (entity, index) {
-      return Object.assign({}, entity, { index: index + 1 });
+      }));
+    });
+    return result.slice(0, 8).map(function (entity, index) {
+      return Object.assign({}, entity, { id: "elo_entity_" + String(index + 1), index: index + 1 });
     });
   }
 
@@ -1685,7 +1696,10 @@
     const candidates = [];
     (Array.isArray(findings) ? findings : []).forEach(function (item) { candidates.push(item); });
     (Array.isArray(enumeratedItems) ? enumeratedItems : []).forEach(function (item) { candidates.push(item); });
-    clean.split(/\n+/).forEach(function (line) {
+    const lines = clean.split(/\n+/).reduce(function (result, line) {
+      return result.concat(line.replace(/\s+(?=\d+[.)]\s+)/g, "\n").split(/\n+/));
+    }, []);
+    lines.forEach(function (line) {
       const normalized = normalizeText(line);
       if (!/^\s*(?:[-*•]|\d+[.)])\s+/.test(line)) return;
       if (normalized && /\b(?:problema|falta|ausencia|incomplet|pendencia|risco|impacto|atraso|falha|nao informado|não informado|sem )\b/.test(normalized)) {
@@ -1733,7 +1747,7 @@
     const text = normalizeText(entity && (entity.label || entity.text) || "");
     let score = 0;
     [
-      [/(?:seguranca|estrutural|colapso|interdicao|risco grave|critico)/, 8],
+      [/(?:seguranca|estrutural|colapso|interdicao|risco grave|critico|fundacao[\s\S]{0,80}estrutura|estrutura[\s\S]{0,80}fundacao)/, 8],
       [/(?:infiltracao|vazamento|umidade|falha|compromete|comprometer|atraso|cronograma)/, 6],
       [/(?:preco|precos|custo|orcamento|valor|financeir)/, 5],
       [/(?:falta|ausencia|incomplet|pendencia|nao informado|sem )/, 3],
@@ -8432,7 +8446,7 @@
   }
 
   function extractEloWorkingMemoryItems_(answer) {
-    const text = sanitizeUserText(answer || "").replace(/\r/g, "");
+    const text = sanitizeUserText(answer || "").replace(/\r/g, "").replace(/\s+(?=\d+[.)]\s+)/g, "\n");
     if (!text) return [];
     const labelMatch = text.match(/\b(?:categorias|materiais|problemas|tipos|itens|plantas)\s*:\s*([^\n.]+)/i);
     const source = labelMatch ? labelMatch[1] : "";

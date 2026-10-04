@@ -151,6 +151,18 @@ test("resolve referencias plurais contra as entidades da ultima analise, sem dep
   assert.match(comparison.fullAnswer, /escopo.*incompleto/i);
 });
 
+test("separa entidades numeradas quando a resposta chega em um unico paragrafo", () => {
+  const { api } = loadElo();
+  api.rememberActiveDocumentForTest([{ fileName: "inline.pdf", text: "Problemas de orçamento." }]);
+  const answer = "Os principais problemas são: 1. Falta de informações do cliente. 2. Ausência de composição detalhada para fundação e estrutura. 3. BDI sem confirmação. 4. Área de parede pendente de revisão.";
+  api.rememberActiveAnalysisForTest("quais os principais problemas encontrados?", { fullAnswer: answer, sessionIntent: "document_analysis" }, answer);
+  const context = api.getActiveAnalysisForTest();
+  assert.equal(context.lastAnswerEntities.length, 4);
+  const response = api.buildAnalysisReferenceResponseForTest("qual deles e mais grave?");
+  assert.ok(response);
+  assert.match(response.fullAnswer, /funda(?:c[aã]o|ção) e estrutura/i);
+});
+
 test("relatorio contextual conserva fonte, entidades e precedencia quando o PDF continua ativo", () => {
   const { api } = loadElo();
   api.rememberActiveDocumentForTest([{ fileName: "analise-pdf.pdf", text: "Problema: ausencia de precos oficiais." }]);
