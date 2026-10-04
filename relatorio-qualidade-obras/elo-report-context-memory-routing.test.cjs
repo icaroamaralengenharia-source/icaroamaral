@@ -184,6 +184,21 @@ test("variações de relatório reutilizam a análise anterior e entram na açã
   }
 });
 
+test("relatório de contexto vence o fast path genérico da ponte de comandos", () => {
+  const source = fs.readFileSync(path.join(__dirname, "elo-assistente.js"), "utf8");
+  const contextFastPath = source.indexOf("if (handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;");
+  const genericBridgeFastPath = source.indexOf("if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest))");
+  assert.ok(contextFastPath >= 0, "fast path de relatório contextual deve existir");
+  assert.ok(genericBridgeFastPath >= 0, "fast path genérico da ponte deve existir");
+  assert.ok(contextFastPath < genericBridgeFastPath, "relatório contextual deve ter precedência sobre a ponte genérica");
+
+  const { api } = loadElo();
+  api.rememberActiveAnalysisForTest("analise esta foto", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
+  const response = api.buildReportFromAnalysisContextForTest("gere um relatório disso");
+  assert.equal(response.sessionIntent, "generate_report_from_context");
+  assert.equal(response.reportFromAnalysisContext.realReportAction, true);
+});
+
 test("sem análise, pedido de relatório não inventa conteúdo", () => {
   const { api } = loadElo();
   const response = api.buildReportFromAnalysisContextForTest("gere um relatório disso");

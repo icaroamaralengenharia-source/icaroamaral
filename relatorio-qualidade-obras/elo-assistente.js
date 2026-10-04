@@ -1124,6 +1124,25 @@
     return true;
   }
 
+  function handleEloReportFromAnalysisContextFastPath_(cleanQuestion) {
+    const response = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    appendTypingIndicator();
+    const context = getEloActiveAnalysisContext_();
+    if (!context) {
+      const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      clearProductAttachmentPreview();
+      removeTypingIndicator();
+      return true;
+    }
+    generateEloReportPdfFromChat_(cleanQuestion, [], context);
+    return true;
+  }
+
   function normalizeEloAutopilotTopic_(value) {
     return sanitizeUserText(value || "")
       .replace(/^uma?\s+(?:novidade|materia|mat[eé]ria|artigo|publicacao|publica[cç][aã]o)\s+(?:sobre\s+)?/i, "")
@@ -30197,6 +30216,7 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
       return;
     }
+    if (handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
     if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest)) {
       if (handleEloDomainCommandFastPath_(routeQuestion)) return;
     }
@@ -30323,22 +30343,6 @@ function isEloResidentialNewPipelineEnabled_() {
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
-
-    const earlyReportContextResponse = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
-    if (earlyReportContextResponse) {
-      const earlyReportContext = getEloActiveAnalysisContext_();
-      if (!earlyReportContext) {
-        const missingContextAnswer = formatResponse(earlyReportContextResponse);
-        appendAssistantMessage(cleanQuestion, missingContextAnswer, false, earlyReportContextResponse);
-        saveConversation(cleanQuestion, missingContextAnswer);
-        rememberSessionTurn(cleanQuestion, earlyReportContextResponse, missingContextAnswer);
-        clearProductAttachmentPreview();
-        removeTypingIndicator();
-        return;
-      }
-      generateEloReportPdfFromChat_(cleanQuestion, [], earlyReportContext);
-      return;
-    }
 
     const localSafetyResponse = !attachedFiles.length
       ? (buildEloPathologyFollowUpResponse_(cleanQuestion) || buildEloUnavailableFactResponse_(cleanQuestion) || buildEloCoreMemoryRecallResponse_(cleanQuestion))
@@ -30478,21 +30482,6 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const priorityCommandBridgeRequest = detectEloCommandBridgeRequest_(cleanQuestion);
       if (isEloCommandBridgePriorityRequest_(priorityCommandBridgeRequest)) {
-        if (priorityCommandBridgeRequest.module === "obrareport_report" && priorityCommandBridgeRequest.action === "generate_report_from_context") {
-          const reportContextResponse = buildEloReportFromAnalysisContextResponse_(cleanQuestion);
-          const reportContext = getEloActiveAnalysisContext_();
-          if (!reportContext) {
-            const missingContextAnswer = formatResponse(reportContextResponse);
-            appendAssistantMessage(cleanQuestion, missingContextAnswer, false, reportContextResponse);
-            saveConversation(cleanQuestion, missingContextAnswer);
-            rememberSessionTurn(cleanQuestion, reportContextResponse, missingContextAnswer);
-            clearProductAttachmentPreview();
-            removeTypingIndicator();
-            return;
-          }
-          generateEloReportPdfFromChat_(cleanQuestion, [], reportContext);
-          return;
-        }
         const priorityCommandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (priorityCommandBridgeResponse) {
           if (isEloAsyncResponse_(priorityCommandBridgeResponse)) {
