@@ -314,6 +314,112 @@
     return transportOverride || getDefaultTransport();
   }
 
+  function normalizeMatchValue(value) {
+    return clean(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getQueueIdentityValues(item) {
+    const payload = item && item.payload || {};
+    return Array.from(new Set([
+      clean(item && item.operationId),
+      clean(item && item.localOperationKey),
+      clean(payload.operationId),
+      clean(payload.offlineUuid || payload.offline_uuid)
+    ].filter(Boolean)));
+  }
+
+  function isSameScope(item, remoteRecord) {
+    const payload = item && item.payload || {};
+    const queuedProjectId = clean(item && item.projectId) || clean(payload.projectId || payload.project_id || payload.workId || payload.work_id);
+    const remoteProjectId = clean(remoteRecord && (remoteRecord.projectId || remoteRecord.project_id || remoteRecord.workId || remoteRecord.work_id));
+    return queuedProjectId === remoteProjectId;
+  }
+
+  function findConfirmedMovement(item, statuses) {
+    const operation = clean(item && item.operation);
+    const expectedType = operation === "stock:exit" ? "saida" : (operation === "stock:entry" || operation === "stock:adjust" ? "entrada" : "");
+    const identities = getQueueIdentityValues(item);
+    return (statuses || []).find(function (status) {
+      const statusType = clean(status && status.type);
+      if (expectedType && statusType && statusType !== expectedType) return false;
+      if (!isSameScope(item, status)) return false;
+      const remoteIdentities = [clean(status && status.operationId), clean(status && status.offlineUuid)].filter(Boolean);
+      return identities.some(function (identity) { return remoteIdentities.indexOf(identity) >= 0; });
+    }) || null;
+  }
+
+  function findConfirmedProduct(item, products, idMap) {
+    const payload = item && item.payload || {};
+    const operation = clean(item && item.operation);
+    const payloadId = clean(payload.id);
+    const mappedId = clean(idMap[payloadId] || payloadId);
+    const payloadSku = normalizeMatchValue(payload.sku || payload.fiscalCode);
+    const payloadName = normalizeMatchValue(payload.name);
+    const payloadUnit = normalizeMatchValue(payload.unit || "un");
+    const payloadCategory = normalizeMatchValue(payload.category || "Geral");
+    return (products || []).find(function (product) {
+      if (!isSameScope(item, product)) return false;
+      if (operation === "product:update") {
+        if (!mappedId || clean(product.id) !== mappedId) return false;
+        return normalizeMatchValue(product.name) === payloadName &&
+          normalizeMatchValue(product.sku) === payloadSku &&
+          normalizeMatchValue(product.unit || "un") === payloadUnit &&
+          normalizeMatchValue(product.category || "Geral") === payloadCategory;
+      }
+      if (operation !== "product:create") return false;
+      const sameIdentity = payloadSku
+        ? normalizeMatchValue(product.sku) === payloadSku
+        : normalizeMatchValue(product.name) === payloadName && normalizeMatchValue(product.unit || "un") === payloadUnit && normalizeMatchValue(product.category || "Geral") === payloadCategory;
+      return sameIdentity && (!payloadName || normalizeMatchValue(product.name) === payloadName);
+    }) || null;
+  }
+
+  async function reconcileQueueWithRemote(queue) {
+    const normalized = normalizeQueue(queue);
+    if (transportOverride || !getAuthToken() || !normalized.some(function (item) {
+      return item.status === "pending" || item.status === "failed" || item.status === "syncing";
+    })) {
+      return normalized;
+    }
+
+    try {
+      const responses = await Promise.all([
+        fetchJson("/api/stock-full/sync/status"),
+        fetchJson("/api/stock-full/items")
+      ]);
+      const statuses = responses[0] && Array.isArray(responses[0].statuses) ? responses[0].statuses : [];
+      const products = responses[1] && Array.isArray(responses[1].items) ? responses[1].items : [];
+      const idMap = getIdMap();
+      let changed = false;
+      const reconciled = normalized.map(function (item) {
+        if (item.status === "synced") return item;
+        const movement = findConfirmedMovement(item, statuses);
+        const product = movement ? null : findConfirmedProduct(item, products, idMap);
+        const remote = movement || product;
+        if (!remote) return item;
+        changed = true;
+        const now = new Date().toISOString();
+        applySyncResult(item, product ? { remoteId: product.id, item: { id: product.id } } : { remoteId: remote.id });
+        return Object.assign({}, item, {
+          status: "synced",
+          updatedAt: now,
+          syncedAt: now,
+          lastError: "",
+          localOnly: false
+        });
+      });
+      if (changed) saveQueue(reconciled);
+      return reconciled;
+    } catch (error) {
+      return normalized;
+    }
+  }
+
   function configure(options) {
     if (options && options.transport) transportOverride = options.transport;
   }
@@ -386,6 +492,7 @@
     renderIndicator("Sincronizando");
     let queue = getQueue();
     try {
+      queue = await reconcileQueueWithRemote(queue);
       const transport = getTransport();
       const ordered = sortQueueForDependencies(queue).filter(function (item) {
         return item.status === "pending" || item.status === "failed" || item.status === "syncing";
@@ -783,6 +890,7 @@
     init,
     enqueue: enqueueOperation,
     processQueue,
+    reconcileQueueWithRemote,
     getQueue,
     saveQueue,
     getMeta,

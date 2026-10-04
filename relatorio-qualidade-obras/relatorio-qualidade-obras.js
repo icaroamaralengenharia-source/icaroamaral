@@ -11036,6 +11036,46 @@
     }
   }
 
+  async function saveStockFullRemoteItemEditFromFormData_(form, formData) {
+    const itemId = clean(form && form.dataset && form.dataset.almoxItemId);
+    const name = clean(formData.get("name"));
+    const sku = normalizeStockFullSku_(formData.get("sku") || formData.get("fiscalCode"));
+    const currentQuantity = parseNumber_(formData.get("initialQuantity"));
+    const minimumStock = parseNumber_(formData.get("minimumStock"));
+    const currentItem = stockFullRemoteItems.find(function (item) { return item.id === itemId; });
+
+    if (!itemId || !currentItem) return { ok: false, message: "Item nao encontrado no estoque remoto." };
+    if (!name) return { ok: false, message: "Informe o nome do item." };
+    if (currentQuantity < 0 || minimumStock < 0) return { ok: false, message: "Informe quantidades iguais ou maiores que zero." };
+    if (findStockFullDuplicateSku_(stockFullRemoteItems, sku, getActiveStockEnvironmentId_(), itemId)) {
+      return buildStockFullDuplicateSkuResult_(sku);
+    }
+
+    const item = Object.assign({}, currentItem, {
+      id: itemId,
+      name: name,
+      sku: sku,
+      fiscalCode: sku,
+      category: clean(formData.get("category")) || "Geral",
+      unit: clean(formData.get("unit")) || "un",
+      initialQuantity: currentQuantity,
+      minimumStock: minimumStock,
+      location: clean(formData.get("location")),
+      notes: clean(formData.get("notes")),
+      updatedAt: new Date().toISOString()
+    });
+    const result = await updateStockFullRemoteItem_(itemId, item, { currentQuantity: currentQuantity });
+    if (!result || !result.ok || !result.item) {
+      return { ok: false, message: result && result.error || "Nao foi possivel atualizar o item no servidor." };
+    }
+    const remoteItem = mapStockFullRemoteItemToAlmox_(result.item);
+    stockFullRemoteItems = stockFullRemoteItems.map(function (candidate) {
+      return candidate.id === itemId ? remoteItem : candidate;
+    });
+    stockFullRemoteItemsLoaded = true;
+    return { ok: true, item: remoteItem };
+  }
+
 
   function normalizeStockFullSku_(value) {
     return clean(value).toUpperCase();
@@ -13513,7 +13553,10 @@
   function renderAlmoxModal_(type, payload) {
     const state = isStockFullContext_() ? getStockFullCachedAlmoxState_() : loadAlmoxState_();
     const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
-    const title = type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item");
+    const editItem = type === "edit" ? activeItems.find(function (item) {
+      return item.id === clean(payload && payload.itemId);
+    }) : null;
+    const title = type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : (type === "edit" ? "Editar item" : "Cadastrar item"));
     const content = document.createElement("div");
     const card = document.createElement("div");
     const header = document.createElement("div");
@@ -13533,6 +13576,7 @@
     closeButton.textContent = "Fechar";
     form.className = "stock-ia-form";
     form.dataset.almoxFormType = type;
+    if (editItem) form.dataset.almoxItemId = editItem.id;
 
     header.appendChild(heading);
     header.appendChild(closeButton);
@@ -13556,6 +13600,19 @@
       appendStockIaField_(form, "movementDate", "Data da movimentacao", "date", getDefaultAlmoxMovementDate_(), true);
       appendStockIaField_(form, "movementTime", "Hora da movimentacao", "time", getDefaultAlmoxMovementTime_(), true);
       appendStockIaTextarea_(form, "notes", "Observação", "");
+    } else if (type === "edit" && editItem) {
+      appendStockIaField_(form, "name", "Nome do item", "text", editItem.name, true);
+      appendStockIaField_(form, "sku", "SKU / codigo", "text", editItem.sku || editItem.fiscalCode, false);
+      appendStockIaField_(form, "category", "Categoria", "text", editItem.category || "Geral", false);
+      appendStockIaField_(form, "unit", "Unidade", "text", editItem.unit || "un", true);
+      appendStockIaField_(form, "initialQuantity", "Saldo atual", "number", isStockFullRemoteActive_() ? editItem.initialQuantity : getAlmoxItemBalance_(editItem.id, state), false, "0.001");
+      if (form.elements.initialQuantity) {
+        form.elements.initialQuantity.readOnly = true;
+        form.elements.initialQuantity.setAttribute("aria-readonly", "true");
+      }
+      appendStockIaField_(form, "minimumStock", "Estoque mínimo", "number", editItem.minimumStock, false, "0.001");
+      appendStockIaField_(form, "location", "Local/almoxarifado", "text", editItem.location, false);
+      appendStockIaTextarea_(form, "notes", "Observação", editItem.notes);
     } else {
       appendStockIaField_(form, "name", "Nome do item", "text", "", true);
       appendStockIaField_(form, "sku", "SKU / codigo", "text", "", false);
@@ -13571,7 +13628,7 @@
       appendStockIaTextarea_(form, "notes", "Observação", "");
     }
 
-    appendAlmoxFormActions_(form, type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item"));
+    appendAlmoxFormActions_(form, type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : (type === "edit" ? "Salvar alterações" : "Cadastrar item")));
     card.appendChild(form);
     content.appendChild(card);
     almoxModal.appendChild(content);
@@ -13603,7 +13660,7 @@
     submit.dataset.almoxModalSubmit = "true";
     submit.id = formType === "exit"
       ? "almoxModalExitSubmitButton"
-      : (formType === "entry" ? "almoxModalEntrySubmitButton" : "almoxModalItemSubmitButton");
+      : (formType === "entry" ? "almoxModalEntrySubmitButton" : (formType === "edit" ? "almoxModalEditSubmitButton" : "almoxModalItemSubmitButton"));
     submit.textContent = submitText;
     cancel.type = "button";
     cancel.className = "mini-button";
@@ -13628,7 +13685,7 @@
     const formData = new FormData(form);
 
     if (isStockFullContext_()) {
-      const permission = type === "entry" ? "movements:in" : (type === "exit" ? "movements:out" : "products:create");
+      const permission = type === "entry" ? "movements:in" : (type === "exit" ? "movements:out" : (type === "edit" ? "products:update" : "products:create"));
       if (!requireStockFullPermission_(permission, "Usuario sem permissao para esta acao.")) return;
       if (type === "exit") {
         const state = loadAlmoxState_();
@@ -13656,7 +13713,11 @@
       return;
     }
 
-    const result = type === "entry"
+    const result = type === "edit"
+      ? (isStockFullRemoteActive_()
+        ? await saveStockFullRemoteItemEditFromFormData_(form, formData)
+        : { ok: false, message: "Edicao online indisponivel no modo local." })
+      : type === "entry"
       ? (isStockFullRemoteActive_()
         ? await saveStockFullRemoteEntryFromFormData_(formData)
         : saveAlmoxEntryFromFormData_(formData))
@@ -13679,6 +13740,8 @@
       showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
     } else if (type === "exit") {
       showAlmoxToast_("Saida registrada com responsavel e setor.", "success");
+    } else if (type === "edit") {
+      showAlmoxToast_("Item atualizado com sucesso.", "success");
     } else {
       showAlmoxToast_("Item cadastrado com sucesso.", "success");
     }
@@ -16503,16 +16566,19 @@
     card.appendChild(meta);
 
     actions.className = "stock-ia-actions";
-    [
+    const itemActions = [
       ["Entrada", "entry"],
       ["Saída", "exit"],
       ["Histórico", "history"]
-    ].forEach(function (action) {
+    ];
+    if (isStockFullContext_()) itemActions.push(["Editar", "edit"]);
+    itemActions.forEach(function (action) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "mini-button";
       button.dataset.almoxAction = action[1];
       button.dataset.almoxItemId = balance.item.id;
+      if (action[1] === "edit") button.dataset.stockFullPermission = "products:update";
       button.textContent = action[0];
       actions.appendChild(button);
     });
