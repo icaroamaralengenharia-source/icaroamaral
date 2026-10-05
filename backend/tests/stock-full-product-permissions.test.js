@@ -11,6 +11,10 @@ function createSupabaseProductMock() {
     "token-reader-a": {
       user: { id: "auth-reader-a", email: "reader-a@example.com" },
       profile: { id: "profile-reader-a", institution_id: "inst-a", unit_id: "unit-a", name: "Reader A", email: "reader-a@example.com", role: "leitura" }
+    },
+    "token-admin-b": {
+      user: { id: "auth-admin-b", email: "admin-b@example.com" },
+      profile: { id: "profile-admin-b", institution_id: "inst-b", unit_id: "unit-b", name: "Admin B", email: "admin-b@example.com", role: "admin" }
     }
   };
   const items = [
@@ -18,6 +22,7 @@ function createSupabaseProductMock() {
     { id: "item-b", institution_id: "inst-b", project_id: null, name: "Argamassa", unit: "saco", category: "Obra", min_quantity: 3, current_quantity: 9, location: "B1", notes: "", is_active: true }
   ];
   const writes = [];
+  const rpcCalls = [];
   let activeUserId = "";
 
   function selectProfileByAuthUserId(authUserId) {
@@ -81,6 +86,7 @@ function createSupabaseProductMock() {
 
   return {
     writes,
+    rpcCalls,
     items,
     auth: {
       async getUser(token) {
@@ -109,6 +115,12 @@ function createSupabaseProductMock() {
         };
       }
       return createItemQuery(table);
+    },
+    async rpc(name, args) {
+      rpcCalls.push({ name, args });
+      const item = items.find((candidate) => candidate.id === args.p_item_id && candidate.institution_id === args.p_institution_id);
+      if (!item) return { data: null, error: { message: "stock_full_item_not_found" } };
+      return { data: null, error: { message: "unexpected same-tenant RPC in isolation test" } };
     }
   };
 }
@@ -141,6 +153,68 @@ const productPayload = {
   currentQuantity: 10,
   location: "Deposito"
 };
+
+test("Stock Full mantém isolamento Tenant A/B em listagens e operações por Direct-ID", async () => {
+  await withServer(async (base, supabase) => {
+    const tenants = [
+      { tenant: "A", token: "token-admin-a", institutionId: "inst-a", profileId: "profile-admin-a", foreignItemId: "item-b", ownName: "Cimento", spoofedInstitutionId: "inst-b" },
+      { tenant: "B", token: "token-admin-b", institutionId: "inst-b", profileId: "profile-admin-b", foreignItemId: "item-a", ownName: "Argamassa", spoofedInstitutionId: "inst-a" }
+    ];
+
+    for (const current of tenants) {
+      const list = await json(base + "/api/stock-full/items", {
+        headers: { Authorization: "Bearer " + current.token }
+      });
+      assert.equal(list.response.status, 200, "Tenant " + current.tenant + " lista o estoque");
+      assert.deepEqual(list.data.items.map((item) => item.name), [current.ownName]);
+      assert.equal(list.data.items.some((item) => item.id === current.foreignItemId), false);
+
+      const update = await json(base + "/api/stock-full/items/" + current.foreignItemId, {
+        method: "PUT",
+        headers: { Authorization: "Bearer " + current.token },
+        body: JSON.stringify(Object.assign({}, productPayload, { name: "Tentativa cross-tenant " + current.tenant }))
+      });
+      assert.equal(update.response.status, 404, "Direct-ID estrangeiro deve ser indistinguível de inexistente");
+      assert.equal(update.data.error, "stock_full_item_not_found");
+
+      for (const [path, type] of [["entries", "entrada"], ["exits", "saida"]]) {
+        const movement = await json(base + "/api/stock-full/" + path, {
+          method: "POST",
+          headers: { Authorization: "Bearer " + current.token },
+          body: JSON.stringify({ itemId: current.foreignItemId, quantity: 1, institutionId: current.spoofedInstitutionId })
+        });
+        assert.equal(movement.response.status, 404, "Movimento por Direct-ID estrangeiro deve ser negado");
+        assert.equal(movement.data.error, "stock_full_item_not_found");
+        const rpc = supabase.rpcCalls.at(-1);
+        assert.equal(rpc.name, "stock_full_apply_movement");
+        assert.equal(rpc.args.p_institution_id, current.institutionId, "tenant confiável vem do profile autenticado");
+        assert.equal(rpc.args.p_profile_id, current.profileId);
+        assert.equal(rpc.args.p_item_id, current.foreignItemId);
+        assert.equal(rpc.args.p_movement_type, type);
+        assert.equal(rpc.args.p_quantity, 1);
+      }
+    }
+
+    assert.equal(supabase.items.find((item) => item.id === "item-a").name, "Cimento");
+    assert.equal(supabase.items.find((item) => item.id === "item-b").name, "Argamassa");
+    const directIdUpdates = supabase.writes.filter((write) => write.action === "update");
+    assert.equal(directIdUpdates.length, 2);
+    assert.deepEqual(directIdUpdates.map((write) => ({
+      institutionId: write.filters.find((filter) => filter.column === "institution_id")?.value,
+      itemId: write.filters.find((filter) => filter.column === "id")?.value
+    })), [
+      { institutionId: "inst-a", itemId: "item-b" },
+      { institutionId: "inst-b", itemId: "item-a" }
+    ]);
+    assert.deepEqual(supabase.rpcCalls.map(({ args }) => ({ tenantId: args.p_institution_id, itemId: args.p_item_id, type: args.p_movement_type })), [
+      { tenantId: "inst-a", itemId: "item-b", type: "entrada" },
+      { tenantId: "inst-a", itemId: "item-b", type: "saida" },
+      { tenantId: "inst-b", itemId: "item-a", type: "entrada" },
+      { tenantId: "inst-b", itemId: "item-a", type: "saida" }
+    ]);
+    assert.deepEqual(supabase.items.map((item) => item.current_quantity), [12, 9]);
+  });
+});
 
 test("Stock Full bloqueia criacao de produto sem autenticacao", async () => {
   await withServer(async (base, supabase) => {

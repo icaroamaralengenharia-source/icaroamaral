@@ -478,10 +478,9 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
   });
 
   test("empresa A nao ve dados da empresa B", async ({ page }) => {
-    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => {
+    await page.addInitScript(() => {
       window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "local", userId: "a", userName: "Admin A", companyId: "company_manoel_importados", companyName: "Manoel Importados", role: "admin" }));
-      window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify({
+      window.localStorage.setItem("obraReportAlmoxarifadoData", JSON.stringify({
         stockEnvironments: [{ id: "env_company_manoel_importados", companyId: "company_manoel_importados", mode: "almoxarifado", clientName: "Manoel Importados", environmentName: "Estoque principal" }],
         activeStockEnvironmentId: "env_company_manoel_importados",
         items: [
@@ -491,7 +490,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
         movements: [], auditLog: []
       }));
     });
-    await page.reload();
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#stockFullDashboard")).toBeVisible();
     await expect(page.locator("#almoxItemsSection")).toContainText("Produto Empresa A");
     await expect(page.locator("#almoxItemsSection")).not.toContainText("Produto Empresa B");
@@ -503,7 +502,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
-    for (const viewport of [{ width: 360, height: 800 }, { width: 390, height: 844 }, { width: 412, height: 915 }]) {
+    for (const viewport of [{ width: 360, height: 800 }, { width: 375, height: 812 }, { width: 390, height: 844 }, { width: 412, height: 915 }]) {
       await page.setViewportSize(viewport);
       await openApp(page, "manoel", { clearStorage: true });
       const metrics = await page.evaluate(() => ({

@@ -1624,15 +1624,18 @@
   }
 
   function mapStockFullRemoteItemToAlmox_(item) {
+    const companyId = clean(item.companyId || item.company_id || stockFullAuthContext.institutionId || getCurrentCompanyId_());
     return {
       id: clean(item.id),
-      environmentId: getActiveStockEnvironmentId_(),
+      companyId: companyId,
+      environmentId: getStockFullCompanyEnvironmentId_(companyId),
       fiscalCode: clean(item.sku),
       sku: clean(item.sku),
       name: clean(item.name),
       category: clean(item.category) || "Geral",
       unit: clean(item.unit) || "un",
       initialQuantity: parseNumber_(item.currentQuantity),
+      currentStock: parseNumber_(item.currentQuantity),
       minimumStock: parseNumber_(item.minQuantity),
       location: clean(item.location),
       expirationDate: "",
@@ -1641,6 +1644,51 @@
       updatedAt: clean(item.updatedAt) || new Date().toISOString(),
       remoteSource: "stock-full"
     };
+  }
+
+  function mapStockFullRemoteMovementToAlmox_(movement, type) {
+    const source = movement || {};
+    const companyId = clean(source.companyId || source.company_id || source.institution_id || stockFullAuthContext.institutionId || getCurrentCompanyId_());
+    const destination = clean(source.destination || source.sector || source.recipient);
+    const createdAt = clean(source.createdAt || source.created_at || source.date || source.movementDateTime);
+    const movementType = type === "saida" ? "saida" : "entrada";
+    return {
+      id: clean(source.id),
+      companyId: companyId,
+      environmentId: getStockFullCompanyEnvironmentId_(companyId),
+      projectId: clean(source.projectId || source.project_id || source.workId || source.work_id),
+      workId: clean(source.workId || source.work_id || source.projectId || source.project_id),
+      itemId: clean(source.itemId || source.item_id || source.productId || source.product_id),
+      productId: clean(source.productId || source.product_id || source.itemId || source.item_id),
+      type: movementType,
+      quantity: parseNumber_(source.quantity),
+      unitCost: parseNumber_(source.unitCost || source.unit_cost),
+      total: parseNumber_(source.total),
+      supplier: clean(source.supplier),
+      documentNumber: clean(source.invoiceNumber || source.invoice_number || source.documentNumber || source.supplier),
+      destination: destination,
+      recipient: clean(source.recipient || destination),
+      sector: clean(source.sector || destination),
+      purpose: clean(source.purpose),
+      responsible: clean(source.responsible),
+      notes: clean(source.notes),
+      reason: clean(source.reason),
+      date: createdAt,
+      createdAt: createdAt,
+      movementDateTime: createdAt,
+      operationId: clean(source.operationId || source.operation_id),
+      offlineUuid: clean(source.offlineUuid || source.offline_uuid || source.operationId || source.operation_id),
+      deviceId: clean(source.deviceId || source.device_id),
+      syncStatus: clean(source.syncStatus || source.sync_status),
+      source: clean(source.source),
+      origin: clean(source.origin) || (movementType === "saida" ? "manual_exit" : "manual_entry"),
+      remoteSource: "stock-full"
+    };
+  }
+
+  function getStockFullRemoteMovements_() {
+    return (stockFullRemoteEntries || []).map(function (movement) { return mapStockFullRemoteMovementToAlmox_(movement, "entrada"); })
+      .concat((stockFullRemoteExits || []).map(function (movement) { return mapStockFullRemoteMovementToAlmox_(movement, "saida"); }));
   }
 
   function mapAlmoxItemToStockFullRemotePayload_(item, options) {
@@ -1753,6 +1801,7 @@
     stockFullRemoteEntries = mappedMovements.filter(function (movement) { return movement.type === "entrada"; });
     stockFullRemoteExits = mappedMovements.filter(function (movement) { return movement.type === "saida"; });
     stockFullRemoteAuditLog = results[2].data || [];
+    invalidateStockFullManagerDataCache_();
     updateAlmoxOfflineStatus_();
     return { ok: true };
   }
@@ -1834,6 +1883,7 @@
     stockFullRemoteItems = data.items.map(mapStockFullRemoteItemToAlmox_);
     stockFullRemoteItemsLoaded = true;
     stockFullRemoteAccessUnavailable = false;
+    invalidateStockFullManagerDataCache_();
     updateAlmoxOfflineStatus_();
     return { ok: true, items: stockFullRemoteItems };
   }
@@ -1848,6 +1898,7 @@
       throw new Error("stock_full_remote_entries_unavailable");
     }
     stockFullRemoteEntries = data.entries;
+    invalidateStockFullManagerDataCache_();
     return { ok: true, entries: stockFullRemoteEntries };
   }
 
@@ -1861,6 +1912,7 @@
       throw new Error("stock_full_remote_exits_unavailable");
     }
     stockFullRemoteExits = data.exits;
+    invalidateStockFullManagerDataCache_();
     return { ok: true, exits: stockFullRemoteExits };
   }
 
@@ -10219,13 +10271,16 @@
       }
       const parsed = raw ? JSON.parse(raw) : {};
       const backendSessionExpected = isStockFullContext_() && hasStockFullBackendToken_();
+      const remoteSessionExpected = backendSessionExpected || isStockFullRemoteActive_();
       const mutedUntil = clean(parsed.alertsMutedUntil) || (parsed.alertsMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "");
       const alertsMuted = Boolean(parsed.alertsMuted) && (!mutedUntil || new Date(mutedUntil).getTime() > Date.now());
       const normalized = normalizeAlmoxEnvironmentState_({
-        items: backendSessionExpected || isStockFullRemoteActive_
+        items: remoteSessionExpected
           ? (stockFullRemoteItemsLoaded && !stockFullRemoteAccessUnavailable ? stockFullRemoteItems : [])
           : (Array.isArray(parsed.items) ? parsed.items : []),
-        movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+        movements: remoteSessionExpected
+          ? (stockFullRemoteItemsLoaded && !stockFullRemoteAccessUnavailable ? getStockFullRemoteMovements_() : [])
+          : (Array.isArray(parsed.movements) ? parsed.movements : []),
         alertsMuted: alertsMuted,
         alertsMutedUntil: alertsMuted ? mutedUntil : "",
         alertHistory: Array.isArray(parsed.alertHistory) ? parsed.alertHistory : [],
@@ -10856,7 +10911,11 @@
       const totals = totalsByItem[item.id] || { entries: 0, exits: 0 };
       const entries = totals.entries;
       const exits = totals.exits;
-      const balance = roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
+      const remoteBalanceIsCurrent = isStockFullContext_() && isStockFullRemoteActive_() &&
+        (item.remoteSource === "stock-full" || item.remoteSource === "supabase");
+      const balance = roundQuantity_(remoteBalanceIsCurrent
+        ? parseNumber_(item.currentStock == null ? item.initialQuantity : item.currentStock)
+        : parseNumber_(item.initialQuantity) + entries - exits);
       return {
         item: item,
         entries: roundQuantity_(entries),
@@ -10881,6 +10940,10 @@
 
     if (!item) {
       return 0;
+    }
+    if (isStockFullContext_() && isStockFullRemoteActive_() &&
+      (item.remoteSource === "stock-full" || item.remoteSource === "supabase")) {
+      return roundQuantity_(parseNumber_(item.currentStock == null ? item.initialQuantity : item.currentStock));
     }
 
     const movements = safeState.movements.filter(function (movement) {
@@ -11105,6 +11168,7 @@
       const remoteItem = mapStockFullRemoteItemToAlmox_(result.item);
       stockFullRemoteItems.push(remoteItem);
       stockFullRemoteItemsLoaded = true;
+      invalidateStockFullManagerDataCache_();
       // TODO Fase 3: sincronizacao/importacao controlada de itens locais para nuvem.
       return {
         ok: true,
@@ -11160,6 +11224,7 @@
       return candidate.id === itemId ? remoteItem : candidate;
     });
     stockFullRemoteItemsLoaded = true;
+    invalidateStockFullManagerDataCache_();
     return { ok: true, item: remoteItem };
   }
 
@@ -11264,6 +11329,7 @@
         stockFullRemoteItems.push(updatedItem);
       }
       stockFullRemoteEntries.unshift(result.entry);
+      invalidateStockFullManagerDataCache_();
       await loadStockFullRemoteAuditLog_().catch(function () {
         stockFullRemoteAuditLog = [];
       });
@@ -11364,6 +11430,7 @@
         stockFullRemoteItems.push(updatedItem);
       }
       stockFullRemoteExits.unshift(result.exit);
+      invalidateStockFullManagerDataCache_();
       await loadStockFullRemoteAuditLog_().catch(function () {
         stockFullRemoteAuditLog = [];
       });

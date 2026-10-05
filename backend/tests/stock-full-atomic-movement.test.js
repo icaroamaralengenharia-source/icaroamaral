@@ -32,6 +32,12 @@ test("Stock Full movement RPC keeps balance, movement and audit in one invoker t
   assert.doesNotMatch(migration, /enable row level security|create policy|drop policy/i);
 });
 
+test("Stock Full protects direct-ID item access with the authenticated tenant in API and movement RPC", () => {
+  assert.match(backend, /\.update\(validation\.payload\)\s*\.eq\("id", itemId\)\s*\.eq\("institution_id", session\.profile\.institution_id\)/);
+  assert.match(migration, /select \* into v_item[\s\S]*?where id = p_item_id\s+and institution_id = p_institution_id\s+and project_id is not distinct from v_project_id\s+and is_active = true\s+for update/i);
+  assert.match(migration, /update public\.stock_full_items[\s\S]*?where id = v_item\.id\s+and institution_id = p_institution_id\s+and project_id is not distinct from v_project_id\s+and is_active = true\s+returning \* into v_item/i);
+});
+
 test("Stock Full movement RPC serializes both idempotency keys and rejects collisions", () => {
   assert.match(migration, /unnest\(array\[[\s\S]*?v_operation_id[\s\S]*?v_offline_uuid[\s\S]*?order by keys\.value[\s\S]*?pg_advisory_xact_lock/i);
   assert.match(migration, /union all[\s\S]*?from public\.stock_full_exits[\s\S]*?v_existing_count > 1[\s\S]*?stock_full_idempotency_key_reused/i);
