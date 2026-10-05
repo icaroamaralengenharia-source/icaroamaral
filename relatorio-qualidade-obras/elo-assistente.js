@@ -1631,7 +1631,7 @@
     return hasAnalysisIntent && hasTechnicalContext;
   }
 
-  function getEloActiveContextStorageKey_() {
+  function getEloActiveContextLegacyStorageKey_() {
     try {
       const anonymousId = typeof getEloCoreAnonymousId_ === "function" ? getEloCoreAnonymousId_() : "local";
       return ELO_CONFIG.activeContextStorageKey + "_" + sanitizeUserText(anonymousId || "local").slice(0, 120);
@@ -1640,9 +1640,16 @@
     }
   }
 
+  function getEloActiveContextStorageKey_(conversationId) {
+    const currentConversationId = sanitizeUserText(conversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+    return currentConversationId ? getEloActiveContextLegacyStorageKey_() + "::conversation_" + encodeURIComponent(currentConversationId).slice(0, 240) : "";
+  }
+
   function persistEloActiveContextState_() {
     try {
-      const conversationId = typeof getEloCoreCurrentConversationId_ === "function" ? sanitizeUserText(getEloCoreCurrentConversationId_()) : "";
+      const conversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+      const storageKey = getEloActiveContextStorageKey_(conversationId);
+      if (!conversationId || !storageKey) return false;
       const state = {
         activeDocumentContext: ELO_SESSION_MEMORY.activeDocumentContext || null,
         activeAttachmentContext: ELO_SESSION_MEMORY.activeAttachmentContext || null,
@@ -1652,7 +1659,7 @@
         subjectStack: Array.isArray(ELO_SESSION_MEMORY.subjectStack) ? ELO_SESSION_MEMORY.subjectStack.slice(0, 6) : [],
         savedAt: new Date().toISOString()
       };
-      window.localStorage.setItem(getEloActiveContextStorageKey_(), JSON.stringify(state));
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
       return true;
     } catch (error) {
       return false;
@@ -1661,19 +1668,32 @@
 
   function restoreEloActiveContextState_() {
     try {
-      const raw = window.localStorage.getItem(getEloActiveContextStorageKey_());
+      const currentConversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+      if (!currentConversationId) return false;
+      const storageKey = getEloActiveContextStorageKey_(currentConversationId);
+      let raw = storageKey ? window.localStorage.getItem(storageKey) : null;
+      if (!raw) {
+        const legacyKey = getEloActiveContextLegacyStorageKey_();
+        const legacyRaw = window.localStorage.getItem(legacyKey);
+        const legacyState = legacyRaw ? JSON.parse(legacyRaw) : null;
+        if (!legacyState || typeof legacyState !== "object" || sanitizeUserText(legacyState.conversationId || "") !== currentConversationId) return false;
+        raw = legacyRaw;
+        window.localStorage.setItem(storageKey, raw);
+        window.localStorage.removeItem(legacyKey);
+      }
       const state = raw ? JSON.parse(raw) : null;
-      if (!state || typeof state !== "object") return false;
-      const currentConversationId = typeof getEloCoreCurrentConversationId_ === "function" ? sanitizeUserText(getEloCoreCurrentConversationId_()) : "";
-      if (state.conversationId && currentConversationId && state.conversationId !== currentConversationId) return false;
-      if (state.activeDocumentContext && Array.isArray(state.activeDocumentContext.documents)) {
-        ELO_SESSION_MEMORY.activeDocumentContext = state.activeDocumentContext;
+      if (!state || typeof state !== "object" || sanitizeUserText(state.conversationId || "") !== currentConversationId) return false;
+      const storedDocumentConversationId = sanitizeUserText(state.activeDocumentContext && state.activeDocumentContext.conversationId || "");
+      const storedAnalysisConversationId = sanitizeUserText(state.activeAnalysisContext && (state.activeAnalysisContext.conversationId || state.activeAnalysisContext.conversation_id) || "");
+      const storedAttachmentConversationId = sanitizeUserText(state.activeAttachmentContext && state.activeAttachmentContext.conversationId || "");
+      if (state.activeDocumentContext && Array.isArray(state.activeDocumentContext.documents) && (!storedDocumentConversationId || storedDocumentConversationId === currentConversationId)) {
+        ELO_SESSION_MEMORY.activeDocumentContext = Object.assign({}, state.activeDocumentContext, { conversationId: currentConversationId });
       }
-      if (state.activeAnalysisContext && state.activeAnalysisContext.type === "analysis_result" && isEloAnalysisContextCurrentForDocument_(state.activeAnalysisContext, state.activeDocumentContext)) {
-        ELO_SESSION_MEMORY.activeAnalysisContext = state.activeAnalysisContext;
+      if (state.activeAnalysisContext && state.activeAnalysisContext.type === "analysis_result" && (!storedAnalysisConversationId || storedAnalysisConversationId === currentConversationId) && isEloAnalysisContextCurrentForDocument_(state.activeAnalysisContext, state.activeDocumentContext)) {
+        ELO_SESSION_MEMORY.activeAnalysisContext = Object.assign({}, state.activeAnalysisContext, { conversationId: currentConversationId, conversation_id: currentConversationId });
       }
-      if (state.activeAttachmentContext && state.activeAttachmentContext.id && /^(?:pdf|image)$/.test(state.activeAttachmentContext.type || "")) {
-        ELO_SESSION_MEMORY.activeAttachmentContext = state.activeAttachmentContext;
+      if (state.activeAttachmentContext && state.activeAttachmentContext.id && /^(?:pdf|image)$/.test(state.activeAttachmentContext.type || "") && (!storedAttachmentConversationId || storedAttachmentConversationId === currentConversationId)) {
+        ELO_SESSION_MEMORY.activeAttachmentContext = Object.assign({}, state.activeAttachmentContext, { conversationId: currentConversationId });
       } else if (ELO_SESSION_MEMORY.activeDocumentContext) {
         const document = ELO_SESSION_MEMORY.activeDocumentContext.documents[0] || {};
         const documentId = sanitizeUserText(document.documentId || ELO_SESSION_MEMORY.activeDocumentContext.activeDocumentId || "");
@@ -1724,7 +1744,14 @@
     ELO_SESSION_MEMORY.attachmentAnalysisHistory = [];
     clearEloActiveAnalysisMemory_();
     ELO_SESSION_MEMORY.subjectStack = [];
-    try { window.localStorage.removeItem(getEloActiveContextStorageKey_()); } catch (error) {}
+  }
+
+  function removeEloActiveContextStateForConversation_(conversationId) {
+    const currentConversationId = sanitizeUserText(conversationId || "");
+    const storageKey = getEloActiveContextStorageKey_(currentConversationId);
+    if (!storageKey) return false;
+    try { window.localStorage.removeItem(storageKey); } catch (error) {}
+    return true;
   }
 
   function beginEloAttachmentContext_(type, file) {
@@ -1734,6 +1761,7 @@
       id: "elo_attachment_" + safeType + "_" + Date.now().toString(36) + "_" + ELO_SESSION_MEMORY.activeAttachmentSequence.toString(36),
       type: safeType,
       fileName: sanitizeUserText(file && file.name || "").slice(0, 180),
+      conversationId: sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : "")),
       sequence: ELO_SESSION_MEMORY.activeAttachmentSequence,
       documentId: "",
       updatedAt: new Date().toISOString()
@@ -2064,7 +2092,9 @@
     const answerEntities = extractEloAnalysisEntities_(cleanAnswer, findings, extractEloWorkingMemoryItems_(cleanAnswer));
     const documentEntities = extractEloDocumentEntities_(documentContext);
     const documentId = documentContext && documentContext.documents && documentContext.documents[0] ? sanitizeUserText(documentContext.documents[0].documentId || "") : "";
-    const conversationId = typeof getEloCoreCurrentConversationId_ === "function" ? sanitizeUserText(getEloCoreCurrentConversationId_()) : "";
+    const currentConversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+    if (activeAttachment && activeAttachment.conversationId && currentConversationId && activeAttachment.conversationId !== currentConversationId) return null;
+    const conversationId = sanitizeUserText(activeAttachment && activeAttachment.conversationId || currentConversationId);
     const activeSubject = activeAttachment ? activeAttachment.type === "pdf" ? "pdf" : "photos" : documentContext ? "pdf" : sourceType;
     const context = {
       type: "analysis_result",
@@ -2112,10 +2142,9 @@
     if (!isEloAnalysisContextCurrentForDocument_(context, getEloActiveDocumentContext_())) return null;
     const activeAttachment = ELO_SESSION_MEMORY.activeAttachmentContext;
     if (activeAttachment && context.activeAttachmentId !== activeAttachment.id) return null;
-    if (context.activeAttachmentType === "image" && context.conversationId) {
-      const currentConversationId = typeof getEloCoreCurrentConversationId_ === "function" ? sanitizeUserText(getEloCoreCurrentConversationId_()) : "";
-      if (!currentConversationId || context.conversationId !== currentConversationId) return null;
-    }
+    const currentConversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+    if (context.conversationId && context.conversationId !== currentConversationId) return null;
+    if (activeAttachment && activeAttachment.conversationId && activeAttachment.conversationId !== currentConversationId) return null;
     return Object.assign({}, context, {
       findings: Array.isArray(context.findings) ? context.findings.slice() : [],
       risks: Array.isArray(context.risks) ? context.risks.slice() : [],
@@ -3392,7 +3421,41 @@
       return "";
     }
   }
-  function setEloCoreCurrentConversationId_(id) { ELO_UI.coreConversationId = sanitizeUserText(id); if (ELO_UI.coreConversationId) unmarkEloCoreConversationCleared_(ELO_UI.coreConversationId); const scopedKey = getEloCoreScopedStorageKey_(ELO_CORE_CONVERSATION_ID_KEY); try { if (ELO_UI.coreConversationId) window.localStorage.setItem(scopedKey, ELO_UI.coreConversationId); else window.localStorage.removeItem(scopedKey); } catch (error) {} if (!ELO_UI.coreConversationId || shouldReadEloCoreLegacyStorage_()) { try { window.localStorage.removeItem(ELO_CORE_CONVERSATION_ID_KEY); } catch (error) {} } }
+  function bindEloActiveContextToConversation_(conversationId) {
+    const currentConversationId = sanitizeUserText(conversationId || "");
+    if (!currentConversationId) return false;
+    const attachment = ELO_SESSION_MEMORY.activeAttachmentContext || null;
+    const analysis = ELO_SESSION_MEMORY.activeAnalysisContext || null;
+    const attachmentConversationId = sanitizeUserText(attachment && attachment.conversationId || "");
+    const analysisConversationId = sanitizeUserText(analysis && (analysis.conversationId || analysis.conversation_id) || "");
+    if ((attachmentConversationId && attachmentConversationId !== currentConversationId) || (analysisConversationId && analysisConversationId !== currentConversationId)) {
+      clearEloActiveContextState_();
+      return false;
+    }
+    if (attachment && !attachmentConversationId) attachment.conversationId = currentConversationId;
+    if (ELO_SESSION_MEMORY.activeDocumentContext && !ELO_SESSION_MEMORY.activeDocumentContext.conversationId) {
+      ELO_SESSION_MEMORY.activeDocumentContext.conversationId = currentConversationId;
+    }
+    if (analysis && !analysisConversationId) {
+      analysis.conversationId = currentConversationId;
+      analysis.conversation_id = currentConversationId;
+    }
+    if (analysis && attachment && analysis.activeAttachmentId === attachment.id && attachment.type === "image") {
+      rememberEloImageAnalysisHistory_(analysis, attachment);
+    }
+    if (attachment || ELO_SESSION_MEMORY.activeDocumentContext || analysis) persistEloActiveContextState_();
+    return true;
+  }
+  function setEloCoreCurrentConversationId_(id) {
+    ELO_UI.coreConversationId = sanitizeUserText(id);
+    if (ELO_UI.coreConversationId) {
+      unmarkEloCoreConversationCleared_(ELO_UI.coreConversationId);
+      bindEloActiveContextToConversation_(ELO_UI.coreConversationId);
+    }
+    const scopedKey = getEloCoreScopedStorageKey_(ELO_CORE_CONVERSATION_ID_KEY);
+    try { if (ELO_UI.coreConversationId) window.localStorage.setItem(scopedKey, ELO_UI.coreConversationId); else window.localStorage.removeItem(scopedKey); } catch (error) {}
+    if (!ELO_UI.coreConversationId || shouldReadEloCoreLegacyStorage_()) { try { window.localStorage.removeItem(ELO_CORE_CONVERSATION_ID_KEY); } catch (error) {} }
+  }
   function isEloCoreMemoryDisabled_() { try { return window.localStorage.getItem(ELO_CORE_MEMORY_DISABLED_KEY) === "true"; } catch (error) { return false; } }
   function setEloCoreMemoryDisabled_(disabled) { try { window.localStorage.setItem(ELO_CORE_MEMORY_DISABLED_KEY, disabled ? "true" : "false"); } catch (error) {} }
   function eloCoreFetch_(path, options) { const config = options || {}; const headers = Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_(), config.headers || {}); if (typeof fetch !== "function") return Promise.reject(new Error("elo_core_fetch_unavailable")); return fetch(getEloBackendEndpoint_(path), Object.assign({}, config, { headers: headers })).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_core_api_error"); return data; }); }); }
@@ -3401,17 +3464,23 @@
     if (ELO_UI.coreConversationId) return Promise.resolve(ELO_UI.coreConversationId);
     const existing = getEloCoreCurrentConversationId_();
     if (existing) {
-      ELO_UI.coreConversationId = existing;
+      setEloCoreCurrentConversationId_(existing);
       return Promise.resolve(existing);
     }
-    if (ELO_UI.coreConversationEnsurePromise) return ELO_UI.coreConversationEnsurePromise;
+    const revision = Number(ELO_UI.coreConversationRevision || 0);
+    if (ELO_UI.coreConversationEnsurePromise && ELO_UI.coreConversationEnsureRevision === revision) return ELO_UI.coreConversationEnsurePromise;
+    ELO_UI.coreConversationEnsureRevision = revision;
     ELO_UI.coreConversationEnsurePromise = eloCoreFetch_("/api/elo/conversations", { method: "POST", body: JSON.stringify(Object.assign({ title: "Nova conversa" }, getEloCoreIdentity_())) })
       .then(function (data) {
-        setEloCoreCurrentConversationId_(data.conversation && data.conversation.id);
-        return ELO_UI.coreConversationId;
+        const conversationId = sanitizeUserText(data.conversation && data.conversation.id || "");
+        if (revision === Number(ELO_UI.coreConversationRevision || 0)) setEloCoreCurrentConversationId_(conversationId);
+        return conversationId;
       })
       .finally(function () {
-        ELO_UI.coreConversationEnsurePromise = null;
+        if (ELO_UI.coreConversationEnsureRevision === revision) {
+          ELO_UI.coreConversationEnsurePromise = null;
+          ELO_UI.coreConversationEnsureRevision = null;
+        }
       });
     return ELO_UI.coreConversationEnsurePromise;
   }
@@ -3946,7 +4015,7 @@
       });
   }
   function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } stopAllEloSpeech_({ shutdown: true }); setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
-  function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) markEloCoreConversationCleared_(previous); stopAllEloSpeech_({ shutdown: true }); setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
+  function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
   function confirmClearEloCoreCurrentConversation_() { if (typeof window.confirm === "function" && !window.confirm("Limpar a conversa atual?")) return false; return clearEloCoreCurrentConversation_(); }
   function ensureEloCoreUtilityPanel_() {
     if (ELO_UI.coreUtilityPanel && ELO_UI.coreUtilityPanel.parentNode) return ELO_UI.coreUtilityPanel;
@@ -9055,6 +9124,23 @@
     }).slice(-ELO_CONFIG.maxHistory);
   }
 
+  function getEloStandaloneConversationHistory_(question) {
+    if (!isStandaloneMode()) return null;
+    if (!ELO_UI.messages || typeof ELO_UI.messages.querySelectorAll !== "function") return [];
+    const history = Array.prototype.slice.call(ELO_UI.messages.querySelectorAll(".elo-message") || []).map(function (message) {
+      if (!message || message.dataset && message.dataset.eloTyping === "true") return null;
+      const role = message.classList && message.classList.contains("user") ? "user" : message.classList && message.classList.contains("assistant") ? "assistant" : "";
+      if (!role) return null;
+      const bubble = message.querySelector && message.querySelector(".elo-message-bubble");
+      const content = sanitizeEloMultilineText_(bubble && bubble.textContent || "");
+      return content ? { role: role, content: content } : null;
+    }).filter(Boolean);
+    const currentQuestion = sanitizeUserText(question || "");
+    const last = history[history.length - 1];
+    if (last && last.role === "user" && normalizeText(last.content) === normalizeText(currentQuestion)) history.pop();
+    return history.slice(-ELO_CONFIG.maxHistory);
+  }
+
   function getEloTechnicalContinuationHistory_(question, topic) {
     const normalizedTopic = normalizeText(topic || "");
     const topicTerms = {
@@ -9209,6 +9295,7 @@
       documents: documents,
       activeDocumentId: nextDocumentId,
       activeSubject: "pdf",
+      conversationId: sanitizeUserText(activeAttachment.conversationId || ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : "")),
       updatedAt: new Date().toISOString()
     };
     ELO_SESSION_MEMORY.activeAttachmentContext = Object.assign({}, activeAttachment, {
@@ -9227,12 +9314,16 @@
     if (!context || !Array.isArray(context.documents)) return null;
     const activeAttachment = ELO_SESSION_MEMORY.activeAttachmentContext || null;
     if (activeAttachment && activeAttachment.type !== "pdf") return null;
+    const currentConversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+    if (context.conversationId && context.conversationId !== currentConversationId) return null;
+    if (activeAttachment && activeAttachment.conversationId && activeAttachment.conversationId !== currentConversationId) return null;
     const documents = context.documents.map(normalizeEloActiveDocumentEntry_).filter(Boolean);
     if (activeAttachment && activeAttachment.documentId && documents[0] && activeAttachment.documentId !== documents[0].documentId) return null;
     return documents.length ? Object.assign({}, context, {
       documents: documents,
       activeDocumentId: sanitizeUserText(context.activeDocumentId || documents[0].documentId || ""),
-      activeSubject: "pdf"
+      activeSubject: "pdf",
+      conversationId: sanitizeUserText(context.conversationId || activeAttachment && activeAttachment.conversationId || currentConversationId)
     }) : null;
   }
 
@@ -9387,46 +9478,60 @@
     if (!pdfFiles.length) {
       return Promise.resolve({
         message: sanitizeUserText(question),
-      anonymousId: getEloCoreAnonymousId_(),
+        anonymousId: getEloCoreAnonymousId_(),
         blockingMessage: ""
       });
     }
 
-    const activeAttachment = beginEloAttachmentContext_("pdf", pdfFiles[0]);
-
-    return Promise.all(pdfFiles.slice(0, 4).map(function (file) {
-      return extractPdfText(file).then(function (text) {
-        return {
-          ok: true,
-          fileName: file.name || "documento.pdf",
-          text: text
-        };
-      }).catch(function (error) {
-        return {
-          ok: false,
-          fileName: file.name || "documento.pdf",
-          reason: error && error.message ? error.message : "pdf_sem_texto"
-        };
-      });
-    })).then(function (results) {
-      const readable = results.filter(function (result) {
-        return result.ok && result.text;
-      });
-
-      if (!readable.length) {
-        return {
-          message: sanitizeUserText(question),
-      anonymousId: getEloCoreAnonymousId_(),
-          blockingMessage: "Este PDF parece ser um documento digitalizado em imagem. Ainda n\u00e3o foi poss\u00edvel extrair texto automaticamente."
-        };
+    const conversationRevision = Number(ELO_UI.coreConversationRevision || 0);
+    return ensureEloAttachmentConversation_().catch(function () { return ""; }).then(function () {
+      if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) {
+        return { message: sanitizeUserText(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
       }
+      const activeAttachment = beginEloAttachmentContext_("pdf", pdfFiles[0]);
+      return Promise.all(pdfFiles.slice(0, 4).map(function (file) {
+        return extractPdfText(file).then(function (text) {
+          return {
+            ok: true,
+            fileName: file.name || "documento.pdf",
+            text: text
+          };
+        }).catch(function (error) {
+          return {
+            ok: false,
+            fileName: file.name || "documento.pdf",
+            reason: error && error.message ? error.message : "pdf_sem_texto"
+          };
+        });
+      })).then(function (results) {
+        if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) {
+          return { message: sanitizeUserText(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
+        }
+        const readable = results.filter(function (result) {
+          return result.ok && result.text;
+        });
 
-      rememberEloActiveDocumentContext_(readable, activeAttachment.id);
-      return {
-        message: buildEloQuestionWithPdfContext_(question, readable),
-        blockingMessage: ""
-      };
+        if (!readable.length) {
+          return {
+            message: sanitizeUserText(question),
+            anonymousId: getEloCoreAnonymousId_(),
+            blockingMessage: "Este PDF parece ser um documento digitalizado em imagem. Ainda n\u00e3o foi poss\u00edvel extrair texto automaticamente."
+          };
+        }
+
+        rememberEloActiveDocumentContext_(readable, activeAttachment.id);
+        return {
+          message: buildEloQuestionWithPdfContext_(question, readable),
+          blockingMessage: ""
+        };
+      });
     });
+  }
+
+  function ensureEloAttachmentConversation_() {
+    const currentConversationId = sanitizeUserText(ELO_UI.coreConversationId || (typeof getEloCoreCurrentConversationId_ === "function" ? getEloCoreCurrentConversationId_() : ""));
+    if (currentConversationId || !isStandaloneMode() || window.ELO_AUTH_SESSION_VALIDATED !== true) return Promise.resolve(currentConversationId);
+    return ensureEloCoreConversation_();
   }
 
   // ELO_TRANSPORT_API
@@ -9496,13 +9601,14 @@
     syncEloVectorMemories();
     ELO_UI.pendingSavePrompt = null;
     const eloContext = getEloContext();
+    const standaloneConversationHistory = !isTechnicalContinuation ? getEloStandaloneConversationHistory_(question) : null;
     const payload = {
       message: sanitizeUserText(question),
       anonymousId: getEloCoreAnonymousId_(),
       eloContext: eloContext,
       history: isTechnicalContinuation
         ? getEloTechnicalContinuationHistory_(question, requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || "")
-        : getEloOnlineHistory(question),
+        : standaloneConversationHistory !== null ? standaloneConversationHistory : getEloOnlineHistory(question),
       context: {
         memoriesSummary: buildEloMemorySummary(),
         workingMemorySummary: isTechnicalContinuation
@@ -32908,6 +33014,9 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   async function analyzeEloImageAttachment_(question, file) {
     const cleanQuestion = sanitizeUserText(question) || "Elo, analise esta imagem";
+    const conversationRevision = Number(ELO_UI.coreConversationRevision || 0);
+    try { await ensureEloAttachmentConversation_(); } catch (error) {}
+    if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) return;
     const activeAttachment = beginEloAttachmentContext_("image", file);
     appendMessage("system", "Imagem anexada: " + (file.name || "imagem.jpg"));
     appendMessage("user", cleanQuestion);
@@ -32950,6 +33059,7 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       const answer = formatEloImageAnalysis_(result);
+      if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) return;
       updateEloMessage_(statusMessage, answer);
       rememberEloActiveAnalysisContext_(cleanQuestion, {
         sessionTheme: "analise-visual",
@@ -32961,7 +33071,9 @@ function isEloResidentialNewPipelineEnabled_() {
         nextAction: "Valide a analise visual com o responsavel tecnico."
       }, answer);
     } catch (error) {
-      updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui analisar a imagem agora.");
+      if (conversationRevision === Number(ELO_UI.coreConversationRevision || 0)) {
+        updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui analisar a imagem agora.");
+      }
     } finally {
       ELO_UI.attachments = [];
       if (ELO_UI.attachmentInput) {
@@ -35962,6 +36074,7 @@ function isEloResidentialNewPipelineEnabled_() {
     rememberActiveDocumentForTest: rememberEloActiveDocumentContext_,
     beginImageAttachmentForTest: function (file) { return beginEloAttachmentContext_("image", file || {}); },
     setCurrentConversationIdForTest: setEloCoreCurrentConversationId_,
+    ensureCoreConversationForTest: ensureEloCoreConversation_,
     getActiveDocumentForTest: getEloActiveDocumentContext_,
     isActiveDocumentReferenceForTest: isEloActiveDocumentReference_,
     applyActiveDocumentContextToPayloadForTest: applyEloActiveDocumentContextToPayload_,

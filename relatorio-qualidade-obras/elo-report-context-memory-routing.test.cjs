@@ -503,6 +503,7 @@ test("regressao G: sessao sem attachment ou analise pede contexto em vez de reut
 
 test("attachment ativo sobrevive ao reopen e historico antigo nao o substitui implicitamente", () => {
   const firstSession = loadElo();
+  setCurrentConversation(firstSession.api, "conversation-context-reopen");
   rememberOldRdoAnalysis(firstSession.api);
   firstSession.api.saveConversationForTest("Analise o relatorio anterior sobre infiltracao", oldRdoAnalysis);
   firstSession.api.beginImageAttachmentForTest({ name: "image-B.jpeg" });
@@ -514,6 +515,7 @@ test("attachment ativo sobrevive ao reopen e historico antigo nao o substitui im
   rememberCurrentImageAnalysis(firstSession.api);
 
   const reopened = loadElo({ storage: firstSession.storage });
+  setCurrentConversation(reopened.api, "conversation-context-reopen");
   assert.equal(reopened.api.restoreActiveContextForTest(), true);
   assert.match(reopened.api.getActiveAnalysisForTest().analysis, /imagem B/i);
   assert.ok(reopened.api.getOnlineHistoryForTest("Volte ao relatorio anterior sobre infiltracao").some((item) => item.content === oldRdoAnalysis));
@@ -610,4 +612,112 @@ test("referencia nomeada recupera imagem do chat atual, mas nao cruza conversas"
   assert.equal(otherChat.api.applyAttachmentContextToPayloadForTest(crossChatPayload, namedQuestion), true);
   assert.equal(crossChatPayload.context.imageAnalysisContext.available, false);
   assert.equal(crossChatPayload.context.imageAnalysisContext.analysis, undefined);
+});
+
+test("analysis de imagem sem ID inicial e vinculada ao chat quando o ID chega", () => {
+  const { api } = loadElo();
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: problema principal: fissura diagonal na viga.";
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+  setCurrentConversation(api, "conversation-image-late-id");
+
+  for (const question of ["Qual e o principal problema?", "Isso e grave?"]) {
+    const payload = { message: question, context: {} };
+    assert.equal(api.applyAttachmentContextToPayloadForTest(payload, question), true);
+    assert.equal(payload.context.imageAnalysisContext.conversationId, "conversation-image-late-id");
+    assert.match(payload.context.imageAnalysisContext.analysis, /fissura diagonal/i);
+  }
+
+  api.rememberActiveDocumentForTest([{ fileName: "documento-B.pdf", text: "PDF B: ausencia de detalhe executivo." }]);
+  rememberCurrentPdfAnalysis(api);
+  const explicitImageQuestion = "Volte para a imagem anterior. Qual era o principal problema?";
+  const explicitImagePayload = { message: explicitImageQuestion, context: {} };
+  assert.equal(api.applyAttachmentContextToPayloadForTest(explicitImagePayload, explicitImageQuestion), true);
+  assert.equal(explicitImagePayload.context.imageAnalysisContext.source, "explicit_history");
+  assert.match(explicitImagePayload.context.imageAnalysisContext.analysis, /fissura diagonal/i);
+});
+
+test("estado de attachment sem conversationId nao pode ser restaurado em outra conversa", () => {
+  const first = loadElo();
+  first.api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: problema principal: fissura diagonal na viga.";
+  first.api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+
+  const second = loadElo({ storage: first.storage });
+  setCurrentConversation(second.api, "conversation-B");
+  assert.equal(second.api.restoreActiveContextForTest(), false);
+  assert.equal(second.api.getActiveAnalysisForTest(), null);
+});
+
+test("payload do chat standalone usa somente o historico visivel da conversa atual", async () => {
+  const { api, fetchRequests } = loadElo({
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, answer: "Resposta baseada na conversa atual." }) })
+  });
+  api.saveConversationForTest("Resuma o PDF anterior", "PDF A: documento de outra conversa, com dado antigo.");
+  api.setCoreMessagesElementForTest({
+    querySelectorAll() {
+      return [{
+        classList: { contains(name) { return name === "user"; } },
+        dataset: {},
+        querySelector() { return { textContent: "O que havia na imagem da conversa anterior?" }; }
+      }];
+    }
+  });
+
+  await api.requestOnlineAnswerForTest("O que havia na imagem da conversa anterior?", [], {});
+  const request = fetchRequests().find((item) => String(item.url).includes("/api/elo/chat"));
+  assert.ok(request);
+  const payload = JSON.parse(request.options.body);
+  assert.equal(payload.history.length, 0);
+  assert.doesNotMatch(JSON.stringify(payload), /PDF A|dado antigo/);
+});
+
+test("follow-up real da imagem envia analise atual sem historico de outro chat", async () => {
+  const { api, fetchRequests } = loadElo({
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, answer: "O principal problema é a fissura descrita na imagem." }) })
+  });
+  setCurrentConversation(api, "conversation-image-followup-real");
+  api.beginImageAttachmentForTest({ name: "image-A.jpeg" });
+  const imageAnalysis = "Imagem A: fissura diagonal na viga, com recomendacao de vistoria.";
+  api.rememberActiveAnalysisForTest("Analise esta imagem", { fullAnswer: imageAnalysis, sessionIntent: "image_analysis" }, imageAnalysis);
+  api.saveConversationForTest("Resuma o PDF antigo", "PDF A: documento de outra conversa, com contexto ultrapassado.");
+  api.setCoreMessagesElementForTest({
+    querySelectorAll() {
+      return [
+        { classList: { contains(name) { return name === "assistant"; } }, dataset: {}, querySelector() { return { textContent: imageAnalysis }; } },
+        { classList: { contains(name) { return name === "user"; } }, dataset: {}, querySelector() { return { textContent: "Qual e o principal problema?" }; } }
+      ];
+    }
+  });
+
+  await api.requestOnlineAnswerForTest("Qual e o principal problema?", [], {});
+  const request = fetchRequests().find((item) => String(item.url).includes("/api/elo/chat"));
+  assert.ok(request);
+  const payload = JSON.parse(request.options.body);
+  assert.deepEqual(payload.history, [{ role: "assistant", content: imageAnalysis }]);
+  assert.equal(payload.context.imageAnalysisContext.source, "active_attachment");
+  assert.match(payload.context.imageAnalysisContext.analysis, /fissura diagonal/i);
+  assert.doesNotMatch(JSON.stringify(payload), /PDF A|contexto ultrapassado/);
+});
+
+test("criacao atrasada da conversa anterior nao pode assumir o novo chat", async () => {
+  const pending = [];
+  const { api } = loadElo({
+    fetch: (url, options) => new Promise((resolve) => pending.push({ url, options, resolve }))
+  });
+  const firstCreation = api.ensureCoreConversationForTest();
+  assert.equal(pending.length, 1);
+
+  api.startNewConversationForLayoutTest();
+  const secondCreation = api.ensureCoreConversationForTest();
+  assert.equal(pending.length, 2);
+
+  pending[1].resolve({ ok: true, status: 200, json: async () => ({ ok: true, conversation: { id: "conversation-B" } }) });
+  await secondCreation;
+  assert.equal(api.getActiveAnalysisForTest(), null);
+  assert.equal(api.getCurrentConversationIdForTest(), "conversation-B");
+
+  pending[0].resolve({ ok: true, status: 200, json: async () => ({ ok: true, conversation: { id: "conversation-A" } }) });
+  await firstCreation;
+  assert.equal(api.getCurrentConversationIdForTest(), "conversation-B");
 });
