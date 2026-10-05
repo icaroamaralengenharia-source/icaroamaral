@@ -211,12 +211,9 @@
     if (matching) {
       select.value = matching.id;
       status.textContent = "Dados e movimentações limitados a: " + (matching.name || matching.id) + ".";
-    } else if (works.length === 1) {
-      core.setCurrentWork(works[0]);
-      select.value = works[0].id;
-      status.textContent = "Dados e movimentações limitados a: " + (works[0].name || works[0].id) + ".";
     } else {
       core.clearCurrentWork && core.clearCurrentWork();
+      select.value = "";
       status.textContent = "Operação da empresa/loja sem obra ativa.";
     }
     if (!select.dataset.bound) {
@@ -226,6 +223,7 @@
         if (!work) {
           core.clearCurrentWork && core.clearCurrentWork();
           status.textContent = "Operação da empresa/loja sem obra ativa.";
+          window.location.reload();
           return;
         }
         core.setCurrentWork(work);
