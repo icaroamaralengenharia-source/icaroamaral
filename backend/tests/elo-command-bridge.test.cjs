@@ -157,6 +157,21 @@ test("EloActionBusStockFull usa o backend Stock Full E2E configurado por padrao"
   assert.equal(request.cache, "no-store");
 });
 
+test("EloActionBusStockFull resolve follow-up contextual pelo ultimo item consultado", async () => {
+  const harness = createStockBridgeHarness({
+    items: [{ id: "ctx_item", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }]
+  });
+  harness.context.stockItems = [{ id: "ctx_item", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }];
+  const response = await harness.window.EloCommandBridge.execute({
+    module: "stock_full",
+    action: "get_balance",
+    payload: { message: "E quanto tem desse?" },
+    context: harness.context
+  });
+  assert.equal(response.mode, "read");
+  assert.match(response.humanAnswer, /E2E CONTEXT ITEM: saldo atual 7 un/);
+});
+
 test("EloActionBusStockFull gera preview de cadastro sem POST", async () => {
   const harness = createStockBridgeHarness();
   const response = await harness.window.EloCommandBridge.execute({

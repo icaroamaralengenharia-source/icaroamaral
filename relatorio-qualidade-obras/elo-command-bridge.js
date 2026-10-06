@@ -376,7 +376,16 @@
     if (match) return { action: "stock.entry.preview", raw, quantity: numberFromText(match[1]), unit: normalizeUnit(match[2]), productQuery: stripProductText(match[3]) };
     match = text.match(new RegExp("\\b(?:de\\s+saida\\s+de|saida\\s+de|retire|retirar|baixar|baixa\\s+de|dar\\s+saida\\s+de)\\s+(" + qtyWord + ")\\s+([a-z0-9._-]+)\\s+(?:de\\s+)?(.+)$"));
     if (match) return { action: "stock.exit.preview", raw, quantity: numberFromText(match[1]), unit: normalizeUnit(match[2]), productQuery: stripProductText(match[3]) };
-    if (input && input.action === "get_balance" || /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text)) return { action: "stock.query", raw, productQuery: stripProductText(text) };
+    if (input && input.action === "get_balance" || /\b(?:quanto|quantos|quantas|saldo|temos|tem)\b/.test(text)) {
+      const stockItems = input && input.context && Array.isArray(input.context.stockItems) ? input.context.stockItems : [];
+      const isContextualFollowUp = stockItems.length > 0 && /\b(?:desse|dessa|dele|dela|deste|desta|esse|essa|anterior)\b/.test(text);
+      if (isContextualFollowUp) {
+        const lastItem = stockItems[stockItems.length - 1] || {};
+        const contextualName = clean(lastItem.name || lastItem.productName || lastItem.description);
+        if (contextualName) return { action: "stock.query", raw, productQuery: contextualName };
+      }
+      return { action: "stock.query", raw, productQuery: stripProductText(text) };
+    }
     return null;
   }
 
