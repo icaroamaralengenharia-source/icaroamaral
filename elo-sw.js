@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v24-20261006-stock-read-no-cache-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v25-20261006-stock-api-no-cache-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css?v=20261003-player-v2",
@@ -76,7 +76,7 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(fetch(request, { cache: "no-store" }));
     return;
   }
-  if (url.pathname.indexOf("/api/elo/") === 0 || url.hostname.indexOf("youtube") >= 0 || url.hostname.indexOf("googlevideo") >= 0) return;
+    if (/^\/api\/stock-(?:full|saude)(?:\/|$)/i.test(url.pathname) || url.pathname.indexOf("/api/elo/") === 0 || url.hostname.indexOf("youtube") >= 0 || url.hostname.indexOf("googlevideo") >= 0) return;
 
   if (url.pathname.endsWith("/elo.html") || url.pathname === "/" || request.mode === "navigate") {
     event.respondWith(
