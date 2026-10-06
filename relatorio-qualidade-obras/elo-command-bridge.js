@@ -232,7 +232,7 @@
   }
 
   function getStockEndpoint(path) {
-    const stockBase = clean(window.STOCK_FULL_API_BASE_URL || "https://obrareport-backend-stockfull.onrender.com").replace(/\/+$/g, "");
+    const stockBase = clean(window.STOCK_FULL_API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
     if (/^\/api\/stock-full(?:\/|$)/i.test(path)) return stockBase + path;
     const configuredBaseUrl = clean(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL).replace(/\/+$/g, "");
     const location = window.location || {};

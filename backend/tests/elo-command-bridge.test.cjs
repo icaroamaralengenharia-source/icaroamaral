@@ -142,6 +142,20 @@ function createStockBridgeHarness(options = {}) {
   return { window, requests, items, context };
 }
 
+test("EloActionBusStockFull usa o backend Stock Full E2E configurado por padrao", async () => {
+  const harness = createStockBridgeHarness();
+  harness.context.identity.projectId = "e2e-work";
+  await harness.window.EloCommandBridge.execute({
+    module: "stock_full",
+    action: "list_products",
+    payload: { message: "quais produtos existem no estoque?" },
+    context: harness.context
+  });
+  const request = harness.requests.find((entry) => entry.method === "GET" && entry.url.endsWith("/api/stock-full/items?projectId=e2e-work"));
+  assert.ok(request);
+  assert.equal(new URL(request.url).origin, "https://obrareport-backend.onrender.com");
+});
+
 test("EloActionBusStockFull gera preview de cadastro sem POST", async () => {
   const harness = createStockBridgeHarness();
   const response = await harness.window.EloCommandBridge.execute({
