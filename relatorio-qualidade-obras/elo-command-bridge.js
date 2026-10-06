@@ -1644,6 +1644,13 @@
   }
 
   function resolveCurrentRdoAccessToken_() {
+    const canonical = window.EloCanonicalSession;
+    if (canonical && typeof canonical.getValidAccessToken === 'function') {
+      return Promise.resolve().then(function () { return canonical.getValidAccessToken(); }).then(function (token) {
+        if (!clean(token)) throw new Error('invalid_session');
+        return clean(token);
+      });
+    }
     const stored = readStoredRdoAuthSession_();
     return readCanonicalRdoAuthSession_().then(function (canonical) {
       const candidates = [canonical, stored].filter(Boolean);

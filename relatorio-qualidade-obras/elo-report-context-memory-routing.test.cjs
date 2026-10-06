@@ -4,6 +4,15 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
+const TEST_AUTH_ISSUER = "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1";
+
+function createTestJwt(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return encode({ alg: "none", typ: "JWT" }) + "." + encode(payload) + ".fixture";
+}
+
+const DEFAULT_TEST_AUTH_TOKEN = createTestJwt({ iss: TEST_AUTH_ISSUER, exp: Math.floor(Date.now() / 1000) + 3600, sub: "report-context-test-user" });
+
 function createStorage() {
   const values = new Map();
   return {
@@ -47,6 +56,8 @@ function loadElo(options = {}) {
     document,
     navigator: { onLine: true, userAgent: "node" },
     location: { hostname: "localhost", protocol: "http:", pathname: "/elo.html", search: "", hash: "", assign() {} },
+    ELO_AUTH_TOKEN: DEFAULT_TEST_AUTH_TOKEN,
+    atob(value) { return Buffer.from(value, "base64").toString("binary"); },
     addEventListener() {},
     removeEventListener() {},
     setTimeout(fn) { return setTimeout(fn, 0); },
@@ -289,6 +300,7 @@ test("memorize tem precedência sobre relatório, salva memória canônica e pre
   assert.equal(Array.isArray(response.savedMemoryLabels), true);
   assert.equal(response.savedMemoryLabels.length, 0);
   assert.doesNotMatch(response.fullAnswer, /Residência teste|RELATÓRIO TÉCNICO|falta de material/i);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fetchCalls(), 1);
 
   const [memoryRequest] = fetchRequests();
@@ -372,15 +384,15 @@ test("ação de relatório de contexto usa o mesmo gerador real e preserva os ac
       return Promise.resolve({
         ok: true,
         status: 200,
-        text: () => Promise.resolve(JSON.stringify({ ok: true, pdfUrl: "https://script.test/report.pdf", requestId: "req-context-1" }))
+        json: () => Promise.resolve({ ok: true, document: { open_url: "https://script.test/report.pdf" }, requestId: "req-context-1" })
       });
     }
   });
   api.rememberActiveAnalysisForTest("analise essa foto", { fullAnswer: analysisAnswer, sessionIntent: "image_analysis" }, analysisAnswer);
   await api.generateReportFromAnalysisContextForTest("gere um relatório disso");
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /(?:\/api\/obrareport\/documents\/generate|https:\/\/script\.test\/report)$/);
-  const payload = JSON.parse(calls[0].options.body);
+  const reportCall = calls.find((call) => String(call.url).includes("/api/obrareport/documents/generate") || String(call.url) === "https://script.test/report");
+  assert.ok(reportCall);
+  const payload = JSON.parse(reportCall.options.body);
   const reportPayload = payload.generatorPayload || payload;
   assert.equal(reportPayload.fotosUnidade.length, 0);
   assert.match(reportPayload.report.observacoes, /falta de material/i);
@@ -706,10 +718,12 @@ test("criacao atrasada da conversa anterior nao pode assumir o novo chat", async
     fetch: (url, options) => new Promise((resolve) => pending.push({ url, options, resolve }))
   });
   const firstCreation = api.ensureCoreConversationForTest();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(pending.length, 1);
 
   api.startNewConversationForLayoutTest();
   const secondCreation = api.ensureCoreConversationForTest();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(pending.length, 2);
 
   pending[1].resolve({ ok: true, status: 200, json: async () => ({ ok: true, conversation: { id: "conversation-B" } }) });
