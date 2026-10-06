@@ -117,7 +117,7 @@ function createStockBridgeHarness(options = {}) {
     authToken: options.authToken === false ? "" : "token.test",
     fetch(url, config = {}) {
       const method = config.method || "GET";
-      requests.push({ url, method, body: config.body ? JSON.parse(config.body) : null });
+      requests.push({ url, method, body: config.body ? JSON.parse(config.body) : null, cache: config.cache || null });
       if (url.endsWith("/api/stock-full/items") && method === "GET") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, items: items.slice() }) });
       }
@@ -154,6 +154,7 @@ test("EloActionBusStockFull usa o backend Stock Full E2E configurado por padrao"
   const request = harness.requests.find((entry) => entry.method === "GET" && entry.url.endsWith("/api/stock-full/items?projectId=e2e-work"));
   assert.ok(request);
   assert.equal(new URL(request.url).origin, "https://obrareport-backend.onrender.com");
+  assert.equal(request.cache, "no-store");
 });
 
 test("EloActionBusStockFull gera preview de cadastro sem POST", async () => {

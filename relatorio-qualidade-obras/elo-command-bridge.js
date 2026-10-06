@@ -253,6 +253,7 @@
   function fetchStockJson(input, path, options) {
     if (typeof window.fetch !== "function") return Promise.reject(new Error("stock_full_fetch_unavailable"));
     const config = Object.assign({ method: "GET" }, options || {});
+    if (String(config.method || "GET").toUpperCase() === "GET" && !config.cache) config.cache = "no-store";
     config.headers = Object.assign({}, stockHeaders(input), config.headers || {});
     const projectId = getCurrentWorkId_(input);
     if (config.body && typeof config.body === "string") {
