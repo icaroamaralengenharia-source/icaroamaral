@@ -959,6 +959,17 @@
     if (isEloExplicitStockProductCreateRequest_(text)) {
       return { module: "stock_full", action: "create_product", payload: payload };
     }
+    const stockActionBus = window.EloActionBusStockFull;
+    if (stockActionBus && typeof stockActionBus.parseIntent === "function") {
+      const stockMovementIntent = stockActionBus.parseIntent({ payload: payload });
+      if (stockMovementIntent && /^(?:stock\.(?:entry|exit)\.preview)$/.test(String(stockMovementIntent.action || ""))) {
+        return {
+          module: "stock_full",
+          action: stockMovementIntent.action === "stock.entry.preview" ? "stock_entry" : "stock_exit",
+          payload: payload
+        };
+      }
+    }
     if (/\b(?:vistoria|vistorias|apartamento|apto|unidade|nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text)) {
       const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
       return { module: "inspection", action: action, payload: payload };

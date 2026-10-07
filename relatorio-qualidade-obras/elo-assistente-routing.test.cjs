@@ -1386,6 +1386,22 @@ test('ELO Action Bus Stock Full: frases operacionais roteiam para command bridge
   assert.deepEqual(elo.detectCommandBridgeRequestForTest('sim').action, 'stock_confirm');
 });
 
+test('ELO Stock Full: movimento explícito com unidade não é desviado para vistoria', () => {
+  const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
+
+  const entry = elo.detectCommandBridgeRequestForTest('Registre uma entrada de 1 unidade no item E2E ELO STOCK ACTION TEST.');
+  assert.equal(entry.module, 'stock_full');
+  assert.equal(entry.action, 'stock_entry');
+
+  const exit = elo.detectCommandBridgeRequestForTest('Dê saída de 1 unidade de E2E ELO STOCK ACTION TEST.');
+  assert.equal(exit.module, 'stock_full');
+  assert.equal(exit.action, 'stock_exit');
+
+  const inspection = elo.detectCommandBridgeRequestForTest('Abra a vistoria da unidade 12.');
+  assert.equal(inspection.module, 'inspection');
+  assert.equal(inspection.action, 'inspection.get');
+});
+
 test('ELO Stock Full: mantém contexto cloud em follow-ups e reconhece consultas comerciais', () => {
   const { elo } = loadEloContext({ preloadScripts: ['elo-command-bridge.js'] });
 
