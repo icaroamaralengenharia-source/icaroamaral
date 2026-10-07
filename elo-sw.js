@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v26-20261006-stock-context-followup-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v27-20261006-stock-movement-routing-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css?v=20261003-player-v2",
@@ -8,7 +8,7 @@ const ELO_CORE_ASSETS = [
   "./relatorio-qualidade-obras/elo-communication-policy.js?v=20260920-conversational-v1",
   "./relatorio-qualidade-obras/elo-command-bridge.js?v=20261006-stock-context-followup-v1",
   "./relatorio-qualidade-obras/elo-live-data-router.js?v=20261004-live-data-v1",
-  "./relatorio-qualidade-obras/elo-assistente.js?v=20261005-elo-auth-refresh-v1",
+  "./relatorio-qualidade-obras/elo-assistente.js?v=20261006-stock-movement-routing-v1",
   "./relatorio-qualidade-obras/elo-music-catalog.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-music-resolver.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-media-player.js?v=20261003-player-v2",
