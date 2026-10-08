@@ -430,9 +430,28 @@
   }
 
   function lookupStockItem(input, query) {
-    const target = stripProductText(query);
+    const uuidPattern = /(?:^|[^0-9a-f-])([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?![0-9a-f-])/gi;
+    const uuidMatches = [];
+    const seenIds = new Set();
+    let uuidMatch;
+    while ((uuidMatch = uuidPattern.exec(String(query || ""))) !== null) {
+      const id = uuidMatch[1];
+      const normalizedId = id.toLowerCase();
+      if (!seenIds.has(normalizedId)) {
+        seenIds.add(normalizedId);
+        uuidMatches.push(id);
+      }
+    }
+    if (uuidMatches.length > 1) {
+      return Promise.resolve({
+        status: "ambiguous",
+        matches: uuidMatches.map(function (id) { return { id, name: id }; })
+      });
+    }
+
+    const target = uuidMatches.length === 1 ? uuidMatches[0] : stripProductText(query);
     if (!target) return Promise.resolve({ status: "missing", matches: [] });
-    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target);
+    const isId = uuidMatches.length === 1 || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target);
     const key = isId ? "id" : "query";
     const endpoint = "/api/stock-full/items/lookup?" + key + "=" + encodeURIComponent(target);
     return fetchStockJson(input, endpoint).then(function (data) {

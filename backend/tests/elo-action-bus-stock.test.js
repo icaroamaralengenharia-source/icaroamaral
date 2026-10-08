@@ -88,6 +88,74 @@ test("ELO Action Bus Stock Full consulta saldo real sem inventar numero", async 
   assert.match(result.humanAnswer, /Cimento/);
 });
 
+test("ELO Action Bus Stock Full extrai UUID antes da limpeza de texto e consulta somente por ID", async () => {
+  const fixtureId = "963a86a8-8602-4ec4-b750-f00661dd142a";
+  const fixture = {
+    id: fixtureId,
+    institution_id: "ee745bdf-8553-4163-8c74-89e6d22fbb7a",
+    projectId: "",
+    name: "E2E ELO STOCK ACTION TEST",
+    unit: "un",
+    currentQuantity: 0,
+    isActive: true
+  };
+  const phrases = [
+    "Qual o saldo atual do item " + fixtureId,
+    "Qual o saldo do item " + fixtureId
+  ];
+
+  for (const phrase of phrases) {
+    let refreshCalls = 0;
+    const calls = [];
+    const win = loadBridge((url, options = {}) => {
+      calls.push({ url: String(url), options });
+      return Promise.resolve(createResponse({ ok: true, mode: "remote", item: fixture }));
+    }, {
+      canonicalSession: {
+        getAccessToken() { return "expired-cached-token"; },
+        getValidAccessToken() {
+          refreshCalls += 1;
+          return Promise.resolve("fresh-canonical-token");
+        }
+      }
+    });
+
+    const result = await win.EloCommandBridge.execute(request(phrase));
+
+    assert.equal(result.ok, true);
+    assert.match(result.humanAnswer, /E2E ELO STOCK ACTION TEST: saldo atual 0 un\./);
+    assert.equal(refreshCalls, 1);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, new RegExp("/api/stock-full/items/lookup\\?id=" + fixtureId + "$"));
+    assert.equal(calls[0].options.method || "GET", "GET");
+    assert.equal(calls[0].options.headers.Authorization, "Bearer fresh-canonical-token");
+    assert.equal(calls[0].options.cache, "no-store");
+    assert.equal(calls.some((call) => /\/api\/stock-full\/items$/.test(call.url)), false);
+    assert.equal(calls.some((call) => /\/entries|\/exits|audit-log|\/sync/.test(call.url) || /POST|PUT|PATCH|DELETE/i.test(call.options.method || "GET")), false);
+    assert.doesNotMatch(result.humanAnswer, /invalid_session/i);
+  }
+});
+
+test("ELO Action Bus Stock Full exige esclarecimento para UUIDs diferentes sem consultar", async () => {
+  const firstId = "963a86a8-8602-4ec4-b750-f00661dd142a";
+  const secondId = "963a86a8-8602-4ec4-b750-f00661dd142b";
+  const calls = [];
+  const win = loadBridge((url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return Promise.resolve(createResponse({ ok: true, mode: "remote", item: {} }));
+  });
+
+  const result = await win.EloCommandBridge.execute(request("Qual o saldo atual dos itens " + firstId + " e " + secondId));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.mode, "blocked");
+  assert.match(result.humanAnswer, new RegExp(firstId));
+  assert.match(result.humanAnswer, new RegExp(secondId));
+  assert.match(result.humanAnswer, /Informe o produto exato/);
+  assert.equal(calls.length, 0);
+  assert.equal(win.EloActionBusStockFull.readPending(), null);
+});
+
 test("ELO Action Bus Stock Full usa refresh canônico e conserva o escopo na consulta filtrada", async () => {
   let refreshCalls = 0;
   let requestCall;
