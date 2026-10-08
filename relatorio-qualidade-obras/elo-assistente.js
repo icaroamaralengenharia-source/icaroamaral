@@ -1025,6 +1025,58 @@
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
     return /^(?:inspection\.|rdo\.generateDocument$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
+  function getEloAndroidStockCommandFromEvent_(event) {
+    if (!event) return null;
+    const target = event.target;
+    let form = null;
+    let command = "";
+    if (event.type === "keydown") {
+      if (event.key !== "Enter" || event.shiftKey || !target || !/^(?:TEXTAREA|INPUT)$/.test(String(target.tagName || "").toUpperCase())) return null;
+      command = target.value || "";
+    } else if (event.type === "click") {
+      const button = target && target.closest ? target.closest('button,[role="button"]') : null;
+      if (!button || button.getAttribute("data-elo-native-no-chat-submit") === "true") return null;
+      form = button.closest ? button.closest("form") : null;
+    } else if (event.type === "submit") {
+      form = target;
+    } else {
+      return null;
+    }
+    if (!command) {
+      const active = document.activeElement;
+      if (active && /^(?:TEXTAREA|INPUT)$/.test(String(active.tagName || "").toUpperCase()) && active.value) command = active.value;
+    }
+    if (!command && form && typeof form.querySelectorAll === "function") {
+      const fields = form.querySelectorAll("textarea,input[type=text],input:not([type])");
+      for (let index = fields.length - 1; index >= 0; index -= 1) {
+        if (fields[index] && fields[index].value) { command = fields[index].value; break; }
+      }
+    }
+    if (!command) return null;
+    let request = null;
+    try { request = detectEloCommandBridgeRequest_(command); } catch (error) {}
+    return request && request.module === "stock_full" ? { command: command, request: request } : null;
+  }
+  function handleEloAndroidStockWebRouteEvent_(event, dispatch) {
+    const match = getEloAndroidStockCommandFromEvent_(event);
+    if (!match) return false;
+    if (event && typeof event.preventDefault === "function") event.preventDefault();
+    if (event && typeof event.stopPropagation === "function") event.stopPropagation();
+    if (event && typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+    (typeof dispatch === "function" ? dispatch : askElo)(match.command, [], "manual");
+    return true;
+  }
+  function installEloAndroidStockWebRouteGuard_() {
+    const nativeBridge = window.EloNativeBridge;
+    if (!nativeBridge || typeof nativeBridge.routeOfflineChat !== "function") return false;
+    if (window.__ELO_ANDROID_STOCK_WEB_ROUTE_GUARD_V1 === true) return true;
+    window.__ELO_ANDROID_STOCK_WEB_ROUTE_GUARD_V1 = true;
+    ["submit", "keydown", "click"].forEach(function (eventName) {
+      window.addEventListener(eventName, handleEloAndroidStockWebRouteEvent_, true);
+    });
+    return true;
+  }
+  installEloAndroidStockWebRouteGuard_();
   function buildEloCommandBridgeAnswer_(bridgeResult) {
     if (!bridgeResult || bridgeResult.handled === false) return null;
     const answer = sanitizeEloHumanFacingAnswer_(bridgeResult.humanAnswer || bridgeResult.preview || bridgeResult.error || "");
@@ -36194,6 +36246,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildLocalToolFastPathResponseForTest: buildEloLocalToolFastPathResponse_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
     parseStockProductCreateCommandForTest: parseEloStockProductCreateCommand_,
+    handleAndroidStockWebRouteEventForTest: handleEloAndroidStockWebRouteEvent_,
     parseStockEntryCommandForTest: parseEloStockEntryCommand_,
     buildStockEntryAnswerForTest: buildEloStockEntryAnswer_,
     getPendingStockEntryForTest: getEloPendingStockEntry_,
