@@ -1393,6 +1393,10 @@ test('ELO Stock Full: movimento explícito com unidade não é desviado para vis
   assert.equal(entry.module, 'stock_full');
   assert.equal(entry.action, 'stock_entry');
 
+  const androidFixtureEntry = elo.detectCommandBridgeRequestForTest('Registrar entrada de 1 unidade no Stock Full para o item E2E ELO STOCK ACTION TEST. Use somente o fixture sintetico, sem obra/projeto. Nao executar saida, RDO ou Inspecao.');
+  assert.equal(androidFixtureEntry.module, 'stock_full');
+  assert.equal(androidFixtureEntry.action, 'stock_entry');
+
   const exit = elo.detectCommandBridgeRequestForTest('Dê saída de 1 unidade de E2E ELO STOCK ACTION TEST.');
   assert.equal(exit.module, 'stock_full');
   assert.equal(exit.action, 'stock_exit');
@@ -1400,6 +1404,59 @@ test('ELO Stock Full: movimento explícito com unidade não é desviado para vis
   const inspection = elo.detectCommandBridgeRequestForTest('Abra a vistoria da unidade 12.');
   assert.equal(inspection.module, 'inspection');
   assert.equal(inspection.action, 'inspection.get');
+});
+
+test('ELO Android WebView bridge: Stock Full explícito segue para o roteador Web antes do classificador offline', () => {
+  const nativeCalls = [];
+  const webCalls = [];
+  const offlineInspectionAnswer = 'A fiscalização deve comparar serviço executado com projeto, registrar evidências, apontar não conformidades e acompanhar a correção.';
+  const { elo, context } = loadEloContext({
+    preloadScripts: ['elo-command-bridge.js'],
+    window: {
+      EloNativeBridge: {
+        routeOfflineChat(command) {
+          nativeCalls.push(command);
+          return JSON.stringify({ handled: true, route: 'offline-v2', text: offlineInspectionAnswer });
+        }
+      }
+    }
+  });
+  const stockCommand = 'Registrar entrada de 1 unidade no Stock Full para o item E2E ELO STOCK ACTION TEST. Use somente o fixture sintetico, sem obra/projeto. Nao executar saida, RDO ou Inspecao.';
+  const stockRoute = elo.detectCommandBridgeRequestForTest(stockCommand);
+  const field = { tagName: 'TEXTAREA', value: stockCommand };
+  const form = { querySelectorAll() { return [field]; } };
+  const stockEvent = {
+    type: 'submit',
+    target: form,
+    prevented: false,
+    stopped: false,
+    immediateStopped: false,
+    preventDefault() { this.prevented = true; },
+    stopPropagation() { this.stopped = true; },
+    stopImmediatePropagation() { this.immediateStopped = true; }
+  };
+  const handledByWeb = elo.handleAndroidStockWebRouteEventForTest(stockEvent, (message) => {
+    webCalls.push(elo.detectCommandBridgeRequestForTest(message));
+  });
+
+  assert.equal(stockRoute.module, 'stock_full');
+  assert.equal(stockRoute.action, 'stock_entry');
+  assert.equal(handledByWeb, true);
+  assert.equal(stockEvent.prevented, true);
+  assert.equal(stockEvent.stopped, true);
+  assert.equal(stockEvent.immediateStopped, true);
+  assert.equal(webCalls.length, 1);
+  assert.equal(webCalls[0].module, 'stock_full');
+  assert.equal(webCalls[0].action, 'stock_entry');
+  assert.equal(nativeCalls.length, 0);
+
+  const technicalQuestion = 'Como a fiscalização deve registrar uma inspeção de obra?';
+  const technicalEvent = { type: 'submit', target: { querySelectorAll() { return [{ tagName: 'TEXTAREA', value: technicalQuestion }]; } } };
+  assert.equal(elo.handleAndroidStockWebRouteEventForTest(technicalEvent), false);
+  const technicalResult = JSON.parse(context.window.EloNativeBridge.routeOfflineChat(technicalQuestion));
+  assert.equal(technicalResult.handled, true);
+  assert.equal(technicalResult.text, offlineInspectionAnswer);
+  assert.deepEqual(nativeCalls, [technicalQuestion]);
 });
 
 test('ELO Stock Full: mantém contexto cloud em follow-ups e reconhece consultas comerciais', () => {
