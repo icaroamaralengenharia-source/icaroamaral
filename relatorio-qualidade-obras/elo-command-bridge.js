@@ -429,6 +429,27 @@
     return { status: "missing", matches: [] };
   }
 
+  function lookupStockItem(input, query) {
+    const target = stripProductText(query);
+    if (!target) return Promise.resolve({ status: "missing", matches: [] });
+    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target);
+    const key = isId ? "id" : "query";
+    const endpoint = "/api/stock-full/items/lookup?" + key + "=" + encodeURIComponent(target);
+    return fetchStockJson(input, endpoint).then(function (data) {
+      if (data && data.item) return { status: "found", item: data.item, matches: [data.item] };
+      const matches = Array.isArray(data && data.items) ? data.items : [];
+      if (data && data.hasMore === true) return { status: "ambiguous", matches: matches.slice(0, 5), truncated: true };
+      return resolveItem(matches, target);
+    }).catch(function (error) {
+      const errorCode = clean(error && error.data && error.data.error);
+      if (error && error.status === 404 && errorCode === "stock_full_item_not_found") return { status: "missing", matches: [] };
+      if (error && error.status === 409 && errorCode === "stock_full_item_ambiguous") {
+        return { status: "ambiguous", matches: Array.isArray(error.data.matches) ? error.data.matches : [] };
+      }
+      throw error;
+    });
+  }
+
   function readPending() {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(STOCK_PENDING_KEY) || "null");
@@ -524,8 +545,7 @@
 
   function executeStockQuery(input, intent) {
     if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para consultar o estoque real do Stock Full."));
-    return loadItems(input).then(function (items) {
-      const resolution = resolveItem(items, intent.productQuery);
+    return lookupStockItem(input, intent.productQuery).then(function (resolution) {
       if (resolution.status === "ambiguous") return stockResult(input, { ok: false, action: "get_balance", mode: "blocked", humanAnswer: "Encontrei mais de um produto possível: " + resolution.matches.map(getItemName).join(", ") + ". Informe o produto exato." });
       if (!resolution.item) return stockResult(input, { ok: false, action: "get_balance", mode: "blocked", humanAnswer: "Não encontrei esse produto no Stock Full autenticado. Nenhum número foi inventado." });
       const item = resolution.item;
@@ -685,23 +705,16 @@
       return stockResult(input, { action: intent.action, mode: "preview", requiresConfirmation: true, preview: "Preview de " + verb + ": " + formatQuantity(intent.quantity, intent.unit) + " de " + intent.productQuery + ". Responda sim para executar." });
     }
     if (!getAuthToken(input.context || {})) return Promise.resolve(needsAuth(input, "Preciso de autenticação para movimentar estoque real no Stock Full."));
-    return loadItems(input).then(function (items) {
-      let resolution = resolveItem(items, intent.productQuery);
+    const sourceLookup = lookupStockItem(input, intent.productQuery);
+    const destinationLookup = intent.action === "stock.transfer.preview" ? lookupStockItem(input, intent.destinationQuery) : Promise.resolve(null);
+    return Promise.all([sourceLookup, destinationLookup]).then(function (lookups) {
+      const resolution = lookups[0];
+      const destinationResolution = lookups[1];
       let destinationItem = null;
-      if (intent.action === "stock.transfer.preview") {
-        let destinationResolution = resolveItem(items, intent.destinationQuery);
-        if (destinationResolution.status === "ambiguous") {
-          const targetDestination = stripProductText(intent.destinationQuery);
-          const exactDestinationMatches = destinationResolution.matches.filter(function (item) { return normalize([item.name, item.location].filter(Boolean).join(" ")).indexOf(targetDestination) >= 0; });
-          if (exactDestinationMatches.length === 1) destinationResolution = { status: "found", item: exactDestinationMatches[0] };
-        }
+      if (destinationResolution) {
         if (destinationResolution.status === "ambiguous") return stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um destino possível: " + destinationResolution.matches.map(getItemName).join(", ") + ". Informe o destino exato." });
         if (!destinationResolution.item) return stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei o produto/destino informado no Stock Full. Nenhuma transferência foi criada." });
         destinationItem = destinationResolution.item;
-        if (resolution.status === "ambiguous") {
-          const sourceMatches = resolution.matches.filter(function (item) { return getItemId(item) !== getItemId(destinationItem) && getItemQuantity(item) >= intent.quantity; });
-          if (sourceMatches.length === 1) resolution = { status: "found", item: sourceMatches[0] };
-        }
       }
       if (resolution.status === "ambiguous") return stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Encontrei mais de um produto possível: " + resolution.matches.map(getItemName).join(", ") + ". Informe o produto exato antes de movimentar." });
       if (!resolution.item) return stockResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não encontrei esse produto no Stock Full. Nenhum estoque foi movimentado." });

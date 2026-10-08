@@ -2524,6 +2524,100 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-full/items/lookup", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+    if (!clean_(session.profile.institution_id)) {
+      response.status(403).json({ ok: false, error: "stock_full_tenant_required" });
+      return;
+    }
+    const workScope = await requireStockFullWork_(request, response, database, session.profile);
+    if (!workScope) {
+      return;
+    }
+
+    const suppliedFilters = ["id", "name", "query"].filter((key) => Object.prototype.hasOwnProperty.call(request.query || {}, key));
+    if (suppliedFilters.length !== 1) {
+      response.status(400).json({ ok: false, error: "stock_full_item_lookup_filter_required" });
+      return;
+    }
+
+    const lookupType = suppliedFilters[0];
+    const lookupValue = clean_(request.query[lookupType]);
+    if (!lookupValue || lookupValue.length > 160) {
+      response.status(400).json({ ok: false, error: "stock_full_item_lookup_filter_invalid" });
+      return;
+    }
+    if (lookupType === "id" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(lookupValue)) {
+      response.status(400).json({ ok: false, error: "stock_full_item_lookup_filter_invalid" });
+      return;
+    }
+
+    let searchTerms = [];
+    if (lookupType === "query") {
+      if (!/^[\p{L}\p{N}\s._-]+$/u.test(lookupValue)) {
+        response.status(400).json({ ok: false, error: "stock_full_item_lookup_filter_invalid" });
+        return;
+      }
+      searchTerms = Array.from(new Set(lookupValue.split(/\s+/).filter((term) => term.length >= 3)));
+      if (!searchTerms.length) searchTerms = [lookupValue];
+    }
+
+    try {
+      let itemQuery = database
+        .from("stock_full_items")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id);
+      itemQuery = applyStockFullProjectScope_(itemQuery, workScope.projectId).eq("is_active", true);
+
+      const resultLimit = lookupType === "query" ? 7 : lookupType === "name" ? 2 : 1;
+      if (lookupType === "id") {
+        itemQuery = itemQuery.eq("id", lookupValue);
+      } else if (lookupType === "name") {
+        itemQuery = itemQuery.eq("name", lookupValue);
+      } else {
+        const searchableColumns = ["name", "category", "location"];
+        const filters = searchTerms.flatMap((term) => searchableColumns.map((column) => column + ".ilike.\"%" + term + "%\""));
+        itemQuery = itemQuery.or(filters.join(","));
+      }
+
+      const { data, error } = await itemQuery.limit(resultLimit);
+      if (error) {
+        throw error;
+      }
+
+      const matches = (data || []).map(mapStockFullItemFromDatabase_);
+      if (lookupType !== "query" && !matches.length) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+      if (lookupType === "name" && matches.length > 1) {
+        response.status(409).json({
+          ok: false,
+          error: "stock_full_item_ambiguous",
+          matches: matches.map((item) => ({ id: item.id, name: item.name, unit: item.unit, location: item.location }))
+        });
+        return;
+      }
+      if (lookupType === "query") {
+        const hasMore = matches.length > 6;
+        response.json({ ok: true, mode: "remote", items: hasMore ? matches.slice(0, 6) : matches, hasMore });
+        return;
+      }
+
+      response.json({ ok: true, mode: "remote", item: matches[0] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_item_lookup_failed" });
+    }
+  });
+
   app.post("/api/stock-full/items", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
