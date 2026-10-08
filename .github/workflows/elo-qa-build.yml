@@ -1,0 +1,51 @@
+name: ELO QA Android Build
+
+on:
+  push:
+    branches:
+      - qa/elo-mobile-auth-header-ci-20261008
+
+permissions:
+  contents: read
+
+jobs:
+  build-elo-qa:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Validate QA assets
+        shell: bash
+        run: |
+          printf '%s  %s\n' \
+            '7A052B74438AE6BCCBEF2DB7009DA6E74B055FA827C3C6149382F1FB548C9F9B' 'app/src/qa/assets/elo-qa/elo.html' \
+            'BCB456342C2344A09DA3D864433BAC35CAA8EFD9C93B4A1CFE5D89AC2F5BD4D8' 'app/src/qa/assets/elo-qa/elo.css' \
+            | sha256sum --check --strict
+
+      - name: Run QA unit tests
+        run: ./gradlew :app:testQaDebugUnitTest --no-daemon --console=plain --stacktrace
+
+      - name: Build ELO QA APK
+        run: ./gradlew :app:assembleQaDebug --no-daemon --console=plain --stacktrace
+
+      - name: Upload ELO QA APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: elo-qa-apk
+          path: app/build/outputs/apk/qa/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7

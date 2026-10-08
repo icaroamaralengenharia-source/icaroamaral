@@ -16,6 +16,16 @@ android {
     namespace = "br.com.icaroamaral.elo"
     compileSdk = 35
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("qa") {
+            dimension = "distribution"
+            applicationIdSuffix = ".qa"
+            versionCode = 6
+            versionName = "0.4.2-qa"
+        }
+    }
+
     defaultConfig {
         applicationId = "br.com.icaroamaral.elo"
         minSdk = 26

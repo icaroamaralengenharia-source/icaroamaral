@@ -20,6 +20,9 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.CookieManager
+import android.webkit.ServiceWorkerClient
+import android.webkit.ServiceWorkerController
+import android.webkit.WebResourceResponse
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -34,6 +37,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import android.widget.Toast
+import java.io.ByteArrayInputStream
 
 class MainActivity : ComponentActivity() {
     private val originPolicy = EloTrustedOriginPolicy()
@@ -82,6 +86,7 @@ class MainActivity : ComponentActivity() {
         playerCoordinator.attachOfflineStopper { offlineController.stopForArbitration() }
         playerCoordinator.attachOnlineStopper { stopOnlinePlayerForArbitration() }
         EloMusicPlayerCoordinatorRegistry.register(playerCoordinator)
+        configureQaServiceWorker()
         buildShell()
         if (!restoreWebViewState(savedInstanceState)) {
             webView.loadUrl(ELO_WEB_URL)
@@ -160,6 +165,7 @@ class MainActivity : ComponentActivity() {
 
         webView = WebView(this).apply {
             configureSecureSettings(settings)
+            if (isQaDebugBuild()) settings.cacheMode = WebSettings.LOAD_NO_CACHE
             CookieManager.getInstance().setAcceptCookie(true)
             if (Build.VERSION.SDK_INT >= 26) CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
             addJavascriptInterface(bridge, BRIDGE_NAME)
@@ -257,6 +263,10 @@ class MainActivity : ComponentActivity() {
 
     private fun secureClient(): WebViewClient {
         return object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                return interceptQaWebResource(request.url) ?: super.shouldInterceptRequest(view, request)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 return handleNavigation(request.url)
             }
@@ -299,11 +309,71 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun configureQaServiceWorker() {
+        if (!isQaDebugBuild()) return
+        val controller = ServiceWorkerController.getInstance()
+        controller.serviceWorkerWebSettings.cacheMode = WebSettings.LOAD_NO_CACHE
+        controller.setServiceWorkerClient(object : ServiceWorkerClient() {
+            override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? {
+                return interceptQaWebResource(request.url)
+            }
+        })
+    }
+
+    private fun interceptQaWebResource(uri: Uri): WebResourceResponse? {
+        return when (EloQaWebResourcePolicy.match(isQaDebugBuild(), uri.toString())) {
+            EloQaWebResource.HTML -> qaAssetResponse(
+                checkNotNull(EloQaWebResource.HTML.assetPath),
+                checkNotNull(EloQaWebResource.HTML.mimeType)
+            )
+            EloQaWebResource.CSS -> qaAssetResponse(
+                checkNotNull(EloQaWebResource.CSS.assetPath),
+                checkNotNull(EloQaWebResource.CSS.mimeType)
+            )
+            EloQaWebResource.SERVICE_WORKER -> qaNoOpServiceWorkerResponse()
+            null -> null
+        }
+    }
+
+    private fun qaAssetResponse(assetPath: String, mimeType: String): WebResourceResponse {
+        return runCatching {
+            WebResourceResponse(mimeType, "UTF-8", 200, "OK", QA_NO_CACHE_HEADERS, assets.open(assetPath))
+        }.getOrElse {
+            qaTextResponse("QA asset unavailable: $assetPath", 404, "Not Found")
+        }
+    }
+
+    private fun qaNoOpServiceWorkerResponse(): WebResourceResponse {
+        val source = QA_NO_OP_SERVICE_WORKER.toByteArray(Charsets.UTF_8)
+        return WebResourceResponse(
+            "application/javascript",
+            "UTF-8",
+            200,
+            "OK",
+            QA_NO_CACHE_HEADERS,
+            ByteArrayInputStream(source)
+        )
+    }
+
+    private fun qaTextResponse(body: String, statusCode: Int, reason: String): WebResourceResponse {
+        return WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            statusCode,
+            reason,
+            QA_NO_CACHE_HEADERS,
+            ByteArrayInputStream(body.toByteArray(Charsets.UTF_8))
+        )
+    }
+
+
     private fun handleNavigation(uri: Uri): Boolean {
         if (originPolicy.isTrustedUrl(uri.toString())) return false
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
         return true
     }
+
+    private fun isQaDebugBuild(): Boolean = BuildConfig.FLAVOR == "qa" && BuildConfig.BUILD_TYPE == "debug"
 
     private fun renderConnectivityState() {
         val state = EloConnectivity.snapshot(this)
@@ -675,6 +745,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html"
         const val BRIDGE_NAME = "EloNativeBridge"
+        private const val QA_NO_OP_SERVICE_WORKER = "self.addEventListener('install', function(event) { event.waitUntil(self.skipWaiting()); });\nself.addEventListener('activate', function(event) { event.waitUntil(self.clients.claim()); });"
+        private val QA_NO_CACHE_HEADERS = mapOf(
+            "Cache-Control" to "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma" to "no-cache",
+            "Expires" to "0"
+        )
         private const val OFFLINE_STATUS_TEXT = "Offline"
         private const val CONNECTIVITY_TICK_MS = 1500L
         private const val REQ_AUDIO = 10

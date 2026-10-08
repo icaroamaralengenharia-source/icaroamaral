@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ELO CORE | Pergunte ao ELO</title>
+  <meta name="description" content="Converse com o ELO CORE.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        if (new URLSearchParams(window.location.search).get("intent") === "orcamento") {
+          document.documentElement.classList.add("elo-intent-orcamento");
+        }
+      } catch (error) {
+        document.documentElement.classList.remove("elo-intent-orcamento");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="elo.css?v=20261006-elo-fullchat-v1">
+  <link rel="stylesheet" href="relatorio-qualidade-obras/elo-sentinel-ui.css">
+  <style>
+    body.elo-auth-required .elo-product-brand,
+    body.elo-auth-required .elo-core-actions,
+    body.elo-auth-required .elo-product-shell {
+      display: none;
+    }
+    body.elo-auth-required .elo-product-top {
+      min-height: 100vh;
+      justify-content: center;
+    }
+    body.elo-auth-required .elo-local-auth {
+      display: flex;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-product-shell {
+      display: block;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-product-top {
+      min-height: 62px;
+      justify-content: flex-end;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-core-actions {
+      display: none;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
+      left: 250px;
+      right: 0;
+      top: 0;
+      bottom: auto;
+      width: auto;
+      height: 62px;
+      transform: none;
+      min-height: 62px;
+      overflow: visible;
+      background: rgba(244, 247, 251, 0.92);
+    }
+    @media (max-width: 768px) {
+      body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
+        left: 50%;
+        right: auto;
+        top: calc(14px + env(safe-area-inset-top));
+        width: min(820px, calc(100vw - 16px));
+        height: auto;
+        transform: translateX(-50%);
+        min-height: 54px;
+      }
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth {
+      width: auto;
+      margin-left: auto;
+      margin-right: clamp(14px, 3vw, 34px);
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth-form {
+      width: auto;
+      flex-direction: row;
+      align-items: center;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth-status {
+      width: auto;
+      max-width: 220px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body class="elo-auth-required elo-empty-state" data-elo-mode="standalone" data-elo-product="chat">
+  <header class="elo-product-top" aria-label="ELO CORE">
+    <a class="elo-product-brand elo-product-brand--compact" href="index.html" aria-label="Voltar ao início">
+      <span class="elo-mark" aria-hidden="true"></span>
+      <strong class="elo-brand-name">ELO CORE</strong>
+    </a>
+    <button class="elo-mobile-menu-toggle" type="button" data-elo-mobile-menu-toggle aria-expanded="false" aria-controls="elo-core-actions-menu" aria-label="Abrir menu de ações">
+      <span aria-hidden="true">⋮</span>
+    </button>
+    <nav class="elo-core-actions" id="elo-core-actions-menu" data-elo-mobile-menu aria-label="Ações da conversa">
+      <button type="button" class="elo-mobile-menu-proxy" data-elo-mobile-menu-action="new-chat">Nova conversa</button>
+      <button type="button" data-elo-history>Histórico</button>
+      <button type="button" data-elo-memory>Memória</button>
+      <button type="button" class="elo-clear-conversation-button" data-elo-clear-chat>Limpar conversa</button>
+      <button type="button" class="elo-mobile-menu-proxy" data-elo-mobile-menu-action="logout">Sair</button>
+    </nav>
+    <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
+      <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
+        <input type="email" name="email" placeholder="Email" autocomplete="username" required>
+        <input type="password" name="password" placeholder="Senha" autocomplete="current-password" required>
+        <button type="submit">Entrar</button>
+      </form>
+      <div class="elo-local-auth-session" data-elo-auth-session hidden>
+        <span data-elo-auth-user></span>
+        <button type="button" data-elo-auth-logout>Sair</button>
+      </div>
+      <p class="elo-local-auth-status" data-elo-auth-status aria-live="polite"></p>
+    </section>
+  </header>
+
+  <script>
+    (function () {
+      const toggle = document.querySelector("[data-elo-mobile-menu-toggle]");
+      const menu = document.querySelector("[data-elo-mobile-menu]");
+      if (!toggle || !menu) return;
+
+      function setMenuOpen(open) {
+        const isOpen = open === true;
+        menu.classList.toggle("is-open", isOpen);
+        toggle.setAttribute("aria-expanded", String(isOpen));
+        toggle.setAttribute("aria-label", isOpen ? "Fechar menu de ações" : "Abrir menu de ações");
+      }
+
+      toggle.addEventListener("click", function () {
+        setMenuOpen(toggle.getAttribute("aria-expanded") !== "true");
+      });
+
+      menu.addEventListener("click", function (event) {
+        const element = event.target instanceof Element ? event.target : null;
+        const action = element && element.closest("[data-elo-mobile-menu-action]");
+        if (!action) return;
+
+        const targetSelector = action.dataset.eloMobileMenuAction === "new-chat"
+          ? "[data-elo-new-chat]"
+          : action.dataset.eloMobileMenuAction === "logout"
+            ? "[data-elo-auth-logout]"
+            : "";
+        const existingControl = targetSelector ? document.querySelector(targetSelector) : null;
+        if (existingControl) existingControl.click();
+        setMenuOpen(false);
+      });
+
+      menu.addEventListener("click", function (event) {
+        const element = event.target instanceof Element ? event.target : null;
+        if (element && element.closest("button")) window.setTimeout(function () { setMenuOpen(false); }, 0);
+      }, true);
+
+      document.addEventListener("click", function (event) {
+        const target = event.target;
+        if (target instanceof Node && !menu.contains(target) && !toggle.contains(target)) setMenuOpen(false);
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || toggle.getAttribute("aria-expanded") !== "true") return;
+        setMenuOpen(false);
+        toggle.focus();
+      });
+    })();
+  </script>
+
+  <aside class="elo-desktop-sidebar" aria-label="Módulos do ELO">
+    <div class="elo-sidebar-brand" aria-label="ELO">
+      <span class="elo-sidebar-brand-mark" aria-hidden="true">E</span>
+      <span>
+        <strong>ELO</strong>
+        <small>CORE</small>
+      </span>
+    </div>
+    <button type="button" class="elo-sidebar-new-chat" data-elo-new-chat>
+      <span class="elo-sidebar-plus" aria-hidden="true">+</span>
+      <span>Novo chat</span>
+    </button>
+    <div class="elo-sidebar-section-label">MÓDULOS</div>
+    <nav class="elo-sidebar-nav" aria-label="Módulos do produto">
+      <a class="elo-sidebar-item" data-elo-sidebar-action="report" href="relatorio-qualidade-obras/">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4.5h10l4 4v11H5z"/><path d="M15 4.5v4h4M8 13h8M8 16.5h6"/><path d="m14.2 18.5 4.1-4.1 1.7 1.7-4.1 4.1-2.3.6z"/></svg>
+        <span>Relatórios e Laudos</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="rdo" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#rdo-identificacao">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/><path d="M8 2v4M16 2v4"/></svg>
+        <span>Diário de Obras</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="stock" href="stockfull.html">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 8 8-4 8 4-8 4zM4 8v9l8 4 8-4V8M12 12v9"/><path d="m8 6 8 4"/></svg>
+        <span>Stock Full</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="budget" href="elo.html?intent=orcamento">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19V5M5 19h15"/><path d="m8 15 3-4 3 2 4-6"/><path d="M17 7h1v1"/></svg>
+        <span>Orçamentos</span>
+      </a>
+      <span class="elo-sidebar-item is-disabled" aria-disabled="true" title="Nenhuma ação disponível nesta shell">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/></svg>
+        <span>Projetos</span>
+        <small>Sem ação</small>
+      </span>
+    </nav>
+  </aside>
+
+  <main class="elo-product-shell" aria-labelledby="elo-product-title">
+    <section class="elo-product-center">
+      <div class="elo-product-heading elo-core-welcome">
+        <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
+          <span class="elo-rotating-text" data-elo-rotating-text>Oi, to aqui</span>
+        </h1>
+      </div>
+      <div class="elo-attachment-preview" data-elo-attachment-preview>
+        <div class="elo-attachment-chip">
+          <span class="elo-attachment-icon" aria-hidden="true">▣</span>
+          <span class="elo-attachment-name" data-elo-attachment-name></span>
+          <span class="elo-attachment-size" data-elo-attachment-size></span>
+          <button type="button" class="elo-attachment-remove" data-elo-attachment-remove aria-label="Remover arquivo">×</button>
+        </div>
+      </div>
+      <div class="elo-product-chat" aria-label="Conversa com o Elo">
+        <div class="elo-sentinel-mode-switch" data-elo-sentinel-mode-switch hidden aria-label="Modo do ELO">
+          <button type="button" data-elo-sentinel-mode="chat" aria-pressed="true">Conversa</button>
+          <button type="button" data-elo-sentinel-mode="operational" aria-pressed="false" hidden>Operacional</button>
+          <button type="button" data-elo-sentinel-mode="sentinel" aria-pressed="false">Sentinela</button>
+          <button type="button" data-elo-sentinel-mode="archive" aria-pressed="false" hidden>Acervo</button>
+        </div>
+        <section class="elo-standalone-panel" aria-label="Elo">
+          <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
+          <p class="elo-input-hint">O ELO pode guardar informações úteis para continuar suas conversas. Você pode revisar ou apagar essa memória quando quiser.</p>
+          <div class="elo-local-actions" data-elo-local-actions hidden>
+            <button type="button" class="elo-local-report-button" data-elo-local-report hidden>Gerar relatório</button>
+          </div>
+          <form class="elo-input-row">
+            <button type="button" class="elo-attach-button" aria-label="Anexar arquivo" title="Anexar arquivo">Anexar</button>
+            <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
+            <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO…"></textarea>
+            <button type="submit" class="elo-send-button">Enviar</button>
+          </form>
+        </section>
+        <section class="elo-sentinel-shell elo-operational-shell" data-elo-operational-root hidden aria-label="Interface operacional do ELO"></section>
+        <section class="elo-sentinel-shell" data-elo-sentinel-root hidden aria-label="ELO Sentinela"></section>
+        <section class="elo-sentinel-shell elo-archive-shell" data-elo-archive-root hidden aria-label="Acervo da obra"></section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
+    window.addEventListener("pageshow", function () {
+      window.scrollTo(0, 0);
+    });
+    const eloPromptPhrases = [
+      'Oi, to aqui'
+    ];
+
+    let eloPromptIndex = 0;
+    let eloPromptTimer = null;
+
+    function setEloPromptPhrase(nextIndex) {
+      const textEl = document.querySelector("[data-elo-rotating-text]");
+
+      if (!textEl) {
+        return;
+      }
+
+      eloPromptIndex = nextIndex;
+      textEl.classList.add("is-changing");
+
+      window.setTimeout(function () {
+        textEl.innerHTML = eloPromptPhrases[eloPromptIndex];
+        textEl.classList.remove("is-changing");
+      }, 220);
+    }
+
+    function prefersReducedEloPromptMotion() {
+      return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    function initEloRotatingPrompt() {
+      const textEl = document.querySelector("[data-elo-rotating-text]");
+
+      if (!textEl) {
+        return;
+      }
+
+      textEl.innerHTML = eloPromptPhrases[0];
+
+      if (prefersReducedEloPromptMotion() || eloPromptTimer) {
+        return;
+      }
+
+      eloPromptTimer = window.setInterval(function () {
+        setEloPromptPhrase((eloPromptIndex + 1) % eloPromptPhrases.length);
+      }, 4000);
+    }
+
+    function formatEloFileSize(bytes) {
+      if (!bytes && bytes !== 0) {
+        return "";
+      }
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unitIndex = 0;
+
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+
+      return size.toFixed(unitIndex === 0 ? 0 : 1).replace(".", ",") + " " + units[unitIndex];
+    }
+
+    function isEloPreviewImage(file) {
+      const type = String(file && file.type || "").toLowerCase();
+      const name = String(file && file.name || "").toLowerCase();
+      return type === "image/jpeg" ||
+        type === "image/jpg" ||
+        type === "image/png" ||
+        type === "image/webp" ||
+        /\.(jpg|jpeg|jfif|png|webp)$/.test(name);
+    }
+
+    function clearEloAttachmentPreview() {
+      const fileInput = document.querySelector(".elo-attachment-input");
+      const attachButton = document.querySelector(".elo-attach-button");
+      const preview = document.querySelector("[data-elo-attachment-preview]");
+      const iconEl = document.querySelector(".elo-attachment-icon");
+      const nameEl = document.querySelector("[data-elo-attachment-name]");
+      const sizeEl = document.querySelector("[data-elo-attachment-size]");
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+      if (iconEl) {
+        iconEl.textContent = "▣";
+      }
+      if (nameEl) {
+        nameEl.textContent = "";
+      }
+      if (sizeEl) {
+        sizeEl.textContent = "";
+      }
+      if (preview) {
+        preview.classList.remove("is-visible");
+      }
+      if (attachButton) {
+        attachButton.classList.remove("is-attached");
+        attachButton.textContent = "Anexar";
+      }
+    }
+
+    function initEloMinimalInput() {
+      if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
+        return;
+      }
+
+      const form = document.querySelector(".elo-input-row");
+      const fileInput = document.querySelector(".elo-attachment-input");
+      const attachButton = document.querySelector(".elo-attach-button");
+      const preview = document.querySelector("[data-elo-attachment-preview]");
+      const nameEl = document.querySelector("[data-elo-attachment-name]");
+      const sizeEl = document.querySelector("[data-elo-attachment-size]");
+      const removeButton = document.querySelector("[data-elo-attachment-remove]");
+
+      if (attachButton && fileInput) {
+        attachButton.addEventListener("click", function () {
+          fileInput.click();
+        });
+      }
+
+      if (fileInput) {
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            clearEloAttachmentPreview();
+            return;
+          }
+          const iconEl = document.querySelector(".elo-attachment-icon");
+          if (iconEl) {
+            iconEl.textContent = isEloPreviewImage(file) ? "📷" : "▣";
+          }
+          if (nameEl) {
+            nameEl.textContent = file.name;
+          }
+          if (sizeEl) {
+            sizeEl.textContent = "· " + formatEloFileSize(file.size);
+          }
+          if (preview) {
+            preview.classList.add("is-visible");
+          }
+          if (attachButton) {
+            attachButton.classList.add("is-attached");
+            attachButton.textContent = "Anexado";
+          }
+        });
+      }
+
+      if (removeButton) {
+        removeButton.addEventListener("click", clearEloAttachmentPreview);
+      }
+
+    }
+
+    function initEloPromptShortcuts() {
+      const buttons = document.querySelectorAll("[data-elo-prompt]");
+      const input = document.querySelector(".elo-input");
+
+      if (!buttons.length || !input) {
+        return;
+      }
+
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          input.value = button.getAttribute("data-elo-prompt") || "";
+          input.focus();
+        });
+      });
+    }
+
+    window.ELO_PRODUCT_MODE = true;
+    window.ELO_SKIP_AUTO_WIDGET = true;
+    window.ELO_DISABLE_AUTOFOCUS = true;
+    window.ELO_RESIDENTIAL_NEW_PIPELINE = true;
+
+    document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
+    document.addEventListener("DOMContentLoaded", initEloPromptShortcuts);
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.EloAssistente && typeof window.EloAssistente.initializeSurface === "function") {
+        window.EloAssistente.initializeSurface({
+          surface: "elo",
+          panel: ".elo-standalone-panel",
+          messages: ".elo-messages",
+          form: ".elo-input-row",
+          input: ".elo-input",
+          attachmentInput: ".elo-attachment-input",
+          attachmentButton: ".elo-attach-button",
+          reportButton: "[data-elo-local-report]",
+          newChatButton: "[data-elo-new-chat]",
+          historyButton: "[data-elo-history]",
+          memoryButton: "[data-elo-memory]",
+          clearChatButton: "[data-elo-clear-chat]"
+        });
+        initEloRotatingPrompt();
+      }
+    });
+  </script>
+  <script>
+    window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
+  </script>
+  <script src="relatorio-qualidade-obras/elo-runtime-config.js?v=20260920-observability-final-v1"></script>
+  <script src="assets/elo-public-config.js?v=20260912-auth-key-v1"></script>
+  <script src="relatorio-qualidade-obras/relatorio-config.js?v=20260912-auth-key-v1"></script>
+  <script>
+    (function () {
+      const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+      window.ELO_SUPABASE_URL = String(window.ELO_SUPABASE_URL || config.eloSupabaseUrl || "").trim();
+      window.ELO_SUPABASE_ANON_KEY = String(window.ELO_SUPABASE_ANON_KEY || config.eloSupabaseAnonKey || "").trim();
+      function renderAuthGate(authenticated) {
+        const isAuthenticated = authenticated === true;
+        document.body.classList.toggle("elo-auth-required", !isAuthenticated);
+        document.body.classList.toggle("elo-authenticated", isAuthenticated);
+        document.body.classList.toggle("elo-local-readonly", !isAuthenticated);
+      }
+      function setAuthenticated(value) {
+        renderAuthGate(value === true);
+      }
+      function syncValidatedSession() {
+        setAuthenticated(window.ELO_AUTH_SESSION_VALIDATED === true);
+      }
+      window.EloCoreAuthGate = { setAuthenticated: setAuthenticated };
+      document.addEventListener("DOMContentLoaded", function () {
+        setAuthenticated(false);
+        syncValidatedSession();
+      });
+      window.setInterval(syncValidatedSession, 500);
+      setAuthenticated(false);
+    })();
+  </script>
+  <script src="relatorio-qualidade-obras/ai-assistant.js"></script>
+  <script src="relatorio-qualidade-obras/elo-technical-validator.js?v=20260622-unified-technical-validator"></script>
+  <script src="relatorio-qualidade-obras/stock-ai-composition-engine.js"></script>
+  <script src="relatorio-qualidade-obras/bases-reais/sinapi-ba-202412-index.js?v=20260625-sinapi-ba-202412"></script>
+  <script src="relatorio-qualidade-obras/composition-search-engine.js?v=20260624-composition-search-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-technical-engine.js?v=20260624-technical-engine-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-work-package-engine.js?v=20260624-work-package-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-quantity-engine.js?v=20260624-quantity-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-consumption-engine.js?v=20260624-consumption-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-parametric-composition-engine.js?v=20260705-bcp-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-audit-engine.js?v=20260624-audit-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-budget-table-engine.js?v=20260624-budget-table-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-project-record-engine.js?v=20260624-project-record-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-executive-budget-engine.js?v=20260624-executive-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-ui-data-engine.js?v=20260624-ui-data-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-technical-knowledge-graph.js?v=20260624-knowledge-graph-v0"></script>
+  <script src="relatorio-qualidade-obras/elo-project-api-client.js?v=20260624-project-api-client-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-project-store.js?v=20260624-project-store-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-composition-selection-engine.js?v=20260624-composition-selection-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-export-engine.js?v=20260624-export-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-base-status-engine.js?v=20260624-base-status-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-traceability-engine.js?v=20260624-traceability-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-price-engine.js?v=20260624-price-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-dashboard-view.js?v=20260624-dashboard-view-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-construction-sequence-engine.js?v=20260704-construction-sequence-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-room-requirements-engine.js?v=20260704-room-requirements-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-prma-engine.js?v=20260718-prma-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-stage-gate-engine.js?v=20260704-stage-gate-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-composition-resolver.js?v=20260704-composition-resolver-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-budget-eap-engine.js?v=20260704-budget-eap-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-technical-auditor.js?v=20260704-technical-auditor-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-real-budget-engine.js?v=20260704-real-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-briefing-complete-engine.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-geometry-model-engine.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-quantity-takeoff-engine.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-takeoff-composition-adapter.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-composition-consumption-adapter.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-consumption-price-adapter.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-residential-real-budget-adapter.js?v=20260713-residential-budget-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-budget-engine.js?v=20260624-budget-engine-v3"></script>
+  <script src="relatorio-qualidade-obras/elo-brain-router.js?v=20260624-brain-router-v1"></script>
+  <div id="elo-operational-dashboard"></div>
+  <script src="relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-final-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-proactive-reasoning-policy.js?v=20260920-proactive-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-communication-policy.js?v=20260920-conversational-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-conversation-conductor.js?v=20261003-intelligence-v5"></script>
+  <script type="module" src="relatorio-qualidade-obras/elo-stock-obras-snapshot.js?v=20260725-stock-obras-snapshot-v1"></script>
+  <script type="module" src="relatorio-qualidade-obras/elo-execution-stock-cross.js?v=20260725-execution-stock-cross-v1"></script>
+  <script type="module" src="relatorio-qualidade-obras/elo-execution-stock-report.js?v=20260725-execution-stock-report-v1"></script>
+  <script type="module" src="relatorio-qualidade-obras/elo-today-work-core.js?v=20260725-today-work-core-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-command-bridge.js?v=20261005-elo-auth-refresh-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-municipal-sentinel-adapter.js?v=20260906-municipal-sentinel-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-sentinel-ui.js"></script>
+  <script src="relatorio-qualidade-obras/elo-operational-ui.js"></script>
+  <script src="stock-full-core.js?v=20260626-phase-a"></script>
+  <script>window.ELO_STOCK_BRIDGE_ONLY = true;</script>
+  <script src="relatorio-qualidade-obras/relatorio-qualidade-obras.js?v=20260816-elo-stock-bridge"></script>
+  <script>window.ELO_STOCK_BRIDGE_ONLY = false;</script>
+  <script src="relatorio-qualidade-obras/elo-media-player.js?v=20261003-player-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-media-library.js?v=20261004-audio-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-music-catalog.js?v=20261003-player-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-music-resolver.js?v=20261003-player-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-memory-adapter.js?v=20260906-p0-offline-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-router.js?v=20261003-player-v2"></script>
+  <script src="relatorio-qualidade-obras/elo-offline-core-v2.js?v=20261003-intelligence-v5"></script>
+  <script src="relatorio-qualidade-obras/elo-live-data-router.js?v=20261004-live-data-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20261007-greeting-corpus-v1"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./elo-sw.js?v=20261005-elo-auth-refresh-v1").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>
+
