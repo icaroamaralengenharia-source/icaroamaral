@@ -251,3 +251,61 @@ test("EloActionBusStockFull bloqueia duplicidade exata no tenant antes de POST",
   assert.equal(response.error, "stock_full_product_duplicate");
   assert.equal(harness.requests.filter((request) => request.method === "POST").length, 0);
 });
+
+test("EloActionBusStockFull renova token canonico antes da consulta de movimento", async () => {
+  const staleToken = "expired-e2e-token";
+  const currentToken = "current-e2e-token";
+  const requests = [];
+  let refreshCalls = 0;
+  const window = loadBridge({
+    authToken: false,
+    fetch(url, config = {}) {
+      requests.push({ url: String(url), method: config.method || "GET", authorization: config.headers && config.headers.Authorization || "" });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: "fixture-item", name: "Fixture Auth", unit: "un", currentQuantity: 0 }] }) });
+    }
+  });
+  window.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: staleToken, refresh_token: "rotating-refresh-fixture" } }));
+  window.EloCanonicalSession = {
+    getAccessToken() { return ""; },
+    getValidAccessToken() { refreshCalls += 1; return Promise.resolve(currentToken); }
+  };
+
+  const response = await window.EloCommandBridge.execute({
+    module: "stock_full",
+    action: "stock_entry",
+    payload: { message: "registre entrada de 1 unidade de Fixture Auth" },
+    context: { identity: { companyId: "tenant-fixture", userId: "user-fixture" } }
+  });
+
+  assert.equal(response.action, "stock.entry.preview");
+  assert.equal(response.requiresConfirmation, true);
+  assert.equal(refreshCalls, 1);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, "GET");
+  assert.equal(requests[0].authorization, "Bearer " + currentToken);
+  assert.doesNotMatch(requests[0].authorization, /expired-e2e-token/);
+});
+
+test("EloActionBusStockFull falha fechado se a renovacao canonica falhar", async () => {
+  let requestCount = 0;
+  const window = loadBridge({
+    authToken: false,
+    fetch() { requestCount += 1; return Promise.reject(new Error("stale_token_must_not_be_sent")); }
+  });
+  window.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: "expired-e2e-token", refresh_token: "revoked-refresh-fixture" } }));
+  window.EloCanonicalSession = {
+    getAccessToken() { return ""; },
+    getValidAccessToken() { return Promise.reject(new Error("sessao_invalida")); }
+  };
+
+  const response = await window.EloCommandBridge.execute({
+    module: "stock_full",
+    action: "stock_entry",
+    payload: { message: "registre entrada de 1 unidade de Fixture Auth" },
+    context: { identity: { companyId: "tenant-fixture", userId: "user-fixture" } }
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "sessao_invalida");
+  assert.equal(requestCount, 0);
+});
