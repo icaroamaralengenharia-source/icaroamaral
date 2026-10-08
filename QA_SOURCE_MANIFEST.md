@@ -35,5 +35,5 @@
 
 - Android Gradle Plugin: `8.7.3`; Kotlin Android plugin: `2.0.21`.
 - QA flavor `qa`, debug build type, and the test under `app/src/test/kotlin` yield the `testQaDebugUnitTest` task name.
-- Static QA contract checks passed. The default staged `git diff --check` reports only the exact HTML asset’s intentional blank line at EOF; its required SHA-256 is unchanged. All staged files pass `git diff --check` with only `blank-at-eof` disabled for this verification.
+- Static QA contract checks passed. GitHub CI first exposed Windows Git line-ending normalization of the immutable HTML/CSS assets; they were re-staged byte-for-byte with the supplied hashes. The default `git diff --check` flags CRLF line endings in those exact assets and the HTML terminal blank line. The full staged check passes with `core.whitespace=cr-at-eol,-blank-at-eof`; asset hashes were reverified.
 - No Gradle command was run on Windows.
