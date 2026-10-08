@@ -102,6 +102,20 @@
     }
   }
 
+  function getValidStockAccessToken(input) {
+    const provider = window.EloCanonicalSession;
+    if (provider) {
+      if (typeof provider.getValidAccessToken !== "function") return Promise.reject(new Error("canonical_session_refresh_unavailable"));
+      return Promise.resolve().then(function () { return provider.getValidAccessToken(); }).then(function (token) {
+        const accessToken = clean(token);
+        if (!accessToken) throw new Error("invalid_session");
+        return accessToken;
+      });
+    }
+    const token = getAuthToken(input && input.context || {});
+    return token ? Promise.resolve(token) : Promise.reject(new Error("authentication_required"));
+  }
+
   function getCanonicalRdoSession_(input) {
     const token = getAuthToken(input && input.context || {});
     const existingContext = mergeAuthContexts_([resolveCanonicalRdoAuthContext_(), input && input.context || {}]);
@@ -241,9 +255,9 @@
     return baseUrl + path;
   }
 
-  function stockHeaders(input) {
+  function stockHeaders(input, accessToken) {
     const headers = { "Content-Type": "application/json" };
-    const token = getAuthToken(input && input.context || {});
+    const token = clean(accessToken);
     if (token) headers.Authorization = /^Bearer\s+/i.test(token) ? token : "Bearer " + token;
     const projectId = getCurrentWorkId_(input);
     if (projectId) headers["X-Project-ID"] = projectId;
@@ -253,8 +267,8 @@
   function fetchStockJson(input, path, options) {
     if (typeof window.fetch !== "function") return Promise.reject(new Error("stock_full_fetch_unavailable"));
     const config = Object.assign({ method: "GET" }, options || {});
+    const suppliedHeaders = Object.assign({}, config.headers || {});
     if (String(config.method || "GET").toUpperCase() === "GET" && !config.cache) config.cache = "no-store";
-    config.headers = Object.assign({}, stockHeaders(input), config.headers || {});
     const projectId = getCurrentWorkId_(input);
     if (config.body && typeof config.body === "string") {
       try {
@@ -268,7 +282,10 @@
     }
     let endpoint = getStockEndpoint(path);
     if (String(config.method || "GET").toUpperCase() === "GET" && projectId) endpoint += (endpoint.indexOf("?") >= 0 ? "&" : "?") + "projectId=" + encodeURIComponent(projectId);
-    return window.fetch(endpoint, config).then(function (response) {
+    return getValidStockAccessToken(input).then(function (accessToken) {
+      config.headers = Object.assign({}, suppliedHeaders, stockHeaders(input, accessToken));
+      return window.fetch(endpoint, config);
+    }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false) {
           const error = new Error(clean(data.error) || "stock_full_api_error");
