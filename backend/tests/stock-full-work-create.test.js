@@ -174,6 +174,30 @@ test("Stock Full creates canonical work in authenticated tenant and ignores tena
   }
 });
 
+test("Stock Full work creation validates with the canonical auth client and queries with the caller token client", async () => {
+  const database = createWorkDatabase();
+  database.auth.getUser = async () => {
+    throw new Error("work query client must not perform auth validation");
+  };
+  const authClient = {
+    auth: {
+      async getUser(token) {
+        assert.equal(token, "valid-token");
+        return { data: { user: { id: "auth-e2e-a", email: "admin@elo-e2e.test" } }, error: null };
+      }
+    }
+  };
+  database.__obrareportStockFullAuthClients = () => ({ auth: authClient, query: database });
+  const server = await start(database);
+  try {
+    const response = await postWork(server.baseUrl, { name: "OBRA AUTH CONTEXT" }, { Authorization: "Bearer valid-token" });
+    assert.equal(response.status, 201);
+    assert.equal(database.projects[0].institution_id, TENANT_A);
+  } finally {
+    await server.close();
+  }
+});
+
 test("Stock Full work creation requires authentication, valid token, and manager permission", async () => {
   const database = createWorkDatabase();
   const server = await start(database);
