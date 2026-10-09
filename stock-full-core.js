@@ -7,9 +7,9 @@
   const STOCK_FULL_WORK_STORAGE_KEY = "stockFullCurrentWork";
   const STOCK_FULL_PRODUCTION_API_BASE_URL = "https://obrareport-backend-stockfull.onrender.com/api/stock-full";
   const STOCK_FULL_ROLE_PERMISSIONS = {
-    admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
-    gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
-    patrao: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage", "works:create"],
+    gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage", "works:create"],
+    patrao: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage", "works:create"],
     funcionario: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
     operador: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
     estoquista: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
