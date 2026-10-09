@@ -39,7 +39,7 @@ begin
   if nullif(btrim(coalesce(v_institution_id, '')), '') is null then
     raise exception using errcode = 'P0002', message = 'stock_full_profile_not_found';
   end if;
-  if v_role not in ('admin', 'administrador', 'gestor', 'patrao') then
+  if v_role is null or v_role not in ('admin', 'administrador', 'gestor', 'patrao') then
     raise exception using errcode = '42501', message = 'permission_denied';
   end if;
   if v_work_id !~ '^obraproj_[0-9a-f]{64}$'

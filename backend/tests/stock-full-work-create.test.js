@@ -361,7 +361,7 @@ test("Stock Full work creation migration uses authenticated tenant and does not 
   assert.match(sql, /function public\.stock_full_create_work/i);
   assert.match(sql, /security definer/i);
   assert.match(sql, /p\.auth_user_id\s*=\s*v_auth_user_id/i);
-  assert.match(sql, /v_role not in \('admin', 'administrador', 'gestor', 'patrao'\)/i);
+  assert.match(sql, /v_role is null or v_role not in \('admin', 'administrador', 'gestor', 'patrao'\)/i);
   assert.match(sql, /c\.institution_id\s*=\s*v_institution_id/i);
   assert.match(sql, /pg_advisory_xact_lock/i);
   assert.match(sql, /to authenticated/i);
