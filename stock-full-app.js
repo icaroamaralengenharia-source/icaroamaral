@@ -188,6 +188,40 @@
     return Array.isArray(data.works) ? data.works : [];
   }
 
+  function stockFullWorkCreateKey(name, address) {
+    const signature = JSON.stringify([String(name || "").trim(), String(address || "").trim()]);
+    const storageKey = "stockFullPendingWorkCreate";
+    try {
+      const pending = JSON.parse(window.sessionStorage.getItem(storageKey) || "null");
+      if (pending && pending.signature === signature && pending.key) return pending.key;
+      const key = "stock-full-work:" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+      window.sessionStorage.setItem(storageKey, JSON.stringify({ signature: signature, key: key }));
+      return key;
+    } catch (_) {
+      return "stock-full-work:" + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+  }
+
+  async function createStockFullWork(name, address) {
+    const token = getBackendToken();
+    if (!token || !originalFetch) throw new Error("stock_full_session_required");
+    const response = await originalFetch(apiUrl("works"), {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json",
+        "Idempotency-Key": stockFullWorkCreateKey(name, address)
+      },
+      body: JSON.stringify({ name: name, address: address || "" })
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok || !data.ok || !data.work || !data.work.id) {
+      throw new Error(data.error || "stock_full_work_create_failed");
+    }
+    try { window.sessionStorage.removeItem("stockFullPendingWorkCreate"); } catch (_) {}
+    return data.work;
+  }
+
   function renderStockFullWorkSelector(works) {
     const dashboard = document.getElementById("stockFullDashboard");
     if (!dashboard) return;
@@ -196,13 +230,19 @@
       panel = document.createElement("section");
       panel.id = "stockFullWorkScopePanel";
       panel.className = "stock-full-work-scope-panel";
-      panel.innerHTML = '<div><strong>Escopo do estoque</strong><span id="stockFullWorkScopeStatus">Operação da empresa/loja sem obra ativa.</span></div><label>Obra<select id="stockFullWorkScopeSelect"><option value="">Empresa/loja (sem obra)</option></select></label>';
+      panel.innerHTML = '<div><strong>Escopo do estoque</strong><span id="stockFullWorkScopeStatus">Operação da empresa/loja sem obra ativa.</span></div><label>Obra<select id="stockFullWorkScopeSelect"><option value="">Empresa/loja (sem obra)</option></select></label><div class="stock-full-work-actions"><button id="stockFullWorkCreateToggle" type="button">Cadastrar obra</button><form id="stockFullWorkCreateForm" hidden><label>Nome da obra<input id="stockFullWorkCreateName" name="name" maxlength="160" required></label><label>Endereço (opcional)<input id="stockFullWorkCreateAddress" name="address" maxlength="500"></label><div class="stock-full-work-create-actions"><button type="submit">Salvar obra</button><button id="stockFullWorkCreateCancel" type="button">Cancelar</button></div><span id="stockFullWorkCreateStatus" role="status" aria-live="polite"></span></form></div>';
       const hero = dashboard.querySelector(".stock-full-dashboard-hero");
       if (hero && hero.parentNode) hero.parentNode.insertBefore(panel, hero);
       else dashboard.insertBefore(panel, dashboard.firstChild);
     }
     const select = document.getElementById("stockFullWorkScopeSelect");
     const status = document.getElementById("stockFullWorkScopeStatus");
+    const createToggle = document.getElementById("stockFullWorkCreateToggle");
+    const createForm = document.getElementById("stockFullWorkCreateForm");
+    const createStatus = document.getElementById("stockFullWorkCreateStatus");
+    const mayCreateWorks = Boolean(core.canStockFull && core.canStockFull("works:create", core.getSession && core.getSession()));
+    document.querySelectorAll("#stockFullWorkCreateToggle, #stockFullWorkCreateForm").forEach(function (control) { control.hidden = !mayCreateWorks; });
+    select.stockFullWorks = works;
     const currentId = core.getCurrentWorkId ? core.getCurrentWorkId() : "";
     select.innerHTML = '<option value="">Empresa/loja (sem obra)</option>' + works.map(function (work) {
       return '<option value="' + String(work.id || "").replace(/"/g, "&quot;") + '">' + String(work.name || work.id || "Obra").replace(/[&<>]/g, function (value) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[value]; }) + '</option>';
@@ -219,7 +259,8 @@
     if (!select.dataset.bound) {
       select.dataset.bound = "true";
       select.addEventListener("change", function () {
-        const work = works.find(function (item) { return String(item.id) === select.value; });
+        const currentWorks = Array.isArray(select.stockFullWorks) ? select.stockFullWorks : [];
+        const work = currentWorks.find(function (item) { return String(item.id) === select.value; });
         if (!work) {
           core.clearCurrentWork && core.clearCurrentWork();
           status.textContent = "Operação da empresa/loja sem obra ativa.";
@@ -228,6 +269,48 @@
         }
         core.setCurrentWork(work);
         window.location.reload();
+      });
+    }
+    if (!createToggle.dataset.bound) {
+      createToggle.dataset.bound = "true";
+      createToggle.addEventListener("click", function () {
+        createForm.hidden = !createForm.hidden;
+        if (!createForm.hidden) document.getElementById("stockFullWorkCreateName").focus();
+      });
+      document.getElementById("stockFullWorkCreateCancel").addEventListener("click", function () {
+        createForm.reset();
+        createForm.hidden = true;
+        createStatus.textContent = "";
+      });
+      createForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (!mayCreateWorks) return;
+        const nameInput = document.getElementById("stockFullWorkCreateName");
+        const addressInput = document.getElementById("stockFullWorkCreateAddress");
+        const name = String(nameInput.value || "").trim();
+        const address = String(addressInput.value || "").trim();
+        if (!name) {
+          nameInput.focus();
+          return;
+        }
+        const submit = createForm.querySelector('[type="submit"]');
+        submit.disabled = true;
+        createStatus.textContent = "Salvando obra na nuvem…";
+        try {
+          const created = await createStockFullWork(name, address);
+          const refreshedWorks = await loadStockFullWorks();
+          renderStockFullWorkSelector(refreshedWorks);
+          const refreshedSelect = document.getElementById("stockFullWorkScopeSelect");
+          if (!refreshedWorks.some(function (work) { return String(work.id) === String(created.id); })) {
+            throw new Error("stock_full_created_work_not_visible");
+          }
+          refreshedSelect.value = created.id;
+          refreshedSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        } catch (error) {
+          createStatus.textContent = String(error && error.message || "stock_full_work_create_failed");
+        } finally {
+          submit.disabled = false;
+        }
       });
     }
   }

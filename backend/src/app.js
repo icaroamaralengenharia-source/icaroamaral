@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -2432,6 +2432,150 @@ export function createApp(options = {}) {
       },
       profile: session.profile
     });
+  });
+
+  app.post("/api/stock-full/works", async (request, response) => {
+    const authorization = clean_(request.headers.authorization);
+    if (!/^Bearer\s+\S+$/i.test(authorization)) {
+      response.status(401).json({ ok: false, error: "authentication_required" });
+      return;
+    }
+
+    // Work creation must execute with the caller's bearer and the public anon key.
+    // Do not fall back to the backend's service-role database client for this write.
+    const database = options.stockFullWorkCreationSupabaseClient
+      || (clean_(env.SUPABASE_URL) && clean_(env.SUPABASE_ANON_KEY)
+        ? createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+          accessToken: async () => authorization.replace(/^Bearer\s+/i, "").trim(),
+          auth: { autoRefreshToken: false, persistSession: false }
+        })
+        : null);
+    if (!database) {
+      response.status(503).json({ ok: false, error: "stock_full_user_database_not_configured" });
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) return;
+    if (!requireStockFullPermission_(session.profile, "works:create", response)) return;
+
+    const institutionId = clean_(session.profile && session.profile.institution_id);
+    if (!institutionId) {
+      response.status(403).json({ ok: false, error: "stock_full_tenant_required" });
+      return;
+    }
+
+    const body = request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body : {};
+    const rawName = typeof body.name === "string" ? body.name : "";
+    const rawAddress = body.address == null ? "" : typeof body.address === "string" ? body.address : null;
+    const name = clean_(rawName);
+    const address = rawAddress === null ? null : clean_(rawAddress);
+    const clientId = body.clientId == null && body.client_id == null
+      ? ""
+      : clean_(body.clientId || body.client_id);
+    if (!name || name.length > 160 || /[\u0000-\u001f\u007f]/.test(rawName) || address === null || address.length > 500 || /[\u0000-\u001f\u007f]/.test(rawAddress)) {
+      response.status(400).json({ ok: false, error: "stock_full_work_payload_invalid" });
+      return;
+    }
+
+    const idempotencyKey = clean_(request.headers["idempotency-key"]);
+    if (!idempotencyKey || idempotencyKey.length > 2048 || !/^[A-Za-z0-9._~:%-]+$/.test(idempotencyKey)) {
+      response.status(400).json({ ok: false, error: "stock_full_work_idempotency_key_required" });
+      return;
+    }
+
+    try {
+      if (clientId) {
+        const { data: client, error: clientError } = await database
+          .from("obrareport_clients")
+          .select("id")
+          .eq("id", clientId)
+          .eq("institution_id", institutionId)
+          .maybeSingle();
+        if (clientError) throw clientError;
+        if (!client) {
+          response.status(404).json({ ok: false, error: "stock_full_work_client_not_found" });
+          return;
+        }
+      }
+
+      const workId = "obraproj_" + createHash("sha256")
+        .update(institutionId + "\u0000" + idempotencyKey)
+        .digest("hex");
+      const expected = {
+        id: workId,
+        institution_id: institutionId,
+        client_id: clientId || null,
+        name,
+        address: address || null
+      };
+      const existingByKey = await database
+        .from("obrareport_projects")
+        .select("id,institution_id,client_id,name,address")
+        .eq("id", workId)
+        .eq("institution_id", institutionId)
+        .maybeSingle();
+      if (existingByKey.error) throw existingByKey.error;
+      if (existingByKey.data) {
+        const existing = existingByKey.data;
+        const sameRequest = clean_(existing.name) === expected.name
+          && clean_(existing.client_id) === clean_(expected.client_id)
+          && clean_(existing.address) === clean_(expected.address);
+        if (!sameRequest) {
+          response.status(409).json({ ok: false, error: "stock_full_work_idempotency_conflict" });
+          return;
+        }
+        response.json({ ok: true, mode: "remote", duplicate: true, work: mapStockFullWork(existing) });
+        return;
+      }
+
+      let duplicateQuery = database
+        .from("obrareport_projects")
+        .select("id")
+        .eq("institution_id", institutionId)
+        .eq("name", name);
+      duplicateQuery = clientId ? duplicateQuery.eq("client_id", clientId) : duplicateQuery.is("client_id", null);
+      const { data: duplicates, error: duplicateError } = await duplicateQuery.limit(1);
+      if (duplicateError) throw duplicateError;
+      if (Array.isArray(duplicates) && duplicates.length) {
+        response.status(409).json({ ok: false, error: "stock_full_work_duplicate" });
+        return;
+      }
+
+      const { data: created, error: insertError } = await database
+        .from("obrareport_projects")
+        .insert(expected)
+        .select("id,institution_id,client_id,name,address")
+        .single();
+      if (insertError) {
+        if (insertError.code === "23505") {
+          const { data: raced, error: raceError } = await database
+            .from("obrareport_projects")
+            .select("id,institution_id,client_id,name,address")
+            .eq("id", workId)
+            .eq("institution_id", institutionId)
+            .maybeSingle();
+          if (!raceError && raced
+            && clean_(raced.name) === expected.name
+            && clean_(raced.client_id) === clean_(expected.client_id)
+            && clean_(raced.address) === clean_(expected.address)) {
+            response.json({ ok: true, mode: "remote", duplicate: true, work: mapStockFullWork(raced) });
+            return;
+          }
+          response.status(409).json({ ok: false, error: "stock_full_work_duplicate" });
+          return;
+        }
+        if (insertError.code === "42501" || /row-level security|permission denied/i.test(String(insertError.message || ""))) {
+          response.status(403).json({ ok: false, error: "stock_full_work_persistence_forbidden" });
+          return;
+        }
+        throw insertError;
+      }
+
+      response.status(201).json({ ok: true, mode: "remote", duplicate: false, work: mapStockFullWork(created) });
+    } catch (_) {
+      response.status(500).json({ ok: false, error: "stock_full_work_create_failed" });
+    }
   });
 
   app.get("/api/stock-full/works", async (request, response) => {
@@ -5423,10 +5567,10 @@ function canStockFullBackendRole_(profile, permission) {
   const role = clean_(profile && profile.role).toLowerCase();
   if (!permission) return false;
   const permissions = {
-    admin: new Set(["products:create", "products:update", "products:delete"]),
-    administrador: new Set(["products:create", "products:update", "products:delete"]),
-    gestor: new Set(["products:create", "products:update", "products:delete"]),
-    patrao: new Set(["products:create", "products:update", "products:delete"])
+    admin: new Set(["products:create", "products:update", "products:delete", "works:create"]),
+    administrador: new Set(["products:create", "products:update", "products:delete", "works:create"]),
+    gestor: new Set(["products:create", "products:update", "products:delete", "works:create"]),
+    patrao: new Set(["products:create", "products:update", "products:delete", "works:create"])
   };
   return Boolean(permissions[role] && permissions[role].has(permission));
 }
