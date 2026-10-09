@@ -20,7 +20,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="elo.css?v=20261003-player-v2">
+  <link rel="stylesheet" href="elo.css?v=20261009-shell-v2">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-sentinel-ui.css">
   <style>
     body.elo-auth-required .elo-product-brand,
@@ -46,16 +46,27 @@
       display: none;
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
-      left: 50%;
-      right: auto;
-      top: calc(14px + env(safe-area-inset-top));
+      left: 250px;
+      right: 0;
+      top: 0;
       bottom: auto;
-      width: min(820px, calc(100vw - 16px));
-      height: auto;
-      transform: translateX(-50%);
-      min-height: 54px;
+      width: auto;
+      height: 62px;
+      transform: none;
+      min-height: 62px;
       overflow: visible;
       background: rgba(244, 247, 251, 0.92);
+    }
+    @media (max-width: 768px) {
+      body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
+        left: 50%;
+        right: auto;
+        top: calc(14px + env(safe-area-inset-top));
+        width: min(820px, calc(100vw - 16px));
+        height: auto;
+        transform: translateX(-50%);
+        min-height: 54px;
+      }
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth {
       width: auto;
@@ -85,15 +96,19 @@
       <span class="elo-mark" aria-hidden="true"></span>
       <strong class="elo-brand-name">ELO CORE</strong>
     </a>
-    <nav class="elo-core-actions" aria-label="Ações da conversa">
-      <button type="button" data-elo-new-chat>Nova conversa</button>
+    <button class="elo-mobile-menu-toggle" type="button" data-elo-mobile-menu-toggle aria-expanded="false" aria-controls="elo-core-actions-menu" aria-label="Abrir menu de ações">
+      <span aria-hidden="true">⋮</span>
+    </button>
+    <nav class="elo-core-actions" id="elo-core-actions-menu" data-elo-mobile-menu aria-label="Ações da conversa">
+      <button type="button" class="elo-mobile-menu-proxy" data-elo-mobile-menu-action="new-chat">Nova conversa</button>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
       <button type="button" class="elo-clear-conversation-button" data-elo-clear-chat>Limpar conversa</button>
+      <button type="button" class="elo-mobile-menu-proxy" data-elo-mobile-menu-action="logout">Sair</button>
     </nav>
     <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
       <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
-        <input type="email" name="email" placeholder="Email Supabase" autocomplete="username" required>
+        <input type="email" name="email" placeholder="Email" autocomplete="username" required>
         <input type="password" name="password" placeholder="Senha" autocomplete="current-password" required>
         <button type="submit">Entrar</button>
       </form>
@@ -105,13 +120,100 @@
     </section>
   </header>
 
+  <script>
+    (function () {
+      const toggle = document.querySelector("[data-elo-mobile-menu-toggle]");
+      const menu = document.querySelector("[data-elo-mobile-menu]");
+      if (!toggle || !menu) return;
+
+      function setMenuOpen(open) {
+        const isOpen = open === true;
+        menu.classList.toggle("is-open", isOpen);
+        toggle.setAttribute("aria-expanded", String(isOpen));
+        toggle.setAttribute("aria-label", isOpen ? "Fechar menu de ações" : "Abrir menu de ações");
+      }
+
+      toggle.addEventListener("click", function () {
+        setMenuOpen(toggle.getAttribute("aria-expanded") !== "true");
+      });
+
+      menu.addEventListener("click", function (event) {
+        const element = event.target instanceof Element ? event.target : null;
+        const action = element && element.closest("[data-elo-mobile-menu-action]");
+        if (!action) return;
+
+        const targetSelector = action.dataset.eloMobileMenuAction === "new-chat"
+          ? "[data-elo-new-chat]"
+          : action.dataset.eloMobileMenuAction === "logout"
+            ? "[data-elo-auth-logout]"
+            : "";
+        const existingControl = targetSelector ? document.querySelector(targetSelector) : null;
+        if (existingControl) existingControl.click();
+        setMenuOpen(false);
+      });
+
+      menu.addEventListener("click", function (event) {
+        const element = event.target instanceof Element ? event.target : null;
+        if (element && element.closest("button")) window.setTimeout(function () { setMenuOpen(false); }, 0);
+      }, true);
+
+      document.addEventListener("click", function (event) {
+        const target = event.target;
+        if (target instanceof Node && !menu.contains(target) && !toggle.contains(target)) setMenuOpen(false);
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || toggle.getAttribute("aria-expanded") !== "true") return;
+        setMenuOpen(false);
+        toggle.focus();
+      });
+    })();
+  </script>
+
+  <aside class="elo-desktop-sidebar" aria-label="Módulos do ELO">
+    <div class="elo-sidebar-brand" aria-label="ELO">
+      <span class="elo-sidebar-brand-mark" aria-hidden="true">E</span>
+      <span>
+        <strong>ELO</strong>
+        <small>CORE</small>
+      </span>
+    </div>
+    <button type="button" class="elo-sidebar-new-chat" data-elo-new-chat>
+      <span class="elo-sidebar-plus" aria-hidden="true">+</span>
+      <span>Novo chat</span>
+    </button>
+    <div class="elo-sidebar-section-label">MÓDULOS</div>
+    <nav class="elo-sidebar-nav" aria-label="Módulos do produto">
+      <a class="elo-sidebar-item" data-elo-sidebar-action="report" href="relatorio-qualidade-obras/">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4.5h10l4 4v11H5z"/><path d="M15 4.5v4h4M8 13h8M8 16.5h6"/><path d="m14.2 18.5 4.1-4.1 1.7 1.7-4.1 4.1-2.3.6z"/></svg>
+        <span>Relatórios e Laudos</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="rdo" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#rdo-identificacao">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/><path d="M8 2v4M16 2v4"/></svg>
+        <span>Diário de Obras</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="stock" href="stockfull.html">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 8 8-4 8 4-8 4zM4 8v9l8 4 8-4V8M12 12v9"/><path d="m8 6 8 4"/></svg>
+        <span>Stock Full</span>
+      </a>
+      <a class="elo-sidebar-item" data-elo-sidebar-action="budget" href="elo.html?intent=orcamento">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19V5M5 19h15"/><path d="m8 15 3-4 3 2 4-6"/><path d="M17 7h1v1"/></svg>
+        <span>Orçamentos</span>
+      </a>
+      <span class="elo-sidebar-item is-disabled" aria-disabled="true" title="Nenhuma ação disponível nesta shell">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/></svg>
+        <span>Projetos</span>
+        <small>Sem ação</small>
+      </span>
+    </nav>
+  </aside>
+
   <main class="elo-product-shell" aria-labelledby="elo-product-title">
     <section class="elo-product-center">
       <div class="elo-product-heading elo-core-welcome">
         <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
-          <span class="elo-rotating-text" data-elo-rotating-text>Oi, o que vamos fazer hoje?</span>
+          <span class="elo-rotating-text" data-elo-rotating-text>Oi, to aqui</span>
         </h1>
-        <p class="elo-empty-copy">Estou pronto para analisar, organizar e continuar seu trabalho.</p>
       </div>
       <div class="elo-attachment-preview" data-elo-attachment-preview>
         <div class="elo-attachment-chip">
@@ -137,7 +239,7 @@
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar arquivo" title="Anexar arquivo">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
-            <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO CORE..."></textarea>
+            <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO…"></textarea>
             <button type="submit" class="elo-send-button">Enviar</button>
           </form>
         </section>
@@ -157,9 +259,7 @@
       window.scrollTo(0, 0);
     });
     const eloPromptPhrases = [
-      'Oi, o que vamos fazer hoje?',
-      'Me diga o que eu posso fazer pra te ajudar!',
-      'Hoje é um bom dia, por onde quer começar?'
+      'Oi, to aqui'
     ];
 
     let eloPromptIndex = 0;
