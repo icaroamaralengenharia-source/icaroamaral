@@ -30,13 +30,47 @@ function createWorkDatabase(options = {}) {
         return { data: { user: { id: profile.auth_user_id, email: profile.email } }, error: null };
       }
     },
-    async rpc(name) {
-      if (name !== "stock_full_list_works") return { data: null, error: { message: "unexpected rpc" } };
-      return {
-        data: projects.filter((project) => project.institution_id === profile.institution_id)
-          .map(({ id, institution_id, client_id, name, address }) => ({ id, institution_id, client_id, name, address })),
-        error: null
-      };
+    async rpc(name, args = {}) {
+      trace.push({ type: "rpc", name, args: Object.assign({}, args) });
+      if (name === "stock_full_list_works") {
+        return {
+          data: projects.filter((project) => project.institution_id === profile.institution_id)
+            .map(({ id, institution_id, client_id, name, address }) => ({ id, institution_id, client_id, name, address })),
+          error: null
+        };
+      }
+      if (name === "stock_full_create_work") {
+        const tenantId = profile.institution_id;
+        const nameValue = String(args.p_name || "").trim();
+        const addressValue = args.p_address || null;
+        const clientId = args.p_client_id || null;
+        if (clientId && !clients.some((client) => client.id === clientId && client.institution_id === tenantId)) {
+          return { data: null, error: { code: "P0002", message: "stock_full_work_client_not_found" } };
+        }
+        const sameId = projects.find((project) => project.id === args.p_work_id && project.institution_id === tenantId);
+        if (sameId) {
+          const sameRequest = sameId.name === nameValue
+            && (sameId.client_id || null) === clientId
+            && (sameId.address || null) === addressValue;
+          return sameRequest
+            ? { data: { ok: true, duplicate: true, work: Object.assign({}, sameId) }, error: null }
+            : { data: null, error: { code: "23505", message: "stock_full_work_idempotency_conflict" } };
+        }
+        const duplicate = projects.find((project) => project.institution_id === tenantId
+          && (project.client_id || null) === clientId
+          && String(project.name || "").trim().toLowerCase() === nameValue.toLowerCase());
+        if (duplicate) return { data: null, error: { code: "23505", message: "stock_full_work_duplicate" } };
+        const work = {
+          id: args.p_work_id,
+          institution_id: tenantId,
+          client_id: clientId,
+          name: nameValue,
+          address: addressValue
+        };
+        projects.push(work);
+        return { data: { ok: true, duplicate: false, work: Object.assign({}, work) }, error: null };
+      }
+      return { data: null, error: { message: "unexpected rpc" } };
     },
     from(table) {
       return new Query(database, table);
@@ -161,6 +195,11 @@ test("Stock Full creates canonical work in authenticated tenant and ignores tena
     assert.equal(database.projects.length, 1);
     assert.equal(database.projects[0].institution_id, TENANT_A);
     assert.equal(database.projects[0].name, "OBRA TESTE ELO E2E B");
+    const createCall = database.trace.find((event) => event.type === "rpc" && event.name === "stock_full_create_work");
+    assert.ok(createCall);
+    assert.equal(Object.hasOwn(createCall.args, "p_institution_id"), false);
+    assert.equal(Object.hasOwn(createCall.args, "p_tenant_id"), false);
+    assert.equal(database.trace.some((event) => event.table === "obrareport_projects"), false);
 
     const listed = await fetch(server.baseUrl + "/api/stock-full/works", {
       headers: { Authorization: "Bearer valid-token" }
@@ -271,9 +310,8 @@ test("Stock Full work creation is idempotent and never returns a tenant-wide col
     const listed = await fetch(server.baseUrl + "/api/stock-full/works", { headers: { Authorization: "Bearer valid-token" } });
     const listData = await listed.json();
     assert.equal(listData.works.some((work) => work.id === "other-tenant-work"), false);
-    const projectReads = database.trace.filter((event) => event.table === "obrareport_projects" && event.operation === "select");
-    assert.equal(projectReads.length > 0, true);
-    assert.equal(projectReads.every((event) => event.filters >= 2), true);
+    assert.equal(database.trace.some((event) => event.table === "obrareport_projects"), false);
+    assert.equal(database.trace.some((event) => event.type === "rpc" && event.name === "stock_full_list_works"), true);
     assert.equal(JSON.stringify(listData).includes("TENANT B ONLY"), false);
   } finally {
     await server.close();
@@ -311,4 +349,24 @@ test("Stock Full UI exposes canonical authenticated work creation only to permit
   assert.match(html, /stock-full-core\.js\?v=20261009-canonical-work-create-v1/);
   assert.match(html, /stock-full-app\.css\?v=20261009-canonical-work-create-v1/);
   assert.match(html, /20261009-canonical-work-create-v1/);
+});
+
+test("Stock Full work creation migration uses authenticated tenant and does not grant direct table or service-role access", () => {
+  const sql = readFileSync(new URL("../src/data/stock-full-work-create-migration.sql", import.meta.url), "utf8");
+  const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  const routeStart = appSource.indexOf('app.post("/api/stock-full/works"');
+  const routeEnd = appSource.indexOf('app.get("/api/stock-full/works"', routeStart);
+  const route = appSource.slice(routeStart, routeEnd);
+
+  assert.match(sql, /function public\.stock_full_create_work/i);
+  assert.match(sql, /security definer/i);
+  assert.match(sql, /p\.auth_user_id\s*=\s*v_auth_user_id/i);
+  assert.match(sql, /v_role not in \('admin', 'administrador', 'gestor', 'patrao'\)/i);
+  assert.match(sql, /c\.institution_id\s*=\s*v_institution_id/i);
+  assert.match(sql, /pg_advisory_xact_lock/i);
+  assert.match(sql, /to authenticated/i);
+  assert.doesNotMatch(sql, /service_role/i);
+  assert.match(route, /database\.rpc\("stock_full_create_work"/);
+  assert.doesNotMatch(route, /\.from\("obrareport_projects"\)/);
+  assert.doesNotMatch(route, /\.insert\(/);
 });

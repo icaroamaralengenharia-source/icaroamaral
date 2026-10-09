@@ -2493,94 +2493,51 @@ export function createApp(options = {}) {
     }
 
     try {
-      if (clientId) {
-        const { data: client, error: clientError } = await database
-          .from("obrareport_clients")
-          .select("id")
-          .eq("id", clientId)
-          .eq("institution_id", institutionId)
-          .maybeSingle();
-        if (clientError) throw clientError;
-        if (!client) {
-          response.status(404).json({ ok: false, error: "stock_full_work_client_not_found" });
-          return;
-        }
-      }
-
       const workId = "obraproj_" + createHash("sha256")
         .update(institutionId + "\u0000" + idempotencyKey)
         .digest("hex");
-      const expected = {
-        id: workId,
-        institution_id: institutionId,
-        client_id: clientId || null,
-        name,
-        address: address || null
-      };
-      const existingByKey = await database
-        .from("obrareport_projects")
-        .select("id,institution_id,client_id,name,address")
-        .eq("id", workId)
-        .eq("institution_id", institutionId)
-        .maybeSingle();
-      if (existingByKey.error) throw existingByKey.error;
-      if (existingByKey.data) {
-        const existing = existingByKey.data;
-        const sameRequest = clean_(existing.name) === expected.name
-          && clean_(existing.client_id) === clean_(expected.client_id)
-          && clean_(existing.address) === clean_(expected.address);
-        if (!sameRequest) {
+      const { data: result, error } = await database.rpc("stock_full_create_work", {
+        p_work_id: workId,
+        p_client_id: clientId || null,
+        p_name: name,
+        p_address: address || null
+      });
+      if (error) {
+        const message = String(error.message || "");
+        if (/stock_full_work_idempotency_conflict/i.test(message)) {
           response.status(409).json({ ok: false, error: "stock_full_work_idempotency_conflict" });
           return;
         }
-        response.json({ ok: true, mode: "remote", duplicate: true, work: mapStockFullWork(existing) });
-        return;
-      }
-
-      let duplicateQuery = database
-        .from("obrareport_projects")
-        .select("id")
-        .eq("institution_id", institutionId)
-        .eq("name", name);
-      duplicateQuery = clientId ? duplicateQuery.eq("client_id", clientId) : duplicateQuery.is("client_id", null);
-      const { data: duplicates, error: duplicateError } = await duplicateQuery.limit(1);
-      if (duplicateError) throw duplicateError;
-      if (Array.isArray(duplicates) && duplicates.length) {
-        response.status(409).json({ ok: false, error: "stock_full_work_duplicate" });
-        return;
-      }
-
-      const { data: created, error: insertError } = await database
-        .from("obrareport_projects")
-        .insert(expected)
-        .select("id,institution_id,client_id,name,address")
-        .single();
-      if (insertError) {
-        if (insertError.code === "23505") {
-          const { data: raced, error: raceError } = await database
-            .from("obrareport_projects")
-            .select("id,institution_id,client_id,name,address")
-            .eq("id", workId)
-            .eq("institution_id", institutionId)
-            .maybeSingle();
-          if (!raceError && raced
-            && clean_(raced.name) === expected.name
-            && clean_(raced.client_id) === clean_(expected.client_id)
-            && clean_(raced.address) === clean_(expected.address)) {
-            response.json({ ok: true, mode: "remote", duplicate: true, work: mapStockFullWork(raced) });
-            return;
-          }
+        if (error.code === "23505" || /stock_full_work_duplicate/i.test(message)) {
           response.status(409).json({ ok: false, error: "stock_full_work_duplicate" });
           return;
         }
-        if (insertError.code === "42501" || /row-level security|permission denied/i.test(String(insertError.message || ""))) {
-          response.status(403).json({ ok: false, error: "stock_full_work_persistence_forbidden" });
+        if (error.code === "P0002" || /stock_full_work_client_not_found/i.test(message)) {
+          response.status(404).json({ ok: false, error: "stock_full_work_client_not_found" });
           return;
         }
-        throw insertError;
+        if (error.code === "42501" || /permission denied|row-level security/i.test(message)) {
+          response.status(403).json({ ok: false, error: "permission_denied" });
+          return;
+        }
+        if (error.code === "22023" || /stock_full_work_payload_invalid/i.test(message)) {
+          response.status(400).json({ ok: false, error: "stock_full_work_payload_invalid" });
+          return;
+        }
+        throw error;
       }
 
-      response.status(201).json({ ok: true, mode: "remote", duplicate: false, work: mapStockFullWork(created) });
+      const rpcResult = Array.isArray(result) ? result[0] : result;
+      const created = rpcResult && rpcResult.work;
+      if (!rpcResult || rpcResult.ok !== true || !created || !created.id) {
+        throw new Error("stock_full_work_rpc_result_invalid");
+      }
+      response.status(rpcResult.duplicate ? 200 : 201).json({
+        ok: true,
+        mode: "remote",
+        duplicate: Boolean(rpcResult.duplicate),
+        work: mapStockFullWork(created)
+      });
     } catch (_) {
       response.status(500).json({ ok: false, error: "stock_full_work_create_failed" });
     }
