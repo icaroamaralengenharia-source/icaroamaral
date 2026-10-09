@@ -2443,13 +2443,21 @@ export function createApp(options = {}) {
 
     // Work creation must execute with the caller's bearer and the public anon key.
     // Do not fall back to the backend's service-role database client for this write.
-    const database = options.stockFullWorkCreationSupabaseClient
-      || (clean_(env.SUPABASE_URL) && clean_(env.SUPABASE_ANON_KEY)
-        ? createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-          accessToken: async () => authorization.replace(/^Bearer\s+/i, "").trim(),
-          auth: { autoRefreshToken: false, persistSession: false }
-        })
-        : null);
+    const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+    const createAuthClients = (token) => ({
+      auth: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      }),
+      query: createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+        accessToken: async () => token,
+        auth: { autoRefreshToken: false, persistSession: false }
+      })
+    });
+    let database = options.stockFullWorkCreationSupabaseClient || null;
+    if (!database && clean_(env.SUPABASE_URL) && clean_(env.SUPABASE_ANON_KEY)) {
+      database = createAuthClients(accessToken).query;
+      database.__obrareportStockFullAuthClients = createAuthClients;
+    }
     if (!database) {
       response.status(503).json({ ok: false, error: "stock_full_user_database_not_configured" });
       return;
