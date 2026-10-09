@@ -284,5 +284,7 @@ test("Stock Full UI exposes canonical authenticated work creation only to permit
   assert.match(appSource, /core\.canStockFull\("works:create"/);
   assert.match(appSource, /loadStockFullWorks\(\)/);
   assert.match(coreSource, /works:create/);
+  assert.match(html, /stock-full-core\.js\?v=20261009-canonical-work-create-v1/);
+  assert.match(html, /stock-full-app\.css\?v=20261009-canonical-work-create-v1/);
   assert.match(html, /20261009-canonical-work-create-v1/);
 });
