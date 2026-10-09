@@ -126,21 +126,21 @@ test("pagina isolada nao depende do chat real", () => {
   assert.doesNotMatch(page, /elo-assistente\.js|relatorio-qualidade-obras\.js|stock-full/i);
 });
 
-test("ELO real carrega voice client antes do assistente", () => {
+test("ELO real usa o assistente autenticado e mantém o cliente isolado na demo", () => {
   const voiceIndex = eloPage.indexOf("elo-voice-client.js");
   const assistantIndex = eloPage.indexOf("relatorio-qualidade-obras/elo-assistente.js");
-  assert.ok(voiceIndex > 0);
-  assert.ok(assistantIndex > voiceIndex);
+  assert.equal(voiceIndex, -1);
+  assert.ok(assistantIndex > 0);
 });
 
-test("botao Ouvir usa EloVoice com fallback para speechSynthesis", () => {
-  assert.match(assistant, /function getEloVoiceClient_/);
-  assert.match(assistant, /voice\.speak\(speechText, \{ voice: "alloy" \}\)/);
-  assert.doesNotMatch(assistant, /voice\.speak\(speechText, \{ voice: "alloy", fallback: false \}\)/);
-  assert.match(assistant, /speakEloTextWithBrowserFallback_/);
+test("botao Ouvir usa TTS autenticado binario com fallback para speechSynthesis", () => {
+  assert.match(assistant, /fetchEloAuthenticated_\(endpoint,[\s\S]{0,180}method: "POST"/);
+  assert.match(assistant, /fetchEloAuthenticated_\(url, options\)/);
+  assert.match(assistant, /response\.blob\(\)/);
+  assert.match(assistant, /URL\.createObjectURL\(blob\)/);
+  assert.match(assistant, /function speakEloTextFallback_/);
   assert.match(assistant, /synthesis\.speak\(utterance\)/);
   assert.match(assistant, /function stopEloSpeechOutput_/);
-  assert.match(assistant, /voice\.stop\(\)/);
 });
 
 test("ELO real mantem voz apenas por clique em Ouvir", () => {
