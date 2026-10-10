@@ -42,6 +42,7 @@ for (const viewport of viewports) {
           lineHeight: style.lineHeight,
           whiteSpace: style.whiteSpace,
           overflowWrap: style.overflowWrap,
+          actionsLeft: actionsRect ? actionsRect.left : null,
           actionsTop: actionsRect ? actionsRect.top : null,
           actionsVisible: actions ? actions.getBoundingClientRect().height > 0 : false
         };
@@ -65,8 +66,17 @@ for (const viewport of viewports) {
     expect(byName["multi-paragraph"].bubbleHeight).toBeGreaterThan(byName.short.bubbleHeight);
     expect(byName["listen-button"].actionsVisible).toBe(true);
     expect(byName["tts-active"].actionsVisible).toBe(true);
-    expect(byName["listen-button"].actionsTop).toBeGreaterThanOrEqual(byName["listen-button"].bubbleBottom - 3);
-    expect(byName["tts-active"].actionsTop).toBeGreaterThanOrEqual(byName["tts-active"].bubbleBottom - 3);
+    for (const name of ["listen-button", "tts-active"]) {
+      if (viewport.name.startsWith("mobile")) {
+        // Mobile presents speech controls in a separate rail to the right of the bubble.
+        expect(byName[name].actionsLeft).toBeGreaterThanOrEqual(byName[name].bubbleRight - 1);
+        expect(byName[name].actionsTop).toBeGreaterThanOrEqual(byName[name].bubbleTop - 3);
+        expect(byName[name].actionsTop).toBeLessThanOrEqual(byName[name].bubbleTop + 3);
+      } else {
+        // Desktop presents speech controls below the bubble.
+        expect(byName[name].actionsTop).toBeGreaterThanOrEqual(byName[name].bubbleBottom - 3);
+      }
+    }
 
     const orderedMessages = metrics.toSorted((left, right) => left.messageTop - right.messageTop);
     for (let index = 1; index < orderedMessages.length; index += 1) {
