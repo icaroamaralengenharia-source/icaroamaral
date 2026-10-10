@@ -8804,3 +8804,103 @@ function createMockStockAuditLogQuery_(auditLogs) {
 function tinyJpegBase64_() {
   return "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/ASP/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/ASP/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Al//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EFBABAQAAAAAAAAAAAAAAAAAAARD/2gAIAQEAAT8QH//Z";
 }
+
+test("ELO prompt permanente exige humor seguro e preserva conversa sensivel seria", () => {
+  const prompt = buildEloSystemPrompt_();
+
+  assert.match(prompt, /Humor seguro/i);
+  assert.match(prompt, /suic[ií]dio/i);
+  assert.match(prompt, /sofrimento humano/i);
+  assert.match(prompt, /Conversas s[eé]rias e [uú]teis .* continuam permitidas/i);
+});
+
+test("endpoint revisa humor pelo significado e substitui somente quando necessario", async () => {
+  const originalFetch = globalThis.fetch;
+  const scenarios = {
+    safe: {
+      candidate: "O 3 e o 4 combinaram de trabalhar em equipe: juntos, somaram 7.",
+      review: { decision: "KEEP", answer: "" }
+    },
+    sensitive: {
+      candidate: "Por que o livro de matemática se suicidou? Porque tinha muitos problemas.",
+      review: { decision: "REPLACE", answer: "A régua pediu promoção: vivia acima da média." }
+    },
+    ambiguous: {
+      candidate: "A régua pediu promoção: vivia acima da média.",
+      review: { decision: "KEEP", answer: "" }
+    },
+    offensive: {
+      candidate: "Uma resposta segura, sem atacar ninguém.",
+      review: { decision: "REPLACE", answer: "O elevador pediu aumento: queria subir de nível." }
+    },
+    serious: {
+      candidate: "O desenho universal considera diferentes capacidades e reduz barreiras de acesso.",
+      review: null
+    },
+    spontaneous: {
+      candidate: "Sabe por que o computador abriu a janela? Porque precisava de mais ventilação para as abas.",
+      review: { decision: "KEEP", answer: "" }
+    }
+  };
+  let activeScenario = null;
+  let apiCalls = 0;
+  let reviewCalls = 0;
+  const reviewPrompts = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url) !== "https://api.openai.com/v1/responses") return originalFetch(url, options);
+    apiCalls += 1;
+    const body = JSON.parse(options.body || "{}");
+    const systemText = body.input && body.input[0] && body.input[0].content || "";
+    if (/revis[aã]o sem[aâ]ntica de humor/i.test(systemText)) {
+      reviewCalls += 1;
+      reviewPrompts.push({ systemText, payload: JSON.parse(body.input[1].content) });
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: JSON.stringify(activeScenario.review) }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({
+      output: [{ content: [{ type: "output_text", text: activeScenario.candidate }] }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      async function post(scenarioName, message) {
+        activeScenario = scenarios[scenarioName];
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+          body: JSON.stringify({ message, history: [], context: { source: "elo", eloContext: "geral" } })
+        });
+        assert.equal(response.status, 200, message);
+        const data = await response.json();
+        assert.equal(data.ok, true, message);
+        return data.answer;
+      }
+
+      assert.equal(await post("safe", "conte uma piada de matematica"), scenarios.safe.candidate);
+      const replaced = await post("sensitive", "conte uma piada de matematica");
+      assert.equal(replaced, scenarios.sensitive.review.answer);
+      assert.doesNotMatch(replaced, /suicid|morte|sofrimento/i);
+      assert.equal(await post("ambiguous", "me surpreenda com algo leve e divertido"), scenarios.ambiguous.candidate);
+      assert.equal(await post("offensive", "me conte uma piada racista"), scenarios.offensive.review.answer);
+      assert.equal(await post("serious", "explique desenho universal para pessoas com deficiencia"), scenarios.serious.candidate);
+      assert.equal(await post("spontaneous", "como esta o computador?"), scenarios.spontaneous.candidate);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(reviewCalls, 5);
+  assert.equal(apiCalls, 11);
+  assert.match(reviewPrompts[0].systemText, /sentido completo|papel da ideia/i);
+  assert.match(reviewPrompts[0].systemText, /não apenas palavras isoladas/i);
+  assert.equal(reviewPrompts[1].payload.candidate_response, scenarios.sensitive.candidate);
+  assert.equal(reviewPrompts[3].payload.user_request, "me conte uma piada racista");
+});
