@@ -5240,7 +5240,7 @@ body[data-elo-product="chat"] .elo-mobile-menu-proxy {
   display: none;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   body[data-elo-product="chat"].elo-authenticated .elo-product-top {
     position: relative;
     z-index: 10020;
@@ -5372,5 +5372,27 @@ body[data-elo-product="chat"] .elo-mobile-menu-proxy {
   body[data-elo-product="chat"].elo-authenticated.elo-has-user-message.elo-chat-state .elo-product-shell {
     padding-top: 4px;
     padding-inline: 10px;
+  }
+}
+
+/* Keep the two-row authenticated desktop header inside its reserved space. */
+@media (min-width: 769px) {
+  body[data-elo-product="chat"].elo-authenticated .elo-product-shell,
+  body[data-elo-product="chat"].elo-authenticated.elo-chat-state .elo-product-shell,
+  body[data-elo-product="chat"].elo-authenticated.elo-has-user-message.elo-chat-state .elo-product-shell {
+    padding-top: 74px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+  body[data-elo-product="chat"].elo-authenticated .elo-product-top {
+    height: 100px;
+    min-height: 100px;
+  }
+
+  body[data-elo-product="chat"].elo-authenticated .elo-product-shell,
+  body[data-elo-product="chat"].elo-authenticated.elo-chat-state .elo-product-shell,
+  body[data-elo-product="chat"].elo-authenticated.elo-has-user-message.elo-chat-state .elo-product-shell {
+    padding-top: 90px;
   }
 }

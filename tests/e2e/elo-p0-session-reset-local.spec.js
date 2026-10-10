@@ -125,6 +125,137 @@ test("ELO P0 data e hora respondem local sem chat, conversas ou tts", async ({ p
   expect(ttsCalls).toBe(0);
 });
 
+const newChatViewports = [
+  { name: "desktop-1920x1080", width: 1920, height: 1080 },
+  { name: "desktop-1366x768", width: 1366, height: 768 },
+  { name: "desktop-narrow-804x700", width: 804, height: 700 },
+  { name: "tablet-boundary-768x900", width: 768, height: 900 },
+  { name: "tablet-641x800", width: 641, height: 800 },
+  { name: "mobile-412x915", width: 412, height: 915 },
+  { name: "mobile-390x844", width: 390, height: 844 },
+  { name: "mobile-360x800", width: 360, height: 800 }
+];
+
+test("ELO Novo chat acessivel, isolado e sem apagar historico em todos os viewports", async ({ page }, testInfo) => {
+  const conversationRequests = [];
+  page.on("request", (request) => {
+    if (/\/api\/elo\/conversations(?:\/|$)/.test(new URL(request.url()).pathname)) {
+      conversationRequests.push({ method: request.method(), url: request.url() });
+    }
+  });
+
+  await page.setViewportSize({ width: newChatViewports[0].width, height: newChatViewports[0].height });
+  await page.addInitScript(() => {
+    // Keep the mocked authenticated session stable for this visual-only fixture.
+    let validated = false;
+    Object.defineProperty(window, "ELO_AUTH_SESSION_VALIDATED", {
+      configurable: true,
+      get: () => validated,
+      set: (value) => { if (value === true) validated = true; }
+    });
+  });
+  await installSession(page, validToken());
+  await installAuthRoutes(page);
+  await waitForElo(page);
+  await page.waitForFunction(() => window.ELO_AUTH_SESSION_VALIDATED === true && document.body.classList.contains("elo-authenticated"));
+
+  for (const viewport of newChatViewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.waitForFunction(() => {
+      const button = document.querySelector("[data-elo-new-chat]");
+      return !!(window.EloAssistente && button && button.dataset.eloCoreBound === "true");
+    });
+    await page.evaluate(() => {
+      const api = window.EloAssistente;
+      api.startNewConversationForLayoutTest();
+      api.setCurrentConversationIdForTest("conv-p0");
+      api.appendMessageForLayoutTest("user", "pergunta sintetica anterior");
+      api.appendMessageForLayoutTest("assistant", "resposta sintetica anterior");
+    });
+    await expect(page.locator(".elo-messages .elo-message")).toHaveCount(2);
+
+    const before = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: box.width, height: box.height, display: style.display };
+      };
+      const header = rect(".elo-product-top");
+      const actions = rect(".elo-core-actions");
+      const messages = rect(".elo-messages");
+      const firstMessage = rect(".elo-messages .elo-message");
+      const newChat = document.querySelector("[data-elo-new-chat]");
+      const newChatBox = newChat && newChat.getBoundingClientRect();
+      const hit = newChatBox && document.elementFromPoint(newChatBox.x + newChatBox.width / 2, newChatBox.y + newChatBox.height / 2);
+      return {
+        header,
+        actions,
+        messages,
+        firstMessage,
+        mobileToggleDisplay: getComputedStyle(document.querySelector("[data-elo-mobile-menu-toggle]")).display,
+        mobileMediaMatches: matchMedia("(max-width: 768px)").matches,
+        sidebarDisplay: getComputedStyle(document.querySelector(".elo-desktop-sidebar")).display,
+        desktopNewChatVisible: !!newChatBox && newChatBox.width > 0 && newChatBox.height > 0,
+        desktopNewChatHit: !!hit && (hit === newChat || newChat.contains(hit))
+      };
+    });
+    if (viewport.width >= 769) {
+      expect(before.firstMessage.y).toBeGreaterThanOrEqual(before.header.bottom - 1);
+    }
+    if (viewport.width >= 769 && viewport.width <= 1100) {
+      expect(before.actions.bottom).toBeLessThanOrEqual(before.header.bottom + 1);
+    }
+    if (viewport.width <= 768) {
+      expect(before.mobileMediaMatches).toBe(true);
+      expect(before.mobileToggleDisplay).not.toBe("none");
+      expect(before.firstMessage.y).toBeGreaterThanOrEqual(before.header.bottom - 1);
+    }
+
+    const beforeScreenshot = await page.screenshot({ path: testInfo.outputPath(`${viewport.name}.png`), fullPage: false });
+    await testInfo.attach(`${viewport.name}-before-new-chat`, {
+      body: beforeScreenshot,
+      contentType: "image/png"
+    });
+
+    if (viewport.width <= 768) {
+      expect(before.sidebarDisplay).toBe("none");
+      const menuToggle = page.locator("[data-elo-mobile-menu-toggle]");
+      await expect(menuToggle).toBeVisible();
+      await menuToggle.click();
+      const newChatProxy = page.locator('[data-elo-mobile-menu-action="new-chat"]');
+      await expect(newChatProxy).toBeVisible();
+      const menuScreenshot = await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-menu.png`), fullPage: false });
+      await testInfo.attach(`${viewport.name}-new-chat-control`, {
+        body: menuScreenshot,
+        contentType: "image/png"
+      });
+      await newChatProxy.click();
+    } else {
+      expect(before.sidebarDisplay).not.toBe("none");
+      expect(before.desktopNewChatVisible).toBe(true);
+      expect(before.desktopNewChatHit).toBe(true);
+      await page.locator("[data-elo-new-chat]").click();
+    }
+
+    const afterNewChat = await page.evaluate(() => ({
+      currentId: window.EloAssistente.getCurrentConversationIdForTest(),
+      oldConversationCleared: window.EloAssistente.isConversationClearedForTest("conv-p0"),
+      visibleMessages: document.querySelectorAll(".elo-messages .elo-message").length
+    }));
+    expect(afterNewChat).toEqual({ currentId: "", oldConversationCleared: false, visibleMessages: 0 });
+
+    expect(conversationRequests.some((request) => request.method === "DELETE" && request.url.includes("/api/elo/conversations/conv-p0"))).toBe(false);
+
+    const afterScreenshot = await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-after-new-chat.png`), fullPage: false });
+    await testInfo.attach(`${viewport.name}-new-chat`, {
+      body: afterScreenshot,
+      contentType: "image/png"
+    });
+  }
+});
+
 
 
 
