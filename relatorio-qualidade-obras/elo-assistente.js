@@ -13081,14 +13081,16 @@
       .trim();
   }
 
-  const ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_ = /\b(?:suicid\w*|autoles\w*|automutil\w*|se mat\w*|tir(?:ar|ou) a propria vida|morte|assassin\w*|violenc\w*|doenc\w*|medic\w*|tratament\w*|consult\w*|hospital\w*|remed\w*|deficienc\w*|sofriment\w*|desmotiv\w*|deprimid\w*|depress\w*|trist\w*|terapi\w*|psicolog\w*|psiquiatr\w*|crise\s+(?:psicolog\w*|emocion\w*)|ansiedad\w*|desesper\w*|luto|solidao|acident\w*|traged\w*|abus\w*|assed\w*|racism\w*|discrimin\w*|preconceit\w*|religia\w*|deus|crenc\w*|guerr\w*|terrorism\w*|desastr\w*|traum\w*)\b/;
+  const ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_ = /\b(?:suicid\w*|autoles\w*|automutil\w*|se mat\w*|tir(?:ar|ou) a propria vida|morte|assassin\w*|violenc\w*|doenc\w*|doent\w*|medic\w*|tratament\w*|consult\w*|hospital\w*|remed\w*|deficienc\w*|sofriment\w*|desmotiv\w*|desanim\w*|deprimid\w*|depress\w*|trist\w*|terapi\w*|psicolog\w*|psiquiatr\w*|crise\s+(?:psicolog\w*|emocion\w*)|ansiedad\w*|desesper\w*|luto|solidao|acident\w*|traged\w*|abus\w*|assed\w*|racism\w*|discrimin\w*|preconceit\w*|religia\w*|deus|crenc\w*|guerr\w*|terrorism\w*|desastr\w*|traum\w*)\b/;
+  const ELO_SENSITIVE_HUMOR_DISTRESS_FRAME_PATTERN_ = /\b(?:se\s+(?:sentiu|sente|sentia)|(?:sentiu|sente|sentia)-se|(?:esta|estava|fica|ficou)\s+se\s+sentindo)\s+(?:muito\s+)?mal\b/;
 
   function sanitizeEloHumorAnswerForDisplay_(question, answer) {
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
     if (!isEloHumorRequest_(question)) return cleanAnswer;
 
     const normalizedAnswer = normalizeText(cleanAnswer);
-    if (!ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_.test(normalizedAnswer)) return cleanAnswer;
+    if (!ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_.test(normalizedAnswer) &&
+        !ELO_SENSITIVE_HUMOR_DISTRESS_FRAME_PATTERN_.test(normalizedAnswer)) return cleanAnswer;
 
     const safeVariant = chooseEloSafeHumorVariant_(question);
     return sanitizeEloAnswerForDisplay(safeVariant && (safeVariant.fullAnswer || safeVariant.shortAnswer) || "A régua pediu promoção: vivia acima da média.");
