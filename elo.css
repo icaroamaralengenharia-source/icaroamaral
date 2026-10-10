@@ -5196,12 +5196,10 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel {
   }
 
   html:not(.elo-intent-orcamento) body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-message {
-    min-height: 0;
     margin-bottom: 0;
   }
 
   html:not(.elo-intent-orcamento) body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-message-bubble {
-    min-height: 0;
     font-size: 14.5px;
     line-height: 1.5;
   }
@@ -5220,6 +5218,20 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel {
     min-width: 36px;
     min-height: 36px;
   }
+}
+
+/* Keep chat items content-sized inside the vertically scrolling message list. */
+body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-message {
+  flex: 0 0 auto;
+}
+
+body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-message:not(.is-typing) .elo-message-bubble {
+  height: auto;
+  min-height: calc(1.5em + 18px);
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 /* Compact authenticated mobile chat header; desktop and logged-out layouts remain unchanged. */
