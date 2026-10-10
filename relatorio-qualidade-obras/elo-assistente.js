@@ -10012,11 +10012,11 @@
               setPendingStockIaPlan(data.stockIaLaunchPlan);
             }
             ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
-            return sanitizeEloAnswerForDisplay(data.answer);
+            return sanitizeEloHumorAnswerForDisplay_(question, data.answer);
           }
           if (data && data.fallback && data.answer) {
             ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
-            return sanitizeEloAnswerForDisplay(data.answer);
+            return sanitizeEloHumorAnswerForDisplay_(question, data.answer);
           }
           if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
             return formatEloAttachmentErrors_(data.attachmentErrors);
@@ -10052,11 +10052,11 @@
           setPendingStockIaPlan(data.stockIaLaunchPlan);
         }
         ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
-        return sanitizeEloAnswerForDisplay(data.answer);
+        return sanitizeEloHumorAnswerForDisplay_(question, data.answer);
       }
       if (data && data.fallback && data.answer) {
         ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
-        return sanitizeEloAnswerForDisplay(data.answer);
+        return sanitizeEloHumorAnswerForDisplay_(question, data.answer);
       }
       if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
         return formatEloAttachmentErrors_(data.attachmentErrors);
@@ -13079,6 +13079,19 @@
       .join("\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+  }
+
+  const ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_ = /\b(?:suicid\w*|autoles\w*|automutil\w*|se mat\w*|tir(?:ar|ou) a propria vida|morte|assassin\w*|violenc\w*|doenc\w*|medic\w*|tratament\w*|consult\w*|hospital\w*|remed\w*|deficienc\w*|sofriment\w*|desmotiv\w*|deprimid\w*|depress\w*|trist\w*|terapi\w*|psicolog\w*|psiquiatr\w*|crise\s+(?:psicolog\w*|emocion\w*)|ansiedad\w*|desesper\w*|luto|solidao|acident\w*|traged\w*|abus\w*|assed\w*|racism\w*|discrimin\w*|preconceit\w*|religia\w*|deus|crenc\w*|guerr\w*|terrorism\w*|desastr\w*|traum\w*)\b/;
+
+  function sanitizeEloHumorAnswerForDisplay_(question, answer) {
+    const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
+    if (!isEloHumorRequest_(question)) return cleanAnswer;
+
+    const normalizedAnswer = normalizeText(cleanAnswer);
+    if (!ELO_SENSITIVE_HUMOR_DISPLAY_PATTERN_.test(normalizedAnswer)) return cleanAnswer;
+
+    const safeVariant = chooseEloSafeHumorVariant_(question);
+    return sanitizeEloAnswerForDisplay(safeVariant && (safeVariant.fullAnswer || safeVariant.shortAnswer) || "A régua pediu promoção: vivia acima da média.");
   }
 
   function normalizeEloSavePrompt(savePrompt) {
@@ -33967,7 +33980,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
-    const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
+    const cleanAnswer = sanitizeEloHumorAnswerForDisplay_(question, answer);
     const pendingSavePrompt = response && response.savePrompt !== undefined
       ? normalizeEloSavePrompt(response.savePrompt)
       : ELO_UI.pendingSavePrompt;
@@ -36441,6 +36454,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     buildConversationalResponseForTest: getConversationalResponse,
+    sanitizeEloHumorAnswerForDisplayForTest: sanitizeEloHumorAnswerForDisplay_,
     detectConversationalIntentForTest: detectConversationalIntent,
     buildTechnicalContinuationPromptForTest: buildEloTechnicalContinuationPrompt_,
     buildTechnicalContinuationQueryForTest: buildEloTechnicalContinuationQuery_,

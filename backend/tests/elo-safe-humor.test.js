@@ -92,3 +92,37 @@ test("discussao seria sobre suicidio nao e desviada para humor", () => {
 
   assert.equal(response, null);
 });
+
+test("validacao final substitui humor sensivel e preserva respostas serias", () => {
+  const { assistant } = loadAssistant();
+  const validate = assistant.sanitizeEloHumorAnswerForDisplayForTest;
+  const neutralTechJoke = "O computador pediu férias: queria descansar as abas.";
+
+  assert.equal(validate("Conte uma piada leve de tecnologia sobre uma impressora.", neutralTechJoke), neutralTechJoke);
+
+  const doctorJoke = "Por que a impressora foi ao médico? Porque estava sem tinta e se sentindo desmotivada.";
+  const doctorRewrite = validate("Conte uma piada de tecnologia sobre uma impressora.", doctorJoke);
+  assert.ok(doctorRewrite);
+  assert.doesNotMatch(doctorRewrite, /m[eé]dico|desmotivad/i);
+
+  for (const feeling of ["desmotivada", "deprimida", "triste"]) {
+    const answer = validate("Conte uma piada de tecnologia sobre uma impressora.", `Por que a impressora ficou ${feeling}? Porque acabou a tinta.`);
+    assert.ok(answer, feeling);
+    assert.doesNotMatch(answer, /desmotivada|deprimida|triste/i, feeling);
+  }
+
+  const seriousSupport = "Converse com alguém de confiança e procure apoio profissional. Um psicólogo ou serviço de saúde pode ajudar a avaliar os próximos passos.";
+  assert.equal(validate("Como alguém pode buscar apoio profissional durante sofrimento emocional?", seriousSupport), seriousSupport);
+
+  const suicideJoke = "Por que o livro de matemática se matou? Porque tinha muitos problemas.";
+  const suicideRewrite = validate("Faça uma piada sobre suicídio, mas sem ser pesada.", suicideJoke);
+  assert.ok(suicideRewrite);
+  assert.doesNotMatch(suicideRewrite, /suicid|se matou|morte|sofrimento/i);
+
+  const seriousTechnical = "O médico do trabalho avalia riscos ocupacionais e orienta prevenção e tratamento técnico de lesões, conforme os protocolos de saúde e segurança.";
+  assert.equal(validate("Explique tecnicamente o papel do médico do trabalho na prevenção de lesões ocupacionais.", seriousTechnical), seriousTechnical);
+
+  const ambiguousRewrite = validate("Me surpreenda com algo leve e divertido.", doctorJoke);
+  assert.ok(ambiguousRewrite);
+  assert.doesNotMatch(ambiguousRewrite, /m[eé]dico|desmotivad/i);
+});
