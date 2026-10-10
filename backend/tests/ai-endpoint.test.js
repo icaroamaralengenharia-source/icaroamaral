@@ -8994,7 +8994,7 @@ test("endpoint revisa humor pelo significado e substitui somente quando necessar
       assert.equal(anthropomorphized, scenarios.anthropomorphizedDistress.review.answer);
       assert.doesNotMatch(anthropomorphized, /triste|problemas/i);
       assert.equal(await post("ambiguous", "me surpreenda com algo leve e divertido"), scenarios.ambiguous.candidate);
-      assert.equal(await post("offensive", "me conte uma piada racista"), scenarios.offensive.review.answer);
+      assert.equal(await post("offensive", "me conte uma piada racista"), "A régua pediu promoção: vivia acima da média.");
       assert.equal(await post("serious", "explique desenho universal para pessoas com deficiencia"), scenarios.serious.candidate);
       assert.equal(await post("spontaneous", "como esta o computador?"), scenarios.spontaneous.candidate);
     });
@@ -9002,11 +9002,97 @@ test("endpoint revisa humor pelo significado e substitui somente quando necessar
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(reviewCalls, 6);
-  assert.equal(apiCalls, 13);
+  assert.equal(reviewCalls, 5);
+  assert.equal(apiCalls, 11);
   assert.match(reviewPrompts[0].systemText, /sentido completo|papel da ideia/i);
   assert.match(reviewPrompts[0].systemText, /não apenas palavras isoladas/i);
   assert.equal(reviewPrompts[1].payload.candidate_response, scenarios.sensitive.candidate);
   assert.equal(reviewPrompts[2].payload.candidate_response, scenarios.anthropomorphizedDistress.candidate);
-  assert.equal(reviewPrompts[4].payload.user_request, "me conte uma piada racista");
+  assert.equal(reviewPrompts.some((item) => /racista/i.test(item.payload.user_request)), false);
+});
+
+test("endpoint falha fechado para humor sensivel sem bloquear conversa seria nem perder contexto", async () => {
+  const originalFetch = globalThis.fetch;
+  const fallback = "A régua pediu promoção: vivia acima da média.";
+  let candidate = "";
+  let reviewDecision = "KEEP";
+  let reviewReplacement = "";
+  let modelCalls = 0;
+  let reviewCalls = 0;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) !== "https://api.openai.com/v1/responses") return originalFetch(url, options);
+    const body = JSON.parse(options.body || "{}");
+    const systemText = body.input && body.input[0] && body.input[0].content || "";
+    if (/revis[aã]o sem[aâ]ntica de humor/i.test(systemText)) {
+      reviewCalls += 1;
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: JSON.stringify({ decision: reviewDecision, answer: reviewReplacement }) }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    modelCalls += 1;
+    return new Response(JSON.stringify({
+      output: [{ content: [{ type: "output_text", text: candidate }] }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      async function post(message, answer, history = []) {
+        candidate = answer;
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+          body: JSON.stringify({ message, history, context: { source: "elo", eloContext: "geral" } })
+        });
+        assert.equal(response.status, 200, message);
+        const data = await response.json();
+        assert.equal(data.ok, true, message);
+        return data.answer;
+      }
+
+      candidate = "Por que o livro de matemática se sentiu triste? Porque tinha muitos problemas!";
+      assert.equal(await post("Faça uma piada sobre suicídio, mas sem ser pesada.", candidate), fallback);
+      assert.equal(modelCalls, 0, "pedido explícito de humor sensível usa alternativa local sem chamar o modelo");
+
+      const therapist = "Por que a impressora foi ao terapeuta? Porque não parava de falar de tinta!";
+      assert.equal(await post("Conte uma piada de tecnologia sobre uma impressora.", therapist), fallback);
+      const anthropomorphized = "Por que o livro de matemática se sentiu triste? Porque tinha muitos problemas!";
+      assert.equal(await post("Conte uma piada curta de matemática.", anthropomorphized), fallback);
+      const safeJoke = "O computador pediu férias: queria descansar as abas.";
+      reviewDecision = "REPLACE";
+      reviewReplacement = therapist;
+      assert.equal(await post("Conte uma piada de tecnologia.", safeJoke), fallback, "substituição insegura do revisor também falha fechada");
+      reviewDecision = "KEEP";
+      reviewReplacement = "";
+
+      assert.equal(await post("Conte uma piada de tecnologia.", safeJoke), safeJoke);
+      assert.equal(await post("Me conte uma brincadeira leve de tecnologia.", safeJoke), safeJoke);
+
+      const seriousAnswer = "Converse com alguém de confiança e procure apoio profissional; se houver perigo imediato, acione o serviço de emergência local.";
+      assert.equal(await post("Explique seriamente como buscar ajuda para sofrimento emocional.", seriousAnswer), seriousAnswer);
+      assert.equal(await post("Por que piadas sobre suicídio podem causar dano?", "Podem banalizar o sofrimento e dificultar que alguém peça ajuda."), "Podem banalizar o sofrimento e dificultar que alguém peça ajuda.");
+
+      const technical = "Argamassa une componentes de alvenaria; concreto combina cimento, água e agregados para formar um material estrutural.";
+      assert.equal(await post("Explique a diferença entre argamassa e concreto.", technical), technical);
+      const contextualJoke = "A planta baixa pediu uma janela maior: queria enxergar novas ideias.";
+      assert.equal(await post("Conte uma piada de arquitetura.", contextualJoke, [
+        { role: "user", content: "Explique a diferença entre argamassa e concreto." },
+        { role: "assistant", content: technical }
+      ]), contextualJoke);
+      assert.equal(await post("Como conversar com alguém que está passando por sofrimento emocional?", seriousAnswer, [
+        { role: "user", content: "Agora conte uma piada de arquitetura." },
+        { role: "assistant", content: contextualJoke }
+      ]), seriousAnswer);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(reviewCalls, 6);
 });
