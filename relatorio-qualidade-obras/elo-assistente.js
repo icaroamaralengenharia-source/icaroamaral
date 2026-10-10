@@ -27875,10 +27875,6 @@ function isEloResidentialNewPipelineEnabled_() {
       intent: "apoio_pratico",
       phrases: ["estou cansado", "estou cansada", "estou com pressa", "estou perdido", "estou perdida", "nao entendi", "não entendi", "estou confuso", "estou confusa", "ta dificil", "tá difícil", "esta complicado", "está complicado"]
     },
-    {
-      intent: "humor",
-      phrases: ["me conte uma piada", "conte uma piada", "conta uma piada", "piada"]
-    }
   ];
 
   const ELO_CONVERSATION_VARIATION_STATE = {};
@@ -27892,7 +27888,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return null;
     }
 
-    const variant = chooseConversationVariant(intent, getConversationVariants()[intent] || getConversationVariants().saudacao);
+    const variant = intent === "humor"
+      ? chooseEloSafeHumorVariant_(normalizedQuestion)
+      : chooseConversationVariant(intent, getConversationVariants()[intent] || getConversationVariants().saudacao);
     const adjustedVariant = isStandaloneMode() ? adaptConversationVariantForStandalone(variant, intent) : variant;
     const contextHint = getConversationContextHint(intent);
     const profileLine = !isStandaloneMode() && (intent === "saudacao" || intent === "apoio_pratico" || intent === "capacidades") ? getUserProfileContextLine() : "";
@@ -27934,11 +27932,6 @@ function isEloResidentialNewPipelineEnabled_() {
         fullAnswer: "Uso regras, memórias autorizadas, Biblioteca, Projetos, Linha do Tempo e Conceitos. Não envio essa conversa para backend nesta versão.",
         nextAction: "Use Ferramentas do Elo para ver ou exportar seus dados locais."
       },
-      humor: {
-        shortAnswer: "Claro.",
-        fullAnswer: "Por que o orçamento foi ao médico? Porque estava cheio de composição pendente.",
-        nextAction: ""
-      }
     };
 
     return Object.assign({}, variant, replacements[intent] || {});
@@ -28102,7 +28095,37 @@ function isEloResidentialNewPipelineEnabled_() {
       humor: [
         {
           shortAnswer: "Claro.",
-          fullAnswer: "Por que o orçamento foi ao médico? Porque estava cheio de composição pendente.",
+          fullAnswer: "A régua pediu promoção: vivia acima da média.",
+          nextAction: "",
+          sessionTheme: "conversa"
+        },
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "O 3 e o 4 combinaram de trabalhar em equipe: juntos, somaram 7.",
+          nextAction: "",
+          sessionTheme: "conversa"
+        },
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "O engenheiro levou uma régua à reunião: queria manter as ideias em escala.",
+          nextAction: "",
+          sessionTheme: "conversa"
+        },
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "O arquiteto abriu uma janela no projeto; entrou uma ideia nova.",
+          nextAction: "",
+          sessionTheme: "conversa"
+        },
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "Meu computador pediu mais espaço. Fechei algumas abas, e ele voltou a pensar com folga.",
+          nextAction: "",
+          sessionTheme: "conversa"
+        },
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "O gato virou arquiteto: tinha bom olho para planta e revisava cada maquete com a pata.",
           nextAction: "",
           sessionTheme: "conversa"
         }
@@ -28169,6 +28192,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function detectConversationalIntent(normalizedQuestion) {
     const compactQuestion = normalizedQuestion.replace(/[?!.,;:]+/g, "").trim();
+    if (isEloHumorRequest_(compactQuestion)) return "humor";
     for (let index = 0; index < ELO_CONVERSATION_INTENTS.length; index += 1) {
       const group = ELO_CONVERSATION_INTENTS[index];
       const matched = group.phrases.some(function (phrase) {
@@ -28182,6 +28206,37 @@ function isEloResidentialNewPipelineEnabled_() {
       }
     }
     return "";
+  }
+
+  function isEloHumorRequest_(question) {
+    const policy = window.EloCommunicationPolicy;
+    if (policy && typeof policy.isHumorRequest === "function") {
+      return policy.isHumorRequest(question);
+    }
+    const text = normalizeText(question);
+    const hasHumorTopic = /\b(piadas?|brincadeiras?|trocadilhos?|graca|engracad[oa]s?|divertid[oa]s?|humor|rir)\b/.test(text);
+    const directRequest = /\b(conta|conte|manda|cria|crie|inventa|invente|faz|faca|tenta|tente|surpreenda|me faz|me faca)\b/.test(text);
+    return hasHumorTopic && (directRequest || /^(?:(?:uma?|me\s+)?(?:piadas?|brincadeiras?|trocadilhos?)(?:\s+(?:sobre|de|com)\s+[^?!.]*)?|(?:algo|alguma coisa)\s+(?:bem\s+)?(?:leve|divertido|engracado))$/.test(text));
+  }
+
+  function chooseEloSafeHumorVariant_(question) {
+    const text = normalizeText(question);
+    const variants = getConversationVariants().humor;
+    const topics = [
+      { index: 1, terms: ["matematica", "numero", "numeros", "soma", "algebra"] },
+      { index: 2, terms: ["engenharia", "engenheiro", "obra", "concreto", "viga", "pilar"] },
+      { index: 3, terms: ["arquitetura", "arquiteto", "planta baixa"] },
+      { index: 4, terms: ["tecnologia", "computador", "celular", "software", "programacao", "aplicativo"] },
+      { index: 5, terms: ["animal", "animais", "gato", "cachorro", "capivara", "passaro"] }
+    ];
+    const topic = topics.find(function (entry) {
+      return entry.terms.some(function (term) { return text.indexOf(term) >= 0; });
+    });
+    if (topic) {
+      ELO_CONVERSATION_VARIATION_STATE.humor = (ELO_CONVERSATION_VARIATION_STATE.humor || 0) + 1;
+      return variants[topic.index] || variants[0];
+    }
+    return chooseConversationVariant("humor", variants);
   }
 
   function getContextualHelpResponse(normalizedQuestion) {
@@ -36315,6 +36370,8 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    buildConversationalResponseForTest: getConversationalResponse,
+    detectConversationalIntentForTest: detectConversationalIntent,
     buildTechnicalContinuationPromptForTest: buildEloTechnicalContinuationPrompt_,
     buildTechnicalContinuationQueryForTest: buildEloTechnicalContinuationQuery_,
     buildSocialFastPathForTest: buildEloSocialFastPathAnswer_,
