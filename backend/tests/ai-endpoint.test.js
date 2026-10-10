@@ -9096,3 +9096,74 @@ test("endpoint falha fechado para humor sensivel sem bloquear conversa seria nem
 
   assert.equal(reviewCalls, 6);
 });
+
+test("endpoint bloqueia enquadramento medico e emocional apenas em humor", async () => {
+  const originalFetch = globalThis.fetch;
+  const fallback = "A régua pediu promoção: vivia acima da média.";
+  let candidate = "";
+  let modelCalls = 0;
+  let reviewCalls = 0;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) !== "https://api.openai.com/v1/responses") return originalFetch(url, options);
+    const body = JSON.parse(options.body || "{}");
+    const systemText = body.input && body.input[0] && body.input[0].content || "";
+    if (/revis[aã]o sem[aâ]ntica de humor/i.test(systemText)) {
+      reviewCalls += 1;
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: JSON.stringify({ decision: "KEEP", answer: "" }) }] }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    modelCalls += 1;
+    return new Response(JSON.stringify({
+      output: [{ content: [{ type: "output_text", text: candidate }] }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      async function post(message, answer) {
+        candidate = answer;
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:5500" },
+          body: JSON.stringify({ message, history: [], context: { source: "elo", eloContext: "geral" } })
+        });
+        assert.equal(response.status, 200, message);
+        const data = await response.json();
+        assert.equal(data.ok, true, message);
+        return data.answer;
+      }
+
+      const neutralTechJoke = "O computador pediu férias: queria descansar as abas.";
+      assert.equal(await post("Conte uma piada leve de tecnologia sobre uma impressora.", neutralTechJoke), neutralTechJoke);
+
+      const doctorPunchline = "Por que a impressora foi ao médico? Porque estava sem tinta e se sentindo um pouco desmotivada!";
+      assert.equal(await post("Conte uma piada de tecnologia sobre uma impressora.", doctorPunchline), fallback);
+
+      for (const feeling of ["desmotivada", "deprimida", "triste"]) {
+        const emotionalPunchline = `Por que a impressora ficou ${feeling}? Porque acabou a tinta e pediu uma pausa.`;
+        assert.equal(await post("Conte uma piada de tecnologia sobre uma impressora.", emotionalPunchline), fallback, feeling);
+      }
+
+      const seriousSupport = "Converse com alguém de confiança e procure apoio profissional. Um psicólogo ou serviço de saúde pode ajudar a avaliar os próximos passos.";
+      assert.equal(await post("Como alguém pode buscar apoio profissional durante sofrimento emocional?", seriousSupport), seriousSupport);
+
+      const suicideJoke = "Por que o livro de matemática se matou? Porque tinha muitos problemas.";
+      assert.equal(await post("Faça uma piada sobre suicídio, mas sem ser pesada.", suicideJoke), fallback);
+
+      const seriousTechnical = "O médico do trabalho avalia riscos ocupacionais e orienta prevenção e tratamento técnico de lesões, conforme os protocolos de saúde e segurança.";
+      assert.equal(await post("Explique tecnicamente o papel do médico do trabalho na prevenção de lesões ocupacionais.", seriousTechnical), seriousTechnical);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(reviewCalls, 5, "somente pedidos de humor passam pela revisão de humor");
+  assert.equal(modelCalls, 7, "pedido explícito de piada suicida usa alternativa local sem chamar o modelo");
+});
