@@ -52,10 +52,12 @@ const functionNames = [
   "normalizeEloTtsPayload_",
   "playEloNeuralSpeechAudio_",
   "requestEloNeuralSpeech_",
+  "cancelEloSpeechRequest_",
   "stopAllEloSpeech_",
   "stopEloSpeechOutput_",
   "speakEloTextFallback_",
-  "speakEloText_"
+  "speakEloText_",
+  "appendEloSpeechAction_"
 ];
 const ttsFunctions = functionNames.map((name) => extractFunction(assistant, name)).join("\n");
 
@@ -74,8 +76,24 @@ function response({ ok = true, status = 200, contentType, jsonData, audioSize = 
 }
 
 function createHarness(responses, options = {}) {
-  const calls = { fetch: 0, audioPlay: 0, audioPause: 0, cancel: 0, speak: 0, createUrl: 0, revoke: [], urls: [], buttonStates: [] };
+  const calls = { fetch: 0, audioPlay: 0, audioPause: 0, audioLoad: 0, cancel: 0, speak: 0, createUrl: 0, revoke: [], urls: [], buttonStates: [], abort: 0 };
   const audioInstances = [];
+  function makeElement(tagName) {
+    const element = {
+      tagName,
+      dataset: {},
+      attributes: {},
+      listeners: {},
+      children: [],
+      textContent: "",
+      disabled: false,
+      addEventListener(name, listener) { (this.listeners[name] || (this.listeners[name] = [])).push(listener); },
+      appendChild(child) { this.children.push(child); return child; },
+      setAttribute(name, value) { this.attributes[name] = String(value); },
+      click() { (this.listeners.click || []).forEach((listener) => listener.call(this, { type: "click", target: this, currentTarget: this })); }
+    };
+    return element;
+  }
   const responseQueue = Array.isArray(responses) ? responses.slice() : [responses];
   class FakeAudio {
     constructor(source) {
@@ -99,6 +117,8 @@ function createHarness(responses, options = {}) {
       return Promise.resolve();
     }
     pause() { calls.audioPause += 1; this.paused = true; }
+    removeAttribute(name) { if (name === "src") this.src = ""; }
+    load() { calls.audioLoad += 1; }
   }
   class FakeUtterance {
     constructor(text) { this.text = text; this.lang = ""; this.rate = 1; this.pitch = 1; }
@@ -122,6 +142,10 @@ function createHarness(responses, options = {}) {
       revokeObjectURL(url) { calls.revoke.push(url); }
     },
     speechSynthesis: synthesis,
+    AbortController: class FakeAbortController {
+      constructor() { this.signal = { aborted: false }; }
+      abort() { this.signal.aborted = true; calls.abort += 1; }
+    },
     ELO_TTS_VOICE: ""
   };
   const context = {
@@ -130,6 +154,7 @@ function createHarness(responses, options = {}) {
     ELO_UI: {
       neuralSpeechAudio: null, neuralSpeechObjectUrl: "", speechShutdownRequested: false,
       speechSynthesisUtterance: null, speechSynthesisButton: null, speechSynthesisState: "idle",
+      speechRequestController: null,
       ttsAudit: null, voiceModeEnabled: false, voiceModeStatus: "idle", wakeContinuousState: "IDLE",
       activeSpeechGenerationId: 0, activeSpeechResponseId: "", assistantResponseSequence: 0
     },
@@ -140,8 +165,20 @@ function createHarness(responses, options = {}) {
     logEloMusicEvent_() {},
     getEloSpeechSynthesis_() { return synthesis; },
     getEloSpeechSynthesisUtteranceConstructor_() { return FakeUtterance; },
-    setEloSpeechButtonState_(_button, active) { calls.buttonStates.push(!!active); },
-    resetEloSpeechButton_(_button, _metadata) { context.ELO_UI.speechSynthesisButton = null; context.ELO_UI.speechSynthesisState = "idle"; },
+    createElement(tagName, className, text) { const element = makeElement(tagName); element.className = className || ""; element.textContent = text || ""; return element; },
+    setEloSpeechButtonState_(button, active) {
+      calls.buttonStates.push(!!active);
+      if (!button) return;
+      button.textContent = active ? "Parar" : "Ouvir";
+      button.dataset.eloSpeechState = active ? "speaking" : "idle";
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    },
+    resetEloSpeechButton_(button, _metadata) {
+      const target = button || context.ELO_UI.speechSynthesisButton;
+      if (target) context.setEloSpeechButtonState_(target, false);
+      if (!button || context.ELO_UI.speechSynthesisButton === button) context.ELO_UI.speechSynthesisButton = null;
+      context.ELO_UI.speechSynthesisState = "idle";
+    },
     setEloVoiceModeStatus_() {},
     setEloWakeContinuousState_() {},
     clearEloWakeRestartTimer_() {},
@@ -152,14 +189,23 @@ function createHarness(responses, options = {}) {
     setTimeout
   };
   vm.createContext(context);
-  return { api: vm.runInContext("(function(){" + ttsFunctions + "\nreturn { speak: speakEloText_, stop: stopEloSpeechOutput_, request: requestEloNeuralSpeech_, runtime: function(){return ELO_UI;}, audit: function(){return ELO_UI.ttsAudit;} }; })()", context), calls, audioInstances, synthesis, context };
+  return { api: vm.runInContext("(function(){" + ttsFunctions + "\nreturn { speak: speakEloText_, stop: stopEloSpeechOutput_, request: requestEloNeuralSpeech_, bindMessage: appendEloSpeechAction_, runtime: function(){return ELO_UI;}, audit: function(){return ELO_UI.ttsAudit;} }; })()", context), calls, audioInstances, synthesis, context };
 }
 
 async function settle() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function button() { return { disabled: false, textContent: "Ouvir", title: "" }; }
+function button() {
+  return {
+    disabled: false,
+    textContent: "Ouvir",
+    title: "",
+    dataset: {},
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+  };
+}
 
 test("audio/mpeg binário toca como neural sem ler JSON", async () => {
   const result = response({ contentType: "audio/mpeg" });
@@ -248,6 +294,7 @@ test("interrupção para áudio neural e revoga object URL", async () => {
   const url = audio.src;
   h.api.stop();
   assert.equal(h.calls.audioPause, 1);
+  assert.equal(h.calls.audioLoad, 1);
   assert.equal(audio.currentTime, 0);
   assert.equal(audio.src, "");
   assert.deepEqual(h.calls.revoke, [url]);
@@ -316,6 +363,114 @@ test("botão Ouvir/Parar mantém alternância de playback sem fallback indevido"
   assert.equal(h.calls.speak, 0);
   assert.equal(h.api.runtime().speechSynthesisState, "idle");
 });
+
+test("clique no Parar visível não inicia nova fala quando o estado global está stale", async () => {
+  const h = createHarness([response({ contentType: "audio/mpeg" }), response({ contentType: "audio/mpeg" })]);
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Resposta curta");
+  const control = message.children[0].children[0];
+  control.click();
+  await settle();
+  assert.equal(control.textContent, "Parar");
+  h.api.runtime().speechSynthesisState = "idle";
+  h.api.runtime().speechSynthesisButton = null;
+  control.click();
+  await settle();
+  assert.equal(h.calls.fetch, 1, "Parar must not issue another TTS request");
+  assert.equal(h.calls.audioPlay, 1);
+  assert.equal(h.calls.audioPause, 1);
+  assert.equal(h.calls.speak, 0);
+});
+
+test("clique no Parar durante loading aborta a requisição e ignora resposta tardia", async () => {
+  let resolveResponse;
+  const pendingResponse = new Promise((resolve) => { resolveResponse = resolve; });
+  const h = createHarness(pendingResponse);
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Parar durante loading");
+  const control = message.children[0].children[0];
+  control.click();
+  await settle();
+  const signal = h.calls.lastFetch[1].signal;
+  assert.ok(signal);
+  control.click();
+  assert.equal(signal.aborted, true);
+  resolveResponse(response({ contentType: "audio/mpeg" }).value);
+  await settle();
+  assert.equal(h.calls.audioPlay, 0);
+  assert.equal(h.calls.speak, 0);
+  assert.equal(control.textContent, "Ouvir");
+});
+
+test("término natural devolve o controle a Ouvir e libera o Object URL", async () => {
+  const h = createHarness(response({ contentType: "audio/mpeg" }));
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Fim natural");
+  const control = message.children[0].children[0];
+  control.click();
+  await settle();
+  const audio = h.audioInstances[0];
+  const ended = audio.onended;
+  assert.equal(control.textContent, "Parar");
+  ended();
+  assert.equal(control.textContent, "Ouvir");
+  assert.deepEqual(h.calls.revoke, [h.calls.urls[0].url]);
+});
+
+test("Parar seguido de Ouvir reutiliza o controle sem player duplicado", async () => {
+  const h = createHarness([response({ contentType: "audio/mpeg" }), response({ contentType: "audio/mpeg" })]);
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Interromper e repetir");
+  const control = message.children[0].children[0];
+  control.click();
+  await settle();
+  const firstAudio = h.audioInstances[0];
+  control.click();
+  assert.equal(firstAudio.paused, true);
+  assert.equal(control.textContent, "Ouvir");
+  control.click();
+  await settle();
+  assert.equal(h.calls.fetch, 2);
+  assert.equal(h.calls.audioPlay, 2);
+  assert.equal(h.audioInstances.filter((audio) => !audio.paused).length, 1);
+});
+
+test("cliques rápidos Ouvir/Parar não iniciam reprodução tardia nem duplicada", async () => {
+  const h = createHarness(response({ contentType: "audio/mpeg" }));
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Cliques rápidos");
+  const control = message.children[0].children[0];
+  control.click();
+  control.click();
+  await settle();
+  assert.equal(h.calls.fetch, 1);
+  assert.equal(h.calls.audioPlay, 0);
+  assert.equal(h.calls.speak, 0);
+  assert.equal(control.textContent, "Ouvir");
+});
+
+test("Parar interrompe fallback speechSynthesis", async () => {
+  const h = createHarness(response({ ok: false, status: 503, contentType: "application/json", jsonData: { error: "provider_down" } }));
+  const message = makeTestMessage();
+  h.api.bindMessage(message, "Fallback interrompível");
+  const control = message.children[0].children[0];
+  control.click();
+  await settle();
+  assert.equal(h.calls.speak, 1);
+  assert.equal(control.textContent, "Parar");
+  control.click();
+  assert.ok(h.calls.cancel >= 2);
+  assert.equal(control.textContent, "Ouvir");
+  assert.equal(h.calls.fetch, 1);
+});
+
+function makeTestMessage() {
+  return {
+    dataset: {},
+    children: [],
+    appendChild(child) { this.children.push(child); return child; }
+  };
+}
 
 test("fetch continua passando pela camada autenticada existente", () => {
   assert.match(assistant, /function fetchEloAuthenticated_\(url, options\)/);
