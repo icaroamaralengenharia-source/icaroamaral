@@ -5148,3 +5148,40 @@ test('ELO Action Bus RDO auth: sessao invalida bloqueia execute sem POST', async
   assert.equal(confirmed.commandBridge.error, 'invalid_session');
   assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 0);
 });
+
+test('ELO conversa temporaria nao cria memoria permanente automatica', async () => {
+  const calls = [];
+  const token = createEloHotfixToken();
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }) },
+    window: {
+      ELO_STANDALONE_MODE: true,
+      ELO_AUTH_TOKEN: token,
+      ELO_AUTH_SESSION_VALIDATED: true,
+      ELO_API_BASE_URL: 'https://backend.example'
+    },
+    fetch(url, options = {}) {
+      calls.push({ href: String(url), method: options.method || 'GET' });
+      return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, conversation: { id: 'conv-temporary' } }) });
+    }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCurrentConversationIdForTest('conv-temporary');
+  elo.appendMessageForLayoutTest('user', 'Para esta conversa, mantenha apenas no contexto desta conversa; não salve memória permanente. Lembre que o projeto sintético WEB-MEM-01 tem 20 m.');
+
+  await flushEloHotfixPromises();
+
+  assert.equal(elo.getTemporaryMemoryScopeForTest(), true);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/conversations/conv-temporary/messages')), true);
+  assert.equal(calls.some((call) => call.href.includes('/api/elo/memories')), false);
+});
+
+test('ELO identifica pedido explícito de contexto temporário e preserva conversa normal', () => {
+  const { elo } = loadEloContext();
+  const temporaryRequest = 'Para esta conversa de teste, mantenha apenas no contexto desta conversa; não salve memória permanente.';
+
+  assert.equal(elo.isConversationOnlyMemoryIntentForTest(temporaryRequest), true);
+  assert.equal(elo.isConversationOnlyMemoryIntentForTest('Use este contexto no projeto da obra.'), false);
+  assert.equal(elo.isConversationOnlyMemoryIntentForTest('Como a memória permanente funciona no produto?'), false);
+});

@@ -7083,6 +7083,15 @@ function chunkText_(text, size) {
   return chunks;
 }
 
+function hasEloConversationOnlyMemoryDirective_(message) {
+  const text = String(message || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!text) return false;
+  const conversationOnly = /\b(?:apenas|somente|so)\s+(?:no\s+contexto\s+)?(?:desta|dessa|da|na|esta|essa|atual)\s+conversa\b/.test(text) ||
+    /\b(?:mantenha|use|utilize|considere)\b.{0,100}\b(?:apenas|somente|so)\b.{0,100}\bcontexto\b.{0,60}\bconversa\b/.test(text);
+  const noPermanentMemory = /\b(?:nao|nunca)\s+(?:salve|salvar|guarde|guardar|grave|gravar|registre|registrar|armazene|armazenar|memorize|memorizar)\b.{0,100}\bmemoria\s+permanente\b/.test(text);
+  return conversationOnly && noPermanentMemory;
+}
+
 export function validateEloChatRequest_(body) {
   const message = clean_(body.message);
   const context = body.context && typeof body.context === "object" ? body.context : {};
@@ -7131,6 +7140,19 @@ export function validateEloChatRequest_(body) {
   const history = technicalContinuation
     ? filterEloTechnicalContinuationHistory_(normalizedHistory, technicalContinuation)
     : normalizedHistory;
+  const temporaryMemoryScope = context.memoryScope === "CONVERSATION_ONLY" ||
+    hasEloConversationOnlyMemoryDirective_(message) ||
+    history.some((item) => item.role === "user" && hasEloConversationOnlyMemoryDirective_(item.content));
+  const contextForPlanning = Object.assign({}, context, temporaryMemoryScope ? {
+    memoryScope: "CONVERSATION_ONLY",
+    memoriesSummary: "",
+    permanentUserMemorySummary: "",
+    relevantMemoriesSummary: "",
+    librarySummary: "",
+    documentsLibrarySummary: "",
+    workingMemorySummary: "",
+    technicalContinuation: null
+  } : {}, { history });
   const contextSize = JSON.stringify(context).length;
 
   if (!message) {
@@ -7159,7 +7181,7 @@ export function validateEloChatRequest_(body) {
 
   const proactivePolicy = getEloProactiveReasoningPolicy_();
   const proactiveReasoningPlan = proactivePolicy && typeof proactivePolicy.buildResponsePlan === "function"
-    ? proactivePolicy.buildResponsePlan(message, Object.assign({}, context, { history }), {})
+    ? proactivePolicy.buildResponsePlan(message, contextForPlanning, {})
     : null;
 
   return {
@@ -7173,13 +7195,14 @@ export function validateEloChatRequest_(body) {
         eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
         anonymousId: clean_(context.anonymousId || context.anonymous_id || body.anonymousId || body.anonymous_id).slice(0, 180),
-        memoriesSummary: cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
-        librarySummary: cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
+        memoryScope: temporaryMemoryScope ? "CONVERSATION_ONLY" : "",
+        memoriesSummary: temporaryMemoryScope ? "" : cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
+        librarySummary: temporaryMemoryScope ? "" : cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
         productContext: clean_(context.productContext || "").slice(0, 80),
         screenContext: clean_(context.screenContext || "").slice(0, 1200),
         productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
-        workingMemorySummary,
-        technicalContinuation,
+        workingMemorySummary: temporaryMemoryScope ? "" : workingMemorySummary,
+        technicalContinuation: temporaryMemoryScope ? null : technicalContinuation,
         imageAnalysisContext,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
         projectContext,
@@ -7330,6 +7353,7 @@ async function buildCanonicalPermanentUserMemorySummary_(store, identity, query,
 export async function getEloRelevantContext_({ payload, memoryStore, canonicalMemoryStore = null, canonicalMemoryIdentity = null, documents = [], attachmentErrors = [], metrics = null } = {}) {
   const safePayload = payload || {};
   const context = safePayload.context || {};
+  const conversationOnlyMemoryScope = context.memoryScope === "CONVERSATION_ONLY";
   const intent = safePayload.eloIntent || detectEloIntent_(safePayload.message, context, safePayload.history, {
     hasAttachments: Boolean(documents.length || attachmentErrors.length)
   });
@@ -7339,13 +7363,13 @@ export async function getEloRelevantContext_({ payload, memoryStore, canonicalMe
   const conversationSummary = buildConversationSummary_(safePayload.history);
   const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
   const vectorStartedAt = nowMs_();
-  const canonicalPermanentUserMemorySummary = await buildCanonicalPermanentUserMemorySummary_(canonicalMemoryStore, canonicalMemoryIdentity, query, {
+  const canonicalPermanentUserMemorySummary = conversationOnlyMemoryScope ? "" : await buildCanonicalPermanentUserMemorySummary_(canonicalMemoryStore, canonicalMemoryIdentity, query, {
     categories: intent.categories,
     keywords: contextKeywords,
     historyText: recentHistoryText,
     limit: 6
   });
-  const relevantMemoriesSummary = await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
+  const relevantMemoriesSummary = conversationOnlyMemoryScope ? "" : await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
     categories: intent.categories,
     keywords: contextKeywords,
     historyText: recentHistoryText,
@@ -7354,11 +7378,11 @@ export async function getEloRelevantContext_({ payload, memoryStore, canonicalMe
     metrics
   });
   if (metrics) metrics.memoryVectorMs += nowMs_() - vectorStartedAt;
-  const filteredLocalMemories = filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
+  const filteredLocalMemories = conversationOnlyMemoryScope ? "" : filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
     keywords: contextKeywords,
     historyText: recentHistoryText
   });
-  const libraryRelevantSummary = filterRelevantContextLines_(context.librarySummary, query, intent.categories, 5, {
+  const libraryRelevantSummary = conversationOnlyMemoryScope ? "" : filterRelevantContextLines_(context.librarySummary, query, intent.categories, 5, {
     keywords: contextKeywords,
     historyText: recentHistoryText
   });
