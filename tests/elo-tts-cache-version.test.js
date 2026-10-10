@@ -9,7 +9,7 @@ const html = fs.readFileSync(path.join(root, "elo.html"), "utf8");
 const serviceWorker = fs.readFileSync(path.join(root, "elo-sw.js"), "utf8");
 
 test("ELO neural TTS cache version is synchronized across page and service worker", () => {
-  const version = "20261010-safe-humor-v1";
+  const version = "20261010-safe-humor-v2";
   const scriptUrl = `relatorio-qualidade-obras/elo-assistente.js?v=${version}`;
   const workerUrl = `./elo-sw.js?v=${version}`;
 
@@ -19,5 +19,5 @@ test("ELO neural TTS cache version is synchronized across page and service worke
 
   assert.ok(!html.includes("elo-assistente.js?v=20261008-android-stock-routing-v1"));
   assert.ok(!serviceWorker.includes("elo-assistente.js?v=20261008-android-stock-routing-v1"));
-  assert.ok(serviceWorker.includes('const ELO_CACHE_NAME = "elo-web-offline-v33-20261010-safe-humor-v1";'));
+  assert.ok(serviceWorker.includes('const ELO_CACHE_NAME = "elo-web-offline-v34-20261010-safe-humor-v2";'));
 });

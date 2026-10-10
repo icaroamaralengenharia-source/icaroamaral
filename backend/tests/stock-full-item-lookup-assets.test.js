@@ -18,8 +18,8 @@ test("ELO shells and service worker use the Stock item lookup bridge cache versi
   assert.match(shell, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
   assert.match(standalone, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
   assert.match(serviceWorker, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
-  assert.match(shell, /elo-sw\.js\?v=20261010-safe-humor-v1/);
-  assert.match(serviceWorker, /const ELO_CACHE_NAME = "elo-web-offline-v33-20261010-safe-humor-v1"/);
+  assert.match(shell, /elo-sw\.js\?v=20261010-safe-humor-v2/);
+  assert.match(serviceWorker, /const ELO_CACHE_NAME = "elo-web-offline-v34-20261010-safe-humor-v2"/);
   assert.doesNotMatch(shell, /elo-command-bridge\.js\?v=20261008-stock-auth-refresh-v1/);
   assert.doesNotMatch(serviceWorker, /elo-command-bridge\.js\?v=20261008-stock-auth-refresh-v1/);
 });

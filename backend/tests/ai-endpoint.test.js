@@ -8811,6 +8811,7 @@ test("ELO prompt permanente exige humor seguro e preserva conversa sensivel seri
   assert.match(prompt, /Humor seguro/i);
   assert.match(prompt, /suic[ií]dio/i);
   assert.match(prompt, /sofrimento humano/i);
+  assert.match(prompt, /objeto antropomorfizado/i);
   assert.match(prompt, /Conversas s[eé]rias e [uú]teis .* continuam permitidas/i);
 });
 
@@ -8824,6 +8825,10 @@ test("endpoint revisa humor pelo significado e substitui somente quando necessar
     sensitive: {
       candidate: "Por que o livro de matemática se suicidou? Porque tinha muitos problemas.",
       review: { decision: "REPLACE", answer: "A régua pediu promoção: vivia acima da média." }
+    },
+    anthropomorphizedDistress: {
+      candidate: "Por que o livro de matemática estava triste? Porque ele tinha muitos problemas.",
+      review: { decision: "REPLACE", answer: "O 3 e o 4 combinaram de trabalhar em equipe: juntos, somaram 7." }
     },
     ambiguous: {
       candidate: "A régua pediu promoção: vivia acima da média.",
@@ -8888,6 +8893,9 @@ test("endpoint revisa humor pelo significado e substitui somente quando necessar
       const replaced = await post("sensitive", "conte uma piada de matematica");
       assert.equal(replaced, scenarios.sensitive.review.answer);
       assert.doesNotMatch(replaced, /suicid|morte|sofrimento/i);
+      const anthropomorphized = await post("anthropomorphizedDistress", "conte uma piada curta de matematica");
+      assert.equal(anthropomorphized, scenarios.anthropomorphizedDistress.review.answer);
+      assert.doesNotMatch(anthropomorphized, /triste|problemas/i);
       assert.equal(await post("ambiguous", "me surpreenda com algo leve e divertido"), scenarios.ambiguous.candidate);
       assert.equal(await post("offensive", "me conte uma piada racista"), scenarios.offensive.review.answer);
       assert.equal(await post("serious", "explique desenho universal para pessoas com deficiencia"), scenarios.serious.candidate);
@@ -8897,10 +8905,11 @@ test("endpoint revisa humor pelo significado e substitui somente quando necessar
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(reviewCalls, 5);
-  assert.equal(apiCalls, 11);
+  assert.equal(reviewCalls, 6);
+  assert.equal(apiCalls, 13);
   assert.match(reviewPrompts[0].systemText, /sentido completo|papel da ideia/i);
   assert.match(reviewPrompts[0].systemText, /não apenas palavras isoladas/i);
   assert.equal(reviewPrompts[1].payload.candidate_response, scenarios.sensitive.candidate);
-  assert.equal(reviewPrompts[3].payload.user_request, "me conte uma piada racista");
+  assert.equal(reviewPrompts[2].payload.candidate_response, scenarios.anthropomorphizedDistress.candidate);
+  assert.equal(reviewPrompts[4].payload.user_request, "me conte uma piada racista");
 });
