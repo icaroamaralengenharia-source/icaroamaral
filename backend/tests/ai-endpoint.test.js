@@ -36,6 +36,7 @@ import {
   routeEloRequest_,
   searchEloRelevantMemories_,
   searchPathologyKnowledge,
+  validateEloChatRequest_,
   shouldShowEloSavePrompt_
 } from "../src/app.js";
 
@@ -5856,8 +5857,9 @@ test("paginas reais do Elo carregam assistente com cache-buster da correcao", as
     readFile(new URL("../../relatorio-qualidade-obras/relatorio-qualidade-obras.html", import.meta.url), "utf8")
   ]);
 
-  pages.forEach((content) => {
-    assert.match(content, /elo-assistente\.js\?v=20260624-public-flow-v19/);
+  assert.match(pages[0], /elo-assistente\.js\?v=20261010-memory-scope-v1/);
+  pages.slice(1).forEach((content) => {
+    assert.match(content, /elo-assistente\.js\?v=[^"\s]+/);
     assert.doesNotMatch(content, /<script src="(?:relatorio-qualidade-obras\/)?elo-assistente\.js"><\/script>/);
   });
 });
@@ -7034,6 +7036,13 @@ test("frontend Elo fixa o referent recente na query final e remove historico con
     const sandbox = await loadEloOperationalSandbox_([]);
     const elo = sandbox.window.EloAssistente;
     let payload = null;
+    const testToken = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url") + "." +
+      Buffer.from(JSON.stringify({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600, sub: "synthetic-user" })).toString("base64url") + ".test";
+    sandbox.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: testToken } }));
+    sandbox.ELO_AUTH_TOKEN = testToken;
+    sandbox.ELO_AUTH_SESSION_VALIDATED = true;
+    sandbox.window.ELO_AUTH_SESSION_VALIDATED = true;
+    sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
     sandbox.fetch = async (url, options = {}) => {
       if (String(url).indexOf("/api/elo/chat") >= 0) {
         payload = JSON.parse(options.body);
@@ -7369,7 +7378,8 @@ test("frontend Elo higieniza nomes e flags internos antes de renderizar", async 
 test("frontend Elo preserva fallback online universal sem regex tecnica ampla", () => {
   const source = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
 
-  assert.match(source, /history:\s*getEloOnlineHistory\(question\)/);
+  assert.match(source, /const history = isTechnicalContinuation\s*\?/);
+  assert.match(source, /standaloneConversationHistory !== null \? standaloneConversationHistory : getEloOnlineHistory\(question\)/);
   assert.match(source, /if \(isStandaloneMode\(\) && intent === "apoio_pratico"\)/);
   assert.match(source, /function shouldUseCleanEloOnlineHistory_/);
   assert.match(source, /requestEloWebSearchAnswer_/);
@@ -7601,6 +7611,13 @@ test("Elo memoria mestre persiste depois de reload local", async () => {
 test("Elo envia memoriesSummary consolidado no payload online", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
   let chatPayload = null;
+  const testToken = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url") + "." +
+    Buffer.from(JSON.stringify({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600, sub: "synthetic-user" })).toString("base64url") + ".test";
+  sandbox.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: testToken } }));
+  sandbox.ELO_AUTH_TOKEN = testToken;
+  sandbox.ELO_AUTH_SESSION_VALIDATED = true;
+  sandbox.window.ELO_AUTH_SESSION_VALIDATED = true;
+  sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
 
   sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
     userName: "\u00cdcaro",
@@ -7633,6 +7650,48 @@ test("Elo envia memoriesSummary consolidado no payload online", async () => {
   assert.match(chatPayload.context.memoriesSummary, /respostas diretas/i);
 });
 
+test("Elo escopo somente-conversa omite memoria persistente do payload e da sincronizacao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const calls = [];
+  let chatPayload = null;
+  const testToken = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url") + "." +
+    Buffer.from(JSON.stringify({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600, sub: "synthetic-user" })).toString("base64url") + ".test";
+  sandbox.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: testToken } }));
+  sandbox.ELO_AUTH_TOKEN = testToken;
+  sandbox.ELO_AUTH_SESSION_VALIDATED = true;
+  sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
+  sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
+    userName: "PRIVATE_PROFILE_MARKER",
+    mainProject: "PRIVATE_PROJECT_MARKER",
+    answerStyle: "curtas"
+  }));
+  sandbox.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+    { id: "private-memory", text: "PRIVATE_MEMORY_MARKER", category: "pessoa", importance: "alta", createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" }
+  ]));
+  sandbox.fetch = async (url, options = {}) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.indexOf("/api/elo/chat") >= 0) {
+      chatPayload = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ ok: true, answer: "ok", savePrompt: { show: false } }) };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  sandbox.window.fetch = sandbox.fetch;
+
+  await sandbox.window.EloAssistente.requestOnlineAnswerForTest(
+    "Para esta conversa de teste, use o projeto sintético WEB-MEM-01 apenas no contexto desta conversa; não salve memória permanente."
+  );
+
+  assert.ok(chatPayload);
+  assert.equal(chatPayload.context.memoryScope, "CONVERSATION_ONLY");
+  assert.equal(chatPayload.context.memoriesSummary, "");
+  assert.equal(chatPayload.context.workingMemorySummary, "");
+  assert.equal(chatPayload.context.technicalContinuation, undefined);
+  assert.doesNotMatch(JSON.stringify(chatPayload), /PRIVATE_(?:PROFILE|PROJECT|MEMORY)_MARKER/);
+  assert.equal(calls.some((url) => url.includes("/api/elo/memories")), false);
+});
+
 test("Elo system prompt recebe memoriesSummary consolidado", () => {
   const prompt = buildEloSystemPrompt_({
     eloContext: "geral",
@@ -7643,6 +7702,44 @@ test("Elo system prompt recebe memoriesSummary consolidado", () => {
   assert.match(prompt, /Thor/i);
   assert.match(prompt, /Photo Bridge/i);
   assert.match(prompt, /respostas diretas/i);
+});
+
+test("Elo escopo somente-conversa bloqueia memórias locais, vetoriais e canônicas", async () => {
+  const validation = validateEloChatRequest_({
+    message: "Para esta conversa de teste, use o projeto sintético WEB-MEM-01 apenas no contexto desta conversa; não salve memória permanente.",
+    history: [],
+    context: {
+      memoriesSummary: "PRIVATE_LOCAL_MEMORY_MARKER",
+      permanentUserMemorySummary: "PRIVATE_CANONICAL_MEMORY_MARKER",
+      relevantMemoriesSummary: "PRIVATE_VECTOR_MEMORY_MARKER",
+      librarySummary: "PRIVATE_LIBRARY_MARKER",
+      workingMemorySummary: "PRIVATE_SESSION_MEMORY_MARKER",
+      technicalContinuation: { activeTopic: "PRIVATE_SESSION_TOPIC" }
+    }
+  });
+
+  assert.equal(validation.ok, true);
+  assert.equal(validation.payload.context.memoryScope, "CONVERSATION_ONLY");
+  assert.equal(validation.payload.context.memoriesSummary, "");
+  assert.equal(validation.payload.context.librarySummary, "");
+  assert.equal(validation.payload.context.workingMemorySummary, "");
+  assert.equal(validation.payload.context.technicalContinuation, null);
+  assert.doesNotMatch(JSON.stringify(validation.payload.context.proactiveReasoningPlan || {}), /PRIVATE_/);
+
+  let memoryReads = 0;
+  const result = await getEloRelevantContext_({
+    payload: validation.payload,
+    memoryStore: { search() { memoryReads += 1; return []; } },
+    canonicalMemoryStore: { search() { memoryReads += 1; return []; } },
+    canonicalMemoryIdentity: { userId: "synthetic-user" }
+  });
+
+  assert.equal(memoryReads, 0);
+  assert.equal(result.context.permanentUserMemorySummary, "");
+  assert.equal(result.context.relevantMemoriesSummary, "");
+  assert.equal(result.context.libraryRelevantSummary, "");
+  const prompt = buildEloSystemPrompt_(Object.assign({}, validation.payload.context, result.context));
+  assert.doesNotMatch(prompt, /PRIVATE_(?:LOCAL_MEMORY|CANONICAL_MEMORY|VECTOR_MEMORY|LIBRARY_MARKER)/);
 });
 
 test("Elo backend nao usa perfil hardcoded como fonte de verdade", async () => {
