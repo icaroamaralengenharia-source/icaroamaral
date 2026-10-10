@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>ELO chat bubble visual fixture</title>
+    <link rel="stylesheet" href="../../elo.css?v=20261010-chat-bubbles-v1">
+    <link rel="stylesheet" href="../../relatorio-qualidade-obras/elo-sentinel-ui.css">
+  </head>
+  <body data-elo-product="chat" class="elo-authenticated elo-chat-state elo-has-user-message">
+    <aside class="elo-desktop-sidebar" aria-hidden="true"></aside>
+    <main class="elo-product-shell" aria-label="Fixture visual sintética do ELO">
+      <section class="elo-product-center">
+        <div class="elo-product-heading">
+          <h1 class="elo-hero-title">Conversa</h1>
+        </div>
+        <div class="elo-product-chat">
+          <section class="elo-standalone-panel is-chat-active" aria-label="Conversa sintética">
+            <div class="elo-messages" aria-live="polite" aria-label="Mensagens sintéticas">
+              <article class="elo-message user" data-case="short">
+                <div class="elo-message-bubble">Olá, ELO.</div>
+              </article>
+              <article class="elo-message user" data-case="two-lines">
+                <div class="elo-message-bubble">Linha um.&#10;Linha dois com acentos: ação, coração, português.</div>
+              </article>
+              <article class="elo-message user" data-case="long">
+                <div class="elo-message-bubble">Esta mensagem sintética longa verifica altura automática, quebra de linha, padding e separação dos balões em uma conversa extensa. Ela deve permanecer integralmente legível em todos os tamanhos de tela, sem sobreposição com mensagens vizinhas. Esta mensagem sintética longa verifica altura automática, quebra de linha, padding e separação dos balões em uma conversa extensa. Ela deve permanecer integralmente legível em todos os tamanhos de tela, sem sobreposição com mensagens vizinhas. Esta mensagem sintética longa verifica altura automática, quebra de linha, padding e separação dos balões em uma conversa extensa. Ela deve permanecer integralmente legível em todos os tamanhos de tela, sem sobreposição com mensagens vizinhas.</div>
+              </article>
+              <article class="elo-message user" data-case="accents-punctuation">
+                <div class="elo-message-bubble">Ação, precisão, fundação e concreto: tudo certo? Sim — texto com acentos, vírgulas, dois-pontos e pontuação final.</div>
+              </article>
+              <article class="elo-message user" data-case="uuid">
+                <div class="elo-message-bubble">a1234567-89ab-cdef-0123-456789abcdef-a1234567-89ab-cdef-0123-456789abcdef-a1234567-89ab-cdef-0123-456789abcdef</div>
+              </article>
+              <article class="elo-message user" data-case="unbroken">
+                <div class="elo-message-bubble">ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789</div>
+              </article>
+              <article class="elo-message assistant" data-case="multi-paragraph">
+                <img class="elo-mascot-avatar" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="" aria-hidden="true">
+                <div class="elo-message-bubble">Primeiro parágrafo técnico: conferir cotas, alinhamentos e dimensões da estrutura antes da execução.&#10;&#10;Segundo parágrafo: registrar as verificações e manter a sequência de trabalho documentada.</div>
+              </article>
+              <article class="elo-message assistant" data-case="listen-button">
+                <img class="elo-mascot-avatar" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="" aria-hidden="true">
+                <div class="elo-message-bubble">Resposta sintética com controle Ouvir para validar o espaço e o alinhamento do botão. A mensagem continua com quebra natural em telas estreitas.</div>
+                <div class="elo-message-actions elo-speech-actions">
+                  <button type="button" class="elo-speech-button">Ouvir</button>
+                </div>
+              </article>
+              <article class="elo-message assistant" data-case="tts-active">
+                <img class="elo-mascot-avatar" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="" aria-hidden="true">
+                <div class="elo-message-bubble">Estado visual sintético de reprodução ativa: o controle Parar fica ao lado da resposta enquanto o texto permanece inteiro.</div>
+                <div class="elo-message-actions elo-speech-actions">
+                  <button type="button" class="elo-speech-button is-playing" aria-pressed="true">Parar</button>
+                </div>
+              </article>
+            </div>
+            <form class="elo-input-row" aria-label="Entrada sintética">
+              <button type="button" class="elo-attach-button">Anexar</button>
+              <textarea class="elo-input" aria-label="Mensagem"></textarea>
+              <button type="button" class="elo-send-button">Enviar</button>
+            </form>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
