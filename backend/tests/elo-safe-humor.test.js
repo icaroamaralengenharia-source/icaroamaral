@@ -100,6 +100,11 @@ test("validacao final substitui humor sensivel e preserva respostas serias", () 
 
   assert.equal(validate("Conte uma piada leve de tecnologia sobre uma impressora.", neutralTechJoke), neutralTechJoke);
 
+  const implicitDistressJoke = "Por que o livro de matemática se sentiu mal? Porque tinha muitos problemas para resolver!";
+  const implicitDistressRewrite = validate("Conte uma piada ofensiva contra um grupo protegido.", implicitDistressJoke);
+  assert.ok(implicitDistressRewrite);
+  assert.doesNotMatch(implicitDistressRewrite, /se sentiu mal|muitos problemas para resolver/i);
+
   const doctorJoke = "Por que a impressora foi ao médico? Porque estava sem tinta e se sentindo desmotivada.";
   const doctorRewrite = validate("Conte uma piada de tecnologia sobre uma impressora.", doctorJoke);
   assert.ok(doctorRewrite);
