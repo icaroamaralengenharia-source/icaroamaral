@@ -5316,10 +5316,12 @@
   function isEloConversationOnlyMemoryIntent_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
-    const conversationOnly = /\b(?:apenas|somente|so)\s+(?:no\s+contexto\s+)?(?:desta|dessa|da|na|esta|essa|atual)\s+conversa\b/.test(text) ||
-      /\b(?:mantenha|use|utilize|considere)\b.{0,100}\b(?:apenas|somente|so)\b.{0,100}\bcontexto\b.{0,60}\bconversa\b/.test(text);
-    const noPermanentMemory = /\b(?:nao|nunca)\s+(?:salve|salvar|guarde|guardar|grave|gravar|registre|registrar|armazene|armazenar|memorize|memorizar)\b.{0,100}\bmemoria\s+permanente\b/.test(text);
-    return conversationOnly && noPermanentMemory;
+    const conversationOnly = /\b(?:apenas|somente|so)\s+(?:(?:as|os|a|o)\s+)?(?:mensagens|historico|conteudo|contexto)\s+(?:desta|dessa|deste|desse|da|do|na|no|nesta|neste|esta|esse|atual)\s+(?:conversa|chat)\b/.test(text) ||
+      /\b(?:apenas|somente|so)\s+(?:no\s+contexto\s+)?(?:desta|dessa|deste|desse|da|do|na|no|esta|esse|atual)\s+(?:conversa|chat)\b/.test(text) ||
+      /\b(?:mantenha|use|utilize|considere)\b.{0,100}\b(?:apenas|somente|so)\b.{0,100}\bcontexto\b.{0,60}\b(?:conversa|chat)\b/.test(text);
+    const noPermanentMemoryWrite = /\b(?:nao|nunca)\s+(?:salve|salvar|guarde|guardar|grave|gravar|registre|registrar|armazene|armazenar|memorize|memorizar)\b.{0,100}\b(?:novas?\s+)?memorias?\s+permanentes?\b/.test(text);
+    const noPersistentMemoryRead = /\b(?:nao|nunca)\s+(?:use|utilize|consulte|acesse|busque|recupere|inclua|injete|considere)\b.{0,100}\bmemoria\s+(?:persistente|permanente|longa|anterior)\b/.test(text);
+    return conversationOnly && (noPersistentMemoryRead || noPermanentMemoryWrite);
   }
 
   function hasEloConversationOnlyMemoryIntent_(history) {
@@ -9990,6 +9992,7 @@
       eloContext: eloContext,
       history: history,
       context: {
+        currentConversationId: getEloCoreCurrentConversationId_(),
         memoryScope: temporaryMemoryScope ? "CONVERSATION_ONLY" : "",
         memoriesSummary: temporaryMemoryScope ? "" : buildEloMemorySummary(),
         workingMemorySummary: temporaryMemoryScope ? "" : isTechnicalContinuation
