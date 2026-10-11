@@ -3908,7 +3908,25 @@
   }
   function isEloCoreBootstrapSnapshotStale_(snapshot) { return !!(snapshot && ((snapshot.generation && snapshot.generation !== ELO_UI.coreBootstrapGeneration) || Number(snapshot.revision) !== Number(ELO_UI.coreConversationRevision || 0))); }
   function shouldEloCoreSkipStaleConversationRestore_(snapshot) { return isEloCoreBootstrapSnapshotStale_(snapshot) && (ELO_UI.userInteractedSinceBootstrap || getEloCoreUserMessageCount_() > 0 || sanitizeUserText(ELO_UI.coreConversationId || "") !== sanitizeUserText(snapshot && snapshot.conversationId || "")); }
-  function loadEloCoreConversation_(id, options) { const conversationId = validateEloCoreConversationPointer_(id); if (!conversationId) return Promise.resolve(false); const snapshot = Object.assign({ conversationId: conversationId, generation: ELO_UI.coreBootstrapGeneration, revision: ELO_UI.coreConversationRevision }, options || {}); return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { if (shouldEloCoreSkipStaleConversationRestore_(snapshot)) { recordEloCoreReliabilityEvent_("conversation_restore_skipped", { reason: "stale_bootstrap", conversationId: conversationId }); return false; } setEloCoreCurrentConversationId_(conversationId); replayEloCoreMessages_(data.messages || []); return true; }).catch(function () { if (!shouldEloCoreSkipStaleConversationRestore_(snapshot)) setEloCoreCurrentConversationId_(""); return false; }); }
+  function loadEloCoreConversation_(id, options) {
+    const conversationId = validateEloCoreConversationPointer_(id);
+    if (!conversationId) return Promise.resolve(false);
+    const snapshot = Object.assign({ conversationId: conversationId, generation: ELO_UI.coreBootstrapGeneration, revision: ELO_UI.coreConversationRevision }, options || {});
+    return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) {
+      if (snapshot.historyLoadSequence && snapshot.historyLoadSequence !== ELO_UI.coreHistoryLoadSequence) return false;
+      if (shouldEloCoreSkipStaleConversationRestore_(snapshot)) {
+        recordEloCoreReliabilityEvent_("conversation_restore_skipped", { reason: "stale_bootstrap", conversationId: conversationId });
+        return false;
+      }
+      setEloCoreCurrentConversationId_(conversationId);
+      replayEloCoreMessages_(data.messages || []);
+      return true;
+    }).catch(function (error) {
+      if (!snapshot.userInitiated && !shouldEloCoreSkipStaleConversationRestore_(snapshot)) setEloCoreCurrentConversationId_("");
+      recordEloCoreReliabilityEvent_("conversation_restore_failed", { conversationId: conversationId, status: Number(error && error.status) || 0 });
+      return false;
+    });
+  }
   function loadEloCoreMemories_() { return eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { ELO_UI.coreMemories = data.memories || []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = true; recordEloCoreReliabilityEvent_("memory_loaded", { count: ELO_UI.coreMemories.length }); return ELO_UI.coreMemories; }).catch(function (error) { ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "load_failed" }); setEloCoreAuthStatus_("Nao consegui carregar suas memorias agora", true); return []; }); }
   function ensureEloCoreAuthMerge_() { if (!getEloCoreAuthToken_()) return Promise.resolve(false); if (ELO_UI.coreAuthMergePromise) return ELO_UI.coreAuthMergePromise; ELO_UI.coreAuthMergePromise = eloCoreFetch_("/api/elo/identity/merge", { method: "POST", body: JSON.stringify({ anonymousId: getEloCoreAnonymousId_() }) }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); recordEloCoreReliabilityEvent_("identity_merged", { authenticated: true }); return true; }).catch(function (error) { recordEloCoreReliabilityEvent_("identity_merge_failed", { reason: error && error.message ? error.message : "merge_failed" }); return false; }); return ELO_UI.coreAuthMergePromise; }
   function getEloCoreSupabaseConfig_() {
@@ -4386,13 +4404,21 @@
     closeEloCoreUtilityPanel_({ preserveScroll: true });
   }
 
+  function markEloCoreUtilityNavigation_() {
+    ELO_UI.userInteractedSinceBootstrap = true;
+    ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1;
+  }
+
   function showEloCoreHistory_(event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
+    markEloCoreUtilityNavigation_();
     removeTypingIndicator();
     eloCoreFetch_("/api/elo/conversations?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) {
       const panel = renderEloCoreUtilityPanel_("history", "Historico de conversas");
       if (!panel) return;
       const list = createElement("div", "elo-history-list");
+      const feedback = createElement("p", "elo-history-feedback");
+      feedback.setAttribute("aria-live", "polite");
       const conversations = (data.conversations || []).filter(function (conversation) { return conversation && conversation.archived !== true && conversation.removed !== true && !isEloCoreConversationCleared_(conversation.id); });
       if (!conversations.length) {
         list.appendChild(createElement("p", "elo-history-summary", "Ainda nao ha conversas salvas neste dispositivo."));
@@ -4409,10 +4435,19 @@
         archiveButton.type = "button";
         openButton.addEventListener("click", function (event) {
           if (event) { event.preventDefault(); event.stopPropagation(); }
+          const historyLoadSequence = Number(ELO_UI.coreHistoryLoadSequence || 0) + 1;
+          ELO_UI.coreHistoryLoadSequence = historyLoadSequence;
+          ELO_UI.userInteractedSinceBootstrap = true;
+          ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1;
+          feedback.textContent = "";
           openButton.disabled = true;
+          openButton.textContent = "Abrindo…";
           unmarkEloCoreConversationCleared_(conversation.id);
-          loadEloCoreConversation_(conversation.id).then(function (opened) {
-            if (!opened) openButton.disabled = false;
+          loadEloCoreConversation_(conversation.id, { userInitiated: true, historyLoadSequence: historyLoadSequence }).then(function (opened) {
+            if (opened || historyLoadSequence !== ELO_UI.coreHistoryLoadSequence) return;
+            openButton.disabled = false;
+            openButton.textContent = "Abrir";
+            feedback.textContent = "Não foi possível abrir esta conversa agora. Tente novamente.";
           });
         });
         archiveButton.addEventListener("click", function (event) {
@@ -4428,12 +4463,14 @@
         item.appendChild(actions);
         list.appendChild(item);
       });
+      panel.appendChild(feedback);
       panel.appendChild(list);
     }).catch(function () { appendMessage("system", "Nao consegui carregar o historico agora."); });
   }
 
   function showEloCoreMemoryPanel_(event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
+    markEloCoreUtilityNavigation_();
     loadEloCoreMemories_().then(function (memories) {
       const disabled = isEloCoreMemoryDisabled_();
       const panel = renderEloCoreUtilityPanel_("memory", disabled ? "Memoria do ELO desativada" : "Memoria do ELO");
@@ -4451,6 +4488,7 @@
       });
       clearButton.addEventListener("click", function (event) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
+        if (typeof window.confirm !== "function" || !window.confirm("Limpar todas as memórias salvas?")) return;
         clearButton.disabled = true;
         eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () {
           ELO_UI.coreMemories = [];
@@ -4462,20 +4500,32 @@
       list.appendChild(actions);
       if (!memories || !memories.length) list.appendChild(createElement("p", "elo-history-summary", disabled ? "A memoria esta desativada." : "Ainda nao ha memorias salvas."));
       (memories || []).slice(0, 16).forEach(function (memory) {
-        const item = createElement("button", "elo-inline-button", memory.category + ": " + sanitizeUserText(memory.memory_value).slice(0, 90));
-        item.type = "button";
-        item.title = "Clique para apagar";
-        item.addEventListener("click", function (event) {
+        const item = createElement("article", "elo-memory-item");
+        const content = createElement("p", "elo-memory-content", formatEloCoreMemoryForDisplay_(memory));
+        const itemActions = createElement("div", "elo-memory-actions");
+        const deleteButton = createElement("button", "elo-inline-button elo-memory-delete", "Excluir memória");
+        deleteButton.type = "button";
+        deleteButton.setAttribute("aria-label", "Excluir memória");
+        deleteButton.addEventListener("click", function (event) {
           if (event) { event.preventDefault(); event.stopPropagation(); }
-          item.disabled = true;
+          if (typeof window.confirm !== "function" || !window.confirm("Excluir esta memória?")) return;
+          deleteButton.disabled = true;
           eloCoreFetch_("/api/elo/memories/" + encodeURIComponent(memory.id) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () {
             loadEloCoreMemories_().then(function () { showEloCoreMemoryPanel_(); });
-          }).catch(function () { item.disabled = false; });
+          }).catch(function () { deleteButton.disabled = false; });
         });
+        itemActions.appendChild(deleteButton);
+        item.appendChild(content);
+        item.appendChild(itemActions);
         list.appendChild(item);
       });
       panel.appendChild(list);
     }).catch(function () { appendMessage("system", "Nao consegui carregar a memoria agora."); });
+  }
+  function formatEloCoreMemoryForDisplay_(memory) {
+    return sanitizeUserText(memory && memory.memory_value || "")
+      .replace(/^\s*(?:technical_context|profile)\s*:\s*/i, "")
+      .slice(0, 90);
   }
   function buildEloCoreMemoryRecallResponse_(question) {
     const text = normalizeText(question || "");
