@@ -1219,6 +1219,9 @@ export function createApp(options = {}) {
   const obraReportTransactionalService = options.obraReportTransactionalService || (rdoRepository ? createObraReportTransactionalService({ rdoRepository }) : defaultObraReportTransactionalService);
   const documentSupabaseClient = options.documentSupabaseClient || rdoSupabaseClient || ((env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? getSupabaseClient(env) : null);
   const documentRepository = options.documentRepository || (documentSupabaseClient ? createSupabaseObraReportDocumentRepository({ client: documentSupabaseClient }) : null);
+  const rdoWorkScopeValidator = options.rdoWorkScopeValidator ||
+    (rdoRepository && typeof rdoRepository.assertProjectScope === "function" ? rdoRepository.assertProjectScope.bind(rdoRepository) : null) ||
+    (documentRepository && typeof documentRepository.validateWork === "function" ? documentRepository.validateWork.bind(documentRepository) : null);
   const documentOrchestrator = options.documentOrchestrator || (documentRepository
     ? createObraReportReportOrchestrator({
       documentRepository,
@@ -1776,6 +1779,26 @@ export function createApp(options = {}) {
     };
   }
 
+  async function assertRdoWorkScope_(context, projectId) {
+    const id = clean_(projectId);
+    if (!id) throw Object.assign(new Error("rdo_project_required"), { status: 400 });
+    if (typeof rdoWorkScopeValidator !== "function") {
+      throw Object.assign(new Error("rdo_work_scope_not_configured"), { status: 503 });
+    }
+    const work = await rdoWorkScopeValidator(context, id);
+    if (!work) throw Object.assign(new Error("rdo_project_not_found"), { status: 404 });
+    if (work && work.ok === false) {
+      throw Object.assign(new Error(clean_(work.error) || "rdo_project_not_found"), { status: Number(work.status) || 404 });
+    }
+    return work;
+  }
+
+  async function getScopedRdo_(context, id) {
+    const rdo = await obraReportTransactionalService.getRdo(context, id);
+    await assertRdoWorkScope_(context, rdo && rdo.project_id);
+    return rdo;
+  }
+
   async function requireCanonicalObraReportAuth_(request, response, next) {
     try {
       const context = request.eloAuthContext && request.eloAuthContext.ok
@@ -2112,7 +2135,10 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdo = await obraReportTransactionalService.createRdo(buildCanonicalRdoContext_(request), request.body || {});
+      const context = buildCanonicalRdoContext_(request);
+      const body = request.body || {};
+      await assertRdoWorkScope_(context, body.projectId || body.project_id);
+      const rdo = await obraReportTransactionalService.createRdo(context, body);
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_created", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO criado", description: "Referencia de RDO criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, rdo });
     } catch (error) {
@@ -2122,7 +2148,11 @@ export function createApp(options = {}) {
 
   app.get("/api/obrareport/rdos", async (request, response) => {
     try {
-      const rdos = await obraReportTransactionalService.listRdos(buildCanonicalRdoContext_(request), request.query || {});
+      const context = buildCanonicalRdoContext_(request);
+      const filters = request.query || {};
+      const projectId = clean_(filters.projectId || filters.project_id);
+      if (projectId) await assertRdoWorkScope_(context, projectId);
+      const rdos = await obraReportTransactionalService.listRdos(context, filters);
       response.json({ ok: true, rdos });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -2131,7 +2161,8 @@ export function createApp(options = {}) {
 
   app.get("/api/obrareport/rdos/:id", async (request, response) => {
     try {
-      const rdo = await obraReportTransactionalService.getRdo(buildCanonicalRdoContext_(request), request.params.id);
+      const context = buildCanonicalRdoContext_(request);
+      const rdo = await getScopedRdo_(context, request.params.id);
       response.json({ ok: true, rdo });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -2140,7 +2171,15 @@ export function createApp(options = {}) {
 
   app.put("/api/obrareport/rdos/:id", async (request, response) => {
     try {
-      const rdo = await obraReportTransactionalService.updateRdo(buildCanonicalRdoContext_(request), request.params.id, request.body || {});
+      const context = buildCanonicalRdoContext_(request);
+      const body = request.body || {};
+      const current = await getScopedRdo_(context, request.params.id);
+      const requestedProjectId = clean_(body.projectId || body.project_id);
+      if (requestedProjectId) await assertRdoWorkScope_(context, requestedProjectId);
+      if (requestedProjectId && requestedProjectId !== clean_(current.project_id)) {
+        throw Object.assign(new Error("rdo_work_mismatch"), { status: 403 });
+      }
+      const rdo = await obraReportTransactionalService.updateRdo(context, request.params.id, body);
       await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_updated", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO atualizado", description: "Referencia de RDO atualizada.", severity: "informational", status: rdo.status === "closed" ? "completed" : "active" });
       response.json({ ok: true, rdo });
     } catch (error) {
@@ -2150,7 +2189,9 @@ export function createApp(options = {}) {
 
   app.post("/api/obrareport/rdos/:id/versions", async (request, response) => {
     try {
-      const version = await obraReportTransactionalService.createRdoVersion(buildCanonicalRdoContext_(request), request.params.id);
+      const context = buildCanonicalRdoContext_(request);
+      await getScopedRdo_(context, request.params.id);
+      const version = await obraReportTransactionalService.createRdoVersion(context, request.params.id);
       response.status(201).json({ ok: true, version });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -2160,10 +2201,15 @@ export function createApp(options = {}) {
   app.post("/api/obrareport/rdos/:id/generate-document", async (request, response) => {
     try {
       const context = buildCanonicalRdoContext_(request);
+      const rdo = await getScopedRdo_(context, request.params.id);
+      const body = request.body && typeof request.body === "object" ? request.body : {};
+      const requestedWorkId = clean_(body.workId || body.work_id);
+      const workId = clean_(rdo.project_id);
+      if (requestedWorkId && requestedWorkId !== workId) {
+        throw Object.assign(new Error("rdo_work_mismatch"), { status: 403 });
+      }
+      await assertRdoWorkScope_(context, workId);
       if (documentOrchestrator) {
-        const rdo = await obraReportTransactionalService.getRdo(context, request.params.id);
-        const body = request.body && typeof request.body === "object" ? request.body : {};
-        const workId = clean_(body.workId || body.work_id || rdo.project_id);
         const idempotencyKey = clean_(body.idempotencyKey || body.idempotency_key) || "rdo:" + clean_(rdo.id) + ":pdf:v1";
         const result = await documentOrchestrator.generate(context, Object.assign({}, body, {
           sourceType: "rdo",
@@ -2190,7 +2236,9 @@ export function createApp(options = {}) {
 
   app.get("/api/obrareport/rdos/:id/events", async (request, response) => {
     try {
-      const events = await obraReportTransactionalService.listRdoEvents(buildCanonicalRdoContext_(request), request.params.id);
+      const context = buildCanonicalRdoContext_(request);
+      await getScopedRdo_(context, request.params.id);
+      const events = await obraReportTransactionalService.listRdoEvents(context, request.params.id);
       response.json({ ok: true, events });
     } catch (error) {
       handleObraReportError_(response, error);

@@ -71,7 +71,7 @@ test("RDO exige sessão canônica e rejeita token ausente, inválido e expirado"
 
 test("RDO usa tenant, usuário e role do token e ignora contexto forjado do embedded", async () => {
   const service = createRdoServiceSpy();
-  await withServer({ authContextSupabaseClient: createSupabaseMock({ user: authUser, profile }), obraReportTransactionalService: service }, async (base) => {
+  await withServer({ authContextSupabaseClient: createSupabaseMock({ user: authUser, profile }), obraReportTransactionalService: service, rdoWorkScopeValidator: async (context, projectId) => ({ id: projectId, institution_id: context.institutionId }) }, async (base) => {
     const response = await fetch(base + "/api/obrareport/rdos", {
       method: "POST",
       headers: {

@@ -2,6 +2,12 @@
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+  const rdoCloudAdapter = window.ObraReportRdoCloudAdapter && typeof window.ObraReportRdoCloudAdapter.create === "function"
+    ? window.ObraReportRdoCloudAdapter.create({
+      baseUrl: window.OBRAREPORT_API_BASE_URL,
+      getToken: getRdoApiAccessToken_
+    })
+    : null;
   const form = document.getElementById("qualityReportForm");
   const homePanel = document.getElementById("homePanel");
   const loginPanel = document.getElementById("loginPanel");
@@ -288,6 +294,9 @@
   const RDO_DRAFT_LAST_KEY_PREFIX = "obrareport:rdo:draft:last:v1";
   const imageCache = new Map();
   let appState = loadLocalData();
+  let canonicalStockWorksLoaded = false;
+  let rdoServerIds = new Set();
+  let rdoLoadGeneration = 0;
   let stockFullRuntimeMode = "local";
   let stockFullAuthContext = {
     mode: "local",
@@ -1353,6 +1362,7 @@
       }
 
       await applyCloudState_(result.state, token);
+      await loadCanonicalRdoWorkspace_();
       grantLocalAccessSession_();
       renderSaasState_();
       showDashboardPanel_(getRouteFromHash_());
@@ -1552,6 +1562,17 @@
       }
     }
     return "";
+  }
+
+  async function getRdoApiAccessToken_() {
+    try {
+      const session = await getStockFullSupabaseSession_();
+      const refreshedToken = clean(session && session.access_token);
+      if (refreshedToken) return refreshedToken;
+    } catch (_) {
+      // The persisted Stock Full token remains the fallback when its SDK is unavailable.
+    }
+    return getStockFullSupabaseToken_();
   }
 
   function hasStockFullBackendToken_() {
@@ -2185,6 +2206,7 @@
             throw new Error("A identidade autenticada não possui role explícita válida.");
           }
           await applyCloudState_(verifiedSession.state, appState.session.token);
+          await loadCanonicalRdoWorkspace_();
           grantLocalAccessSession_();
           loginForm.reset();
           renderSaasState_();
@@ -2851,34 +2873,7 @@
     if (workForm) {
       workForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        const formData = new FormData(workForm);
-        const clientId = clean(formData.get("workClientId"));
-        const work = {
-          id: createId_("obr"),
-          userId: currentUser.id,
-          clientId: clientId,
-          name: clean(formData.get("workName")),
-          address: clean(formData.get("workAddress")),
-          type: clean(formData.get("workType")),
-          status: clean(formData.get("workStatus")) || "Em andamento",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        if (!work.clientId || !work.name || !work.address || !work.type) {
-          return;
-        }
-
-        if (!canCreateByBilling_("works")) {
-          return;
-        }
-
-        appState.works.push(work);
-        setLastOpened_("obras", work.clientId, work.id, "");
-        saveAppState_();
-        workForm.reset();
-        renderSaasState_();
-        showDashboardPanel_("obras");
+        setCloudStatus_("Cadastre ou atualize esta obra no Stock Full. O RDO usa somente o ID canônico do Stock.", "info");
       });
     }
 
@@ -3474,6 +3469,10 @@
         parsed.reports = Array.isArray(parsed.reports) ? parsed.reports : [];
         parsed.dailyLogs = Array.isArray(parsed.dailyLogs) ? parsed.dailyLogs : [];
         parsed.compositions = Array.isArray(parsed.compositions) ? parsed.compositions : [];
+        if (parsed.session && parsed.session.token) {
+          parsed.works = [];
+          parsed.dailyLogs = [];
+        }
         return ensureLocalState_(parsed);
       }
     } catch (error) {
@@ -3731,6 +3730,7 @@
         token: appState.session.token
       }, 3);
       await applyCloudState_(result.state, appState.session.token);
+      await loadCanonicalRdoWorkspace_();
       renderSaasState_();
       setCloudStatus_("Sincronizado na nuvem", "success");
     } catch (error) {
@@ -3763,9 +3763,7 @@
     return {
       version: 1,
       clients: appState.clients,
-      works: appState.works,
       reports: reports,
-      dailyLogs: getDailyLogsForCloud_(),
       compositions: getCompositionsForCloud_(),
       billing: appState.billing || {}
     };
@@ -3947,9 +3945,9 @@
         },
         users: state.users,
         clients: state.clients || [],
-        works: state.works || [],
+        works: appState.works || [],
         reports: [],
-        dailyLogs: mergeDailyLogsFromCloud_(appState.dailyLogs, state.dailyLogs || []),
+        dailyLogs: appState.dailyLogs || [],
         compositions: mergeCompositionsFromCloud_(appState.compositions, state.compositions || []),
         billing: state.billing || appState.billing || {},
         operationalDocuments: Array.isArray(appState.operationalDocuments) ? appState.operationalDocuments : [],
@@ -4234,6 +4232,8 @@
     if (!currentUser) {
       return [];
     }
+
+    if (canonicalStockWorksLoaded) return appState.works.slice();
 
     if (isAdminUser_()) {
       return appState.works.slice();
@@ -5091,13 +5091,13 @@
 
       if (pdfButton) {
         event.preventDefault();
-        try {
-          flushDailyLogDraft_();
-          openDailyLogPdf_(collectDailyLogSnapshot_());
-        } catch (error) {
+        flushDailyLogDraft_();
+        saveDailyLogFromForm_().then(function (savedLog) {
+          return savedLog ? generateDailyLogDocument_(savedLog.id) : null;
+        }).catch(function (error) {
           console.error(error);
           setDailyLogStatus_(error.message || "Não foi possível gerar o PDF do diário.", "error");
-        }
+        });
         return;
       }
 
@@ -5176,13 +5176,13 @@
     if (dailyLogPdfButton) {
       dailyLogPdfButton.addEventListener("click", function (event) {
         event.stopPropagation();
-        try {
-          flushDailyLogDraft_();
-          openDailyLogPdf_(collectDailyLogSnapshot_());
-        } catch (error) {
+        flushDailyLogDraft_();
+        saveDailyLogFromForm_().then(function (savedLog) {
+          return savedLog ? generateDailyLogDocument_(savedLog.id) : null;
+        }).catch(function (error) {
           console.error(error);
           setDailyLogStatus_(error.message || "Não foi possível gerar o PDF do diário.", "error");
-        }
+        });
       });
     }
 
@@ -5204,6 +5204,12 @@
       dailyLogWorkSelect.addEventListener("change", function () {
         const work = findWork_(dailyLogWorkSelect.value);
         setLastOpened_("diario", work ? work.clientId : "", dailyLogWorkSelect.value, "");
+        loadRdosForWork_(dailyLogWorkSelect.value).catch(function (error) {
+          console.error(error);
+          appState.dailyLogs = [];
+          renderSaasState_();
+          setDailyLogStatus_(error.message || "Não foi possível carregar os diários desta obra.", "error");
+        });
         renderExecutionStockAlertsHistory_();
         renderOperationalDocumentsList_();
         scheduleLocalDataSave_({ syncCloud: false });
@@ -5252,20 +5258,18 @@
 
         event.preventDefault();
         if (button.dataset.dailyLogRecordAction === "pdf") {
-          const logItem = findDailyLog_(button.dataset.dailyLogId);
-          if (logItem) {
-            try {
-              openDailyLogPdf_(decorateDailyLogForExport_(logItem));
-            } catch (error) {
-              console.error(error);
-              setDailyLogStatus_(error.message || "Não foi possível gerar o PDF do diário.", "error");
-            }
-          }
+          generateDailyLogDocument_(button.dataset.dailyLogId).catch(function (error) {
+            console.error(error);
+            setDailyLogStatus_(error.message || "Não foi possível gerar o PDF do diário.", "error");
+          });
         }
 
         if (button.dataset.dailyLogRecordAction === "edit") {
-          loadDailyLogIntoForm_(button.dataset.dailyLogId);
           showDashboardPanel_("diario");
+          openDailyLogFromBackend_(button.dataset.dailyLogId).catch(function (error) {
+            console.error(error);
+            setDailyLogStatus_(error.message || "Não foi possível abrir o RDO do backend.", "error");
+          });
         }
 
         if (button.dataset.dailyLogRecordAction === "remove") {
@@ -6747,7 +6751,7 @@
 
     const previous = dailyLogWorkSelect.value || (appState.local && appState.local.lastWorkId) || "";
     dailyLogWorkSelect.innerHTML = "";
-    dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : "Cadastre uma obra primeiro"));
+    dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : "Entre no Stock Full para carregar obras"));
 
     works.forEach(function (work) {
       dailyLogWorkSelect.appendChild(createOption_(work.id, work.name));
@@ -6756,6 +6760,119 @@
     if (works.some(function (work) { return work.id === previous; })) {
       dailyLogWorkSelect.value = previous;
     }
+  }
+
+  async function loadCanonicalRdoWorkspace_() {
+    canonicalStockWorksLoaded = false;
+    rdoServerIds = new Set();
+    appState.works = [];
+    appState.dailyLogs = [];
+
+    if (!rdoCloudAdapter) {
+      setDailyLogStatus_("A integração oficial do RDO não carregou.", "error");
+      return false;
+    }
+
+    setDailyLogStatus_("Carregando obras autorizadas do Stock Full...", "info");
+    try {
+      const works = await rdoCloudAdapter.listStockWorks();
+      appState.works = works.map(function (work) {
+        return Object.assign({}, work, { userId: currentUser && currentUser.id || "" });
+      });
+      canonicalStockWorksLoaded = true;
+
+      const previousWorkId = clean(appState.local && appState.local.lastWorkId);
+      const selectedWork = appState.works.find(function (work) { return work.id === previousWorkId; }) || appState.works[0] || null;
+      if (selectedWork) {
+        appState.local.lastWorkId = selectedWork.id;
+        if (dailyLogWorkSelect) dailyLogWorkSelect.value = selectedWork.id;
+      } else {
+        appState.local.lastWorkId = "";
+      }
+      if (currentUser) renderSaasState_();
+
+      if (selectedWork) {
+        await loadRdosForWork_(selectedWork.id, { render: false });
+      }
+      saveLocalData({ syncCloud: false });
+      if (currentUser) renderSaasState_();
+      setDailyLogStatus_(selectedWork
+        ? "Obras do Stock Full e diários do backend carregados."
+        : "Nenhuma obra autorizada foi encontrada no Stock Full.", selectedWork ? "success" : "info");
+      return true;
+    } catch (error) {
+      canonicalStockWorksLoaded = false;
+      rdoServerIds = new Set();
+      appState.works = [];
+      appState.dailyLogs = [];
+      saveLocalData({ syncCloud: false });
+      if (currentUser) renderSaasState_();
+      const message = error && error.code === "RDO_CANONICAL_SESSION_REQUIRED"
+        ? "Entre no Stock Full com a sessão canônica para carregar obras e RDOs."
+        : "Não foi possível carregar obras/RDOs do backend oficial.";
+      setDailyLogStatus_(message, "error");
+      return false;
+    }
+  }
+
+  async function loadRdosForWork_(projectId, options) {
+    const settings = options || {};
+    const id = clean(projectId);
+    const generation = ++rdoLoadGeneration;
+    rdoServerIds = new Set();
+    appState.dailyLogs = [];
+    if (!id) {
+      if (settings.render !== false && currentUser) {
+        saveLocalData({ syncCloud: false });
+        renderSaasState_();
+      }
+      return [];
+    }
+    if (!canonicalStockWorksLoaded || !appState.works.some(function (work) { return work.id === id; })) {
+      throw new Error("rdo_project_not_in_stock_scope");
+    }
+
+    if (settings.render !== false && currentUser) {
+      saveLocalData({ syncCloud: false });
+      renderSaasState_();
+    }
+
+    setDailyLogStatus_("Carregando diários da obra selecionada...", "info");
+    const rows = await rdoCloudAdapter.listRdosByWork(id);
+    if (generation !== rdoLoadGeneration || (dailyLogWorkSelect && dailyLogWorkSelect.value !== id)) return [];
+
+    const records = rows.map(function (row) {
+      return rdoCloudAdapter.mapRdoToDailyLog(row, currentUser && currentUser.id);
+    }).filter(function (item) {
+      return item.id && item.workId === id;
+    });
+    appState.dailyLogs = records;
+    rdoServerIds = new Set(records.map(function (item) { return item.id; }));
+    appState.local.lastWorkId = id;
+    if (settings.render !== false && currentUser) {
+      saveLocalData({ syncCloud: false });
+      renderSaasState_();
+    }
+    return records;
+  }
+
+  async function openDailyLogFromBackend_(dailyLogId) {
+    if (!rdoCloudAdapter) throw new Error("rdo_cloud_adapter_unavailable");
+    const row = await rdoCloudAdapter.getRdo(dailyLogId);
+    if (!row) throw new Error("rdo_not_found");
+    const logItem = rdoCloudAdapter.mapRdoToDailyLog(row, currentUser && currentUser.id);
+    const selectedWorkId = clean(dailyLogWorkSelect && dailyLogWorkSelect.value);
+    if (!logItem.id || !logItem.workId || (selectedWorkId && logItem.workId !== selectedWorkId)) {
+      throw new Error("rdo_work_mismatch");
+    }
+    const index = appState.dailyLogs.findIndex(function (item) { return item.id === logItem.id; });
+    if (index >= 0) appState.dailyLogs[index] = logItem;
+    else appState.dailyLogs.unshift(logItem);
+    rdoServerIds.add(logItem.id);
+    saveLocalData({ syncCloud: false });
+    loadDailyLogIntoForm_(logItem.id);
+    renderSaasState_();
+    return logItem;
   }
 
   function renderDailyLogModule_(dailyLogs) {
@@ -6768,61 +6885,70 @@
     renderDailyLogIndicators_(dailyLogs);
 
     if (dailyLogStatus) {
-      const syncLabel = appState.session && appState.session.token
-        ? "com cache local e sincronização na nuvem"
-        : "salvos neste navegador";
+      const syncLabel = canonicalStockWorksLoaded ? "do backend oficial" : "aguardando backend oficial";
       dailyLogStatus.textContent = dailyLogs.length
         ? dailyLogs.length + " diário(s) " + syncLabel
         : "Diários " + syncLabel;
     }
   }
 
-  function saveDailyLogFromForm_() {
+  async function saveDailyLogFromForm_() {
     if (!currentUser || !dailyLogForm) {
-      return;
+      return null;
     }
 
     if (dailyLogSaveButton && dailyLogSaveButton.disabled) {
-      return;
+      return null;
     }
 
     const logItem = collectDailyLogForm_();
 
     if (!logItem.workId || !logItem.date || !logItem.responsible) {
       setDailyLogStatus_("Informe obra, data e responsável pelo registro.", "error");
-      return;
+      return null;
     }
 
     if (dailyLogSaveButton) {
       dailyLogSaveButton.disabled = true;
       dailyLogSaveButton.textContent = "Salvando diário...";
     }
-    setDailyLogStatus_("Salvando diário e enviando para sincronização...", "info");
+    setDailyLogStatus_("Salvando no backend oficial do RDO...", "info");
 
     try {
-      ensureLocalState_(appState);
-      const existingIndex = appState.dailyLogs.findIndex(function (item) {
-        return item.id === logItem.id;
-      });
-
-      if (existingIndex >= 0) {
-        logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
-        appState.dailyLogs[existingIndex] = logItem;
-      } else {
-        appState.dailyLogs.push(logItem);
+      if (!rdoCloudAdapter || !canonicalStockWorksLoaded) {
+        throw new Error("Carregue a sessão canônica do Stock Full antes de salvar RDOs.");
       }
+      const work = appState.works.find(function (item) { return item.id === logItem.workId && item.canonicalStockWork; });
+      if (!work) throw new Error("Selecione uma obra canônica do Stock Full.");
 
-      const work = findWork_(logItem.workId);
+      ensureLocalState_(appState);
+      const existingIndex = appState.dailyLogs.findIndex(function (item) { return item.id === logItem.id; });
+      const response = rdoServerIds.has(logItem.id)
+        ? await rdoCloudAdapter.updateRdo(logItem.id, logItem, work)
+        : await rdoCloudAdapter.createRdo(logItem, work, logItem.operationId || logItem.id);
+      if (!response || !clean(response.id)) throw new Error("A API oficial não retornou o ID do RDO.");
+
+      const savedLog = rdoCloudAdapter.mapRdoToDailyLog(response, currentUser.id);
+      if (existingIndex >= 0) {
+        savedLog.createdAt = appState.dailyLogs[existingIndex].createdAt || savedLog.createdAt;
+        appState.dailyLogs[existingIndex] = savedLog;
+      } else {
+        appState.dailyLogs.unshift(savedLog);
+      }
+      rdoServerIds.add(savedLog.id);
+      if (dailyLogForm.elements.dailyLogId) dailyLogForm.elements.dailyLogId.value = savedLog.id;
       setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
-      saveLocalData({ syncCloud: true });
-      refreshExecutionStockAnalysisAfterRdoSave_(logItem);
+      saveLocalData({ syncCloud: false });
+      refreshExecutionStockAnalysisAfterRdoSave_(savedLog);
       renderSaasState_();
-      clearDailyLogDraftForLog_(logItem);
+      clearDailyLogDraftForLog_(savedLog);
       resetDailyLogForm_({ clearDraft: false });
-      setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+      setDailyLogStatus_("Diário salvo no backend oficial do RDO.", "success");
+      return savedLog;
     } catch (error) {
       console.error(error);
       setDailyLogStatus_(error.message || "Não foi possível salvar o diário.", "error");
+      return null;
     } finally {
       if (dailyLogSaveButton) {
         window.setTimeout(function () {
@@ -6830,6 +6956,42 @@
           dailyLogSaveButton.textContent = "Salvar diário";
         }, 700);
       }
+    }
+  }
+
+  async function generateDailyLogDocument_(dailyLogId) {
+    const id = clean(dailyLogId);
+    const logItem = findDailyLog_(id);
+    const work = logItem && findWork_(logItem.workId);
+    if (!rdoCloudAdapter || !logItem || !work || !rdoServerIds.has(id)) {
+      throw new Error("Salve ou recarregue o RDO do backend antes de gerar o documento.");
+    }
+
+    const pdfWindow = window.open("about:blank", "_blank");
+    try {
+      setDailyLogStatus_("Gerando documento no backend oficial...", "info");
+      const idempotencyKey = "rdo:" + id + ":pdf:" + clean(logItem.updatedAt || logItem.createdAt || id);
+      const result = await rdoCloudAdapter.generateDocument(id, work.id, idempotencyKey);
+      const documentRecord = result && result.document;
+      if (!documentRecord || !clean(documentRecord.id)) throw new Error("A API oficial não retornou o documento gerado.");
+      const pdf = await rdoCloudAdapter.fetchDocumentPdf(documentRecord.id);
+      const url = URL.createObjectURL(pdf);
+      if (pdfWindow) {
+        pdfWindow.location.href = url;
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = clean(documentRecord.title || "RDO") + ".pdf";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      setDailyLogStatus_("Documento oficial do RDO gerado.", "success");
+      return documentRecord;
+    } catch (error) {
+      if (pdfWindow && !pdfWindow.closed) pdfWindow.close();
+      throw error;
     }
   }
 
@@ -6969,6 +7131,7 @@
 
     return {
       id: id,
+      operationId: clean(existingDailyLog && existingDailyLog.operationId) || id,
       userId: currentUser.id,
       workId: clean(formData.get("workId")),
       date: clean(formData.get("date")),
@@ -8786,8 +8949,7 @@
         detail,
         [
           createDailyLogRecordButton_("PDF", "pdf", logItem.id, ""),
-          createDailyLogRecordButton_("Editar", "edit", logItem.id, "primary"),
-          createDailyLogRecordButton_("Remover", "remove", logItem.id, "")
+          createDailyLogRecordButton_("Editar", "edit", logItem.id, "primary")
         ]
       );
       dailyLogRecordsList.appendChild(item);
@@ -21026,13 +21188,8 @@
   }
 
   function removeDailyLog_(dailyLogId) {
-    ensureLocalState_(appState);
-    appState.dailyLogs = appState.dailyLogs.filter(function (logItem) {
-      return logItem.id !== dailyLogId;
-    });
-    saveLocalData({ syncCloud: true });
-    renderSaasState_();
-    setDailyLogStatus_("Diário removido localmente e alteração enviada para sincronização.", "success");
+    void dailyLogId;
+    setDailyLogStatus_("A API oficial do RDO não disponibiliza exclusão.", "info");
   }
 
   async function handleDiaryAiAction_(button) {

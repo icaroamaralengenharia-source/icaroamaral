@@ -29,7 +29,15 @@ function createSupabaseMock(user, profile) {
 }
 
 async function startServer(service, authContextSupabaseClient) {
-  const app = createApp({ obraReportTransactionalService: service, authContextSupabaseClient });
+  const app = createApp({
+    obraReportTransactionalService: service,
+    authContextSupabaseClient,
+    rdoWorkScopeValidator: async (context, projectId) => {
+      const institutionId = projectId === "work-b" ? "tenant-b" : "tenant-a";
+      if (institutionId !== context.institutionId) throw Object.assign(new Error("rdo_project_not_found"), { status: 404 });
+      return { id: projectId, institution_id: institutionId };
+    }
+  });
   const server = await new Promise((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
   });

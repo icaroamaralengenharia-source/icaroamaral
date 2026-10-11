@@ -121,6 +121,23 @@ test("auth.me sem sessão não expõe identidade", () => {
   assert.equal(whoami.role, null);
 });
 
+test("sync.save parcial preserva obras e RDOs legados quando o cliente já usa Stock/RDO canônico", () => {
+  const user = storedUser({ id: "usr_partial_sync", email: "partial@example.com" });
+  const store = emptyStoreWith(user);
+  store.works = [{ id: "legacy-work", userId: user.id }];
+  store.dailyLogs = [{ id: "legacy-rdo", userId: user.id }];
+  const login = context.handleAuthLogin_({ email: user.email, password: "fixture-password" }, store, "req-partial-login");
+
+  const saved = context.handleSyncSave_({
+    token: login.token,
+    state: { clients: [], reports: [], compositions: [] }
+  }, store, "req-partial-sync-save");
+
+  assert.equal(saved.ok, true);
+  assert.deepEqual(store.works.map((item) => item.id), ["legacy-work"]);
+  assert.deepEqual(store.dailyLogs.map((item) => item.id), ["legacy-rdo"]);
+});
+
 function emptyStoreWith(user) {
   const store = emptyStore();
   store.users.push(user);
