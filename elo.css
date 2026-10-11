@@ -4077,6 +4077,10 @@ body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-
   z-index: 3;
 }
 
+body[data-elo-product="chat"].elo-authenticated .elo-product-top {
+  z-index: 3;
+}
+
 body[data-elo-product="chat"] .elo-product-top {
   border-color: rgba(91, 112, 136, 0.16);
   background: rgba(255, 255, 255, 0.88);
