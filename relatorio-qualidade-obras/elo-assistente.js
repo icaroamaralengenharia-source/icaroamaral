@@ -930,7 +930,7 @@
     if (isEloReportFromAnalysisContextRequest_(raw)) {
       return { module: "obrareport_report", action: "generate_report_from_context", payload: payload };
     }
-    const activeDocumentTakesPrecedence = Boolean(getEloActiveDocumentContext_() && isEloActiveDocumentReference_(raw));
+    const activeDocumentTakesPrecedence = Boolean((getEloActiveDocumentContext_() || getEloActiveAnalysisContext_()) && isEloActiveDocumentReference_(raw));
     const rejectedMatch = raw.match(/rejeite\s+(?:esta\s+)?corre[cç][aã]o(?:\s+e\s+registre\s+o\s+motivo)?\s+(.+)/i);
     const hasMunicipalContext = /\b(?:prefeitura|municipal|patrimonio|patrimonios|patrimônios|tombamento|acervo|notifica[cç][oõ]es)\b/.test(text);
     const hasSentinelContext = /\b(?:pend[eê]ncias?|evid[eê]ncias?|timeline|aten[cç][aã]o|corre[cç][aã]o|corre[cç][oõ]es?|valida[cç][aã]o)\b/.test(text);
@@ -986,7 +986,7 @@
       const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGenerateDocument ? "rdo.generateDocument" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
       return { module: "obrareport_rdo", action: action, payload: payload };
     }
-    if (!activeDocumentTakesPrecedence && /\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
+    if (!activeDocumentTakesPrecedence && /\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
     }
     if (/^(?:elo[, ]*)?(?:publique|publicar|crie\s+e\s+publique|criar\s+e\s+publicar|faca\s+uma\s+publicacao|fazer\s+uma\s+publicacao|prepare\s+uma\s+materia|preparar\s+uma\s+materia|crie\s+um\s+artigo|criar\s+um\s+artigo|publique\s+uma\s+novidade)\b/.test(text)) {
@@ -9658,9 +9658,10 @@
     const text = normalizeText(question || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
     if (!text) return false;
     if (/\b(?:prefeitura|municipal|patrimonio|acervo|tombamento|notifica[cç][oõ]es)\b/.test(text)) return false;
+    if (/\b(?:esse|este|desse|deste|nesse|neste)\s+(?:relat[oó]rio|laudo|parecer)\b/.test(text)) return true;
     if (/\b(?:esse|este|nesse|neste|desse|deste|no|do|ao|a\s+o|para\s+o)\s+(?:pdf|arquivo|documento|anexo|livro)\b/.test(text)) return true;
     if (/\b(?:o|esse|este)\s+anexo\b/.test(text)) return true;
-    if (/\b(?:voltando|retomando|voltar|retomar|retornei|retorno)\b[\s\S]{0,35}\b(?:pdf|arquivo|documento|anexo|livro)\b/.test(text)) return true;
+    if (/\b(?:voltando|retomando|voltar|retomar|retornei|retorno)\b[\s\S]{0,35}\b(?:pdf|arquivo|documento|anexo|livro|relat[oó]rio|laudo|parecer)\b/.test(text)) return true;
     if (/\bcom\s+base\s+(?:nele|nesse|neste|no\s+pdf|nesse\s+pdf|neste\s+pdf|nesse\s+arquivo|neste\s+arquivo)\b/.test(text)) return true;
     if (/^(?:continue|continua|continuar)$/.test(text)) return true;
     if (/^(?:continue|continua|extraia|extrair|faca|faça|monte|gere|crie)\b/.test(text) && /\b(?:topicos|questoes|perguntas?|mais\s+\d+|\d+\s+questoes)\b/.test(text)) return true;
