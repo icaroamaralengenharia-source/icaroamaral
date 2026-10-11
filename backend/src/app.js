@@ -47,7 +47,6 @@ const MAX_ELO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_ELO_TOTAL_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
 const MAX_ELO_DOCUMENT_CONTEXT_LENGTH = 5000;
-const ELO_DOCUMENT_CHUNK_LENGTH = 1200;
 const MAX_ELO_VECTOR_TEXT_LENGTH = 2000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const ELO_LOCAL_VECTOR_DIMENSIONS = 96;
@@ -4663,6 +4662,10 @@ export function createApp(options = {}) {
         return;
       }
       const target = getEloCoreRouteTarget_(request);
+      if (await isEloConversationOnlyMemoryWrite_(target.store, target.identity, request.body || {})) {
+        response.json({ ok: true, memory: null, skipped: "conversation_only" });
+        return;
+      }
       const memory = await target.store.upsertMemory(Object.assign({}, request.body || {}, target.identity));
       response.status(201).json({ ok: true, memory });
     } catch (error) { sendEloCoreError_(response, error); }
@@ -4757,7 +4760,7 @@ export function createApp(options = {}) {
 
     try {
       const bodyParseStartedAt = nowMs_();
-      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore, latencyMetrics);
+      chatRequest = await buildEloChatRequest_(request, env, latencyMetrics);
       latencyMetrics.bodyParseMs += nowMs_() - bodyParseStartedAt;
       if (chatRequest.documents.length || chatRequest.attachmentErrors.length) {
         request.eloTelemetryMeta = Object.assign({}, request.eloTelemetryMeta, {
@@ -4825,7 +4828,9 @@ export function createApp(options = {}) {
       context: validation.payload.context
     });
 
-    const explicitMemoryText = extractEloExplicitMemoryCommandText_(validation.payload.message);
+    const explicitMemoryText = validation.payload.context.memoryScope === "CONVERSATION_ONLY"
+      ? ""
+      : extractEloExplicitMemoryCommandText_(validation.payload.message);
     if (explicitMemoryText) {
       const target = getEloCoreMemoryTargetForChat_(request);
       if (target) {
@@ -6358,7 +6363,7 @@ function validateImageRequest_(body) {
   };
 }
 
-async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
+async function buildEloChatRequest_(request, env, metrics = null) {
   if (!/^multipart\/form-data/i.test(String(request.headers["content-type"] || ""))) {
     return {
       body: request.body || {},
@@ -6377,7 +6382,10 @@ async function buildEloChatRequest_(request, env, memoryStore, metrics = null) {
     history: parseJsonField_(parsed.fields.history, []),
     context: parseJsonField_(parsed.fields.context, {})
   };
-  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore);
+  if (isEloConversationOnlyMemoryScope_(body.message, body.history, body.context)) {
+    body.context = Object.assign({}, body.context, { memoryScope: "CONVERSATION_ONLY" });
+  }
+  const attachmentResult = await processEloAttachments_(parsed.files, env);
   return {
     body,
     documents: attachmentResult.documents,
@@ -6982,11 +6990,10 @@ function parseEloMultipartFormData_(request, env) {
   });
 }
 
-async function processEloAttachments_(files, context, env, memoryStore) {
+async function processEloAttachments_(files, env) {
   const documents = [];
   const errors = [];
   const safeFiles = Array.isArray(files) ? files.slice(0, 4) : [];
-  const ownerId = sanitizeEloDeviceId_(context && context.deviceId);
   const maxFileBytes = getSafePositiveInteger_(env.ELO_MAX_ATTACHMENT_BYTES, MAX_ELO_ATTACHMENT_BYTES);
 
   for (const file of safeFiles) {
@@ -7008,10 +7015,8 @@ async function processEloAttachments_(files, context, env, memoryStore) {
         mimeType: file.mimeType,
         text: text.slice(0, MAX_ELO_ATTACHMENT_TEXT_LENGTH)
       };
+      // Chat uploads remain request-scoped; durable documents use the explicit library flow.
       documents.push(document);
-      if (ownerId) {
-        await saveEloDocumentChunks_(memoryStore, document, ownerId);
-      }
     } catch (error) {
       errors.push(file.fileName + ": " + (error && error.message ? error.message : "nao foi possivel ler o anexo."));
     }
@@ -7080,41 +7085,35 @@ function buildEloDocumentsSummary_(documents) {
   }).join("\n\n").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
 }
 
-async function saveEloDocumentChunks_(memoryStore, document, ownerId) {
-  const chunks = chunkText_(document.text, ELO_DOCUMENT_CHUNK_LENGTH).slice(0, 12);
-  for (const [index, chunk] of chunks.entries()) {
-    await memoryStore.upsert({
-      ownerId,
-      id: createStableId_("elo_doc_" + document.fileName + "_" + index + "_" + chunk.slice(0, 80)),
-      text: chunk,
-      type: "document_chunk",
-      source: "upload_elo",
-      metadata: {
-        fileName: document.fileName,
-        mimeType: document.mimeType,
-        uploadedAt: new Date().toISOString(),
-        chunkIndex: index
-      }
-    });
-  }
-}
-
-function chunkText_(text, size) {
-  const chunks = [];
-  const safeText = clean_(text);
-  for (let index = 0; index < safeText.length; index += size) {
-    chunks.push(safeText.slice(index, index + size));
-  }
-  return chunks;
-}
-
 function hasEloConversationOnlyMemoryDirective_(message) {
   const text = String(message || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (!text) return false;
-  const conversationOnly = /\b(?:apenas|somente|so)\s+(?:no\s+contexto\s+)?(?:desta|dessa|da|na|esta|essa|atual)\s+conversa\b/.test(text) ||
-    /\b(?:mantenha|use|utilize|considere)\b.{0,100}\b(?:apenas|somente|so)\b.{0,100}\bcontexto\b.{0,60}\bconversa\b/.test(text);
-  const noPermanentMemory = /\b(?:nao|nunca)\s+(?:salve|salvar|guarde|guardar|grave|gravar|registre|registrar|armazene|armazenar|memorize|memorizar)\b.{0,100}\bmemoria\s+permanente\b/.test(text);
-  return conversationOnly && noPermanentMemory;
+  const conversationOnly = /\b(?:apenas|somente|so)\s+(?:(?:as|os|a|o)\s+)?(?:mensagens|historico|conteudo|contexto)\s+(?:desta|dessa|deste|desse|da|do|na|no|nesta|neste|esta|esse|atual)\s+(?:conversa|chat)\b/.test(text) ||
+    /\b(?:apenas|somente|so)\s+(?:no\s+contexto\s+)?(?:desta|dessa|deste|desse|da|do|na|no|esta|esse|atual)\s+(?:conversa|chat)\b/.test(text) ||
+    /\b(?:mantenha|use|utilize|considere)\b.{0,100}\b(?:apenas|somente|so)\b.{0,100}\bcontexto\b.{0,60}\b(?:conversa|chat)\b/.test(text);
+  const noPermanentMemoryWrite = /\b(?:nao|nunca)\s+(?:salve|salvar|guarde|guardar|grave|gravar|registre|registrar|armazene|armazenar|memorize|memorizar)\b.{0,100}\b(?:novas?\s+)?memorias?\s+permanentes?\b/.test(text);
+  const noPersistentMemoryRead = /\b(?:nao|nunca)\s+(?:use|utilize|consulte|acesse|busque|recupere|inclua|injete|considere)\b.{0,100}\bmemoria\s+(?:persistente|permanente|longa|anterior)\b/.test(text);
+  return conversationOnly && (noPersistentMemoryRead || noPermanentMemoryWrite);
+}
+
+function isEloConversationOnlyMemoryScope_(message, history = [], context = {}) {
+  return Boolean(context && context.memoryScope === "CONVERSATION_ONLY") ||
+    hasEloConversationOnlyMemoryDirective_(message) ||
+    (Array.isArray(history) && history.some((item) => item && item.role === "user" && hasEloConversationOnlyMemoryDirective_(item.content)));
+}
+
+async function isEloConversationOnlyMemoryWrite_(store, identity, body = {}) {
+  if (body.memoryScope === "CONVERSATION_ONLY") return true;
+  const conversationId = clean_(body.sourceConversationId || body.source_conversation_id).slice(0, 160);
+  if (!conversationId) return false;
+  if (!store || typeof store.getConversation !== "function") return true;
+  try {
+    const conversation = await store.getConversation(conversationId, identity || {});
+    const messages = Array.isArray(conversation && conversation.messages) ? conversation.messages : [];
+    return messages.some((item) => item && item.role === "user" && hasEloConversationOnlyMemoryDirective_(item.content));
+  } catch (error) {
+    return true;
+  }
 }
 
 export function validateEloChatRequest_(body) {
@@ -7140,10 +7139,15 @@ export function validateEloChatRequest_(body) {
   const rawImageAnalysisContext = context.imageAnalysisContext && typeof context.imageAnalysisContext === "object"
     ? context.imageAnalysisContext
     : null;
-  const imageAnalysisContext = rawImageAnalysisContext && rawImageAnalysisContext.type === "image"
+  const currentConversationId = clean_(context.currentConversationId || body.currentConversationId).slice(0, 180);
+  const imageConversationId = clean_(rawImageAnalysisContext && (rawImageAnalysisContext.conversationId || rawImageAnalysisContext.conversation_id)).slice(0, 180);
+  const imageSource = rawImageAnalysisContext && rawImageAnalysisContext.source === "explicit_history" ? "explicit_history" : "active_attachment";
+  const unboundHistoricalImage = imageSource === "explicit_history" && (!currentConversationId || !imageConversationId);
+  const imageFromDifferentConversation = Boolean(currentConversationId && imageConversationId && imageConversationId !== currentConversationId);
+  const imageAnalysisContext = rawImageAnalysisContext && rawImageAnalysisContext.type === "image" && !unboundHistoricalImage && !imageFromDifferentConversation
     ? {
       type: "image",
-      source: rawImageAnalysisContext.source === "explicit_history" ? "explicit_history" : "active_attachment",
+      source: imageSource,
       available: rawImageAnalysisContext.available !== false,
       attachmentId: clean_(rawImageAnalysisContext.attachmentId || "").slice(0, 180),
       fileName: clean_(rawImageAnalysisContext.fileName || "").slice(0, 180),
@@ -7165,9 +7169,7 @@ export function validateEloChatRequest_(body) {
   const history = technicalContinuation
     ? filterEloTechnicalContinuationHistory_(normalizedHistory, technicalContinuation)
     : normalizedHistory;
-  const temporaryMemoryScope = context.memoryScope === "CONVERSATION_ONLY" ||
-    hasEloConversationOnlyMemoryDirective_(message) ||
-    history.some((item) => item.role === "user" && hasEloConversationOnlyMemoryDirective_(item.content));
+  const temporaryMemoryScope = isEloConversationOnlyMemoryScope_(message, history, context);
   const contextForPlanning = Object.assign({}, context, temporaryMemoryScope ? {
     memoryScope: "CONVERSATION_ONLY",
     memoriesSummary: "",
@@ -7177,7 +7179,8 @@ export function validateEloChatRequest_(body) {
     documentsLibrarySummary: "",
     workingMemorySummary: "",
     technicalContinuation: null
-  } : {}, { history });
+  } : {}, { history, imageAnalysisContext });
+  delete contextForPlanning.currentConversationId;
   const contextSize = JSON.stringify(context).length;
 
   if (!message) {
@@ -8122,13 +8125,16 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
       ? store.list().filter((item) => item.ownerId === safeOwnerId)
       : [];
     const byId = new Map();
-    searchedItems.concat(listedItems).forEach((item) => {
-      const key = item.id || item.text;
-      const current = byId.get(key);
-      if (!current || Number(item.score || 0) > Number(current.score || 0)) {
-        byId.set(key, item);
-      }
-    });
+    // Ignore legacy chat-upload chunks so they cannot cross conversation boundaries.
+    searchedItems.concat(listedItems)
+      .filter((item) => item && item.type !== "document_chunk" && item.source !== "upload_elo")
+      .forEach((item) => {
+        const key = item.id || item.text;
+        const current = byId.get(key);
+        if (!current || Number(item.score || 0) > Number(current.score || 0)) {
+          byId.set(key, item);
+        }
+      });
     const items = Array.from(byId.values())
       .map((item) => ({
         ...item,

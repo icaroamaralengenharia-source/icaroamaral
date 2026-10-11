@@ -5140,57 +5140,47 @@ test("reindexacao segura nao cria backup quando nao ha registros pendentes", asy
   }
 });
 
-test("elo chat com anexo txt indexa documento sem quebrar fallback", async () => {
-  const response = await postEloChatMultipart_({
-    message: "Elo, resuma este documento",
-    context: {
-      source: "elo",
-      mode: "standalone",
-      deviceId: "elo_dev_doc_teste"
-    },
-    files: [
-      {
-        name: "contrato.txt",
-        type: "text/plain",
-        content: "Contrato de obra. Prazo de entrega: 30 dias. Pagamento em duas parcelas."
-      }
-    ]
-  });
-  const data = await response.json();
-  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
+test("elo chat com anexo txt mantém fallback sem persistir o documento na memória", async () => {
+  const memoryStore = createEloVectorMemoryStore_({ memoryOnly: true, env: {} });
+  await withTemporaryEloServer_({
+    env: { PORT: "0", AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500", ELO_RDO_STORE: "file" },
+    eloVectorMemoryStore: memoryStore
+  }, async (url) => {
+    const response = await postEloChatMultipartTo_(url, {
+      message: "Elo, resuma este documento",
+      context: { source: "elo", mode: "standalone", deviceId: "elo_dev_doc_teste" },
+      files: [{ name: "contrato.txt", type: "text/plain", content: "Contrato de obra. Prazo de entrega: 30 dias. Pagamento em duas parcelas." }]
+    });
+    const data = await response.json();
+    const indexed = await searchEloRelevantMemories_(memoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
 
-  assert.equal(response.status, 503);
-  assert.equal(data.fallback, true);
-  assert.match(data.answer, /extrair texto do anexo/i);
-  assert.match(data.answer, /contrato\.txt/i);
-  assert.match(indexed, /Prazo de entrega: 30 dias/i);
+    assert.equal(response.status, 503);
+    assert.equal(data.fallback, true);
+    assert.match(data.answer, /extrair texto do anexo/i);
+    assert.match(data.answer, /contrato\.txt/i);
+    assert.equal(indexed, "");
+  });
 });
 
-test("documento anexado preserva chunk maior que 800 caracteres na memoria vetorial", async () => {
+test("documento longo anexado nao e persistido na memoria vetorial", async () => {
   const longText = "Contrato longo do Elo. " + "Clausula tecnica preservada para indexacao sem corte prematuro. ".repeat(18);
-  const response = await postEloChatMultipart_({
-    message: "Elo, leia este documento longo",
-    context: {
-      source: "elo",
-      mode: "standalone",
-      deviceId: "elo_dev_doc_longo"
-    },
-    files: [
-      {
-        name: "contrato-longo.txt",
-        type: "text/plain",
-        content: longText
-      }
-    ]
-  });
-  const data = await response.json();
-  const indexedChunk = eloVectorMemoryStore.list().find((item) => item.ownerId === "elo_dev_doc_longo" && item.source === "upload_elo");
+  const memoryStore = createEloVectorMemoryStore_({ memoryOnly: true, env: {} });
+  await withTemporaryEloServer_({
+    env: { PORT: "0", AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500", ELO_RDO_STORE: "file" },
+    eloVectorMemoryStore: memoryStore
+  }, async (url) => {
+    const response = await postEloChatMultipartTo_(url, {
+      message: "Elo, leia este documento longo",
+      context: { source: "elo", mode: "standalone", deviceId: "elo_dev_doc_longo" },
+      files: [{ name: "contrato-longo.txt", type: "text/plain", content: longText }]
+    });
+    const data = await response.json();
+    const indexedChunk = memoryStore.list().find((item) => item.ownerId === "elo_dev_doc_longo" && item.source === "upload_elo");
 
-  assert.equal(response.status, 503);
-  assert.equal(data.fallback, true);
-  assert.ok(indexedChunk);
-  assert.ok(indexedChunk.text.length > 800);
-  assert.match(indexedChunk.text, /Clausula tecnica preservada/i);
+    assert.equal(response.status, 503);
+    assert.equal(data.fallback, true);
+    assert.equal(indexedChunk, undefined);
+  });
 });
 
 test("elo chat com pdf vazio ou sem texto retorna erro amigavel", async () => {
@@ -7618,6 +7608,7 @@ test("Elo envia memoriesSummary consolidado no payload online", async () => {
   sandbox.ELO_AUTH_SESSION_VALIDATED = true;
   sandbox.window.ELO_AUTH_SESSION_VALIDATED = true;
   sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
+  sandbox.window.EloAssistente.setCurrentConversationIdForTest("SYNTH-CHAT-CURRENT-953");
 
   sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
     userName: "\u00cdcaro",
@@ -7645,6 +7636,7 @@ test("Elo envia memoriesSummary consolidado no payload online", async () => {
   await sandbox.window.EloAssistente.requestOnlineAnswerForTest("qual o nome do meu cachorro?");
 
   assert.ok(chatPayload);
+  assert.equal(chatPayload.context.currentConversationId, "SYNTH-CHAT-CURRENT-953");
   assert.match(chatPayload.context.memoriesSummary, /Thor/i);
   assert.match(chatPayload.context.memoriesSummary, /Photo Bridge/i);
   assert.match(chatPayload.context.memoriesSummary, /respostas diretas/i);
@@ -7660,6 +7652,7 @@ test("Elo escopo somente-conversa omite memoria persistente do payload e da sinc
   sandbox.ELO_AUTH_TOKEN = testToken;
   sandbox.ELO_AUTH_SESSION_VALIDATED = true;
   sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
+  sandbox.window.EloAssistente.setCurrentConversationIdForTest("SYNTH-CHAT-CURRENT-953");
   sandbox.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify({
     userName: "PRIVATE_PROFILE_MARKER",
     mainProject: "PRIVATE_PROJECT_MARKER",
@@ -7680,16 +7673,18 @@ test("Elo escopo somente-conversa omite memoria persistente do payload e da sinc
   sandbox.window.fetch = sandbox.fetch;
 
   await sandbox.window.EloAssistente.requestOnlineAnswerForTest(
-    "Para esta conversa de teste, use o projeto sintético WEB-MEM-01 apenas no contexto desta conversa; não salve memória permanente."
+    "Use somente as mensagens desta conversa. Não utilize memória persistente anterior."
   );
 
   assert.ok(chatPayload);
+  assert.equal(chatPayload.context.currentConversationId, "SYNTH-CHAT-CURRENT-953");
   assert.equal(chatPayload.context.memoryScope, "CONVERSATION_ONLY");
   assert.equal(chatPayload.context.memoriesSummary, "");
   assert.equal(chatPayload.context.workingMemorySummary, "");
   assert.equal(chatPayload.context.technicalContinuation, undefined);
   assert.doesNotMatch(JSON.stringify(chatPayload), /PRIVATE_(?:PROFILE|PROJECT|MEMORY)_MARKER/);
   assert.equal(calls.some((url) => url.includes("/api/elo/memories")), false);
+  assert.equal(calls.some((url) => url.includes("/api/elo/vector-memory")), false);
 });
 
 test("Elo system prompt recebe memoriesSummary consolidado", () => {
