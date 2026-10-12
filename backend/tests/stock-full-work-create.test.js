@@ -12,6 +12,7 @@ function createWorkDatabase(options = {}) {
     auth_user_id: "auth-e2e-a",
     institution_id: TENANT_A,
     role: "admin",
+    status: "active",
     name: "Admin E2E",
     email: "admin@elo-e2e.test"
   };
@@ -40,6 +41,14 @@ function createWorkDatabase(options = {}) {
         };
       }
       if (name === "stock_full_create_work") {
+        const status = profile.status == null ? null : String(profile.status).trim().toLowerCase();
+        if (status !== "active" && status !== "ativo") {
+          return { data: null, error: { code: "42501", message: "user_inactive" } };
+        }
+        const role = profile.role == null ? null : String(profile.role).trim().toLowerCase();
+        if (!new Set(["admin", "administrador", "gestor", "patrao"]).has(role)) {
+          return { data: null, error: { code: "42501", message: "permission_denied" } };
+        }
         const tenantId = profile.institution_id;
         const nameValue = String(args.p_name || "").trim();
         const addressValue = args.p_address || null;
@@ -192,6 +201,8 @@ test("Stock Full creates canonical work in authenticated tenant and ignores tena
 
     assert.equal(response.status, 201);
     assert.equal(data.work.institutionId, TENANT_A);
+    assert.equal(data.work.id, database.projects[0].id);
+    assert.match(data.work.id, /^obraproj_[0-9a-f]{64}$/);
     assert.equal(database.projects.length, 1);
     assert.equal(database.projects[0].institution_id, TENANT_A);
     assert.equal(database.projects[0].name, "OBRA TESTE ELO E2E B");
@@ -258,6 +269,65 @@ test("Stock Full work creation requires authentication, valid token, and manager
     } finally {
       await employeeServer.close();
     }
+    assert.equal(database.projects.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("Stock Full work creation route and RPC role matrix allow only canonical managers", async () => {
+  for (const role of ["admin", "administrador", "gestor", "patrao"]) {
+    const database = createWorkDatabase({
+      profile: { id: "role-profile", auth_user_id: "auth-e2e-a", institution_id: TENANT_A, role, status: "active" }
+    });
+    const server = await start(database);
+    try {
+      const response = await postWork(server.baseUrl, { name: "Obra role " + role }, { Authorization: "Bearer valid-token" });
+      const data = await response.json();
+      assert.equal(response.status, 201, role + " must be allowed by both route and RPC");
+      assert.equal(database.projects.length, 1);
+      assert.equal(data.work.id, database.projects[0].id);
+    } finally {
+      await server.close();
+    }
+  }
+
+  const unauthorized = createWorkDatabase({
+    profile: { id: "role-profile", auth_user_id: "auth-e2e-a", institution_id: TENANT_A, role: "funcionario", status: "active" }
+  });
+  const unauthorizedServer = await start(unauthorized);
+  try {
+    const response = await postWork(unauthorizedServer.baseUrl, { name: "Obra não autorizada" }, { Authorization: "Bearer valid-token" });
+    assert.equal(response.status, 403);
+    assert.equal(unauthorized.projects.length, 0);
+    assert.equal(unauthorized.trace.some((event) => event.type === "rpc" && event.name === "stock_full_create_work"), false);
+  } finally {
+    await unauthorizedServer.close();
+  }
+});
+
+test("Stock Full work creation accepts active profile status and rejects inactive status", async () => {
+  for (const status of ["active", "AtIvO"]) {
+    const database = createWorkDatabase({
+      profile: { id: "active-profile", auth_user_id: "auth-e2e-a", institution_id: TENANT_A, role: "admin", status }
+    });
+    const server = await start(database);
+    try {
+      const response = await postWork(server.baseUrl, { name: "ACTIVE STATUS " + status }, { Authorization: "Bearer valid-token" });
+      assert.equal(response.status, 201);
+      assert.equal(database.projects.length, 1);
+    } finally {
+      await server.close();
+    }
+  }
+
+  const database = createWorkDatabase({
+    profile: { id: "inactive-profile", auth_user_id: "auth-e2e-a", institution_id: TENANT_A, role: "admin", status: "inativo" }
+  });
+  const server = await start(database);
+  try {
+    const response = await postWork(server.baseUrl, { name: "INACTIVE STATUS" }, { Authorization: "Bearer valid-token" });
+    assert.equal(response.status, 403);
     assert.equal(database.projects.length, 0);
   } finally {
     await server.close();
@@ -360,10 +430,14 @@ test("Stock Full work creation migration uses authenticated tenant and does not 
 
   assert.match(sql, /function public\.stock_full_create_work/i);
   assert.match(sql, /security definer/i);
+  assert.match(sql, /set search_path\s*=\s*pg_catalog,\s*pg_temp/i);
   assert.match(sql, /p\.auth_user_id\s*=\s*v_auth_user_id/i);
+  assert.match(sql, /v_status is null or lower\(btrim\(v_status\)\) not in \('active', 'ativo'\)/i);
   assert.match(sql, /v_role is null or v_role not in \('admin', 'administrador', 'gestor', 'patrao'\)/i);
   assert.match(sql, /c\.institution_id\s*=\s*v_institution_id/i);
   assert.match(sql, /pg_advisory_xact_lock/i);
+  assert.match(sql, /revoke all on function public\.stock_full_create_work\(text, text, text, text\) from public/i);
+  assert.match(sql, /revoke all on function public\.stock_full_create_work\(text, text, text, text\) from anon/i);
   assert.match(sql, /to authenticated/i);
   assert.doesNotMatch(sql, /service_role/i);
   assert.match(route, /database\.rpc\("stock_full_create_work"/);

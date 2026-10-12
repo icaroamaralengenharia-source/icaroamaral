@@ -12,12 +12,13 @@ create or replace function public.stock_full_create_work(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, pg_temp
 as $$
 declare
   v_auth_user_id uuid := auth.uid();
   v_institution_id text;
   v_role text;
+  v_status text;
   v_work_id text := btrim(coalesce(p_work_id, ''));
   v_client_id text := nullif(btrim(coalesce(p_client_id, '')), '');
   v_name text := btrim(coalesce(p_name, ''));
@@ -29,15 +30,23 @@ begin
     raise exception using errcode = '28000', message = 'authentication_required';
   end if;
 
-  select p.institution_id, lower(btrim(coalesce(p.role, '')))
-    into v_institution_id, v_role
-  from public.profiles p
-  where p.auth_user_id = v_auth_user_id
-  order by p.created_at desc nulls last
-  limit 1;
+  begin
+    select p.institution_id::text, lower(btrim(p.role)), p.status
+      into strict v_institution_id, v_role, v_status
+    from public.profiles p
+    where p.auth_user_id = v_auth_user_id;
+  exception
+    when no_data_found then
+      raise exception using errcode = 'P0002', message = 'stock_full_profile_not_found';
+    when too_many_rows then
+      raise exception using errcode = 'P0002', message = 'stock_full_profile_ambiguous';
+  end;
 
   if nullif(btrim(coalesce(v_institution_id, '')), '') is null then
     raise exception using errcode = 'P0002', message = 'stock_full_profile_not_found';
+  end if;
+  if v_status is null or lower(btrim(v_status)) not in ('active', 'ativo') then
+    raise exception using errcode = '42501', message = 'user_inactive';
   end if;
   if v_role is null or v_role not in ('admin', 'administrador', 'gestor', 'patrao') then
     raise exception using errcode = '42501', message = 'permission_denied';
