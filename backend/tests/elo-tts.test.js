@@ -63,7 +63,11 @@ test("ELO TTS retorna audio e nao expoe segredo ao frontend", async () => {
         Origin: "https://www.icaroamaral.com.br",
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ text: "Olá. Teste com acentos e número 42.", voice: "nova" })
+      body: JSON.stringify({
+        text: "Olá. Teste com acentos e número 42.",
+        voice: "nova",
+        instructions: "Português brasileiro natural, sotaque paulista leve e neutro."
+      })
     });
     const audio = Buffer.from(await response.arrayBuffer());
     const serializedHeaders = JSON.stringify(Array.from(response.headers.entries()));
@@ -76,6 +80,8 @@ test("ELO TTS retorna audio e nao expoe segredo ao frontend", async () => {
     assert.equal(providerRequest.url, "https://api.openai.com/v1/audio/speech");
     assert.equal(providerRequest.body.voice, "nova");
     assert.equal(providerRequest.body.input, "Olá. Teste com acentos e número 42.");
+    assert.equal(providerRequest.body.instructions, "Português brasileiro natural, sotaque paulista leve e neutro.");
+    assert.equal(Object.hasOwn(providerRequest.body, "speed"), false);
     assert.doesNotMatch(serializedHeaders, /test-key|OPENAI_API_KEY|Bearer/i);
   } finally {
     await closeTestServer_(testServer.server);

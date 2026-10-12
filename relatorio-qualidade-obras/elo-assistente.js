@@ -32581,6 +32581,12 @@ function isEloResidentialNewPipelineEnabled_() {
     return sanitizeUserText(window.ELO_TTS_ENDPOINT || getEloBackendEndpoint_("/api/elo/tts"));
   }
 
+  function getEloTtsInstructions_() {
+    const pathname = String(window.location && window.location.pathname || "").toLowerCase();
+    if (pathname !== "/elo.html") return "";
+    return "Fale em português brasileiro nativo e natural, com sotaque paulista leve e neutro de São Paulo. Use pronúncia brasileira cotidiana, clara e espontânea. Evite qualquer sotaque estrangeiro, especialmente pronúncia de falante de inglês. Não faça caricatura regional. Mantenha ritmo conversacional, entonação humana e profissional, preservando a naturalidade e o timbre da voz atual, sem teatralidade e sem acelerar excessivamente. Para termos técnicos, use a pronúncia brasileira comum em obras: RDO como erre dê ó; SINAPI como sinápi; ORSE como órse; CREA como créa; BIM como bim. Pronuncie megapascais, milímetros, metros quadrados e por cento em português brasileiro.";
+  }
+
   function getEloAudioConstructor_() {
     return window.Audio || null;
   }
@@ -32772,7 +32778,11 @@ function isEloResidentialNewPipelineEnabled_() {
     const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: speechText, voice: sanitizeUserText(window.ELO_TTS_VOICE || "") })
+      body: JSON.stringify({
+        text: speechText,
+        voice: sanitizeUserText(window.ELO_TTS_VOICE || ""),
+        instructions: getEloTtsInstructions_()
+      })
     };
     if (metadata.signal) requestOptions.signal = metadata.signal;
     return fetchEloAuthenticated_(endpoint, requestOptions).then(function (response) {
