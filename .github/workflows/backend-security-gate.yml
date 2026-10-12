@@ -61,6 +61,7 @@ jobs:
           node --check src/auth-context.js
           node --check src/services/obrareport-transactional-service.js
           node --check tests/canonical-session-rdo-security.test.js
+          node --check tests/elo-me-endpoint.test.js
           if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
             node --check tests/obrareport-rdo-tenant-isolation-p0.test.js
           fi
@@ -70,6 +71,7 @@ jobs:
           test_files=(
             tests/auth-context.test.js
             tests/elo-auth-context-integration.test.js
+            tests/elo-me-endpoint.test.js
             tests/canonical-session-rdo-security.test.js
             tests/obrareport-transactional-service.test.js
           )
