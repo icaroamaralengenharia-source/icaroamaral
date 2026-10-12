@@ -4008,9 +4008,12 @@ test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis
   const fakeConsole = Object.assign({}, console, {
     info(name, payload) { events.push({ name, payload: payload || {} }); }
   });
+  let ttsRequest = null;
   const { elo } = loadEloContext({
     window: {
       console: fakeConsole,
+      location: { hostname: 'localhost', protocol: 'http:', pathname: '/elo.html', hash: '' },
+      ELO_AUTH_TOKEN: createEloHotfixToken(),
       Audio,
       ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
       speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'pt-BR ruim', lang: 'pt-BR' }]; }, speak() { speechCalls += 1; } },
@@ -4019,7 +4022,12 @@ test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis
     fetch(url, options = {}) {
       assert.equal(String(url), 'https://tts.test/api/elo/tts');
       assert.equal(options.method, 'POST');
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:elo-neural', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
+      ttsRequest = options;
+      return Promise.resolve({
+        ok: true,
+        headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } },
+        json: () => Promise.resolve({ ok: true, audioUrl: 'blob:elo-neural', provider: 'openai-tts', voice: 'elo-neural-ptbr' })
+      });
     }
   });
 
@@ -4036,6 +4044,12 @@ test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis
   assert.equal(audioInstances[0].playbackRate, 1);
   assert.equal(audioInstances[0].preservesPitch, true);
   assert.equal(speechCalls, 0);
+  const requestBody = JSON.parse(ttsRequest.body);
+  assert.match(requestBody.instructions, /português brasileiro nativo e natural/i);
+  assert.match(requestBody.instructions, /sotaque paulista leve e neutro de São Paulo/i);
+  assert.match(requestBody.instructions, /RDO como erre dê ó/i);
+  assert.equal(requestBody.voice, '');
+  assert.equal(Object.hasOwn(requestBody, 'speed'), false);
   assert.ok(events.some((event) => event.name === 'TTS_AUDIT' && event.payload.TTS_MODE === 'neural'));
 });
 
@@ -4073,12 +4087,12 @@ test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
     this.play = () => Promise.resolve(true);
   }
   const { elo } = loadEloContext({
-    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    window: { Audio, ELO_AUTH_TOKEN: createEloHotfixToken(), ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
     fetch(url, options = {}) {
       fetchCalls += 1;
       assert.equal(String(url), 'https://tts.test/api/elo/tts');
       assert.equal(options.method, 'POST');
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:auto-tts', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
+      return Promise.resolve({ ok: true, headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } }, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:auto-tts', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
     }
   });
   const messages = createElement('div');
@@ -4167,8 +4181,8 @@ test('ELO auto-TTS: mesma responseId fala uma vez e pula duplicata', async () =>
   const events = [];
   const fakeConsole = Object.assign({}, console, { info(name, payload) { events.push({ name, payload: payload || {} }); } });
   const { elo } = loadEloContext({
-    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', console: fakeConsole },
-    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:once', provider: 'openai-tts' }) }); }
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); }, ELO_AUTH_TOKEN: createEloHotfixToken(), ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', console: fakeConsole },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } }, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:once', provider: 'openai-tts' }) }); }
   });
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
@@ -4192,17 +4206,20 @@ test('ELO auto-TTS: PARAR invalida callback antigo e nao aciona fallback', async
   const { elo } = loadEloContext({
     window: {
       Audio: function Audio() { audioInstances += 1; this.play = () => Promise.resolve(true); this.pause = () => {}; },
+      ELO_AUTH_TOKEN: createEloHotfixToken(),
       ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts',
       SpeechSynthesisUtterance: function Utterance(text) { this.text = text; },
       speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak() { speechCalls += 1; } },
       console: fakeConsole
     },
-    fetch() { return new Promise((resolve) => { resolveFetch = resolve; }); }
+    fetch() { return new Promise((resolve) => { resolveFetch = (response) => resolve(Object.assign({ headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } } }, response)); }); }
   });
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
 
   elo.appendMessageForLayoutTest('assistant', 'Resposta longa para interromper.', { responseLifecycle: 'new', responseId: 'stop-response' });
+  await flushEloHotfixPromises();
+  assert.equal(typeof resolveFetch, 'function');
   assert.equal(elo.stopSpeechOutputForTest(), true);
   resolveFetch({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late', provider: 'openai-tts' }) });
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -4240,8 +4257,8 @@ test('ELO auto-TTS: nova pergunta cancela fala anterior', async () => {
     this.play = () => Promise.resolve(true);
   }
   const { elo } = loadEloContext({
-    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
-    fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-live', provider: 'openai-tts' }) }); }
+    window: { Audio, ELO_AUTH_TOKEN: createEloHotfixToken(), ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch() { return Promise.resolve({ ok: true, headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } }, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-live', provider: 'openai-tts' }) }); }
   });
   const messages = createElement('div');
   elo.setCoreMessagesElementForTest(messages);
@@ -4811,7 +4828,7 @@ test('ELO Web TTS para em limpar, nova conversa, logout e pagehide sem callback 
     fetch(url) {
       if (String(url) === 'https://tts.test/api/elo/tts') {
         ttsCount += 1;
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-' + ttsCount, provider: 'openai-tts' }) });
+        return Promise.resolve({ ok: true, headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } }, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-' + ttsCount, provider: 'openai-tts' }) });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
     }
@@ -4868,11 +4885,11 @@ test('ELO Web TTS nao reinicia quando callbacks antigos chegam depois do stop', 
     audios.push(this);
   }
   const { elo } = loadEloContext({
-    window: { ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', Audio },
+    window: { ELO_AUTH_TOKEN: createEloHotfixToken(), ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts', Audio },
     fetch(url) {
       if (String(url) === 'https://tts.test/api/elo/tts') {
         return new Promise((resolve) => {
-          resolveTts = () => resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late-tts', provider: 'openai-tts' }) });
+          resolveTts = () => resolve({ ok: true, headers: { get(name) { return String(name).toLowerCase() === 'content-type' ? 'application/json' : null; } }, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:late-tts', provider: 'openai-tts' }) });
         });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
@@ -4880,6 +4897,8 @@ test('ELO Web TTS nao reinicia quando callbacks antigos chegam depois do stop', 
   });
 
   assert.equal(elo.speakTextForTest('fala neural pendente', null, { responseId: 'late-neural' }), true);
+  await flushEloHotfixPromises();
+  assert.equal(typeof resolveTts, 'function');
   assert.equal(elo.stopAllSpeechForTest({ shutdown: true }), true);
   resolveTts();
   await flushEloHotfixPromises();

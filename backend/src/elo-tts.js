@@ -1,4 +1,5 @@
 const DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
+const INSTRUCTION_TTS_MODELS = new Set([DEFAULT_TTS_MODEL]);
 const DEFAULT_TTS_VOICE = "alloy";
 const DEFAULT_TTS_FORMAT = "mp3";
 const DEFAULT_MAX_TTS_TEXT_LENGTH = 1200;
@@ -30,6 +31,10 @@ function sanitizeTtsFormat_(value) {
   return TTS_FORMATS.has(format) ? format : DEFAULT_TTS_FORMAT;
 }
 
+function sanitizeTtsInstructions_(value) {
+  return String(value || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200);
+}
+
 function resolveTtsLimit_(env = {}) {
   const limit = Number(env.ELO_TTS_MAX_TEXT_LENGTH || DEFAULT_MAX_TTS_TEXT_LENGTH);
   return Number.isFinite(limit) && limit > 0 ? Math.min(Math.round(limit), 4000) : DEFAULT_MAX_TTS_TEXT_LENGTH;
@@ -50,12 +55,13 @@ function validateTtsPayload_(body = {}, env = {}) {
       text,
       voice: sanitizeTtsVoice_(body.voice),
       format: sanitizeTtsFormat_(body.format),
+      instructions: sanitizeTtsInstructions_(body.instructions),
       maxLength
     }
   };
 }
 
-export async function synthesizeSpeech({ text, voice = DEFAULT_TTS_VOICE, format = DEFAULT_TTS_FORMAT, env = {}, fetchImpl = globalThis.fetch } = {}) {
+export async function synthesizeSpeech({ text, voice = DEFAULT_TTS_VOICE, format = DEFAULT_TTS_FORMAT, instructions = "", env = {}, fetchImpl = globalThis.fetch } = {}) {
   const cleanText = cleanTtsText_(text);
   if (!cleanText) {
     const error = new Error("tts_text_required");
@@ -74,19 +80,23 @@ export async function synthesizeSpeech({ text, voice = DEFAULT_TTS_VOICE, format
   }
 
   const safeFormat = sanitizeTtsFormat_(format);
+  const model = env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL;
   const startedAt = Date.now();
+  const providerBody = {
+    model,
+    voice: sanitizeTtsVoice_(voice),
+    input: cleanText,
+    format: safeFormat
+  };
+  const safeInstructions = sanitizeTtsInstructions_(instructions);
+  if (safeInstructions && INSTRUCTION_TTS_MODELS.has(model)) providerBody.instructions = safeInstructions;
   const response = await fetchImpl("https://api.openai.com/v1/audio/speech", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + env.OPENAI_API_KEY,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL,
-      voice: sanitizeTtsVoice_(voice),
-      input: cleanText,
-      format: safeFormat
-    })
+    body: JSON.stringify(providerBody)
   });
   const providerMs = Date.now() - startedAt;
   if (!response || !response.ok) {
@@ -131,6 +141,7 @@ export function registerEloTtsRoute(app, { env = process.env, fetchImpl = global
         text: validation.payload.text,
         voice: validation.payload.voice,
         format: validation.payload.format,
+        instructions: validation.payload.instructions,
         env,
         fetchImpl
       });
