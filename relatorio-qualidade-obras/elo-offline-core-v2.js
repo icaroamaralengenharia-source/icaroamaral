@@ -65,7 +65,7 @@
   function day(value) { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(value); }
   function dateAnswer(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return day(d).replace(/^./, function (c) { return c.toUpperCase(); }); }
   function timeAnswer() { return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date()); }
-  function matchRule(text) { var t = norm(text); for (var i = 0; i < rules.length; i += 1) { if (rules[i][1].some(function (phrase) { return t === norm(phrase) || t.indexOf(norm(phrase)) >= 0; })) return rules[i]; } return null; }
+  function matchRule(text) { var t = norm(text); var exactOnly = ["greeting", "thanks", "bye", "confirm", "deny", "help", "identity"]; for (var i = 0; i < rules.length; i += 1) { if (exactOnly.indexOf(rules[i][0]) >= 0) { if (rules[i][1].some(function (phrase) { return t.replace(/[.!?]+$/g, "").trim() === norm(phrase); })) return rules[i]; continue; } if (rules[i][1].some(function (phrase) { return t === norm(phrase) || t.indexOf(norm(phrase)) >= 0; })) return rules[i]; } return null; }
   function localDate(text) {
     var t = norm(text);
     var relative = t.match(/(?:daqui a|em)\s+(\d{1,3})\s+dias?/);

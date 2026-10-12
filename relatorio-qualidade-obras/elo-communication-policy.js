@@ -82,7 +82,7 @@
 
     const humorTopic = /\b(piadas?|brincadeiras?|trocadilhos?|graca|engracad[oa]s?|divertid[oa]s?|humor|rir)\b/.test(text);
     if (!humorTopic) {
-      const continuation = /^(?:mais uma|mais um|outra|outro|outra dessas|mais uma dessas|manda outra|mais desse|continua|mais uma vez)$/.test(text);
+      const continuation = /^(?:mais uma|mais um|outra|outro|outra dessas|mais uma dessas|manda outra|me conta outra|me conte outra|mais desse|continua|mais uma vez)$/.test(text);
       const previousUserAskedForHumor = continuation && Array.isArray(history) && history.slice(-8).some(function (item) {
         return item && item.role === "user" && isHumorRequest(item.content);
       });

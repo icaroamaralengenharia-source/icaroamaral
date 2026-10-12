@@ -60,6 +60,8 @@
   };
   const ELO_PDF_TEXT_CONTEXT_LIMIT = 15000;
   const ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT = ELO_PDF_TEXT_CONTEXT_LIMIT;
+  const ELO_ACTIVE_DOCUMENT_REQUEST_CONTEXT_LIMIT = 5000;
+  const ELO_USER_MESSAGE_MAX_LENGTH = 36000;
   const ELO_PDFJS_LIBRARY_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
@@ -523,7 +525,10 @@
     const social = getSocialGreetingResponse(question);
     if (social) return Object.assign({}, social, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
     const conversational = getConversationalResponse(normalizeText(question || ""));
-    if (conversational) return Object.assign({}, conversational, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
+    if (conversational) {
+      const isHumor = isEloHumorRequest_(question);
+      return Object.assign({}, conversational, { fullAnswer: isHumor ? conversational.fullAnswer : "", nextAction: "", sessionIntent: "conversa_humana" });
+    }
     const simpleText = normalizeText(question || "");
     if (/\b(receita|bolo|cozinhar|ingredientes?)\b/.test(simpleText)) {
       return { shortAnswer: "Claro. Para bolo de cenoura: bata cenoura, ovos e oleo; misture acucar, farinha e fermento; asse ate firmar.", fullAnswer: "", nextAction: "", canSave: false, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
@@ -3611,7 +3616,7 @@
   function cacheEloCoreMemory_(memory) { if (!memory) return; ELO_UI.coreMemories = (ELO_UI.coreMemories || []).filter(function (item) { return item.id !== memory.id && !(item.category === memory.category && item.memory_key === memory.memory_key); }); ELO_UI.coreMemories.unshift(memory); }
   function persistEloCoreMessage_(role, content, attachments) {
     if (role !== "user" && role !== "assistant") return;
-    const cleanContent = sanitizeUserText(content);
+    const cleanContent = role === "user" ? sanitizeEloUserMessage_(content) : sanitizeUserText(content);
     if (!cleanContent) return;
     const priorHistory = isStandaloneMode() ? getEloStandaloneConversationHistory_(cleanContent) : [];
     const suppressPermanentMemorySave = activateEloConversationOnlyMemoryScope_(cleanContent, priorHistory);
@@ -5152,7 +5157,7 @@
       return null;
     }
 
-    const question = sanitizeUserText(entry.question || "");
+    const question = sanitizeEloUserMessage_(entry.question || "");
     const answer = sanitizeUserText(entry.answer || "");
     if (!question && !answer) {
       return null;
@@ -9450,7 +9455,7 @@
   function saveConversation(question, answer) {
     const memory = getMemory();
     const entry = normalizeEloConversationEntry_({
-      question: sanitizeUserText(question),
+      question: sanitizeEloUserMessage_(question),
       answer: sanitizeUserText(answer),
       createdAt: new Date().toISOString()
     });
@@ -9613,7 +9618,7 @@
           }));
         }
         return Promise.all(pageReads).then(function (pages) {
-          const text = sanitizeUserText(pages.join("\n\n")).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+          const text = sanitizeEloDocumentText_(pages.join("\n\n")).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
           if (!text) {
             throw new Error("pdf_sem_texto");
           }
@@ -9623,27 +9628,13 @@
     });
   }
 
-  function buildEloQuestionWithPdfContext_(question, pdfTexts) {
-    const cleanQuestion = sanitizeUserText(question);
-    const pdfContext = pdfTexts.map(function (entry, index) {
-      return [
-        "PDF " + (index + 1) + ": " + sanitizeUserText(entry.fileName || "documento.pdf"),
-        sanitizeUserText(entry.text).slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT)
-      ].join("\n");
-    }).join("\n\n").slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT);
-
-    return [
-      "[CONTEUDO EXTRAIDO DO PDF]",
-      pdfContext,
-      "",
-      "[PERGUNTA DO USUARIO]",
-      cleanQuestion || "Elo, leia este anexo."
-    ].join("\n");
+  function buildEloQuestionWithPdfContext_(question) {
+    return sanitizeEloUserMessage_(question);
   }
 
   function normalizeEloActiveDocumentEntry_(entry) {
     const safe = entry && typeof entry === "object" ? entry : {};
-    const text = sanitizeUserText(safe.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
+    const text = sanitizeEloDocumentText_(safe.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
     if (!text) return null;
     const fileName = sanitizeUserText(safe.fileName || "documento.pdf") || "documento.pdf";
     const source = fileName + "\n" + text;
@@ -9790,9 +9781,9 @@
       return [
         "Documento ativo " + (index + 1) + ": " + sanitizeUserText(entry.fileName || "documento.pdf"),
         "Trecho extraido:",
-        sanitizeUserText(entry.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT)
+        sanitizeEloDocumentText_(entry.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT)
       ].join("\n");
-    }).join("\n\n").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
+    }).join("\n\n").slice(0, ELO_ACTIVE_DOCUMENT_REQUEST_CONTEXT_LIMIT);
   }
 
   function applyEloActiveDocumentContextToPayload_(payload, question) {
@@ -9857,7 +9848,7 @@
     const pdfFiles = Array.prototype.slice.call(files || []).filter(isEloPdfAttachment_);
     if (!pdfFiles.length) {
       return Promise.resolve({
-        message: sanitizeUserText(question),
+        message: sanitizeEloUserMessage_(question),
         anonymousId: getEloCoreAnonymousId_(),
         blockingMessage: ""
       });
@@ -9866,7 +9857,7 @@
     const conversationRevision = Number(ELO_UI.coreConversationRevision || 0);
     return ensureEloAttachmentConversation_().catch(function () { return ""; }).then(function () {
       if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) {
-        return { message: sanitizeUserText(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
+        return { message: sanitizeEloUserMessage_(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
       }
       const activeAttachment = beginEloAttachmentContext_("pdf", pdfFiles[0]);
       return Promise.all(pdfFiles.slice(0, 4).map(function (file) {
@@ -9885,23 +9876,15 @@
         });
       })).then(function (results) {
         if (conversationRevision !== Number(ELO_UI.coreConversationRevision || 0)) {
-          return { message: sanitizeUserText(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
+          return { message: sanitizeEloUserMessage_(question), blockingMessage: "O anexo não foi enviado porque a conversa mudou. Anexe o arquivo novamente na conversa atual." };
         }
         const readable = results.filter(function (result) {
           return result.ok && result.text;
         });
 
-        if (!readable.length) {
-          return {
-            message: sanitizeUserText(question),
-            anonymousId: getEloCoreAnonymousId_(),
-            blockingMessage: "Este PDF parece ser um documento digitalizado em imagem. Ainda n\u00e3o foi poss\u00edvel extrair texto automaticamente."
-          };
-        }
-
-        rememberEloActiveDocumentContext_(readable, activeAttachment.id);
+        if (readable.length) rememberEloActiveDocumentContext_(readable, activeAttachment.id);
         return {
-          message: buildEloQuestionWithPdfContext_(question, readable),
+          message: sanitizeEloUserMessage_(question),
           blockingMessage: ""
         };
       });
@@ -9963,6 +9946,9 @@
     });
   }
   function requestEloOnlineAnswer(question, attachments, options) {
+    if (String(question || "").length > ELO_USER_MESSAGE_MAX_LENGTH) {
+      return Promise.resolve("A mensagem excede o limite seguro de 36.000 caracteres. Reduza o texto ou envie o material como anexo.");
+    }
     const requestOptions = options && typeof options === "object" ? options : {};
     const isTechnicalContinuation = requestOptions.technicalContinuation === true;
     // Android WebView can report navigator.onLine=false while the validated
@@ -9987,7 +9973,7 @@
     const temporaryMemoryScope = activateEloConversationOnlyMemoryScope_(question, history);
     if (!temporaryMemoryScope) syncEloVectorMemories();
     const payload = {
-      message: sanitizeUserText(question),
+      message: sanitizeEloUserMessage_(question),
       anonymousId: getEloCoreAnonymousId_(),
       eloContext: eloContext,
       history: history,
@@ -10010,7 +9996,7 @@
         technicalContinuation: isTechnicalContinuation && !temporaryMemoryScope ? {
           activeTopic: sanitizeUserText(requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || ""),
           referent: sanitizeUserText(requestOptions.referent || ""),
-          finalQuery: sanitizeUserText(question)
+          finalQuery: sanitizeEloUserMessage_(question)
         } : undefined
       }
     };
@@ -13032,6 +13018,22 @@
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 600);
+  }
+
+  function sanitizeEloUserMessage_(value) {
+    return String(value || "")
+      .replace(/[<>]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, ELO_USER_MESSAGE_MAX_LENGTH);
+  }
+
+  function sanitizeEloDocumentText_(value) {
+    return String(value || "")
+      .replace(/[<>]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT);
   }
 
   function normalizeText(value) {
@@ -28348,11 +28350,17 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function isEloHumorRequest_(question) {
+    const normalizedQuestion = normalizeText(question || "");
+    const humorQuestion = normalizedQuestion.replace(/^(?:(?:bom dia|boa tarde|boa noite|oi|ola|opa|salve|e ai)(?:\s*[,;:!?.-]\s*|\s+))/, "").trim();
+    const candidate = humorQuestion && humorQuestion !== normalizedQuestion ? humorQuestion : normalizedQuestion;
+    const history = isStandaloneMode() && typeof getEloStandaloneConversationHistory_ === "function"
+      ? getEloStandaloneConversationHistory_(question)
+      : undefined;
     const policy = window.EloCommunicationPolicy;
     if (policy && typeof policy.isHumorRequest === "function") {
-      return policy.isHumorRequest(question);
+      return policy.isHumorRequest(candidate, history);
     }
-    const text = normalizeText(question);
+    const text = candidate;
     const hasHumorTopic = /\b(piadas?|brincadeiras?|trocadilhos?|graca|engracad[oa]s?|divertid[oa]s?|humor|rir)\b/.test(text);
     const directRequest = /\b(conta|conte|manda|cria|crie|inventa|invente|faz|faca|tenta|tente|surpreenda|me faz|me faca)\b/.test(text);
     return hasHumorTopic && (directRequest || /^(?:(?:uma?|me\s+)?(?:piadas?|brincadeiras?|trocadilhos?)(?:\s+(?:sobre|de|com)\s+[^?!.]*)?|(?:algo|alguma coisa)\s+(?:bem\s+)?(?:leve|divertido|engracado))$/.test(text));
@@ -29039,7 +29047,7 @@ function isEloResidentialNewPipelineEnabled_() {
       savedAt: Date.now(),
       expiresAt: Date.now() + ELO_CORE_SURFACE_STATE_TTL_MS,
       conversationId: sanitizeUserText(ELO_UI.coreConversationId || getEloCoreCurrentConversationId_()),
-      draft: sanitizeUserText(ELO_UI.input.value || "").slice(0, 2000),
+      draft: String(ELO_UI.input.value || ""),
       scrollTop: Number(ELO_UI.messages.scrollTop) || 0,
       messages: items
     };
@@ -29100,7 +29108,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.replayingCoreHistory = false;
     restoreEloAnalysisContextFromStoredMessages_(storedMessages);
     if (state.conversationId) setEloCoreCurrentConversationId_(state.conversationId);
-    ELO_UI.input.value = sanitizeUserText(state.draft || "").slice(0, 2000);
+    ELO_UI.input.value = String(state.draft || "");
     refreshEloInputHeight_();
     setEloCoreWelcomeVisible_();
     window.setTimeout(function () {
@@ -29755,6 +29763,12 @@ function isEloResidentialNewPipelineEnabled_() {
       (hasGenerationVerb && hasPdfIntent && hasImageContext) ||
       (hasGenerationVerb && hasDocumentIntent && hasImageContext) ||
       (hasGenerationVerb && hasDocumentIntent && hasObraReportContext);
+  }
+
+  function shouldGenerateEloReportPdfFromChat_(message, attachments) {
+    if (!isEloReportPdfGenerationRequest_(message)) return false;
+    const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
+    return !files.length || files.some(isEloImageAttachment_);
   }
   function getEloReportAppsScriptUrl_() {
     const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -31427,7 +31441,11 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
   function askElo(question, attachments, source) {
-    const cleanQuestion = sanitizeUserText(question);
+    if (String(question || "").length > ELO_USER_MESSAGE_MAX_LENGTH) {
+      appendMessage("system", "A mensagem excede o limite seguro de 36.000 caracteres. Reduza o texto ou envie o material como anexo.");
+      return;
+    }
+    const cleanQuestion = sanitizeEloUserMessage_(question);
     if (!cleanQuestion) {
       return;
     }
@@ -31465,7 +31483,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     if (!attachedFiles.length && handleEloAnalysisReferenceFastPath_(cleanQuestion)) return;
-    if (handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
+    if (!attachedFiles.length && handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
     if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest)) {
       if (handleEloDomainCommandFastPath_(routeQuestion)) return;
     }
@@ -31694,7 +31712,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
 
-    if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
+    if (shouldGenerateEloReportPdfFromChat_(cleanQuestion, attachedFiles)) {
       generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
       return;
     }
@@ -31781,6 +31799,11 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       if (effectiveSemanticRoute.intent === "conversa_geral") {
+        if (isEloHumorRequest_(cleanQuestion) && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
+          removeTypingIndicator();
+          clearProductAttachmentPreview();
+          return;
+        }
         const commandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (commandBridgeResponse) {
           if (isEloAsyncResponse_(commandBridgeResponse)) {
@@ -36415,6 +36438,10 @@ function isEloResidentialNewPipelineEnabled_() {
 
     function submitMinimalQuestion(source) {
       const question = ELO_UI.input.value;
+      if (String(question || "").length > ELO_USER_MESSAGE_MAX_LENGTH) {
+        appendMessage("system", "A mensagem excede o limite seguro de 36.000 caracteres. Reduza o texto ou envie o material como anexo.");
+        return;
+      }
       const attachmentIntent = detectAttachmentIntent(question);
 
       if (attachmentIntent.type === "image") {
@@ -36519,6 +36546,8 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    sanitizeUserTextForTest: sanitizeUserText,
+    shouldGenerateEloReportPdfFromChatForTest: shouldGenerateEloReportPdfFromChat_,
     buildConversationalResponseForTest: getConversationalResponse,
     sanitizeEloHumorAnswerForDisplayForTest: sanitizeEloHumorAnswerForDisplay_,
     detectConversationalIntentForTest: detectConversationalIntent,

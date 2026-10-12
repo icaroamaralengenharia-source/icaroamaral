@@ -5230,7 +5230,7 @@ test("elo chat com pdf corrompido retorna erro amigavel", async () => {
   assert.match(data.attachmentErrors.join("\n"), /corrompido|texto extraivel|Nao consegui ler/i);
 });
 
-test("elo chat com pdf valido extrai e indexa texto", async () => {
+test("elo chat com pdf valido extrai texto sem persistir em memoria", async () => {
   const response = await postEloChatMultipart_({
     message: "Elo, qual e o prazo deste PDF?",
     context: {
@@ -5247,11 +5247,24 @@ test("elo chat com pdf valido extrai e indexa texto", async () => {
     ]
   });
   const data = await response.json();
-  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_pdf_valido");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);
-  assert.match(indexed, /Prazo de entrega: 30 dias/i);
+  assert.match(data.answer, /consegui extrair texto do anexo: contrato-valido\.pdf/i);
+  assert.deepEqual(data.attachmentErrors, []);
+});
+
+test("elo chat multipart aceita pergunta de 32.891 caracteres junto com PDF", async () => {
+  const message = "Registro técnico da obra, lote 07; ".repeat(1000).slice(0, 32891).trimEnd().padEnd(32891, "x");
+  const response = await postEloChatMultipart_({
+    message,
+    context: { source: "elo", mode: "standalone", deviceId: "elo_dev_pdf_mensagem_longa" },
+    files: [{ name: "contrato-longo.pdf", type: "application/pdf", content: tinyPdfBuffer_() }]
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
 });
 
 test("upload acima do limite retorna JSON amigavel", async () => {
@@ -7640,6 +7653,33 @@ test("Elo envia memoriesSummary consolidado no payload online", async () => {
   assert.match(chatPayload.context.memoriesSummary, /Thor/i);
   assert.match(chatPayload.context.memoriesSummary, /Photo Bridge/i);
   assert.match(chatPayload.context.memoriesSummary, /respostas diretas/i);
+});
+
+test("Elo preserva no payload a mensagem de 32.891 caracteres", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  let chatPayload = null;
+  const testToken = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url") + "." +
+    Buffer.from(JSON.stringify({ iss: "https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1", exp: Math.floor(Date.now() / 1000) + 3600, sub: "synthetic-user" })).toString("base64url") + ".test";
+  sandbox.localStorage.setItem("sb-elo-core-auth-token", JSON.stringify({ currentSession: { access_token: testToken } }));
+  sandbox.ELO_AUTH_TOKEN = testToken;
+  sandbox.ELO_AUTH_SESSION_VALIDATED = true;
+  sandbox.window.ELO_AUTH_SESSION_VALIDATED = true;
+  sandbox.atob = (value) => Buffer.from(String(value), "base64").toString("binary");
+  const longMessage = "Registro técnico da obra, lote 07; ".repeat(1000).slice(0, 32891).trimEnd().padEnd(32891, "x");
+  sandbox.fetch = async (url, options = {}) => {
+    if (String(url).includes("/api/elo/chat")) {
+      chatPayload = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ ok: true, answer: "Recebi o registro completo." }) };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+  sandbox.window.fetch = sandbox.fetch;
+
+  await sandbox.window.EloAssistente.requestOnlineAnswerForTest(longMessage);
+
+  assert.ok(chatPayload);
+  assert.equal(chatPayload.message.length, 32891);
+  assert.equal(chatPayload.message, longMessage);
 });
 
 test("Elo escopo somente-conversa omite memoria persistente do payload e da sincronizacao", async () => {

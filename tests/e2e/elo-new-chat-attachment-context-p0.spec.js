@@ -21,6 +21,16 @@ function validToken() {
 
 async function installSyntheticSession(page) {
   await page.addInitScript((savedToken) => {
+    window.__ELO_TEST_SPEECH_SYNTHESIS_CALLS = 0;
+    try {
+      const synthesis = window.speechSynthesis;
+      if (synthesis) {
+        Object.defineProperty(synthesis, "speak", {
+          configurable: true,
+          value: () => { window.__ELO_TEST_SPEECH_SYNTHESIS_CALLS += 1; }
+        });
+      }
+    } catch (_) {}
     window.ELO_SUPABASE_URL = "https://mplpzyalcxhhinuvjthx.supabase.co";
     window.ELO_SUPABASE_ANON_KEY = "anon-key";
     const payload = JSON.stringify({ currentSession: { access_token: savedToken }, access_token: savedToken });
@@ -126,6 +136,104 @@ async function clickNewChat(page) {
   await page.locator("[data-elo-new-chat]").click();
   await expect(page.locator(".elo-messages .elo-message")).toHaveCount(0);
 }
+
+async function submitChatMessage(page, message) {
+  await page.locator(".elo-input").fill(message);
+  await page.locator(".elo-input-row").evaluate((form) => form.requestSubmit());
+}
+
+async function readNewAssistantReply(page, previousReplyCount) {
+  const replies = page.locator(".elo-message.assistant .elo-message-bubble");
+  await expect(replies).toHaveCount(previousReplyCount + 1);
+  const reply = replies.nth(previousReplyCount);
+  await expect(reply).not.toHaveText(/pensando/i);
+  return (await reply.innerText()).trim();
+}
+
+const HUMOR_CONTENT = /r[eé]gua|somaram\s+7|escala|ideia\s+nova|abas|maquete/i;
+
+test("chat real entrega uma piada completa pelo fast-path", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const replies = page.locator(".elo-message.assistant .elo-message-bubble");
+  const previousReplyCount = await replies.count();
+  const userInput = "me conte uma piada";
+  await submitChatMessage(page, userInput);
+  const finalChatOutput = await readNewAssistantReply(page, previousReplyCount);
+
+  expect(finalChatOutput).not.toBe("Claro.");
+  expect(finalChatOutput).toMatch(HUMOR_CONTENT);
+  expect(routes.chatBodies).toHaveLength(0);
+});
+
+test("chat real entrega outra piada completa no follow-up", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  let previousReplyCount = await page.locator(".elo-message.assistant .elo-message-bubble").count();
+  await submitChatMessage(page, "me conte uma piada");
+  const firstReply = await readNewAssistantReply(page, previousReplyCount);
+
+  previousReplyCount += 1;
+  await submitChatMessage(page, "me conte outra");
+  const secondReply = await readNewAssistantReply(page, previousReplyCount);
+
+  expect(firstReply).toMatch(HUMOR_CONTENT);
+  expect(secondReply).not.toBe("Claro.");
+  expect(secondReply).toMatch(HUMOR_CONTENT);
+  expect(secondReply).not.toBe(firstReply);
+  expect(routes.chatBodies).toHaveLength(0);
+});
+
+test("chat real não deixa saudação interceptar um pedido de piada", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const previousReplyCount = await page.locator(".elo-message.assistant .elo-message-bubble").count();
+  await submitChatMessage(page, "bom dia, me conte uma piada");
+  const finalChatOutput = await readNewAssistantReply(page, previousReplyCount);
+
+  expect(finalChatOutput).toMatch(HUMOR_CONTENT);
+  expect(routes.chatBodies).toHaveLength(0);
+});
+
+test("pedido técnico sério permanece fora do fluxo de humor", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const previousReplyCount = await page.locator(".elo-message.assistant .elo-message-bubble").count();
+  await submitChatMessage(page, "Explique como dimensionar uma viga de concreto armado.");
+  const finalChatOutput = await readNewAssistantReply(page, previousReplyCount);
+
+  expect(routes.chatBodies.length).toBeLessThanOrEqual(1);
+  expect(finalChatOutput).not.toBe("Claro.");
+  expect(finalChatOutput).not.toMatch(HUMOR_CONTENT);
+});
+
+test("composer preserva 32.891 caracteres no DOM e no payload enviado", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const longMessage = "Registro tecnico da obra, lote 07; ".repeat(1000).slice(0, 32891).trimEnd().padEnd(32891, "x");
+  const composer = page.locator(".elo-input");
+  await composer.fill(longMessage);
+
+  const domState = await composer.evaluate((input) => ({ valueLength: input.value.length, maxLength: input.maxLength }));
+  expect(domState).toEqual({ valueLength: 32891, maxLength: -1 });
+
+  const chatRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/elo/chat" && request.method() === "POST");
+  await page.locator(".elo-input-row").evaluate((form) => form.requestSubmit());
+  await chatRequest;
+  await expect.poll(() => routes.chatBodies.length, { timeout: 10000 }).toBe(1);
+  expect(routes.chatBodies[0].message.length).toBe(32891);
+  expect(routes.chatBodies[0].message).toBe(longMessage);
+});
 
 test("Novo chat remove PDF ativo, preview, FileList e contexto parseado", async ({ page }) => {
   await installSyntheticSession(page);
@@ -234,7 +342,9 @@ test("PDF B após Novo chat substitui PDF A sem reaproveitar seu conteúdo", asy
   await installSyntheticRoutes(page);
   await openSyntheticConversation(page);
   await seedPdfA(page);
+  await expect.poll(() => page.evaluate(() => window.EloAssistente.getActiveDocumentForTest()?.documents?.[0]?.text || "")).toContain("CONTEUDO_SINTETICO_EXCLUSIVO_PDF_A");
   await clickNewChat(page);
+  await expect.poll(() => page.evaluate(() => window.EloAssistente.getActiveDocumentForTest())).toBeNull();
 
   await page.locator(".elo-attachment-input").setInputFiles({
     name: "PDF-B.pdf",
@@ -262,6 +372,59 @@ test("PDF B após Novo chat substitui PDF A sem reaproveitar seu conteúdo", asy
   expect(state).toMatchObject({ fileCount: 1, selectedFile: "PDF-B.pdf", previewName: "PDF-B.pdf", activeAttachment: { type: "pdf", fileName: "PDF-B.pdf", documentId: "synthetic-doc-b" }, applied: true, activeDocumentId: "synthetic-doc-b" });
   expect(state.summary).toContain("CONTEUDO_SINTETICO_EXCLUSIVO_PDF_B");
   expect(state.summary).not.toContain("CONTEUDO_SINTETICO_EXCLUSIVO_PDF_A");
+});
+
+test("Novo chat isola PDF e imagem ao alternar os tipos de anexo", async ({ page }) => {
+  await installSyntheticSession(page);
+  await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+  await seedPdfA(page);
+  await clickNewChat(page);
+
+  await page.locator(".elo-attachment-input").setInputFiles({
+    name: "imagem-A.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("synthetic-image-A")
+  });
+  await page.evaluate(() => {
+    const attachment = window.EloAssistente.beginImageAttachmentForTest({ name: "imagem-A.png", type: "image/png" });
+    window.EloAssistente.rememberActiveAnalysisForTest(
+      "Analise a imagem da obra",
+      { sessionIntent: "document_analysis" },
+      "ANALISE_SINTETICA_EXCLUSIVA_IMAGEM_A",
+      attachment.id
+    );
+  });
+  const imageState = await page.evaluate(() => {
+    return {
+      activeAnalysis: window.EloAssistente.getActiveAnalysisForTest(),
+      activeDocument: window.EloAssistente.getActiveDocumentForTest(),
+      activeAttachment: window.EloAssistente.getActiveAttachmentForTest()
+    };
+  });
+  expect(imageState.activeAttachment).toMatchObject({ type: "image", fileName: "imagem-A.png" });
+  expect(JSON.stringify(imageState.activeAnalysis)).toContain("ANALISE_SINTETICA_EXCLUSIVA_IMAGEM_A");
+  expect(imageState.activeDocument).toBeNull();
+
+  await clickNewChat(page);
+  await expect.poll(() => page.evaluate(() => ({ analysis: window.EloAssistente.getActiveAnalysisForTest(), attachment: window.EloAssistente.getActiveAttachmentForTest() }))).toEqual({ analysis: null, attachment: null });
+  await page.locator(".elo-attachment-input").setInputFiles({
+    name: "PDF-B.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\nSYNTHETIC PDF B\n%%EOF")
+  });
+  await page.evaluate(() => window.EloAssistente.rememberActiveDocumentForTest([
+    { fileName: "PDF-B.pdf", text: "CONTEUDO_SINTETICO_EXCLUSIVO_PDF_B", documentId: "synthetic-doc-b" }
+  ]));
+  const pdfState = await page.evaluate(() => {
+    const payload = { message: "resuma isso", context: {} };
+    const applied = window.EloAssistente.applyAttachmentContextToPayloadForTest(payload, payload.message);
+    return { applied, payloadContext: payload.context, activeAttachment: window.EloAssistente.getActiveAttachmentForTest() };
+  });
+  expect(pdfState.applied).toBe(true);
+  expect(pdfState.activeAttachment).toMatchObject({ type: "pdf", fileName: "PDF-B.pdf" });
+  expect(JSON.stringify(pdfState.payloadContext)).toContain("CONTEUDO_SINTETICO_EXCLUSIVO_PDF_B");
+  expect(JSON.stringify(pdfState.payloadContext)).not.toContain("ANALISE_SINTETICA_EXCLUSIVA_IMAGEM_A");
 });
 
 test("Novo chat preserva a conversa antiga e ela continua abrindo pelo histórico", async ({ page }) => {

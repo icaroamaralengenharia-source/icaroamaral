@@ -146,6 +146,29 @@ function loadElo() {
   return loadEloContext().elo;
 }
 
+test('Pedido de relatório PDF com anexo PDF segue para análise de documento', () => {
+  const elo = loadElo();
+  const question = 'Analise o documento PDF anexado e gere o relatório técnico em PDF';
+
+  assert.equal(elo.shouldGenerateEloReportPdfFromChatForTest(question, [{ name: 'projeto.pdf', type: 'application/pdf' }]), false);
+  assert.equal(elo.shouldGenerateEloReportPdfFromChatForTest(question, [{ name: 'detalhe.png', type: 'image/png' }]), true);
+  assert.equal(elo.shouldGenerateEloReportPdfFromChatForTest(question, []), true);
+});
+
+test('Acompanhamento de PDF preserva o resumo no contexto sem expandir a pergunta', () => {
+  const elo = loadElo();
+  const documentText = 'CONTEUDO_SINTETICO_EXCLUSIVO_PDF_A';
+  elo.rememberActiveDocumentForTest([
+    { fileName: 'projeto.pdf', text: documentText, documentId: 'document-a' }
+  ]);
+  const payload = { message: 'resuma isso', context: {} };
+  const applied = elo.applyAttachmentContextToPayloadForTest(payload, payload.message);
+
+  assert.equal(applied, true);
+  assert.equal(payload.message, 'resuma isso');
+  assert.match(payload.context.documentsSummary, /CONTEUDO_SINTETICO_EXCLUSIVO_PDF_A/);
+});
+
 function loadEloHtmlGateContext(options = {}) {
   const classes = new Set(['elo-auth-required']);
   const intervals = [];
