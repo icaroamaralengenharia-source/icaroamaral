@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  const RDO_E2E_DIAGNOSTICS_KEY = "obrareport-rdo-e2e-persistence-diagnostics-v1";
+  const RDO_E2E_DIAGNOSTICS_EMAIL = "admin@elo-e2e.test";
+  const RDO_E2E_DIAGNOSTICS_PAGE_ID = "rdo-page-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
   const rdoCanonicalAuth = window.ObraReportRdoCanonicalAuth && typeof window.ObraReportRdoCanonicalAuth.create === "function"
     ? window.ObraReportRdoCanonicalAuth.create({
@@ -12,7 +15,9 @@
   const rdoCloudAdapter = window.ObraReportRdoCloudAdapter && typeof window.ObraReportRdoCloudAdapter.create === "function"
     ? window.ObraReportRdoCloudAdapter.create({
       baseUrl: window.OBRAREPORT_API_BASE_URL,
-      getToken: getRdoApiAccessToken_
+      getToken: getRdoApiAccessToken_,
+      onDiagnostic: recordRdoE2EDiagnosticEvent_,
+      getTrackedRdoId: getRdoE2EDiagnosticTrackedRdoId_
     })
     : null;
   const form = document.getElementById("qualityReportForm");
@@ -71,6 +76,8 @@
   const dailyLogForm = document.getElementById("dailyLogForm");
   const dailyLogWorkSelect = document.getElementById("dailyLogWorkSelect");
   const dailyLogStatus = document.getElementById("dailyLogStatus");
+  const rdoE2EDiagnosticsPanel = document.getElementById("rdoE2EDiagnostics");
+  const rdoE2EDiagnosticsOutput = document.getElementById("rdoE2EDiagnosticsOutput");
   const dailyLogResetButton = document.getElementById("dailyLogResetButton");
   const dailyLogAddProductionButton = document.getElementById("dailyLogAddProduction");
   const dailyLogCalculateMaterialsButton = document.getElementById("dailyLogCalculateMaterials");
@@ -4407,6 +4414,7 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     renderDailyLogModule_(dailyLogs);
+    renderRdoE2EDiagnostics_();
     renderStockIaPanel_(dailyLogs);
     renderExampleSalesGuide_();
     renderClientPortal_(works, reports, dailyLogs, exportedPdfs);
@@ -6798,6 +6806,259 @@
     }
   }
 
+  function isRdoE2EDiagnosticsEnabled_() {
+    return Boolean(currentUser && isAdminUser_() && clean(currentUser.email).toLowerCase() === RDO_E2E_DIAGNOSTICS_EMAIL);
+  }
+
+  function createRdoE2EDiagnosticState_() {
+    return {
+      version: 1,
+      ownerEmail: RDO_E2E_DIAGNOSTICS_EMAIL,
+      phase: "idle",
+      createPageId: "",
+      activeWorkId: "",
+      createRdoId: "",
+      createProjectId: "",
+      createInstitutionId: "",
+      profileInstitutionId: "",
+      projectIdMatch: null,
+      institutionMatch: null,
+      createHttpStatus: null,
+      immediateGetHttpStatus: null,
+      immediateGetFound: null,
+      immediateListHttpStatus: null,
+      immediateListCount: null,
+      immediateListContainsCreatedId: null,
+      pendingPostReload: false,
+      postReloadAttempted: false,
+      postReloadGetHttpStatus: null,
+      postReloadGetFound: null,
+      postReloadListHttpStatus: null,
+      postReloadListCount: null,
+      postReloadListContainsCreatedId: null,
+      postReloadActiveWorkId: "",
+      postReloadProjectIdMatch: null,
+      postReloadProfileInstitutionId: "",
+      postReloadInstitutionMatch: null,
+      postReloadUiContainsCreatedId: null
+    };
+  }
+
+  function readRdoE2EDiagnosticState_() {
+    if (!isRdoE2EDiagnosticsEnabled_()) return null;
+    try {
+      const parsed = JSON.parse(window.sessionStorage.getItem(RDO_E2E_DIAGNOSTICS_KEY) || "null");
+      return parsed && parsed.version === 1 && parsed.ownerEmail === RDO_E2E_DIAGNOSTICS_EMAIL ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeRdoE2EDiagnosticState_(state) {
+    if (!isRdoE2EDiagnosticsEnabled_() || !state) return;
+    try {
+      window.sessionStorage.setItem(RDO_E2E_DIAGNOSTICS_KEY, JSON.stringify(state));
+    } catch (_) {
+      // The panel still renders in memory if session storage is unavailable.
+    }
+    renderRdoE2EDiagnostics_();
+  }
+
+  function getRdoE2EProfileInstitutionId_() {
+    if (!isRdoE2EDiagnosticsEnabled_() || !rdoCanonicalAuth) return "";
+    try {
+      const raw = window.localStorage.getItem(rdoCanonicalAuth.STORAGE_KEY);
+      const stored = JSON.parse(raw || "null");
+      return clean(stored && stored.profile && stored.profile.institution_id);
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function getRdoE2EDiagnosticTrackedRdoId_() {
+    const state = readRdoE2EDiagnosticState_();
+    return clean(state && state.createRdoId);
+  }
+
+  function redactRdoDiagnosticId_(value) {
+    const id = clean(value);
+    return id ? "[redigido; " + id.length + " caracteres]" : "PENDING";
+  }
+
+  function formatRdoDiagnosticBoolean_(value) {
+    return value === true ? "YES" : value === false ? "NO" : "PENDING";
+  }
+
+  function compareRdoDiagnosticIds_(left, right) {
+    const first = clean(left);
+    const second = clean(right);
+    return first && second ? first === second : null;
+  }
+
+  function classifyRdoE2EPersistence_(state) {
+    if (state.projectIdMatch === false || state.postReloadProjectIdMatch === false) return "PROJECT_ID_MAPPING";
+    if (state.institutionMatch === false || state.postReloadInstitutionMatch === false) return "INSTITUTION_SCOPE";
+    if (state.createHttpStatus != null && (state.createHttpStatus < 200 || state.createHttpStatus >= 300 || !state.createRdoId)) return "CREATE_NOT_DURABLE";
+    if (state.immediateGetFound === false) return "CREATE_NOT_DURABLE";
+    if (state.immediateGetFound === true && state.immediateListContainsCreatedId === false) return "LIST_FILTER_OR_PROJECT_MAPPING";
+    if (state.immediateGetFound === true && state.immediateListContainsCreatedId === true && state.postReloadGetFound === false) return "STORAGE/PERSISTENCE_LAYER";
+    if (state.postReloadGetFound === true && state.postReloadListContainsCreatedId === false) return "LIST_FILTER_OR_PROJECT_MAPPING";
+    if (state.postReloadGetFound === true && state.postReloadListContainsCreatedId === true && state.postReloadUiContainsCreatedId === false) return "FRONTEND_RENDER/LIST";
+    if (state.postReloadGetFound === true && state.postReloadListContainsCreatedId === true && state.postReloadUiContainsCreatedId === true) return "PERSISTENCE_CONFIRMED";
+    return "PENDING";
+  }
+
+  function renderRdoE2EDiagnostics_() {
+    if (!rdoE2EDiagnosticsPanel || !rdoE2EDiagnosticsOutput) return;
+    const enabled = isRdoE2EDiagnosticsEnabled_();
+    rdoE2EDiagnosticsPanel.classList.toggle("is-hidden", !enabled);
+    if (!enabled) return;
+
+    const state = readRdoE2EDiagnosticState_() || createRdoE2EDiagnosticState_();
+    rdoE2EDiagnosticsOutput.textContent = [
+      "CREATE_HTTP_STATUS = " + (state.createHttpStatus == null ? "PENDING" : state.createHttpStatus),
+      "CREATE_RDO_ID_REDACTED = " + redactRdoDiagnosticId_(state.createRdoId),
+      "CREATE_PROJECT_ID_REDACTED = " + redactRdoDiagnosticId_(state.createProjectId),
+      "CREATE_INSTITUTION_ID_REDACTED = " + redactRdoDiagnosticId_(state.createInstitutionId),
+      "IMMEDIATE_GET_BY_ID_HTTP_STATUS = " + (state.immediateGetHttpStatus == null ? "PENDING" : state.immediateGetHttpStatus),
+      "IMMEDIATE_GET_BY_ID_FOUND = " + formatRdoDiagnosticBoolean_(state.immediateGetFound),
+      "IMMEDIATE_LIST_HTTP_STATUS = " + (state.immediateListHttpStatus == null ? "PENDING" : state.immediateListHttpStatus),
+      "IMMEDIATE_LIST_COUNT = " + (state.immediateListCount == null ? "PENDING" : state.immediateListCount),
+      "CREATED_ID_IN_IMMEDIATE_LIST = " + formatRdoDiagnosticBoolean_(state.immediateListContainsCreatedId),
+      "ACTIVE_WORK_ID_REDACTED = " + redactRdoDiagnosticId_(state.activeWorkId),
+      "PROJECT_ID_MATCH = " + formatRdoDiagnosticBoolean_(state.projectIdMatch),
+      "PROFILE_INSTITUTION_ID_REDACTED = " + redactRdoDiagnosticId_(state.profileInstitutionId),
+      "INSTITUTION_MATCH = " + formatRdoDiagnosticBoolean_(state.institutionMatch),
+      "POST_RELOAD_GET_BY_ID_HTTP_STATUS = " + (state.postReloadGetHttpStatus == null ? "PENDING" : state.postReloadGetHttpStatus),
+      "POST_RELOAD_GET_BY_ID_FOUND = " + formatRdoDiagnosticBoolean_(state.postReloadGetFound),
+      "POST_RELOAD_LIST_HTTP_STATUS = " + (state.postReloadListHttpStatus == null ? "PENDING" : state.postReloadListHttpStatus),
+      "POST_RELOAD_LIST_COUNT = " + (state.postReloadListCount == null ? "PENDING" : state.postReloadListCount),
+      "CREATED_ID_IN_POST_RELOAD_LIST = " + formatRdoDiagnosticBoolean_(state.postReloadListContainsCreatedId),
+      "ROOT_CAUSE_PERSISTENCE = " + classifyRdoE2EPersistence_(state)
+    ].join("\n");
+  }
+
+  function recordRdoE2EDiagnosticEvent_(event) {
+    if (!isRdoE2EDiagnosticsEnabled_() || !event || typeof event !== "object") return;
+    const state = readRdoE2EDiagnosticState_();
+    if (!state) return;
+
+    if (event.kind === "create" && state.phase === "create") {
+      state.createHttpStatus = Number(event.httpStatus) || 0;
+      state.createRdoId = clean(event.rdoId);
+      state.createProjectId = clean(event.projectId);
+      state.createInstitutionId = clean(event.institutionId);
+      state.profileInstitutionId = getRdoE2EProfileInstitutionId_();
+      state.projectIdMatch = compareRdoDiagnosticIds_(state.activeWorkId, state.createProjectId);
+      state.institutionMatch = compareRdoDiagnosticIds_(state.profileInstitutionId, state.createInstitutionId);
+    } else if (event.kind === "get_by_id" && state.phase === "immediate") {
+      state.immediateGetHttpStatus = Number(event.httpStatus) || 0;
+      state.immediateGetFound = event.found === true;
+    } else if (event.kind === "list" && state.phase === "immediate") {
+      state.immediateListHttpStatus = Number(event.httpStatus) || 0;
+      state.immediateListCount = Number(event.count) || 0;
+      state.immediateListContainsCreatedId = event.containsTrackedRdo === true;
+    } else if (event.kind === "get_by_id" && state.phase === "post_reload") {
+      state.postReloadGetHttpStatus = Number(event.httpStatus) || 0;
+      state.postReloadGetFound = event.found === true;
+    } else if (event.kind === "list" && state.phase === "post_reload") {
+      state.postReloadListHttpStatus = Number(event.httpStatus) || 0;
+      state.postReloadListCount = Number(event.count) || 0;
+      state.postReloadListContainsCreatedId = event.containsTrackedRdo === true;
+    } else {
+      return;
+    }
+
+    writeRdoE2EDiagnosticState_(state);
+  }
+
+  function beginRdoE2EDiagnostics_(workId) {
+    if (!isRdoE2EDiagnosticsEnabled_()) return;
+    const state = createRdoE2EDiagnosticState_();
+    state.phase = "create";
+    state.createPageId = RDO_E2E_DIAGNOSTICS_PAGE_ID;
+    state.activeWorkId = clean(workId);
+    state.profileInstitutionId = getRdoE2EProfileInstitutionId_();
+    writeRdoE2EDiagnosticState_(state);
+  }
+
+  async function runImmediateRdoE2EReadbacks_(rdo, workId) {
+    if (!isRdoE2EDiagnosticsEnabled_()) return;
+    const state = readRdoE2EDiagnosticState_();
+    const id = clean(rdo && rdo.id);
+    const projectId = clean(rdo && (rdo.project_id || rdo.projectId)) || clean(workId);
+    if (!state || !id || state.createPageId !== RDO_E2E_DIAGNOSTICS_PAGE_ID) return;
+
+    state.createRdoId = id;
+    state.createProjectId = projectId;
+    state.createInstitutionId = clean(rdo.institution_id || rdo.institutionId || state.createInstitutionId);
+    state.activeWorkId = clean(workId);
+    state.profileInstitutionId = getRdoE2EProfileInstitutionId_();
+    state.projectIdMatch = compareRdoDiagnosticIds_(state.activeWorkId, state.createProjectId);
+    state.institutionMatch = compareRdoDiagnosticIds_(state.profileInstitutionId, state.createInstitutionId);
+    state.phase = "immediate";
+    writeRdoE2EDiagnosticState_(state);
+
+    try {
+      await rdoCloudAdapter.getRdo(id);
+    } catch (_) {
+      // The adapter records the HTTP status without exposing response headers or tokens.
+    }
+    try {
+      await rdoCloudAdapter.listRdosByWork(projectId);
+    } catch (_) {
+      // Keep the POST result and the other readback evidence visible if LIST fails.
+    }
+
+    const completed = readRdoE2EDiagnosticState_() || state;
+    completed.phase = "awaiting_reload";
+    completed.pendingPostReload = true;
+    writeRdoE2EDiagnosticState_(completed);
+  }
+
+  function recordRdoE2EUiList_(records) {
+    if (!isRdoE2EDiagnosticsEnabled_()) return;
+    const state = readRdoE2EDiagnosticState_();
+    if (!state || !state.pendingPostReload || !state.createRdoId || state.createPageId === RDO_E2E_DIAGNOSTICS_PAGE_ID) return;
+    const rows = Array.isArray(records) ? records : [];
+    state.postReloadUiContainsCreatedId = rows.some(function (row) { return clean(row && row.id) === state.createRdoId; });
+    state.postReloadActiveWorkId = clean(dailyLogWorkSelect && dailyLogWorkSelect.value);
+    state.postReloadProjectIdMatch = compareRdoDiagnosticIds_(state.createProjectId, state.postReloadActiveWorkId);
+    state.postReloadProfileInstitutionId = getRdoE2EProfileInstitutionId_();
+    state.postReloadInstitutionMatch = compareRdoDiagnosticIds_(state.createInstitutionId, state.postReloadProfileInstitutionId);
+    writeRdoE2EDiagnosticState_(state);
+  }
+
+  async function runPendingRdoE2EPostReloadReadbacks_() {
+    if (!isRdoE2EDiagnosticsEnabled_()) return;
+    const state = readRdoE2EDiagnosticState_();
+    if (!state || !state.pendingPostReload || state.postReloadAttempted || !state.createRdoId || state.createPageId === RDO_E2E_DIAGNOSTICS_PAGE_ID) return;
+
+    state.phase = "post_reload";
+    state.postReloadAttempted = true;
+    state.postReloadActiveWorkId = clean(dailyLogWorkSelect && dailyLogWorkSelect.value);
+    state.postReloadProjectIdMatch = compareRdoDiagnosticIds_(state.createProjectId, state.postReloadActiveWorkId);
+    state.postReloadProfileInstitutionId = getRdoE2EProfileInstitutionId_();
+    state.postReloadInstitutionMatch = compareRdoDiagnosticIds_(state.createInstitutionId, state.postReloadProfileInstitutionId);
+    writeRdoE2EDiagnosticState_(state);
+
+    try {
+      await rdoCloudAdapter.getRdo(state.createRdoId);
+    } catch (_) {
+      // Capture the real adapter response status and continue to the project list check.
+    }
+    try {
+      await rdoCloudAdapter.listRdosByWork(state.createProjectId);
+    } catch (_) {
+      // Capture the real adapter response status and leave the panel available for review.
+    }
+
+    const completed = readRdoE2EDiagnosticState_() || state;
+    completed.pendingPostReload = false;
+    completed.phase = "complete";
+    writeRdoE2EDiagnosticState_(completed);
+  }
+
   async function loadCanonicalRdoWorkspace_() {
     canonicalStockWorksLoaded = false;
     canonicalStockWorksLoadError = "";
@@ -6853,9 +7114,13 @@
           ([errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).length
             ? " (" + [errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).join(" · ") + ")"
             : "");
+        recordRdoE2EUiList_(appState.dailyLogs);
+        await runPendingRdoE2EPostReloadReadbacks_();
         setDailyLogStatus_(canonicalRdoListLoadError, "error");
         return true;
       }
+      recordRdoE2EUiList_(appState.dailyLogs);
+      await runPendingRdoE2EPostReloadReadbacks_();
       setDailyLogStatus_(selectedWork
         ? "Obras do Stock Full e diários do backend carregados."
         : "Nenhuma obra autorizada foi encontrada no Stock Full.", selectedWork ? "success" : "info");
@@ -6915,6 +7180,7 @@
     });
     appState.dailyLogs = records;
     rdoServerIds = new Set(records.map(function (item) { return item.id; }));
+    recordRdoE2EUiList_(records);
     appState.local.lastWorkId = id;
     if (settings.render !== false && currentUser) {
       saveLocalData({ syncCloud: false });
@@ -6990,10 +7256,13 @@
 
       ensureLocalState_(appState);
       const existingIndex = appState.dailyLogs.findIndex(function (item) { return item.id === logItem.id; });
+      const isE2EDiagnosticCreate = isRdoE2EDiagnosticsEnabled_() && !rdoServerIds.has(logItem.id);
+      if (isE2EDiagnosticCreate) beginRdoE2EDiagnostics_(work.id);
       const response = rdoServerIds.has(logItem.id)
         ? await rdoCloudAdapter.updateRdo(logItem.id, logItem, work)
         : await rdoCloudAdapter.createRdo(logItem, work, logItem.operationId || logItem.id);
       if (!response || !clean(response.id)) throw new Error("A API oficial não retornou o ID do RDO.");
+      if (isE2EDiagnosticCreate) await runImmediateRdoE2EReadbacks_(response, work.id);
 
       const savedLog = rdoCloudAdapter.mapRdoToDailyLog(response, currentUser.id);
       if (existingIndex >= 0) {

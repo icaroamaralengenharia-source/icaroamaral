@@ -8,15 +8,16 @@ import { test } from "node:test";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const adapterSource = readFileSync(join(root, "..", "relatorio-qualidade-obras", "rdo-cloud-adapter.js"), "utf8");
 const uiSource = readFileSync(join(root, "..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
+const htmlSource = readFileSync(join(root, "..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.html"), "utf8");
 
-function createAdapter(fetchImpl) {
+function createAdapter(fetchImpl, adapterOptions = {}) {
   const sandbox = { window: {} };
   vm.runInNewContext(adapterSource, sandbox, { filename: "rdo-cloud-adapter.js" });
-  return sandbox.window.ObraReportRdoCloudAdapter.create({
+  return sandbox.window.ObraReportRdoCloudAdapter.create(Object.assign({
     baseUrl: "https://backend.example.test",
     getToken: async () => "fixture-canonical-token",
     fetchImpl
-  });
+  }, adapterOptions));
 }
 
 test("adapter usa Stock work id canônico e contrato oficial RDO em create/open/list/update/document", async () => {
@@ -96,4 +97,55 @@ test("UI trata dailyLogs/works como cache e exclui ambos do sync.save genérico"
   assert.match(uiSource, /rdoCloudAdapter\.updateRdo\(logItem\.id, logItem, work\)/);
   assert.match(uiSource, /rdoCloudAdapter\.getRdo\(dailyLogId\)/);
   assert.doesNotMatch(uiSource, /appState\.works\.push\(work\)/);
+});
+
+test("adapter registra status e metadados mínimos das respostas reais create/get/list sem headers", async () => {
+  const events = [];
+  const trackedRdoId = "RDO_SYNTHETIC_E2E_1";
+  const responses = [
+    { status: 201, body: { ok: true, rdo: { id: trackedRdoId, project_id: "WORK_E2E_1", institution_id: "INST_E2E_1" } } },
+    { status: 200, body: { ok: true, rdo: { id: trackedRdoId, project_id: "WORK_E2E_1", institution_id: "INST_E2E_1" } } },
+    { status: 200, body: { ok: true, rdos: [{ id: trackedRdoId, project_id: "WORK_E2E_1" }, { id: "OTHER_RDO" }] } }
+  ];
+  const adapter = createAdapter(async () => {
+    const next = responses.shift();
+    return { ok: true, status: next.status, json: async () => next.body };
+  }, {
+    onDiagnostic: (event) => events.push(event),
+    getTrackedRdoId: () => trackedRdoId
+  });
+
+  const work = { id: "WORK_E2E_1", institutionId: "INST_E2E_1", name: "OBRA TESTE ELO E2E" };
+  const log = { id: "op-e2e-1", operationId: "op-e2e-1", workId: work.id, date: "2026-10-12", summary: "RDO sintético E2E" };
+  await adapter.createRdo(log, work, "op-e2e-1");
+  await adapter.getRdo(trackedRdoId);
+  await adapter.listRdosByWork(work.id);
+
+  assert.deepEqual(events.map((event) => [event.kind, event.httpStatus]), [
+    ["create", 201], ["get_by_id", 200], ["list", 200]
+  ]);
+  assert.equal(events[0].rdoId, trackedRdoId);
+  assert.equal(events[0].projectId, work.id);
+  assert.equal(events[0].institutionId, work.institutionId);
+  assert.equal(events[1].found, true);
+  assert.equal(events[2].count, 2);
+  assert.equal(events[2].containsTrackedRdo, true);
+  assert.doesNotMatch(JSON.stringify(events), /fixture-canonical-token|authorization|bearer/i);
+});
+
+test("diagnóstico E2E é restrito ao admin E2E e repete GET/list pelo adapter após reload", () => {
+  assert.match(uiSource, /RDO_E2E_DIAGNOSTICS_EMAIL\s*=\s*"admin@elo-e2e\.test"/);
+  assert.match(uiSource, /currentUser && isAdminUser_\(\) && clean\(currentUser\.email\)\.toLowerCase\(\) === RDO_E2E_DIAGNOSTICS_EMAIL/);
+  assert.match(uiSource, /onDiagnostic:\s*recordRdoE2EDiagnosticEvent_/);
+  assert.match(uiSource, /getTrackedRdoId:\s*getRdoE2EDiagnosticTrackedRdoId_/);
+  assert.match(uiSource, /function getRdoE2EDiagnosticTrackedRdoId_\(\)/);
+  assert.match(uiSource, /await rdoCloudAdapter\.getRdo\(id\)[\s\S]*await rdoCloudAdapter\.listRdosByWork\(projectId\)/);
+  assert.match(uiSource, /await rdoCloudAdapter\.getRdo\(state\.createRdoId\)[\s\S]*await rdoCloudAdapter\.listRdosByWork\(state\.createProjectId\)/);
+  assert.match(uiSource, /CREATE_RDO_ID_REDACTED/);
+  assert.match(uiSource, /PROFILE_INSTITUTION_ID_REDACTED/);
+  assert.match(htmlSource, /class="workspace-card is-hidden" id="rdoE2EDiagnostics"/);
+  assert.match(htmlSource, /rdo-cloud-adapter\.js\?v=20261012-e2e-persistence-diagnostics-v1/);
+
+  const panelRenderer = uiSource.slice(uiSource.indexOf("function renderRdoE2EDiagnostics_"), uiSource.indexOf("function recordRdoE2EDiagnosticEvent_"));
+  assert.doesNotMatch(panelRenderer, /access_token|refresh_token|Authorization|Bearer|password|cookie/i);
 });

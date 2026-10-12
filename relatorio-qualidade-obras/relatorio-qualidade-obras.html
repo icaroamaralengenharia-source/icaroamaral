@@ -588,6 +588,15 @@ defer></script>
           <span class="local-status" id="dailyLogStatus">Aguardando conexão com RDO e Stock Full...</span>
         </div>
 
+        <section class="workspace-card is-hidden" id="rdoE2EDiagnostics" aria-labelledby="rdoE2EDiagnosticsTitle">
+          <div class="section-row">
+            <h3 id="rdoE2EDiagnosticsTitle">E2E Diagnostics</h3>
+            <span class="local-status">Somente admin@elo-e2e.test</span>
+          </div>
+          <p>Leitura sanitizada das respostas reais do adapter RDO. Nenhum token ou header é exibido.</p>
+          <pre id="rdoE2EDiagnosticsOutput" aria-live="polite" style="white-space: pre-wrap; overflow-wrap: anywhere;">Aguardando criação controlada.</pre>
+        </section>
+
         <nav class="diary-jump-nav" aria-label="Atalhos do Diário de Obras">
           <a href="#rdo-identificacao">Identificação</a>
           <a href="#rdo-execucao">Execução</a>
@@ -2341,9 +2350,9 @@ defer></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
   <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
   <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
-  <script src="./rdo-cloud-adapter.js?v=20261011-stock-canonical-rdo-v1"></script>
+  <script src="./rdo-cloud-adapter.js?v=20261012-e2e-persistence-diagnostics-v1"></script>
   <script src="./rdo-canonical-auth.js?v=20261012-rdo-standalone-stock-auth-v1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20261012-rdo-standalone-stock-auth-v1"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20261012-e2e-persistence-diagnostics-v1"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20261008-stock-uuid-lookup-v2" defer></script>
   <script src="elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>

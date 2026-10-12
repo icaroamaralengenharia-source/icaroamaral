@@ -9,6 +9,57 @@
     return JSON.parse(JSON.stringify(value || {}));
   }
 
+  function notifyDiagnostic(settings, path, requestOptions, response, data) {
+    if (typeof settings.onDiagnostic !== "function") return;
+
+    const input = requestOptions || {};
+    const method = clean(input.method || "GET").toUpperCase();
+    const endpoint = String(path || "").split("?")[0];
+    const status = Number(response && response.status) || 0;
+    const payload = data && typeof data === "object" ? data : {};
+    const rdo = payload.rdo && typeof payload.rdo === "object" ? payload.rdo : {};
+    let event = null;
+
+    if (method === "POST" && endpoint === "/api/obrareport/rdos") {
+      event = {
+        kind: "create",
+        httpStatus: status,
+        rdoId: clean(rdo.id),
+        projectId: clean(rdo.project_id || rdo.projectId),
+        institutionId: clean(rdo.institution_id || rdo.institutionId)
+      };
+    } else if (method === "GET" && /^\/api\/obrareport\/rdos\/[^/]+$/.test(endpoint)) {
+      event = {
+        kind: "get_by_id",
+        httpStatus: status,
+        found: Boolean(rdo.id)
+      };
+    } else if (method === "GET" && endpoint === "/api/obrareport/rdos") {
+      const rows = Array.isArray(payload.rdos) ? payload.rdos : [];
+      let trackedId = "";
+      try {
+        trackedId = typeof settings.getTrackedRdoId === "function" ? clean(settings.getTrackedRdoId()) : "";
+      } catch (_) {
+        trackedId = "";
+      }
+      event = {
+        kind: "list",
+        httpStatus: status,
+        count: rows.length,
+        containsTrackedRdo: Boolean(trackedId && rows.some(function (row) {
+          return clean(row && row.id) === trackedId;
+        }))
+      };
+    }
+
+    if (!event) return;
+    try {
+      settings.onDiagnostic(event);
+    } catch (_) {
+      // Diagnostics must never change the result of an RDO API request.
+    }
+  }
+
   function createRdoCloudAdapter(options) {
     const settings = options || {};
     const baseUrl = clean(settings.baseUrl || root.OBRAREPORT_API_BASE_URL).replace(/\/+$/g, "");
@@ -38,6 +89,7 @@
       } catch (_) {
         data = {};
       }
+      notifyDiagnostic(settings, path, input, response, data);
       if (!response.ok || data.ok === false) {
         const error = new Error(clean(data.error || data.code) || "rdo_api_request_failed");
         error.status = response.status;
