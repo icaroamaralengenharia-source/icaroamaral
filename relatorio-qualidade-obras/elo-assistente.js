@@ -4207,6 +4207,66 @@
     status.textContent = sanitizeUserText(message);
     status.dataset.state = isError ? "error" : "ok";
   }
+  function clearEloCoreProfileMenuIdentity_() {
+    ELO_UI.coreProfileIdentityGeneration = Number(ELO_UI.coreProfileIdentityGeneration || 0) + 1;
+    ELO_UI.coreProfileIdentityRequest = null;
+    const label = document.querySelector("[data-elo-profile-label]");
+    if (label) {
+      label.hidden = true;
+      label.textContent = "";
+    }
+  }
+  function loadEloCoreProfileMenuIdentity_() {
+    const label = document.querySelector("[data-elo-profile-label]");
+    if (!label) return Promise.resolve(false);
+    const token = getEloCoreAuthToken_();
+    if (!window.ELO_AUTH_SESSION_VALIDATED || !token || typeof window.fetch !== "function") {
+      label.hidden = true;
+      label.textContent = "";
+      return Promise.resolve(false);
+    }
+    if (ELO_UI.coreProfileIdentityRequest) return ELO_UI.coreProfileIdentityRequest;
+
+    const generation = Number(ELO_UI.coreProfileIdentityGeneration || 0);
+    label.hidden = false;
+    label.textContent = "Verificando conta…";
+    let request;
+    request = window.fetch(getEloBackendEndpoint_("/api/elo/me"), {
+      method: "GET",
+      headers: { Authorization: "Bearer " + token, Accept: "application/json" }
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || !data || data.ok !== true) throw new Error("profile_identity_unavailable");
+        return data;
+      });
+    }).then(function (data) {
+      if (generation !== Number(ELO_UI.coreProfileIdentityGeneration || 0) || !window.ELO_AUTH_SESSION_VALIDATED) return false;
+      const email = sanitizeUserText(data && data.email).slice(0, 180);
+      label.textContent = email || "Conta não confirmada";
+      label.hidden = false;
+      return Boolean(email);
+    }).catch(function () {
+      if (generation === Number(ELO_UI.coreProfileIdentityGeneration || 0) && window.ELO_AUTH_SESSION_VALIDATED) {
+        label.textContent = "Conta não confirmada";
+        label.hidden = false;
+      }
+      return false;
+    }).finally(function () {
+      if (generation === Number(ELO_UI.coreProfileIdentityGeneration || 0) && ELO_UI.coreProfileIdentityRequest === request) {
+        ELO_UI.coreProfileIdentityRequest = null;
+      }
+    });
+    ELO_UI.coreProfileIdentityRequest = request;
+    return request;
+  }
+  function bindEloCoreProfileMenuIdentity_() {
+    const toggle = document.querySelector("[data-elo-mobile-menu-toggle]");
+    if (!toggle || toggle.dataset.eloProfileIdentityBound) return;
+    toggle.dataset.eloProfileIdentityBound = "true";
+    toggle.addEventListener("click", function () {
+      if (toggle.getAttribute("aria-expanded") === "true") loadEloCoreProfileMenuIdentity_();
+    });
+  }
   function renderEloCoreAuthPanel_() {
     const form = document.querySelector("[data-elo-auth-form]");
     const session = document.querySelector("[data-elo-auth-session]");
@@ -4226,6 +4286,7 @@
     const safeEmail = sanitizeUserText(email).slice(0, 220);
     if (!config.url || !config.anonKey) return Promise.reject(new Error("supabase_public_config_missing"));
     if (!safeEmail || !password) return Promise.reject(new Error("credentials_required"));
+    clearEloCoreProfileMenuIdentity_();
     window.ELO_AUTH_SESSION_VALIDATED = false;
     renderEloCoreAuthPanel_();
     return window.fetch(config.url + "/auth/v1/token?grant_type=password", { method: "POST", headers: { "Content-Type": "application/json", apikey: config.anonKey, Authorization: "Bearer " + config.anonKey }, body: JSON.stringify({ email: safeEmail, password: String(password) }) }).then(function (response) {
@@ -4259,7 +4320,7 @@
       });
     });
   }
-  function logoutEloCoreSupabase_() { stopAllEloSpeech_({ shutdown: true }); ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1; ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; clearEloCoreLocalConversationState_(); clearEloCoreSupabaseSession_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao Supabase encerrada.", false); return Promise.resolve(true); }
+  function logoutEloCoreSupabase_() { clearEloCoreProfileMenuIdentity_(); stopAllEloSpeech_({ shutdown: true }); ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1; ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; clearEloCoreLocalConversationState_(); clearEloCoreSupabaseSession_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao Supabase encerrada.", false); return Promise.resolve(true); }
   function bindEloCoreSupabaseLogin_() {
     const form = document.querySelector("[data-elo-auth-form]");
     const logout = document.querySelector("[data-elo-auth-logout]");
@@ -4276,12 +4337,14 @@
       });
     }
     if (logout && !logout.dataset.eloAuthBound) { logout.dataset.eloAuthBound = "true"; logout.addEventListener("click", function () { logoutEloCoreSupabase_(); }); }
+    bindEloCoreProfileMenuIdentity_();
     renderEloCoreAuthPanel_();
   }
 
   function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; ELO_UI.liveDataContext = {}; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.activeTopic = ""; ELO_SESSION_MEMORY.lastStockItems = []; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); clearProductAttachmentPreview(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
+    clearEloCoreProfileMenuIdentity_();
     ELO_UI.coreBootstrapGeneration = Number(ELO_UI.coreBootstrapGeneration || 0) + 1;
     ELO_UI.userInteractedSinceBootstrap = false;
     const bootstrapSnapshot = { generation: ELO_UI.coreBootstrapGeneration, revision: Number(ELO_UI.coreConversationRevision || 0) };
@@ -28994,6 +29057,8 @@ function isEloResidentialNewPipelineEnabled_() {
     socialFastPathMetrics: null,
     liveDataContext: {},
     coreBootstrapGeneration: 0,
+    coreProfileIdentityGeneration: 0,
+    coreProfileIdentityRequest: null,
     coreConversationRevision: 0,
     coreSurfaceMounted: false,
     userInteractedSinceBootstrap: false,
@@ -36590,6 +36655,7 @@ function isEloResidentialNewPipelineEnabled_() {
     formatExecutionStockCrossForTest: formatEloObraExecutionStockCrossAnswer_,
 
     ensureAuthMergeForTest: ensureEloCoreAuthMerge_,
+    loadProfileMenuIdentityForTest: loadEloCoreProfileMenuIdentity_,
     detectConversationTopicForTest: detectEloConversationTopic_,
     resolveTopicSwitchForTest: clearEloPendingContextIfTopicChanged_,
     getActiveTopicStateForTest: function () {

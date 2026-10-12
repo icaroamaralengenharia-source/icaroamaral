@@ -79,7 +79,14 @@ function createStorage(initial = {}) {
   };
 }
 
-function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_001" } = {}) {
+function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_001", userAgent = "node-test", sessionValidated = false, fetchImpl = fetch } = {}) {
+  const profileLabel = { hidden: true, textContent: "", dataset: {} };
+  const requestLog = [];
+  const trackedFetch = (url, options = {}) => {
+    const requestUrl = new URL(url, baseUrl);
+    requestLog.push({ method: String(options.method || "GET").toUpperCase(), path: requestUrl.pathname });
+    return fetchImpl(url, options);
+  };
   const localStorage = createStorage({
     elo_core_anonymous_id_v1: anonymousId,
     "sb-elo-core-auth-token": token ? JSON.stringify({ currentSession: { access_token: token }, access_token: token }) : ""
@@ -87,12 +94,12 @@ function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_0
   const sessionStorage = createStorage();
   const sandbox = {
     console,
-    fetch,
-    window: { ELO_SKIP_AUTO_WIDGET: true, ELO_API_BASE_URL: baseUrl },
+    fetch: trackedFetch,
+    window: { ELO_SKIP_AUTO_WIDGET: true, ELO_API_BASE_URL: baseUrl, ELO_AUTH_SESSION_VALIDATED: sessionValidated, fetch: trackedFetch },
     document: {
       readyState: "complete",
       addEventListener() {},
-      querySelector() { return null; },
+      querySelector(selector) { return selector === "[data-elo-profile-label]" ? profileLabel : null; },
       querySelectorAll() { return []; },
       createElement(tagName) {
         return {
@@ -112,7 +119,7 @@ function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_0
       body: { dataset: { eloMode: "standalone", eloProduct: "chat" }, appendChild(child) { return child; } },
       documentElement: { style: { setProperty() {} } }
     },
-    navigator: { userAgent: "node-test" },
+    navigator: { userAgent },
     location: { hostname: "localhost", protocol: "http:", pathname: "/elo.html", search: "", hash: "" },
     localStorage,
     sessionStorage,
@@ -132,7 +139,7 @@ function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_0
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(join(REPO_ROOT, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
-  return { elo: sandbox.window.EloAssistente, localStorage, sessionStorage };
+  return { elo: sandbox.window.EloAssistente, localStorage, sessionStorage, profileLabel, requestLog };
 }
 
 async function withServer(callback) {
@@ -263,5 +270,33 @@ test("ELO frontend le sessao existente e envia Bearer no merge", async () => {
       headers: { Authorization: "Bearer token-invalido" }
     });
     assert.equal(invalidResponse.response.status, 401);
+  });
+});
+
+test("ELO Web e Android exibem a conta pelo GET /api/elo/me sem iniciar merge", async () => {
+  await withServer(async (base) => {
+    const userAgents = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36"
+    ];
+
+    for (const userAgent of userAgents) {
+      const client = loadEloAssistant({
+        baseUrl: base,
+        token: TOKEN_USER_A,
+        userAgent,
+        sessionValidated: true,
+        fetchImpl: async (_url, options) => {
+          assert.equal(options.method, "GET");
+          return { ok: true, status: 200, json: async () => ({ ok: true, email: "a@example.com" }) };
+        }
+      });
+      const displayed = await client.elo.loadProfileMenuIdentityForTest();
+
+      assert.equal(displayed, true);
+      assert.equal(client.profileLabel.hidden, false);
+      assert.equal(client.profileLabel.textContent, "a@example.com");
+      assert.deepEqual(client.requestLog, [{ method: "GET", path: "/api/elo/me" }]);
+    }
   });
 });

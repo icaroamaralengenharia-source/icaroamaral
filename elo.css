@@ -5358,6 +5358,10 @@ body[data-elo-product="chat"] .elo-mobile-menu-proxy {
   display: none;
 }
 
+body[data-elo-product="chat"] .elo-core-profile-label[hidden] {
+  display: none !important;
+}
+
 @media (max-width: 768px) {
   body[data-elo-product="chat"].elo-authenticated .elo-product-top {
     position: relative;
@@ -5460,6 +5464,20 @@ body[data-elo-product="chat"] .elo-mobile-menu-proxy {
 
   body[data-elo-product="chat"].elo-authenticated .elo-core-actions.is-open {
     display: grid;
+  }
+
+  body[data-elo-product="chat"].elo-authenticated .elo-core-actions .elo-core-profile-label:not([hidden]) {
+    display: block;
+    min-width: 0;
+    padding: 5px 10px 8px;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   body[data-elo-product="chat"].elo-authenticated .elo-core-actions button {

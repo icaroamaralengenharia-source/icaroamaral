@@ -4469,6 +4469,46 @@ export function createApp(options = {}) {
     response.status(Number(error && error.status) || 500).json({ ok: false, error: clean_(error && error.message || "elo_budget_error") });
   }
 
+  app.get("/api/elo/me", async (request, response) => {
+    response.set("Cache-Control", "private, no-store");
+
+    let authContext = null;
+    try {
+      authContext = await app.locals.resolveCanonicalAuthContext(request);
+    } catch (_) {
+      response.status(500).json({ ok: false, error: "profile_lookup_failed" });
+      return;
+    }
+
+    if (!authContext || !authContext.ok) {
+      const status = Number(authContext && authContext.status) || 401;
+      const error = status === 401
+        ? "authentication_required"
+        : status === 403
+          ? "profile_not_authorized"
+          : "profile_lookup_failed";
+      response.status(status).json({ ok: false, error });
+      return;
+    }
+
+    const userId = clean_(authContext.userId);
+    const profile = authContext.profile || {};
+    if (!userId || !clean_(profile.auth_user_id) || clean_(profile.auth_user_id) !== userId) {
+      response.status(403).json({ ok: false, error: "profile_not_authorized" });
+      return;
+    }
+
+    const identity = {
+      user_id: userId,
+      institution_id: clean_(profile.institution_id) || null,
+      company_id: clean_(profile.company_id) || null
+    };
+    const email = clean_(authContext.user && authContext.user.email);
+    if (email) identity.email = email;
+
+    response.json({ ok: true, ...identity });
+  });
+
   app.use("/api/elo", async (request, response, next) => {
     if (!clean_(request.headers.authorization)) {
       next();
