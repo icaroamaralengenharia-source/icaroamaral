@@ -10,7 +10,7 @@ const js = fs.readFileSync(path.join(root, "relatorio-qualidade-obras.js"), "utf
 
 test("RDO keeps final real-test fixes wired in the page", () => {
   assert.match(html, /relatorio-qualidade-obras\.css\?v=20260906-rdo-final-real-test-bugs/);
-  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v3/);
+  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v4/);
   assert.match(html, /<option value="Escavação">Escavação<\/option>/);
   assert.match(html, /Item vinculado do almoxarifado/);
   assert.match(html, /Legenda padrão das fotos/);
@@ -61,6 +61,7 @@ test("RDO uses the canonical ELO session for the Stock works request and preserv
   assert.match(tokenProvider, /window\.EloCanonicalSession/);
   assert.match(tokenProvider, /canonicalSession\.getValidAccessToken\(\)/);
   assert.match(tokenProvider, /canonicalSession\.getAccessToken\(\)/);
+  assert.ok(tokenProvider.indexOf("canonicalSession.getValidAccessToken()") < tokenProvider.indexOf("getStockFullSupabaseSession_()"));
 
   const dailyLogRenderer = js.slice(js.indexOf("function renderDailyLogModule_"), js.indexOf("async function saveDailyLogFromForm_"));
   assert.match(dailyLogRenderer, /canonicalStockWorksLoadError \|\|/);

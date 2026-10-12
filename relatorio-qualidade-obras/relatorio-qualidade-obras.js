@@ -1567,20 +1567,13 @@
   }
 
   async function getRdoApiAccessToken_() {
-    try {
-      const session = await getStockFullSupabaseSession_();
-      const refreshedToken = clean(session && session.access_token);
-      if (refreshedToken) return refreshedToken;
-    } catch (_) {
-      // The persisted Stock Full token remains the fallback when its SDK is unavailable.
-    }
     const canonicalSession = window.EloCanonicalSession;
     if (canonicalSession && typeof canonicalSession.getValidAccessToken === "function") {
       try {
         const refreshedToken = clean(await canonicalSession.getValidAccessToken());
         if (refreshedToken) return refreshedToken;
       } catch (_) {
-        // Try the current validated token before the legacy storage fallback.
+        // Fall back to the Stock Full session if the canonical refresh is unavailable.
       }
     }
     if (canonicalSession && typeof canonicalSession.getAccessToken === "function") {
@@ -1590,6 +1583,13 @@
       } catch (_) {
         // The adapter will report a missing session if no supported token exists.
       }
+    }
+    try {
+      const session = await getStockFullSupabaseSession_();
+      const stockFullToken = clean(session && session.access_token);
+      if (stockFullToken) return stockFullToken;
+    } catch (_) {
+      // The persisted Stock Full token remains the fallback when its SDK is unavailable.
     }
     return getStockFullSupabaseToken_();
   }
