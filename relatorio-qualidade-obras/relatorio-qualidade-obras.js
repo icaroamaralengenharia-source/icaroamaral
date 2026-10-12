@@ -6791,11 +6791,25 @@
       }
       if (currentUser) renderSaasState_();
 
+      let rdoListError = null;
       if (selectedWork) {
-        await loadRdosForWork_(selectedWork.id, { render: false });
+        try {
+          await loadRdosForWork_(selectedWork.id, { render: false });
+        } catch (error) {
+          // A failure to list RDOs must not discard the canonical Stock works
+          // that were already loaded successfully for the work selector.
+          rdoListError = error;
+          appState.dailyLogs = [];
+          rdoServerIds = new Set();
+        }
       }
       saveLocalData({ syncCloud: false });
       if (currentUser) renderSaasState_();
+      if (rdoListError) {
+        console.error("Não foi possível carregar os RDOs da obra canônica.", rdoListError);
+        setDailyLogStatus_("Obras do Stock Full carregadas; não foi possível carregar os RDOs do backend oficial.", "error");
+        return true;
+      }
       setDailyLogStatus_(selectedWork
         ? "Obras do Stock Full e diários do backend carregados."
         : "Nenhuma obra autorizada foi encontrada no Stock Full.", selectedWork ? "success" : "info");
