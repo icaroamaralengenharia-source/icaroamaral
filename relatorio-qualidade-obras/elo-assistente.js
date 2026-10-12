@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  const ELO_ASSISTENTE_BUILD_VERSION = "20261012-profile-diagnostics-v1";
+  window.ELO_ASSISTENTE_BUILD_VERSION = ELO_ASSISTENTE_BUILD_VERSION;
+
   // ELO_CONFIG
   const ELO_CONFIG = {
     storageKey: "obrareport_elo_assistente_v1",
@@ -4214,41 +4217,95 @@
     if (label) {
       label.hidden = true;
       label.textContent = "";
+      label.dataset.state = "";
     }
+  }
+  function renderEloCoreProfileDiagnostic_(label, state, values) {
+    if (!label) return;
+    const fields = {
+      "[data-elo-profile-state]": state,
+      "[data-elo-profile-email]": values.email || "Não confirmada",
+      "[data-elo-profile-institution]": values.institution || "Não disponível",
+      "[data-elo-profile-company]": values.company || "Não disponível",
+      "[data-elo-profile-request]": values.request || "Não executada",
+      "[data-elo-profile-bundle]": window.ELO_ASSISTENTE_BUILD_VERSION || "UNKNOWN"
+    };
+    Object.keys(fields).forEach(function (selector) {
+      const field = label.querySelector && label.querySelector(selector);
+      if (field) field.textContent = sanitizeUserText(fields[selector]).slice(0, 220);
+    });
+    label.dataset.state = state;
+    label.hidden = false;
   }
   function loadEloCoreProfileMenuIdentity_() {
     const label = document.querySelector("[data-elo-profile-label]");
     if (!label) return Promise.resolve(false);
     const token = getEloCoreAuthToken_();
-    if (!window.ELO_AUTH_SESSION_VALIDATED || !token || typeof window.fetch !== "function") {
-      label.hidden = true;
-      label.textContent = "";
+    if (!window.ELO_AUTH_SESSION_VALIDATED || !token) {
+      const restoring = Boolean(window.ELO_AUTH_SESSION_RESTORING);
+      renderEloCoreProfileDiagnostic_(label, restoring ? "UNAVAILABLE" : "INVALID", {
+        request: restoring
+          ? "Não executada: sessão em restauração"
+          : !window.ELO_AUTH_SESSION_VALIDATED
+            ? "Não executada: sessão não validada"
+            : "Não executada: token ausente"
+      });
+      return Promise.resolve(false);
+    }
+    if (typeof window.fetch !== "function") {
+      renderEloCoreProfileDiagnostic_(label, "UNAVAILABLE", { request: "Não disponível: fetch ausente" });
       return Promise.resolve(false);
     }
     if (ELO_UI.coreProfileIdentityRequest) return ELO_UI.coreProfileIdentityRequest;
 
     const generation = Number(ELO_UI.coreProfileIdentityGeneration || 0);
-    label.hidden = false;
-    label.textContent = "Verificando conta…";
+    renderEloCoreProfileDiagnostic_(label, "UNAVAILABLE", { request: "Requisição em andamento" });
     let request;
     request = window.fetch(getEloBackendEndpoint_("/api/elo/me"), {
       method: "GET",
+      cache: "no-store",
+      credentials: "omit",
       headers: { Authorization: "Bearer " + token, Accept: "application/json" }
     }).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (data) {
-        if (!response.ok || !data || data.ok !== true) throw new Error("profile_identity_unavailable");
-        return data;
+      return response.json().catch(function () { return null; }).then(function (data) {
+        return { response: response, data: data };
       });
-    }).then(function (data) {
+    }).then(function (result) {
       if (generation !== Number(ELO_UI.coreProfileIdentityGeneration || 0) || !window.ELO_AUTH_SESSION_VALIDATED) return false;
-      const email = sanitizeUserText(data && data.email).slice(0, 180);
-      label.textContent = email || "Conta não confirmada";
-      label.hidden = false;
-      return Boolean(email);
+      const response = result.response;
+      const data = result.data;
+      const requestStatus = "HTTP " + Number(response.status || 0);
+      if (response.status === 401 || response.status === 403) {
+        renderEloCoreProfileDiagnostic_(label, "INVALID", { request: requestStatus });
+        return false;
+      }
+      if (!response.ok || !data || data.ok !== true) {
+        renderEloCoreProfileDiagnostic_(label, "UNAVAILABLE", { request: requestStatus });
+        return false;
+      }
+      const userId = sanitizeUserText(data.user_id).slice(0, 140);
+      const email = sanitizeUserText(data.email).slice(0, 180);
+      const expectedUserId = sanitizeUserText(window.ELO_AUTH_USER_ID || "").slice(0, 140);
+      const context = getEloCoreAuthContext_();
+      const expectedEmail = sanitizeUserText(context && context.profile && context.profile.email).slice(0, 180);
+      if (!userId || !email) {
+        renderEloCoreProfileDiagnostic_(label, "UNAVAILABLE", { request: requestStatus });
+        return false;
+      }
+      if ((expectedUserId && userId !== expectedUserId) || (expectedEmail && email.toLowerCase() !== expectedEmail.toLowerCase())) {
+        renderEloCoreProfileDiagnostic_(label, "INVALID", { request: requestStatus + "; identidade divergente" });
+        return false;
+      }
+      renderEloCoreProfileDiagnostic_(label, "VALID", {
+        email: email,
+        institution: sanitizeUserText(data.institution_id).slice(0, 180) || "Não vinculado",
+        company: sanitizeUserText(data.company_id).slice(0, 180) || "Não vinculada",
+        request: requestStatus
+      });
+      return true;
     }).catch(function () {
       if (generation === Number(ELO_UI.coreProfileIdentityGeneration || 0) && window.ELO_AUTH_SESSION_VALIDATED) {
-        label.textContent = "Conta não confirmada";
-        label.hidden = false;
+        renderEloCoreProfileDiagnostic_(label, "UNAVAILABLE", { request: "Falha de rede" });
       }
       return false;
     }).finally(function () {
@@ -4260,11 +4317,11 @@
     return request;
   }
   function bindEloCoreProfileMenuIdentity_() {
-    const toggle = document.querySelector("[data-elo-mobile-menu-toggle]");
-    if (!toggle || toggle.dataset.eloProfileIdentityBound) return;
-    toggle.dataset.eloProfileIdentityBound = "true";
-    toggle.addEventListener("click", function () {
-      if (toggle.getAttribute("aria-expanded") === "true") loadEloCoreProfileMenuIdentity_();
+    const diagnostics = document.querySelector("[data-elo-profile-diagnostics]");
+    if (!diagnostics || diagnostics.dataset.eloProfileIdentityBound) return;
+    diagnostics.dataset.eloProfileIdentityBound = "true";
+    diagnostics.addEventListener("toggle", function () {
+      if (diagnostics.open) loadEloCoreProfileMenuIdentity_();
     });
   }
   function renderEloCoreAuthPanel_() {

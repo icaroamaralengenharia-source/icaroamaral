@@ -5362,6 +5362,69 @@ body[data-elo-product="chat"] .elo-core-profile-label[hidden] {
   display: none !important;
 }
 
+body[data-elo-product="chat"] .elo-core-profile-diagnostics {
+  position: relative;
+  min-width: 0;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-diagnostics > summary {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(31, 111, 174, 0.18);
+  border-radius: 999px;
+  color: #21364f;
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 650;
+  list-style: none;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-diagnostics > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-diagnostics > summary:focus-visible {
+  outline: 2px solid #246fbe;
+  outline-offset: 2px;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-diagnostics .elo-core-profile-label:not([hidden]) {
+  position: absolute;
+  z-index: 10040;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 4px;
+  width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 10px;
+  color: #52657d;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  font-size: 0.74rem;
+  font-weight: 550;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-label [data-elo-profile-state] {
+  font-weight: 800;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-label[data-state="VALID"] [data-elo-profile-state] {
+  color: #087443;
+}
+
+body[data-elo-product="chat"] .elo-core-profile-label[data-state="INVALID"] [data-elo-profile-state] {
+  color: #b42318;
+}
+
 @media (max-width: 768px) {
   body[data-elo-product="chat"].elo-authenticated .elo-product-top {
     position: relative;
@@ -5466,18 +5529,28 @@ body[data-elo-product="chat"] .elo-core-profile-label[hidden] {
     display: grid;
   }
 
-  body[data-elo-product="chat"].elo-authenticated .elo-core-actions .elo-core-profile-label:not([hidden]) {
-    display: block;
-    min-width: 0;
-    padding: 5px 10px 8px;
-    overflow: hidden;
+  body[data-elo-product="chat"].elo-authenticated .elo-core-profile-diagnostics {
+    width: 100%;
+  }
+
+  body[data-elo-product="chat"].elo-authenticated .elo-core-profile-diagnostics > summary {
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+  }
+
+  body[data-elo-product="chat"].elo-authenticated .elo-core-profile-diagnostics .elo-core-profile-label:not([hidden]) {
+    position: static;
+    width: auto;
+    max-width: 100%;
+    margin: 4px 2px 6px;
+    padding: 7px 8px;
+    border: 0;
     border-bottom: 1px solid rgba(148, 163, 184, 0.24);
-    color: #64748b;
-    font-size: 0.76rem;
-    font-weight: 650;
-    line-height: 1.3;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   body[data-elo-product="chat"].elo-authenticated .elo-core-actions button {

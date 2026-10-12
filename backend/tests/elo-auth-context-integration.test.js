@@ -80,7 +80,20 @@ function createStorage(initial = {}) {
 }
 
 function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_001", userAgent = "node-test", sessionValidated = false, fetchImpl = fetch } = {}) {
-  const profileLabel = { hidden: true, textContent: "", dataset: {} };
+  const profileFields = new Map([
+    ["[data-elo-profile-state]", { textContent: "UNAVAILABLE" }],
+    ["[data-elo-profile-email]", { textContent: "Não confirmada" }],
+    ["[data-elo-profile-institution]", { textContent: "Não disponível" }],
+    ["[data-elo-profile-company]", { textContent: "Não disponível" }],
+    ["[data-elo-profile-request]", { textContent: "Não executada" }],
+    ["[data-elo-profile-bundle]", { textContent: "" }]
+  ]);
+  const profileLabel = {
+    hidden: true,
+    textContent: "",
+    dataset: {},
+    querySelector(selector) { return profileFields.get(selector) || null; }
+  };
   const requestLog = [];
   const trackedFetch = (url, options = {}) => {
     const requestUrl = new URL(url, baseUrl);
@@ -288,15 +301,77 @@ test("ELO Web e Android exibem a conta pelo GET /api/elo/me sem iniciar merge", 
         sessionValidated: true,
         fetchImpl: async (_url, options) => {
           assert.equal(options.method, "GET");
-          return { ok: true, status: 200, json: async () => ({ ok: true, email: "a@example.com" }) };
+          assert.equal(options.cache, "no-store");
+          assert.equal(options.credentials, "omit");
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              ok: true,
+              user_id: "auth-user-a",
+              email: "a@example.com",
+              institution_id: "inst-e2e-a",
+              company_id: "company-e2e-a"
+            })
+          };
         }
       });
       const displayed = await client.elo.loadProfileMenuIdentityForTest();
 
       assert.equal(displayed, true);
       assert.equal(client.profileLabel.hidden, false);
-      assert.equal(client.profileLabel.textContent, "a@example.com");
+      assert.equal(client.profileLabel.dataset.state, "VALID");
+      assert.equal(client.profileLabel.querySelector("[data-elo-profile-email]").textContent, "a@example.com");
+      assert.equal(client.profileLabel.querySelector("[data-elo-profile-institution]").textContent, "inst-e2e-a");
+      assert.equal(client.profileLabel.querySelector("[data-elo-profile-company]").textContent, "company-e2e-a");
+      assert.equal(client.profileLabel.querySelector("[data-elo-profile-request]").textContent, "HTTP 200");
       assert.deepEqual(client.requestLog, [{ method: "GET", path: "/api/elo/me" }]);
     }
+  });
+});
+
+test("profile diagnostics distinguish invalid sessions, missing profiles and unavailable responses", async () => {
+  await withServer(async (base) => {
+    for (const scenario of [
+      { status: 401, state: "INVALID" },
+      { status: 403, state: "INVALID" },
+      { status: 503, state: "UNAVAILABLE" }
+    ]) {
+      const client = loadEloAssistant({
+        baseUrl: base,
+        token: TOKEN_USER_A,
+        sessionValidated: true,
+        fetchImpl: async () => ({
+          ok: scenario.status >= 200 && scenario.status < 300,
+          status: scenario.status,
+          json: async () => ({ ok: false })
+        })
+      });
+      const displayed = await client.elo.loadProfileMenuIdentityForTest();
+
+      assert.equal(displayed, false);
+      assert.equal(client.profileLabel.hidden, false);
+      assert.equal(client.profileLabel.dataset.state, scenario.state);
+      assert.equal(client.profileLabel.querySelector("[data-elo-profile-request]").textContent, "HTTP " + scenario.status);
+      assert.deepEqual(client.requestLog, [{ method: "GET", path: "/api/elo/me" }]);
+    }
+
+    const networkFailure = loadEloAssistant({
+      baseUrl: base,
+      token: TOKEN_USER_A,
+      sessionValidated: true,
+      fetchImpl: async () => { throw new Error("network unavailable"); }
+    });
+    assert.equal(await networkFailure.elo.loadProfileMenuIdentityForTest(), false);
+    assert.equal(networkFailure.profileLabel.dataset.state, "UNAVAILABLE");
+    assert.equal(networkFailure.profileLabel.querySelector("[data-elo-profile-request]").textContent, "Falha de rede");
+    assert.deepEqual(networkFailure.requestLog, [{ method: "GET", path: "/api/elo/me" }]);
+
+    const noSession = loadEloAssistant({ baseUrl: base, sessionValidated: false });
+    assert.equal(await noSession.elo.loadProfileMenuIdentityForTest(), false);
+    assert.equal(noSession.profileLabel.hidden, false);
+    assert.equal(noSession.profileLabel.dataset.state, "INVALID");
+    assert.equal(noSession.profileLabel.querySelector("[data-elo-profile-request]").textContent, "Não executada: sessão não validada");
+    assert.deepEqual(noSession.requestLog, []);
   });
 });

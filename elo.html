@@ -20,7 +20,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="elo.css?v=20261012-authenticated-profile-v1">
+  <link rel="stylesheet" href="elo.css?v=20261012-profile-diagnostics-v1">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-sentinel-ui.css">
   <style>
     body.elo-auth-required .elo-product-brand,
@@ -100,7 +100,17 @@
       <span aria-hidden="true">⋮</span>
     </button>
     <nav class="elo-core-actions" id="elo-core-actions-menu" data-elo-mobile-menu aria-label="Ações da conversa">
-      <div class="elo-core-profile-label" data-elo-profile-label hidden aria-live="polite"></div>
+      <details class="elo-core-profile-diagnostics" data-elo-profile-diagnostics>
+        <summary>Diagnóstico da sessão</summary>
+        <div class="elo-core-profile-label" data-elo-profile-label hidden aria-live="polite">
+          <div>Perfil: <strong data-elo-profile-state>UNAVAILABLE</strong></div>
+          <div>Conta: <span data-elo-profile-email>Não confirmada</span></div>
+          <div>Instituição: <span data-elo-profile-institution>Não disponível</span></div>
+          <div>Empresa: <span data-elo-profile-company>Não disponível</span></div>
+          <div>GET /api/elo/me: <span data-elo-profile-request>Não executada</span></div>
+          <div>Bundle WebView: <span data-elo-profile-bundle>Aguardando versão carregada</span></div>
+        </div>
+      </details>
       <button type="button" class="elo-mobile-menu-proxy" data-elo-mobile-menu-action="new-chat">Nova conversa</button>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
@@ -553,13 +563,13 @@
   <script src="relatorio-qualidade-obras/elo-offline-router.js?v=20261003-player-v2"></script>
   <script src="relatorio-qualidade-obras/elo-offline-core-v2.js?v=20261012-greeting-question-v1"></script>
   <script src="relatorio-qualidade-obras/elo-live-data-router.js?v=20261004-live-data-v1"></script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20261012-authenticated-profile-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20261012-profile-diagnostics-v1"></script>
   <script src="relatorio-qualidade-obras/elo-pause-game.js?v=20260907-edu-rex-v20"></script>
   <script src="./relatorio-qualidade-obras/elo-native-diagnostics.js?v=20260907-native-diagnostics-v1"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./elo-sw.js?v=20261010-memory-scope-v1").catch(function () {});
+        navigator.serviceWorker.register("./elo-sw.js?v=20261012-profile-diagnostics-v1").catch(function () {});
       });
     }
   </script>
