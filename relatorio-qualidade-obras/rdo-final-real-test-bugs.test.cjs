@@ -10,7 +10,8 @@ const js = fs.readFileSync(path.join(root, "relatorio-qualidade-obras.js"), "utf
 
 test("RDO keeps final real-test fixes wired in the page", () => {
   assert.match(html, /relatorio-qualidade-obras\.css\?v=20260906-rdo-final-real-test-bugs/);
-  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v4/);
+  assert.match(html, /rdo-canonical-auth\.js\?v=20261012-rdo-standalone-stock-auth-v1/);
+  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-standalone-stock-auth-v1/);
   assert.match(html, /<option value="Escavação">Escavação<\/option>/);
   assert.match(html, /Item vinculado do almoxarifado/);
   assert.match(html, /Legenda padrão das fotos/);
@@ -52,12 +53,14 @@ test("RDO keeps canonical Stock works available when listing existing RDOs fails
   assert.match(loader, /catch \(error\) \{\s*canonicalStockWorksLoaded = false;/);
 });
 
-test("RDO uses the canonical ELO session for the Stock works request and preserves load errors", () => {
+test("RDO prefers its own canonical session for Stock works and preserves load errors", () => {
   const tokenStart = js.indexOf("async function getRdoApiAccessToken_()");
   const tokenEnd = js.indexOf("function hasStockFullBackendToken_()", tokenStart);
   assert.notEqual(tokenStart, -1);
   assert.notEqual(tokenEnd, -1);
   const tokenProvider = js.slice(tokenStart, tokenEnd);
+  assert.match(tokenProvider, /rdoCanonicalAuth\.hasSession\(\)[\s\S]*rdoCanonicalAuth\.getValidAccessToken\(\)/);
+  assert.ok(tokenProvider.indexOf("rdoCanonicalAuth.hasSession()") < tokenProvider.indexOf("window.EloCanonicalSession"));
   assert.match(tokenProvider, /window\.EloCanonicalSession/);
   assert.match(tokenProvider, /canonicalSession\.getValidAccessToken\(\)/);
   assert.match(tokenProvider, /canonicalSession\.getAccessToken\(\)/);

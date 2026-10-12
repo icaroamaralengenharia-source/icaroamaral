@@ -2,6 +2,13 @@
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+  const rdoCanonicalAuth = window.ObraReportRdoCanonicalAuth && typeof window.ObraReportRdoCanonicalAuth.create === "function"
+    ? window.ObraReportRdoCanonicalAuth.create({
+      baseUrl: window.OBRAREPORT_API_BASE_URL,
+      supabaseUrl: config.eloSupabaseUrl,
+      anonKey: config.eloSupabaseAnonKey
+    })
+    : null;
   const rdoCloudAdapter = window.ObraReportRdoCloudAdapter && typeof window.ObraReportRdoCloudAdapter.create === "function"
     ? window.ObraReportRdoCloudAdapter.create({
       baseUrl: window.OBRAREPORT_API_BASE_URL,
@@ -1567,6 +1574,11 @@
   }
 
   async function getRdoApiAccessToken_() {
+    if (rdoCanonicalAuth && rdoCanonicalAuth.hasSession()) {
+      const rdoToken = clean(await rdoCanonicalAuth.getValidAccessToken());
+      if (rdoToken) return rdoToken;
+      return "";
+    }
     const canonicalSession = window.EloCanonicalSession;
     if (canonicalSession && typeof canonicalSession.getValidAccessToken === "function") {
       try {
@@ -2224,6 +2236,10 @@
           ) {
             throw new Error("A identidade autenticada não possui role explícita válida.");
           }
+          if (rdoCanonicalAuth) {
+            rdoCanonicalAuth.clear();
+            await rdoCanonicalAuth.login(informedEmail, password);
+          }
           await applyCloudState_(verifiedSession.state, appState.session.token);
           await loadCanonicalRdoWorkspace_();
           grantLocalAccessSession_();
@@ -2254,6 +2270,7 @@
     if (logoutButton) {
       logoutButton.addEventListener("click", function () {
         activeReportId = null;
+        if (rdoCanonicalAuth) rdoCanonicalAuth.clear();
         revokeLocalAccessSession_();
         appState.session = null;
         setLastOpened_("dashboard");
