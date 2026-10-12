@@ -10,7 +10,7 @@ const js = fs.readFileSync(path.join(root, "relatorio-qualidade-obras.js"), "utf
 
 test("RDO keeps final real-test fixes wired in the page", () => {
   assert.match(html, /relatorio-qualidade-obras\.css\?v=20260906-rdo-final-real-test-bugs/);
-  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v2/);
+  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v3/);
   assert.match(html, /<option value="Escavação">Escavação<\/option>/);
   assert.match(html, /Item vinculado do almoxarifado/);
   assert.match(html, /Legenda padrão das fotos/);
@@ -50,6 +50,21 @@ test("RDO keeps canonical Stock works available when listing existing RDOs fails
   assert.match(loader, /try \{\s*await loadRdosForWork_\(selectedWork\.id, \{ render: false \}\);\s*\} catch \(error\) \{[\s\S]*rdoListError = error;[\s\S]*appState\.dailyLogs = \[\];/);
   assert.match(loader, /Obras do Stock Full carregadas; não foi possível carregar os RDOs do backend oficial\./);
   assert.match(loader, /catch \(error\) \{\s*canonicalStockWorksLoaded = false;/);
+});
+
+test("RDO uses the canonical ELO session for the Stock works request and preserves load errors", () => {
+  const tokenStart = js.indexOf("async function getRdoApiAccessToken_()");
+  const tokenEnd = js.indexOf("function hasStockFullBackendToken_()", tokenStart);
+  assert.notEqual(tokenStart, -1);
+  assert.notEqual(tokenEnd, -1);
+  const tokenProvider = js.slice(tokenStart, tokenEnd);
+  assert.match(tokenProvider, /window\.EloCanonicalSession/);
+  assert.match(tokenProvider, /canonicalSession\.getValidAccessToken\(\)/);
+  assert.match(tokenProvider, /canonicalSession\.getAccessToken\(\)/);
+
+  const dailyLogRenderer = js.slice(js.indexOf("function renderDailyLogModule_"), js.indexOf("async function saveDailyLogFromForm_"));
+  assert.match(dailyLogRenderer, /canonicalStockWorksLoadError \|\|/);
+  assert.match(js, /HTTP " \+ errorStatus/);
 });
 
 test("RDO CSS collapses side tools by default and stabilizes embedded ELO", () => {

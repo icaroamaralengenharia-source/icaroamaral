@@ -295,6 +295,8 @@
   const imageCache = new Map();
   let appState = loadLocalData();
   let canonicalStockWorksLoaded = false;
+  let canonicalStockWorksLoadError = "";
+  let canonicalRdoListLoadError = "";
   let rdoServerIds = new Set();
   let rdoLoadGeneration = 0;
   let stockFullRuntimeMode = "local";
@@ -1571,6 +1573,23 @@
       if (refreshedToken) return refreshedToken;
     } catch (_) {
       // The persisted Stock Full token remains the fallback when its SDK is unavailable.
+    }
+    const canonicalSession = window.EloCanonicalSession;
+    if (canonicalSession && typeof canonicalSession.getValidAccessToken === "function") {
+      try {
+        const refreshedToken = clean(await canonicalSession.getValidAccessToken());
+        if (refreshedToken) return refreshedToken;
+      } catch (_) {
+        // Try the current validated token before the legacy storage fallback.
+      }
+    }
+    if (canonicalSession && typeof canonicalSession.getAccessToken === "function") {
+      try {
+        const canonicalToken = clean(await canonicalSession.getAccessToken());
+        if (canonicalToken) return canonicalToken;
+      } catch (_) {
+        // The adapter will report a missing session if no supported token exists.
+      }
     }
     return getStockFullSupabaseToken_();
   }
@@ -6751,7 +6770,7 @@
 
     const previous = dailyLogWorkSelect.value || (appState.local && appState.local.lastWorkId) || "";
     dailyLogWorkSelect.innerHTML = "";
-    dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : "Entre no Stock Full para carregar obras"));
+    dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : canonicalStockWorksLoadError || "Entre no Stock Full para carregar obras"));
 
     works.forEach(function (work) {
       dailyLogWorkSelect.appendChild(createOption_(work.id, work.name));
@@ -6764,18 +6783,22 @@
 
   async function loadCanonicalRdoWorkspace_() {
     canonicalStockWorksLoaded = false;
+    canonicalStockWorksLoadError = "";
+    canonicalRdoListLoadError = "";
     rdoServerIds = new Set();
     appState.works = [];
     appState.dailyLogs = [];
 
     if (!rdoCloudAdapter) {
-      setDailyLogStatus_("A integração oficial do RDO não carregou.", "error");
+      canonicalStockWorksLoadError = "A integração oficial do RDO não carregou.";
+      setDailyLogStatus_(canonicalStockWorksLoadError, "error");
       return false;
     }
 
     setDailyLogStatus_("Carregando obras autorizadas do Stock Full...", "info");
     try {
       const works = await rdoCloudAdapter.listStockWorks();
+      canonicalStockWorksLoadError = "";
       appState.works = works.map(function (work) {
         return Object.assign({}, work, { userId: currentUser && currentUser.id || "" });
       });
@@ -6807,7 +6830,13 @@
       if (currentUser) renderSaasState_();
       if (rdoListError) {
         console.error("Não foi possível carregar os RDOs da obra canônica.", rdoListError);
-        setDailyLogStatus_("Obras do Stock Full carregadas; não foi possível carregar os RDOs do backend oficial.", "error");
+        const errorCode = clean(rdoListError && rdoListError.code);
+        const errorStatus = Number(rdoListError && rdoListError.status) || 0;
+        canonicalRdoListLoadError = "Obras do Stock Full carregadas; não foi possível carregar os RDOs do backend oficial." +
+          ([errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).length
+            ? " (" + [errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).join(" · ") + ")"
+            : "");
+        setDailyLogStatus_(canonicalRdoListLoadError, "error");
         return true;
       }
       setDailyLogStatus_(selectedWork
@@ -6819,11 +6848,17 @@
       rdoServerIds = new Set();
       appState.works = [];
       appState.dailyLogs = [];
+      const errorCode = clean(error && error.code);
+      const errorStatus = Number(error && error.status) || 0;
       saveLocalData({ syncCloud: false });
       if (currentUser) renderSaasState_();
-      const message = error && error.code === "RDO_CANONICAL_SESSION_REQUIRED"
+      const message = errorCode === "RDO_CANONICAL_SESSION_REQUIRED"
         ? "Entre no Stock Full com a sessão canônica para carregar obras e RDOs."
-        : "Não foi possível carregar obras/RDOs do backend oficial.";
+        : "Não foi possível carregar obras do Stock Full." +
+          ([errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).length
+            ? " (" + [errorStatus ? "HTTP " + errorStatus : "", errorCode].filter(Boolean).join(" · ") + ")"
+            : "");
+      canonicalStockWorksLoadError = message;
       setDailyLogStatus_(message, "error");
       return false;
     }
@@ -6832,6 +6867,7 @@
   async function loadRdosForWork_(projectId, options) {
     const settings = options || {};
     const id = clean(projectId);
+    canonicalRdoListLoadError = "";
     const generation = ++rdoLoadGeneration;
     rdoServerIds = new Set();
     appState.dailyLogs = [];
@@ -6900,9 +6936,9 @@
 
     if (dailyLogStatus) {
       const syncLabel = canonicalStockWorksLoaded ? "do backend oficial" : "aguardando backend oficial";
-      dailyLogStatus.textContent = dailyLogs.length
+      dailyLogStatus.textContent = canonicalStockWorksLoadError || canonicalRdoListLoadError || (dailyLogs.length
         ? dailyLogs.length + " diário(s) " + syncLabel
-        : "Diários " + syncLabel;
+        : "Diários " + syncLabel);
     }
   }
 
