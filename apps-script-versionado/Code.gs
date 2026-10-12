@@ -181,16 +181,18 @@ function handleSyncSave_(payload, store, requestId) {
   const user = requireUser_(payload.token, store);
   const state = payload.state || {};
   const clients = Array.isArray(state.clients) ? state.clients : [];
-  const works = Array.isArray(state.works) ? state.works : [];
   const reports = Array.isArray(state.reports) ? state.reports : [];
-  const dailyLogs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
   const compositions = Array.isArray(state.compositions) ? state.compositions : [];
 
   store.clients = replaceUserItems_(store.clients, user.id, clients);
-  store.works = replaceUserItems_(store.works, user.id, works);
   store.reports = replaceUserItems_(store.reports, user.id, reports, true);
-  store.dailyLogs = replaceUserItems_(store.dailyLogs, user.id, dailyLogs);
   store.compositions = replaceUserItems_(store.compositions, user.id, compositions);
+  if (Object.prototype.hasOwnProperty.call(state, "works") && Array.isArray(state.works)) {
+    store.works = replaceUserItems_(store.works, user.id, state.works);
+  }
+  if (Object.prototype.hasOwnProperty.call(state, "dailyLogs") && Array.isArray(state.dailyLogs)) {
+    store.dailyLogs = replaceUserItems_(store.dailyLogs, user.id, state.dailyLogs);
+  }
   store.updatedAt = new Date().toISOString();
 
   return {

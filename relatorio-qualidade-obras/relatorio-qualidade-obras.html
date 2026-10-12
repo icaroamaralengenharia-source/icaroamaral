@@ -505,6 +505,7 @@ defer></script>
       <section class="route-panel" data-route="obras" aria-label="Cadastro de obras">
         <div class="workspace-card">
           <h3>Cadastrar obra</h3>
+          <p class="auth-note">As obras usadas pelo Diário de Obras vêm do Stock Full. Cadastre ou atualize a obra no Stock Full para vinculá-la ao RDO.</p>
           <form id="workForm" class="entity-form">
             <div class="field-grid">
               <label>
@@ -584,7 +585,7 @@ defer></script>
             <h3>Registro técnico diário da obra</h3>
             <p>Preencha por macroseções. Identificação e Execução já começam abertas.</p>
           </div>
-          <span class="local-status" id="dailyLogStatus">Diários salvos neste navegador</span>
+          <span class="local-status" id="dailyLogStatus">Aguardando conexão com RDO e Stock Full...</span>
         </div>
 
         <nav class="diary-jump-nav" aria-label="Atalhos do Diário de Obras">
@@ -2340,6 +2341,7 @@ defer></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
   <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
   <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
+  <script src="./rdo-cloud-adapter.js?v=20261011-stock-canonical-rdo-v1"></script>
   <script src="./relatorio-qualidade-obras.js?v=20260930-auth-restore-v3"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20261008-stock-uuid-lookup-v2" defer></script>

@@ -21,7 +21,8 @@ async function withServer(callback, options = {}) {
   const app = createApp({
     env: Object.assign({}, process.env, { ELO_SENTINEL_ENABLED: "true", ELO_OPERATIONAL_TIMELINE_ENABLED: "true" }, options.env || {}),
     eloSentinelStore: store,
-    authContextSupabaseClient: authClient()
+    authContextSupabaseClient: authClient(),
+    rdoWorkScopeValidator: async (context, projectId) => ({ id: projectId, institution_id: context.institutionId })
   });
   const server = await new Promise((resolve) => { const instance = app.listen(0, () => resolve(instance)); });
   try { await callback("http://127.0.0.1:" + server.address().port, store); }

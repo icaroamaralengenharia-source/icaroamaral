@@ -10,6 +10,7 @@ async function withServer(callback) {
   const dir = mkdtempSync(join(tmpdir(), "obrareport-api-"));
   const app = createApp({
     obraReportTransactionalService: createObraReportTransactionalService({ dataPath: join(dir, "obrareport.json") }),
+    rdoWorkScopeValidator: async (context, projectId) => ({ id: projectId, institution_id: context.institutionId }),
     authContextSupabaseClient: {
       auth: {
         async getUser(token) {
