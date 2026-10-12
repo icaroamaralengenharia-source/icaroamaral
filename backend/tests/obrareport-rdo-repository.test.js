@@ -6,6 +6,10 @@ import { createApp } from "../src/app.js";
 
 function createFakeSupabase() {
   const tables = {
+    obrareport_projects: [
+      { id: "work-a", institution_id: "tenant-a" },
+      { id: "work-b", institution_id: "tenant-b" }
+    ],
     obrareport_rdos: [],
     obrareport_rdo_events: [],
     obrareport_rdo_versions: []
@@ -133,6 +137,22 @@ test("Supabase-backed RDO service never falls back to local document JSON", () =
   const context = { userId: "auth-a", profile: { id: "profile-a", auth_user_id: "auth-a", institution_id: "tenant-a" } };
   assert.throws(() => service.generateRdoDocument(context, "missing"), /rdo_document_store_not_configured/);
   assert.throws(() => service.prepareDocumentEmail(context, "missing"), /document_store_not_configured/);
+});
+
+test("Supabase RDO repository valida a obra canônica pelo tenant da sessão", async () => {
+  const repository = createSupabaseRdoRepository({ client: createFakeSupabase() });
+  const tenantA = { userId: "auth-a", profile: { id: "profile-a", auth_user_id: "auth-a", institution_id: "tenant-a" } };
+
+  const allowed = await repository.assertProjectScope(tenantA, "work-a");
+  assert.equal(allowed.id, "work-a");
+  await assert.rejects(
+    () => repository.assertProjectScope(tenantA, "work-b"),
+    (error) => error && error.status === 404 && error.message === "rdo_project_not_found"
+  );
+  await assert.rejects(
+    () => repository.assertProjectScope(tenantA, ""),
+    (error) => error && error.status === 400 && error.message === "rdo_project_required"
+  );
 });
 
 

@@ -86,6 +86,20 @@ export function createSupabaseRdoRepository({ client } = {}) {
     return result.data || null;
   }
 
+  async function assertProjectScope(context, projectId) {
+    const ctx = requireInstitution(context);
+    const id = clean(projectId);
+    if (!id) throw Object.assign(new Error("rdo_project_required"), { status: 400 });
+    // Match the current Stock Full authorization model: canonical works are institution-scoped.
+    // There is no per-user work ACL in stock_full_work_allowed today.
+    const result = await client.from("obrareport_projects").select("id,institution_id").eq("id", id).eq("institution_id", ctx.institutionId).maybeSingle();
+    if (result.error) throw databaseError("rdo_project_read_failed", result.error);
+    if (!result.data || clean(result.data.institution_id) !== ctx.institutionId) {
+      throw Object.assign(new Error("rdo_project_not_found"), { status: 404 });
+    }
+    return result.data;
+  }
+
   async function insertEvent(context, id, type, payload = {}) {
     const ctx = requireInstitution(context);
     const result = await client.from(EVENTS_TABLE).insert({
@@ -103,6 +117,7 @@ export function createSupabaseRdoRepository({ client } = {}) {
 
   return {
     mode: "supabase",
+    assertProjectScope,
     async create(context, payload = {}) {
       const ctx = requireInstitution(context);
       const safe = objectOf(payload);
