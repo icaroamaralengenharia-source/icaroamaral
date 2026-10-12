@@ -10,7 +10,7 @@ const js = fs.readFileSync(path.join(root, "relatorio-qualidade-obras.js"), "utf
 
 test("RDO keeps final real-test fixes wired in the page", () => {
   assert.match(html, /relatorio-qualidade-obras\.css\?v=20260906-rdo-final-real-test-bugs/);
-  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v1/);
+  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-stock-work-cache-bust-v2/);
   assert.match(html, /<option value="Escavação">Escavação<\/option>/);
   assert.match(html, /Item vinculado do almoxarifado/);
   assert.match(html, /Legenda padrão das fotos/);
@@ -37,6 +37,19 @@ test("RDO JS protects dynamic containers and supports per-photo captions", () =>
   assert.match(js, /data-diary-photo-caption-id/);
   assert.match(js, /function updateDailyLogPhotoCaption_/);
   assert.match(js, /dailyLogSaveButton\.disabled = true/);
+});
+
+test("RDO keeps canonical Stock works available when listing existing RDOs fails", () => {
+  const loaderStart = js.indexOf("async function loadCanonicalRdoWorkspace_()");
+  const loaderEnd = js.indexOf("async function loadRdosForWork_(", loaderStart);
+  assert.notEqual(loaderStart, -1);
+  assert.notEqual(loaderEnd, -1);
+  const loader = js.slice(loaderStart, loaderEnd);
+
+  assert.match(loader, /const works = await rdoCloudAdapter\.listStockWorks\(\);[\s\S]*canonicalStockWorksLoaded = true;/);
+  assert.match(loader, /try \{\s*await loadRdosForWork_\(selectedWork\.id, \{ render: false \}\);\s*\} catch \(error\) \{[\s\S]*rdoListError = error;[\s\S]*appState\.dailyLogs = \[\];/);
+  assert.match(loader, /Obras do Stock Full carregadas; não foi possível carregar os RDOs do backend oficial\./);
+  assert.match(loader, /catch \(error\) \{\s*canonicalStockWorksLoaded = false;/);
 });
 
 test("RDO CSS collapses side tools by default and stabilizes embedded ELO", () => {
