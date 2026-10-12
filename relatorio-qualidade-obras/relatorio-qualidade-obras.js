@@ -78,6 +78,7 @@
   const dailyLogStatus = document.getElementById("dailyLogStatus");
   const rdoE2EDiagnosticsPanel = document.getElementById("rdoE2EDiagnostics");
   const rdoE2EDiagnosticsOutput = document.getElementById("rdoE2EDiagnosticsOutput");
+  const rdoE2EDiagnosticsRecheck = document.getElementById("rdoE2EDiagnosticsRecheck");
   const dailyLogResetButton = document.getElementById("dailyLogResetButton");
   const dailyLogAddProductionButton = document.getElementById("dailyLogAddProduction");
   const dailyLogCalculateMaterialsButton = document.getElementById("dailyLogCalculateMaterials");
@@ -5079,6 +5080,10 @@
       return;
     }
 
+    if (rdoE2EDiagnosticsRecheck) {
+      rdoE2EDiagnosticsRecheck.addEventListener("click", runRdoE2EListComparison_);
+    }
+
     const dailyLogRouteButton = document.querySelector("[data-route-target='diario']");
 
     if (dailyLogRouteButton) {
@@ -6820,6 +6825,18 @@
       createRdoId: "",
       createProjectId: "",
       createInstitutionId: "",
+      rdoProjectId: "",
+      rdoInstitutionId: "",
+      requestQueryProjectId: "",
+      projectFilterMatchesRdo: null,
+      comparisonGetHttpStatus: null,
+      comparisonGetFound: null,
+      comparisonListAllHttpStatus: null,
+      comparisonListAllCount: null,
+      comparisonListAllContainsCreatedId: null,
+      comparisonListProjectHttpStatus: null,
+      comparisonListProjectCount: null,
+      comparisonListProjectContainsCreatedId: null,
       profileInstitutionId: "",
       projectIdMatch: null,
       institutionMatch: null,
@@ -6908,6 +6925,15 @@
     return "PENDING";
   }
 
+  function classifyRdoE2EList_(state) {
+    if (state.comparisonGetFound !== true) return "GET_BY_ID_FAILED";
+    if (state.projectFilterMatchesRdo === false) return "PROJECT_ID_MAPPING";
+    if (state.comparisonListAllContainsCreatedId === false) return "LIST_REPOSITORY_OR_TENANT_SCOPE";
+    if (state.comparisonListAllContainsCreatedId === true && state.comparisonListProjectContainsCreatedId === false) return "PROJECT_FILTER_WRONG";
+    if (state.comparisonListAllContainsCreatedId === true && state.comparisonListProjectContainsCreatedId === true) return "LIST_RESPONSE_CONTAINS_RDO";
+    return "PENDING";
+  }
+
   function renderRdoE2EDiagnostics_() {
     if (!rdoE2EDiagnosticsPanel || !rdoE2EDiagnosticsOutput) return;
     const enabled = isRdoE2EDiagnosticsEnabled_();
@@ -6927,6 +6953,17 @@
       "CREATED_ID_IN_IMMEDIATE_LIST = " + formatRdoDiagnosticBoolean_(state.immediateListContainsCreatedId),
       "ACTIVE_WORK_ID_REDACTED = " + redactRdoDiagnosticId_(state.activeWorkId),
       "PROJECT_ID_MATCH = " + formatRdoDiagnosticBoolean_(state.projectIdMatch),
+      "RDO_PROJECT_ID_REDACTED = " + redactRdoDiagnosticId_(state.rdoProjectId),
+      "RDO_INSTITUTION_ID_REDACTED = " + redactRdoDiagnosticId_(state.rdoInstitutionId),
+      "REQUEST_QUERY_PROJECT_ID_REDACTED = " + redactRdoDiagnosticId_(state.requestQueryProjectId),
+      "PROJECT_FILTER_MATCH = " + formatRdoDiagnosticBoolean_(state.projectFilterMatchesRdo),
+      "LIST_ALL_HTTP_STATUS = " + (state.comparisonListAllHttpStatus == null ? "PENDING" : state.comparisonListAllHttpStatus),
+      "LIST_ALL_COUNT = " + (state.comparisonListAllCount == null ? "PENDING" : state.comparisonListAllCount),
+      "CREATED_ID_IN_LIST_ALL = " + formatRdoDiagnosticBoolean_(state.comparisonListAllContainsCreatedId),
+      "LIST_PROJECT_HTTP_STATUS = " + (state.comparisonListProjectHttpStatus == null ? "PENDING" : state.comparisonListProjectHttpStatus),
+      "LIST_PROJECT_COUNT = " + (state.comparisonListProjectCount == null ? "PENDING" : state.comparisonListProjectCount),
+      "CREATED_ID_IN_PROJECT_LIST = " + formatRdoDiagnosticBoolean_(state.comparisonListProjectContainsCreatedId),
+      "ROOT_CAUSE_LIST = " + classifyRdoE2EList_(state),
       "PROFILE_INSTITUTION_ID_REDACTED = " + redactRdoDiagnosticId_(state.profileInstitutionId),
       "INSTITUTION_MATCH = " + formatRdoDiagnosticBoolean_(state.institutionMatch),
       "POST_RELOAD_GET_BY_ID_HTTP_STATUS = " + (state.postReloadGetHttpStatus == null ? "PENDING" : state.postReloadGetHttpStatus),
@@ -6943,7 +6980,27 @@
     const state = readRdoE2EDiagnosticState_();
     if (!state) return;
 
-    if (event.kind === "create" && state.phase === "create") {
+    if (state.phase === "comparison") {
+      if (event.kind === "get_by_id") {
+        state.comparisonGetHttpStatus = Number(event.httpStatus) || 0;
+        state.comparisonGetFound = event.found === true;
+        state.rdoProjectId = clean(event.rdoProjectId);
+        state.rdoInstitutionId = clean(event.rdoInstitutionId);
+        state.projectFilterMatchesRdo = compareRdoDiagnosticIds_(state.rdoProjectId, state.requestQueryProjectId || state.createProjectId);
+      } else if (event.kind === "list_all") {
+        state.comparisonListAllHttpStatus = Number(event.httpStatus) || 0;
+        state.comparisonListAllCount = Number(event.count) || 0;
+        state.comparisonListAllContainsCreatedId = event.containsTrackedRdo === true;
+      } else if (event.kind === "list") {
+        state.comparisonListProjectHttpStatus = Number(event.httpStatus) || 0;
+        state.comparisonListProjectCount = Number(event.count) || 0;
+        state.comparisonListProjectContainsCreatedId = event.containsTrackedRdo === true;
+        state.requestQueryProjectId = clean(event.requestProjectId);
+        state.projectFilterMatchesRdo = compareRdoDiagnosticIds_(state.rdoProjectId, state.requestQueryProjectId);
+      } else {
+        return;
+      }
+    } else if (event.kind === "create" && state.phase === "create") {
       state.createHttpStatus = Number(event.httpStatus) || 0;
       state.createRdoId = clean(event.rdoId);
       state.createProjectId = clean(event.projectId);
@@ -6970,6 +7027,41 @@
     }
 
     writeRdoE2EDiagnosticState_(state);
+  }
+
+  async function runRdoE2EListComparison_() {
+    if (!isRdoE2EDiagnosticsEnabled_()) return;
+    const state = readRdoE2EDiagnosticState_();
+    const rdoId = clean(state && state.createRdoId);
+    const projectId = clean(state && state.createProjectId);
+    if (!state || !rdoId || !projectId || !rdoCloudAdapter) return;
+
+    state.phase = "comparison";
+    state.rdoProjectId = "";
+    state.rdoInstitutionId = "";
+    state.requestQueryProjectId = "";
+    state.projectFilterMatchesRdo = null;
+    state.comparisonGetHttpStatus = null;
+    state.comparisonGetFound = null;
+    state.comparisonListAllHttpStatus = null;
+    state.comparisonListAllCount = null;
+    state.comparisonListAllContainsCreatedId = null;
+    state.comparisonListProjectHttpStatus = null;
+    state.comparisonListProjectCount = null;
+    state.comparisonListProjectContainsCreatedId = null;
+    writeRdoE2EDiagnosticState_(state);
+
+    for (const read of [
+      () => rdoCloudAdapter.getRdo(rdoId),
+      () => rdoCloudAdapter.listRdosUnfiltered(),
+      () => rdoCloudAdapter.listRdosByWork(projectId)
+    ]) {
+      try { await read(); } catch (_) { /* Response status remains in the sanitized diagnostic panel. */ }
+    }
+
+    const completed = readRdoE2EDiagnosticState_() || state;
+    completed.phase = "comparison_complete";
+    writeRdoE2EDiagnosticState_(completed);
   }
 
   function beginRdoE2EDiagnostics_(workId) {

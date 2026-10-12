@@ -9,6 +9,24 @@
     return JSON.parse(JSON.stringify(value || {}));
   }
 
+  function queryValue(path, name) {
+    const query = String(path || "").split("?")[1] || "";
+    for (const part of query.split("&")) {
+      const index = part.indexOf("=");
+      if (index < 0) continue;
+      let key = part.slice(0, index);
+      let value = part.slice(index + 1);
+      try {
+        key = decodeURIComponent(key.replace(/\+/g, " "));
+        value = decodeURIComponent(value.replace(/\+/g, " "));
+      } catch (_) {
+        return "";
+      }
+      if (key === name) return value;
+    }
+    return "";
+  }
+
   function notifyDiagnostic(settings, path, requestOptions, response, data) {
     if (typeof settings.onDiagnostic !== "function") return;
 
@@ -32,10 +50,13 @@
       event = {
         kind: "get_by_id",
         httpStatus: status,
-        found: Boolean(rdo.id)
+        found: Boolean(rdo.id),
+        rdoProjectId: clean(rdo.project_id || rdo.projectId),
+        rdoInstitutionId: clean(rdo.institution_id || rdo.institutionId)
       };
     } else if (method === "GET" && endpoint === "/api/obrareport/rdos") {
       const rows = Array.isArray(payload.rdos) ? payload.rdos : [];
+      const requestProjectId = queryValue(path, "projectId") || queryValue(path, "project_id");
       let trackedId = "";
       try {
         trackedId = typeof settings.getTrackedRdoId === "function" ? clean(settings.getTrackedRdoId()) : "";
@@ -43,8 +64,9 @@
         trackedId = "";
       }
       event = {
-        kind: "list",
+        kind: requestProjectId ? "list" : "list_all",
         httpStatus: status,
+        requestProjectId,
         count: rows.length,
         containsTrackedRdo: Boolean(trackedId && rows.some(function (row) {
           return clean(row && row.id) === trackedId;
@@ -162,6 +184,10 @@
         const id = clean(projectId);
         if (!id) throw new Error("rdo_project_id_required");
         const result = await request("/api/obrareport/rdos?projectId=" + encodeURIComponent(id), { method: "GET" });
+        return Array.isArray(result.rdos) ? result.rdos : [];
+      },
+      listRdosUnfiltered: async function () {
+        const result = await request("/api/obrareport/rdos", { method: "GET" });
         return Array.isArray(result.rdos) ? result.rdos : [];
       },
       getRdo: async function (id) {

@@ -133,18 +133,63 @@ test("adapter registra status e metadados mínimos das respostas reais create/ge
   assert.doesNotMatch(JSON.stringify(events), /fixture-canonical-token|authorization|bearer/i);
 });
 
+test("adapter compara GET por ID, lista sem filtro e lista por obra sem expor IDs em eventos de diagnóstico", async () => {
+  const events = [];
+  const trackedRdoId = "RDO_SYNTHETIC_E2E_2";
+  const responses = [
+    { status: 200, body: { ok: true, rdo: { id: trackedRdoId, project_id: "WORK_E2E_2", institution_id: "INST_E2E_2" } } },
+    { status: 200, body: { ok: true, rdos: [{ id: trackedRdoId, project_id: "WORK_E2E_2" }] } },
+    { status: 200, body: { ok: true, rdos: [] } }
+  ];
+  const calls = [];
+  const adapter = createAdapter(async (url) => {
+    calls.push(url);
+    const next = responses.shift();
+    return { ok: true, status: next.status, json: async () => next.body };
+  }, {
+    onDiagnostic: (event) => events.push(event),
+    getTrackedRdoId: () => trackedRdoId
+  });
+
+  const fetched = await adapter.getRdo(trackedRdoId);
+  const all = await adapter.listRdosUnfiltered();
+  const byWork = await adapter.listRdosByWork("WORK_E2E_2");
+
+  assert.equal(fetched.project_id, "WORK_E2E_2");
+  assert.equal(fetched.institution_id, "INST_E2E_2");
+  assert.equal(all.length, 1);
+  assert.deepEqual(byWork, []);
+  assert.deepEqual(calls, [
+    "https://backend.example.test/api/obrareport/rdos/RDO_SYNTHETIC_E2E_2",
+    "https://backend.example.test/api/obrareport/rdos",
+    "https://backend.example.test/api/obrareport/rdos?projectId=WORK_E2E_2"
+  ]);
+  assert.deepEqual(events.map((event) => event.kind), ["get_by_id", "list_all", "list"]);
+  assert.equal(events[0].rdoProjectId, "WORK_E2E_2");
+  assert.equal(events[0].rdoInstitutionId, "INST_E2E_2");
+  assert.equal(events[1].containsTrackedRdo, true);
+  assert.equal(events[2].requestProjectId, "WORK_E2E_2");
+  assert.equal(events[2].containsTrackedRdo, false);
+  assert.doesNotMatch(JSON.stringify(events), /fixture-canonical-token|authorization|bearer/i);
+});
+
 test("diagnóstico E2E é restrito ao admin E2E e repete GET/list pelo adapter após reload", () => {
   assert.match(uiSource, /RDO_E2E_DIAGNOSTICS_EMAIL\s*=\s*"admin@elo-e2e\.test"/);
   assert.match(uiSource, /currentUser && isAdminUser_\(\) && clean\(currentUser\.email\)\.toLowerCase\(\) === RDO_E2E_DIAGNOSTICS_EMAIL/);
   assert.match(uiSource, /onDiagnostic:\s*recordRdoE2EDiagnosticEvent_/);
   assert.match(uiSource, /getTrackedRdoId:\s*getRdoE2EDiagnosticTrackedRdoId_/);
+  assert.match(uiSource, /rdoE2EDiagnosticsRecheck\.addEventListener\("click", runRdoE2EListComparison_\)/);
+  assert.match(uiSource, /for \(const read of \[\s*\(\) => rdoCloudAdapter\.getRdo\(rdoId\),\s*\(\) => rdoCloudAdapter\.listRdosUnfiltered\(\),\s*\(\) => rdoCloudAdapter\.listRdosByWork\(projectId\)/);
+  assert.match(uiSource, /RDO_PROJECT_ID_REDACTED/);
+  assert.match(uiSource, /CREATED_ID_IN_LIST_ALL/);
+  assert.match(uiSource, /CREATED_ID_IN_PROJECT_LIST/);
   assert.match(uiSource, /function getRdoE2EDiagnosticTrackedRdoId_\(\)/);
   assert.match(uiSource, /await rdoCloudAdapter\.getRdo\(id\)[\s\S]*await rdoCloudAdapter\.listRdosByWork\(projectId\)/);
   assert.match(uiSource, /await rdoCloudAdapter\.getRdo\(state\.createRdoId\)[\s\S]*await rdoCloudAdapter\.listRdosByWork\(state\.createProjectId\)/);
   assert.match(uiSource, /CREATE_RDO_ID_REDACTED/);
   assert.match(uiSource, /PROFILE_INSTITUTION_ID_REDACTED/);
   assert.match(htmlSource, /class="workspace-card is-hidden" id="rdoE2EDiagnostics"/);
-  assert.match(htmlSource, /rdo-cloud-adapter\.js\?v=20261012-e2e-persistence-diagnostics-v1/);
+  assert.match(htmlSource, /rdo-cloud-adapter\.js\?v=20261012-rdo-list-diagnostics-v1/);
 
   const panelRenderer = uiSource.slice(uiSource.indexOf("function renderRdoE2EDiagnostics_"), uiSource.indexOf("function recordRdoE2EDiagnosticEvent_"));
   assert.doesNotMatch(panelRenderer, /access_token|refresh_token|Authorization|Bearer|password|cookie/i);
