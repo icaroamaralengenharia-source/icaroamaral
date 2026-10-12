@@ -47,6 +47,18 @@ test("offline core answers technical knowledge and internet boundary locally", (
   assert.equal(core.knowledgeCount >= 15, true);
 });
 
+test("offline greeting fast path does not swallow a question that follows it", () => {
+  const { core } = load();
+  assert.equal(core.resolve("Bom dia!").sessionIntent, "offline_conversation");
+
+  const generalQuestion = core.resolve("Bom dia. Estou sobrecarregado no trabalho e não sei por onde começar. Como você organizaria isso?");
+  assert.equal(generalQuestion, null);
+
+  const question = core.resolve("Bom dia, chefe. O que causa fissuras no concreto?");
+  assert.equal(question.sessionIntent, "offline_engineering");
+  assert.match(question.fullAnswer, /forma, armadura|concretagem/i);
+});
+
 test("offline core does not confuse próxima ação with música", () => {
   const { core } = load();
   const result = core.resolve("Teste mobile: resumir uma fissura diagonal e indicar a próxima ação.");

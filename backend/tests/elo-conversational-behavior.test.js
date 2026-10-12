@@ -86,6 +86,7 @@ test("contexto validado preserva analise da imagem e descarta campos arbitrarios
   const validation = validateEloChatRequest_({
     message: "Qual e o principal problema?",
     context: {
+      currentConversationId: "conversation-current",
       imageAnalysisContext: {
         type: "image",
         source: "explicit_history",
@@ -104,6 +105,37 @@ test("contexto validado preserva analise da imagem e descarta campos arbitrarios
   assert.equal(validation.payload.context.imageAnalysisContext.source, "explicit_history");
   assert.equal(validation.payload.context.imageAnalysisContext.analysis, analysis);
   assert.equal(validation.payload.context.lastMeaningfulAnalysis, undefined);
+});
+
+test("chat aceita entrada longa e mantém histórico realista de vinte turnos", () => {
+  const message = "Registro técnico da obra, lote 07; ".repeat(1000).slice(0, 32891).trimEnd().padEnd(32891, "x");
+  const history = Array.from({ length: 24 }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: index % 2 === 0
+      ? `Turno ${index + 1}: a equipe concretou o trecho ${index + 1} e registrou a cura.`
+      : `Resposta ${index + 1}: conferir o registro de cura e a liberação da próxima etapa.`
+  }));
+  const validation = validateEloChatRequest_({ message, history, context: {} });
+
+  assert.equal(validation.ok, true);
+  assert.equal(validation.payload.message.length, 32891);
+  assert.equal(validation.payload.message, message);
+  assert.equal(validation.payload.history.length, 20);
+
+  const overflow = validateEloChatRequest_({ message: "x".repeat(36001), context: {} });
+  assert.equal(overflow.ok, false);
+  assert.equal(overflow.status, 413);
+});
+
+test("validador mantém o resumo documental ativo para perguntas de acompanhamento", () => {
+  const documentSummary = "Documento ativo: projeto.pdf\nTrecho extraído: viga baldrame e fundação.";
+  const validation = validateEloChatRequest_({
+    message: "resuma isso",
+    context: { documentsSummary: documentSummary }
+  });
+
+  assert.equal(validation.ok, true);
+  assert.equal(validation.payload.context.documentsSummary, documentSummary);
 });
 
 test("prompt usa analise de imagem ativa ou historica sem alegar indisponibilidade", () => {

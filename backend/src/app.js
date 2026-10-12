@@ -42,7 +42,7 @@ import { getStockFullProjectId, mapStockFullWork, STOCK_FULL_WORK_NOT_ALLOWED, S
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
-const MAX_ELO_MESSAGE_LENGTH = 2000;
+const MAX_ELO_MESSAGE_LENGTH = 36000;
 const MAX_ELO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_ELO_TOTAL_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
@@ -4811,7 +4811,7 @@ export function createApp(options = {}) {
       latencyMetrics.riskDetected = observability.risk_detected;
     }
 
-    validation.payload.context.documentsSummary = chatRequest.documentsSummary;
+    validation.payload.context.documentsSummary = chatRequest.documentsSummary || validation.payload.context.documentsSummary;
     validation.payload.context.attachmentErrors = chatRequest.attachmentErrors;
     validation.payload.interpretation = interpretEloUserMessage({
       message: validation.payload.message,
@@ -6932,7 +6932,10 @@ function parseEloMultipartFormData_(request, env) {
     }
 
     busboy.on("field", (name, value) => {
-      fields[clean_(name).slice(0, 80)] = String(value || "").slice(0, MAX_CONTEXT_LENGTH);
+      const fieldName = clean_(name).slice(0, 80);
+      const maxLength = fieldName === "message" ? MAX_ELO_MESSAGE_LENGTH : MAX_CONTEXT_LENGTH;
+      const fieldValue = String(value || "");
+      fields[fieldName] = fieldValue.length > maxLength ? fieldValue.slice(0, maxLength + 1) : fieldValue;
     });
 
     busboy.on("file", (fieldName, stream, info) => {
@@ -7225,6 +7228,7 @@ export function validateEloChatRequest_(body) {
         anonymousId: clean_(context.anonymousId || context.anonymous_id || body.anonymousId || body.anonymous_id).slice(0, 180),
         memoryScope: temporaryMemoryScope ? "CONVERSATION_ONLY" : "",
         memoriesSummary: temporaryMemoryScope ? "" : cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
+        documentsSummary: temporaryMemoryScope ? "" : cleanMultiline_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH),
         librarySummary: temporaryMemoryScope ? "" : cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
         productContext: clean_(context.productContext || "").slice(0, 80),
         screenContext: clean_(context.screenContext || "").slice(0, 1200),

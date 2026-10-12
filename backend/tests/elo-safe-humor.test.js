@@ -49,6 +49,11 @@ test("politica reconhece pedidos de humor sem capturar conversas serias sobre te
 
   assert.equal(policy.isHumorRequest("conte uma piada de matematica"), true);
   assert.equal(policy.isHumorRequest("me surpreenda com algo leve e divertido"), true);
+  assert.equal(policy.isHumorRequest("me conte outra", [
+    { role: "user", content: "me conte uma piada" },
+    { role: "assistant", content: "A régua pediu promoção: vivia acima da média." }
+  ]), true);
+  assert.equal(policy.isHumorRequest("me conte outra"), false);
   assert.equal(policy.isHumorRequest("por que piadas sobre suicidio podem causar dano?"), false);
   assert.equal(policy.isHumorRequest("como conversar com alguem que pensa em suicidio?"), false);
 });
@@ -69,6 +74,11 @@ test("respostas locais de humor usam temas leves e variados", () => {
     assert.match(answer.fullAnswer, expected, request);
     assert.equal(answer.sessionIntent, "conversa_humana");
   }
+
+  const displayed = assistant.buildResponseForTest("me conte uma piada");
+  assert.equal(displayed.shortAnswer, "Claro.");
+  assert.match(displayed.fullAnswer, /r[eé]gua|somaram\s+7|escala|ideia\s+nova|abas|maquete/i);
+  assert.equal(assistant.detectConversationalIntentForTest("bom dia, me conte uma piada"), "humor");
 });
 
 test("humor sensivel, explicito ou ambiguo recebe alternativa sem moralizar", () => {
