@@ -28,6 +28,29 @@ function createRdoRuntime(fetchImpl, storage) {
   return window;
 }
 
+function makeAccessToken(exp) {
+  const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url");
+  return `header.${payload}.signature`;
+}
+
+function createTokenProvider({ rdoCanonicalAuth, canonicalSession, stockSession, persistedStockToken, logs } = {}) {
+  const helperStart = pageSource.indexOf("  function isUnexpiredAccessToken_(value)");
+  const providerStart = pageSource.indexOf("  async function getRdoApiAccessToken_()");
+  const providerEnd = pageSource.indexOf("\n  function hasStockFullBackendToken_()", providerStart);
+  assert.ok(helperStart >= 0 && providerStart > helperStart && providerEnd > providerStart);
+  const context = {
+    window: { atob: globalThis.atob, EloCanonicalSession: canonicalSession || null },
+    rdoCanonicalAuth: rdoCanonicalAuth || null,
+    clean: (value) => String(value == null ? "" : value).trim(),
+    getStockFullSupabaseSession_: async () => stockSession || null,
+    getStockFullSupabaseToken_: () => persistedStockToken || "",
+    console: { log: (...args) => logs && logs.push(args), info: (...args) => logs && logs.push(args), warn: (...args) => logs && logs.push(args), error: (...args) => logs && logs.push(args) }
+  };
+  const providerSource = pageSource.slice(helperStart, providerEnd);
+  vm.runInNewContext(`${providerSource}\nthis.getToken = getRdoApiAccessToken_;`, context, { filename: "rdo-token-provider.js" });
+  return context.getToken;
+}
+
 test("RDO login establishes its own canonical session and lists Stock works after reload", async () => {
   const storageValues = new Map();
   const storage = {
@@ -101,8 +124,128 @@ test("RDO login establishes its own canonical session and lists Stock works afte
   const tokenProviderStart = pageSource.indexOf("async function getRdoApiAccessToken_()");
   const tokenProviderEnd = pageSource.indexOf("function hasStockFullBackendToken_()", tokenProviderStart);
   const tokenProvider = pageSource.slice(tokenProviderStart, tokenProviderEnd);
-  assert.match(tokenProvider, /rdoCanonicalAuth\.hasSession\(\)[\s\S]*rdoCanonicalAuth\.getValidAccessToken\(\)[\s\S]*return "";/);
+  assert.match(tokenProvider, /rdoCanonicalAuth\.hasSession\(\)[\s\S]*rdoCanonicalAuth\.getValidAccessToken\(\)/);
+  assert.match(tokenProvider, /if \(isUnexpiredAccessToken_\(rdoToken\)\) return rdoToken;/);
+  assert.match(tokenProvider, /const persistedStockToken = clean\(getStockFullSupabaseToken_\(\)\);[\s\S]*return isUnexpiredAccessToken_/);
   assert.ok(tokenProvider.indexOf("rdoCanonicalAuth.hasSession()") < tokenProvider.indexOf("window.EloCanonicalSession"));
+});
+
+test("token provider prefers a valid RDO session over a valid Stock session", async () => {
+  const rdoToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  let stockLookups = 0;
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => rdoToken },
+    stockSession: { get access_token() { stockLookups += 1; return stockToken; } }
+  });
+
+  assert.equal(await getToken(), rdoToken);
+  assert.equal(stockLookups, 0);
+});
+
+test("token provider falls back to valid Stock session when RDO token is expired", async () => {
+  const expiredRdoToken = makeAccessToken(Math.floor(Date.now() / 1000) - 60);
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => expiredRdoToken },
+    stockSession: { access_token: stockToken }
+  });
+
+  assert.equal(await getToken(), stockToken);
+});
+
+test("token provider falls back to valid Stock session when RDO auth is invalid", async () => {
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => { throw new Error("expired_rdo_session"); } },
+    stockSession: { access_token: stockToken }
+  });
+
+  assert.equal(await getToken(), stockToken);
+});
+
+test("token provider falls back to valid Stock session when RDO token is empty", async () => {
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => "" },
+    stockSession: { access_token: stockToken }
+  });
+
+  assert.equal(await getToken(), stockToken);
+});
+
+test("token provider falls back to valid Stock session when no RDO session exists", async () => {
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => false, getValidAccessToken: async () => { throw new Error("must_not_be_called"); } },
+    stockSession: { access_token: stockToken }
+  });
+
+  assert.equal(await getToken(), stockToken);
+});
+
+test("token provider uses a valid persisted Stock token when the Stock SDK has no session", async () => {
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({ persistedStockToken: stockToken });
+
+  assert.equal(await getToken(), stockToken);
+});
+
+test("token provider uses valid RDO session when Stock token is absent", async () => {
+  const rdoToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => rdoToken }
+  });
+
+  assert.equal(await getToken(), rdoToken);
+});
+
+test("token provider returns empty when both RDO and Stock tokens are invalid", async () => {
+  const expiredToken = makeAccessToken(Math.floor(Date.now() / 1000) - 60);
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => expiredToken },
+    stockSession: { access_token: expiredToken },
+    persistedStockToken: expiredToken
+  });
+
+  assert.equal(await getToken(), "");
+});
+
+test("token provider does not log tokens while falling back", async () => {
+  const expiredToken = makeAccessToken(Math.floor(Date.now() / 1000) - 60);
+  const stockToken = makeAccessToken(Math.floor(Date.now() / 1000) + 3600);
+  const logs = [];
+  const getToken = createTokenProvider({
+    rdoCanonicalAuth: { hasSession: () => true, getValidAccessToken: async () => expiredToken },
+    stockSession: { access_token: stockToken },
+    logs
+  });
+
+  assert.equal(await getToken(), stockToken);
+  assert.deepEqual(logs, []);
+});
+
+test("clearing RDO auth removes only its own session and preserves Stock auth", () => {
+  const storageValues = new Map([
+    ["sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "stock-token" })]
+  ]);
+  const storage = {
+    getItem(key) { return storageValues.has(key) ? storageValues.get(key) : null; },
+    setItem(key, value) { storageValues.set(key, value); },
+    removeItem(key) { storageValues.delete(key); }
+  };
+  const window = createRdoRuntime(async () => createResponse({}), storage);
+  const auth = window.ObraReportRdoCanonicalAuth.create({
+    baseUrl: "https://backend.test",
+    storage,
+    fetchImpl: async () => createResponse({})
+  });
+  storage.setItem(window.ObraReportRdoCanonicalAuth.STORAGE_KEY, JSON.stringify({ session: { access_token: "rdo-token" } }));
+
+  auth.clear();
+
+  assert.equal(storage.getItem(window.ObraReportRdoCanonicalAuth.STORAGE_KEY), null);
+  assert.ok(storage.getItem("sb-stock-full-backend-auth-token"));
 });
 
 test("RDO canonical session refreshes an expiring bearer without opening Stock Full", async () => {

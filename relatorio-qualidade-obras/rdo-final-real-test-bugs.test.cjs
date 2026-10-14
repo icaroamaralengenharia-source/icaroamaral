@@ -10,8 +10,8 @@ const js = fs.readFileSync(path.join(root, "relatorio-qualidade-obras.js"), "utf
 
 test("RDO keeps final real-test fixes wired in the page", () => {
   assert.match(html, /relatorio-qualidade-obras\.css\?v=20260906-rdo-final-real-test-bugs/);
-  assert.match(html, /rdo-canonical-auth\.js\?v=20261012-rdo-standalone-stock-auth-v1/);
-  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261012-rdo-standalone-stock-auth-v1/);
+  assert.match(html, /rdo-canonical-auth\.js\?v=20261014-rdo-auth-fallback-v1/);
+  assert.match(html, /relatorio-qualidade-obras\.js\?v=20261014-rdo-auth-fallback-v1/);
   assert.match(html, /<option value="Escavação">Escavação<\/option>/);
   assert.match(html, /Item vinculado do almoxarifado/);
   assert.match(html, /Legenda padrão das fotos/);
