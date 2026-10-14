@@ -100,6 +100,12 @@
     return { detected: false, level: "NONE", type: "" };
   }
 
+  function isConversationalDisclosure(message) {
+    const normalizedMessage = normalize(message);
+    const isQuestion = /\?/.test(message) || /^(?:o que|qual|quais|quando|onde|por que|porque|como|quem|quanto|sera que|será que|pode|posso|voce pode|você pode|me explica|me conte|me diz)\b/.test(normalizedMessage);
+    return !isQuestion && normalizedMessage.length >= 18 && /\b(?:eu|meu|minha|meus|minhas|gosto|adoro|estou|ando|comecei|acabei|passei|fiquei|me sinto|hoje|ontem|tenho)\b/.test(normalizedMessage);
+  }
+
   function hasAny(value, terms) {
     const normalized = normalize(value);
     return (terms || []).some(function (term) { return normalized.indexOf(normalize(term)) >= 0; });
@@ -137,6 +143,7 @@
   function inferProactivity(intent, risk, missing, message, context) {
     if (risk.level === "CRITICAL") return "CRITICAL";
     if (intent === "CALCULATION" && !missing.essential.length) return "NONE";
+    if ((intent === "CONVERSATION" || intent === "SIMPLE_FACT") && isConversationalDisclosure(message)) return "LIGHT";
     if (intent === "CONVERSATION" || intent === "SIMPLE_FACT") return "NONE";
     if (missing.essential.length || risk.level === "RELEVANT" || intent === "TECHNICAL") return "RELEVANT";
     if (intent === "DECISION" || intent === "ADVICE" || missing.useful.length) return "LIGHT";
@@ -179,6 +186,7 @@
     if (plan.risk.level === "CRITICAL") return "interromper a concordância automática e orientar a ação segura mínima antes de executar";
     if (plan.missingEssential.length) return "pedir somente os dados essenciais que faltam e continuar com o que já estiver disponível";
     if (plan.proactivityLevel === "RELEVANT") return "antecipar um único risco ou pré-requisito diretamente ligado à etapa atual";
+    if (plan.proactivityLevel === "LIGHT" && (plan.intent === "CONVERSATION" || plan.intent === "SIMPLE_FACT")) return "responder ao detalhe compartilhado e escolher, quando natural, uma reação, observação ou pergunta contextual curta; variar o formato e não forçar continuação";
     if (plan.intent === "DECISION") return "dar uma recomendação real, explicar o motivo e dizer quando a alternativa vence";
     if (plan.intent === "ADVICE") return "oferecer uma próxima ação concreta, sem checklist automático";
     return "";
@@ -188,6 +196,7 @@
     const safeMessage = clamp(message, 2000);
     const safeContext = context && typeof context === "object" ? context : {};
     let intent = detectIntent(safeMessage, metadata);
+    if ((intent === "CONVERSATION" || intent === "SIMPLE_FACT") && isConversationalDisclosure(safeMessage)) intent = "CONVERSATION";
     if ((intent === "CONVERSATION" || intent === "SIMPLE_FACT") && hasConstruction(contextText(safeContext)) && /^(?:isso|e depois|quanto vai|e agora|o segundo|detalhe|aprofunde)\b/.test(normalize(safeMessage))) {
       intent = /\b(?:quanto|medir|calcular)\b/.test(normalize(safeMessage)) ? "TECHNICAL" : "CONTEXT";
     }
@@ -239,6 +248,7 @@
       "Context priority: current message > working context > recent conversation > project context > permanent memory.",
       "Value-add limiter: add at most " + safe.valueAddLimit + " proactive insight/alert/next action unless risk is CRITICAL.",
       "Next action policy: " + (safe.nextAction || "do not force a next action") + ".",
+      safe.proactivityLevel === "LIGHT" && (safe.intent === "CONVERSATION" || safe.intent === "SIMPLE_FACT") ? "Conversational follow-up: use the user's specific disclosure, vary reaction/comment/question, and do not ask a generic question automatically." : "",
       "Self-check level: " + safe.selfCheckLevel + ". Run only this level before final output.",
       "Self-check must not invent data, prices, productivity, norms or certainty; separate fact, recommendation, hypothesis and requirement.",
       safe.decisionSupport ? "Decision support: recommend one option with 2-4 real reasons, then state when the alternative is better." : "",

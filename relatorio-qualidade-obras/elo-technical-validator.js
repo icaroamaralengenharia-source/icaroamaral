@@ -133,6 +133,43 @@
       /\b(estimativa preliminar|nao oficial|não oficial)\b/.test(text);
   }
 
+  function parseCentralPointLoadBeamQuestion(original) {
+    const text = normalize(original);
+    if (!/\b(?:momento\s+(?:fletor\s+)?maximo|fletor\s+maximo)\b/.test(text) ||
+        !/\b(?:biapoiada|simplesmente apoiada|simples apoio)\b/.test(text) ||
+        !/\b(?:carga\s+(?:pontual|concentrada)|pontual|concentrada)\b/.test(text) ||
+        !/\b(?:central|no centro|no meio|meio do vao)\b/.test(text)) return null;
+
+    const loadMatch = text.match(/\bp\s*=\s*(\d+(?:[,.]\d+)?)\s*(kn|n|tf|kgf)\b/) ||
+      text.match(/\bcarga(?:\s+(?:pontual|concentrada))?\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*(kn|n|tf|kgf)\b/);
+    const spanMatch = text.match(/\bl\s*=\s*(\d+(?:[,.]\d+)?)\s*(km|m|cm|mm)\b/) ||
+      text.match(/\bvao(?:\s+livre)?(?:\s+de)?\s*(\d+(?:[,.]\d+)?)\s*(km|m|cm|mm)\b/);
+    if (!loadMatch || !spanMatch) return null;
+
+    const rawLoad = Number(loadMatch[1].replace(",", "."));
+    const rawSpan = Number(spanMatch[1].replace(",", "."));
+    const loadUnit = loadMatch[2];
+    const spanUnit = spanMatch[2];
+    const loadKn = loadUnit === "n" ? rawLoad / 1000 : loadUnit === "tf" ? rawLoad * 9.80665 : loadUnit === "kgf" ? rawLoad * 9.80665 / 1000 : rawLoad;
+    const spanM = spanUnit === "km" ? rawSpan * 1000 : spanUnit === "cm" ? rawSpan / 100 : spanUnit === "mm" ? rawSpan / 1000 : rawSpan;
+    if (!(loadKn > 0) || !(spanM > 0) || !Number.isFinite(loadKn) || !Number.isFinite(spanM)) return null;
+
+    const maximumMoment = loadKn * spanM / 4;
+    const reaction = loadKn / 2;
+    const answer = "Máximo momento fletor: " + formatNumber(maximumMoment) + " kN·m (Mₘₐₓ = P × L / 4). Cada apoio recebe " + formatNumber(reaction) + " kN. Este é o resultado de estática para a carga e o vão informados; não dimensiona a seção nem a armadura da viga.";
+    return {
+      allowed: true,
+      shouldRespond: true,
+      kind: "beam_point_load_statics",
+      reason: "simply_supported_beam_central_point_load",
+      answer: answer,
+      shortAnswer: answer,
+      nextAction: "",
+      sessionTheme: "calculo_estatico",
+      values: { pointLoadKn: loadKn, spanM: spanM, maximumMomentKNm: maximumMoment, supportReactionKn: reaction }
+    };
+  }
+
 
   function parseAreaOrDimensions(original, primaryLabel, secondaryLabel) {
     const text = normalize(original);
@@ -519,6 +556,8 @@
     const original = clean(message);
     const text = normalize(original);
     const settings = options || {};
+    const beamResult = parseCentralPointLoadBeamQuestion(original);
+    if (beamResult) return beamResult;
     if (!hasTechnicalIntent(text)) {
       return {
         allowed: true,

@@ -119,11 +119,20 @@
     if (/pesquise|preco atual|preço atual|cotacao|cotação|noticias|notícias|clima|tempo agora/.test(t)) return response("Chefe, esse pedido depende da internet. Assim que a conexão voltar eu consigo pesquisar.", "online_required");
     return null;
   }
-  function response(text, intent) { return { shortAnswer: text, fullAnswer: text, nextAction: "", canSave: false, sessionTheme: "elo_offline_core_v2", sessionIntent: intent, offline: true, backendRequests: 0 }; }
+  function response(text, intent) {
+    var communicationPolicy = root.EloCommunicationPolicy;
+    var mode = intent === "offline_engineering" ? "ENGENHEIRO" : "CONVERSA";
+    var answer = communicationPolicy && typeof communicationPolicy.applyPolicy === "function"
+      ? communicationPolicy.applyPolicy(text, mode)
+      : text;
+    state.lastAnswer = answer;
+    state.recentMessages = state.recentMessages.concat([{ role: "assistant", content: answer }]).slice(-12);
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "elo_offline_core_v2", sessionIntent: intent, offline: true, backendRequests: 0 };
+  }
   function buildProactivePlan(message) {
     var policy = root.EloProactiveReasoningPolicy;
     if (!policy || typeof policy.buildResponsePlan !== "function") return null;
-    return policy.buildResponsePlan(message, { history: state.recentMessages.map(function (item) { return { role: "user", content: item }; }) }, {});
+    return policy.buildResponsePlan(message, { history: state.recentMessages.slice(-12) }, {});
   }
   function applyProactiveOfflineGuard(message) {
     var policy = root.EloProactiveReasoningPolicy;
@@ -137,7 +146,7 @@
   var originalResolve = resolve;
   resolve = function (text) {
     var raw = clean(text);
-    if (raw) state.recentMessages = state.recentMessages.concat([raw]).slice(-8);
+    if (raw) state.recentMessages = state.recentMessages.concat([{ role: "user", content: raw }]).slice(-12);
     var guarded = applyProactiveOfflineGuard(raw);
     return guarded || originalResolve(raw);
   };
