@@ -29,6 +29,7 @@
     budgetCounterStorageKey: "elo_budget_counter_v1",
     activeContextStorageKey: "elo_active_document_analysis_context_v2"
   };
+  const ELO_ONLINE_HISTORY_MESSAGE_LIMIT = 48;
   const ELO_CORE_CONTEXT_STORAGE_KEY = "elo_core_tool_contexts_v1";
   const ELO_CORE_LAST_CONTEXT_KEY = "elo_core_last_context_id_v1";
   const ELO_CORE_ANONYMOUS_ID_KEY = "elo_core_anonymous_id_v1";
@@ -2612,6 +2613,7 @@
 
   function appendEloExecutionStockReportPdfAction_(message) {
     if (!message || !ELO_UI.lastLocalExecutionStockReport || ELO_UI.lastLocalExecutionStockReport.ok !== true) return false;
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     const actions = createElement("div", "elo-library-actions");
     const pdfButton = createElement("button", "elo-inline-button", "Imprimir / salvar PDF");
     pdfButton.type = "button";
@@ -2660,7 +2662,7 @@
     feedback.appendChild(negativeFeedback);
     message.appendChild(actions);
     message.appendChild(feedback);
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return true;
   }
   function buildEloExecutionStockAnalysisCrossInfo_(analysis) {
@@ -2928,6 +2930,7 @@
 
   function appendEloTodayWorkSafeActions_(message) {
     if (!message || hasEloTodayWorkActions_(message)) return false;
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     const actions = createElement("div", "elo-library-actions");
     actions.dataset.eloTodayWorkActions = "true";
     [
@@ -2963,7 +2966,7 @@
       actions.appendChild(button);
     });
     message.appendChild(actions);
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return true;
   }
   function getEloObraAttentionSeverityRank_(severity) {
@@ -3194,6 +3197,7 @@
   }
 
   function appendEloProactiveAttentionMessage_(items, key) {
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     const lines = ["Atenção na obra: encontrei ponto(s) para olhar agora."];
     items.slice(0, 4).forEach(function (item) { lines.push("- " + sanitizeUserText(item.label)); });
     const message = appendMessage("system", lines.join("\n"));
@@ -3203,7 +3207,7 @@
     closeButton.addEventListener("click", function () { closeEloProactiveAttentionMessage_(message, key); });
     actions.appendChild(closeButton);
     message.appendChild(actions);
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return message;
   }
 
@@ -3402,7 +3406,7 @@
   function getEloCoreAuthHeaders_() { const token = getEloCoreAuthToken_(); return token ? { Authorization: "Bearer " + token } : {}; }
   function getStoredEloCoreAuthContext_() { try { const parsed = JSON.parse(window.sessionStorage.getItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY) || window.localStorage.getItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY) || "null"); return parsed && typeof parsed === "object" ? parsed : {}; } catch (error) { return {}; } }
   function getEloCoreAuthContextIdentity_(context) { const safe = context && typeof context === "object" ? context : {}; const profile = safe.profile && typeof safe.profile === "object" ? safe.profile : {}; return sanitizeUserText(safe.userId || profile.id || profile.email || "").slice(0, 180); }
-  function clearEloCoreLocalConversationState_() { clearEloCoreSurfaceState_(); ELO_SESSION_MEMORY.temporaryConversationOnly = false; removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); setEloCoreCurrentConversationId_(""); ELO_UI.coreConversationId = ""; ELO_UI.historySnapshot = null; ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; if (ELO_UI.messages) { ELO_UI.messages.textContent = ""; } if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); updateEloComposerHeight_(); }
+  function clearEloCoreLocalConversationState_() { clearEloCoreSurfaceState_(); resetEloConversationContextState_(); ELO_SESSION_MEMORY.temporaryConversationOnly = false; removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); setEloCoreCurrentConversationId_(""); ELO_UI.coreConversationId = ""; ELO_UI.historySnapshot = null; ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; if (ELO_UI.messages) { ELO_UI.messages.textContent = ""; } if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); updateEloComposerHeight_(); }
   function normalizeEloCoreAuthContext_(context) { const source = context && typeof context === "object" ? context : {}; const profileSource = source.profile && typeof source.profile === "object" ? source.profile : {}; const profile = { id: sanitizeUserText(profileSource.id).slice(0, 140), institution_id: sanitizeUserText(profileSource.institution_id).slice(0, 140), company_id: sanitizeUserText(profileSource.company_id).slice(0, 140), unit_id: sanitizeUserText(profileSource.unit_id).slice(0, 140), name: sanitizeUserText(profileSource.name).slice(0, 140), email: sanitizeUserText(profileSource.email).slice(0, 180), role: sanitizeUserText(profileSource.role).slice(0, 80), status: sanitizeUserText(profileSource.status).slice(0, 80) }; const institutionId = sanitizeUserText(source.institutionId || profile.institution_id || profile.company_id).slice(0, 140); const companyId = sanitizeUserText(source.companyId || profile.company_id || profile.institution_id).slice(0, 140); return { userId: sanitizeUserText(source.userId || profile.id).slice(0, 140), institutionId: institutionId, companyId: companyId, projectId: sanitizeUserText(source.projectId).slice(0, 140), role: sanitizeUserText(source.role || profile.role).slice(0, 80), permissions: Array.isArray(source.permissions) ? source.permissions.map(function (item) { return sanitizeUserText(item).slice(0, 80); }).filter(Boolean).slice(0, 80) : [], profile: profile }; }
   function shouldEloCoreClearConversationOnIdentityChange_() { return !ELO_UI.allowAuthContextChangeDuringBootstrap && !ELO_UI.userInteractedSinceBootstrap && getEloCoreUserMessageCount_() === 0; }
   function getObraReportEloSurfaceContext_() {
@@ -3464,6 +3468,19 @@
   function getEloCoreIdentity_() { const context = normalizeEloCoreAuthContext_(getEloCoreAuthContext_()); const userId = getEloCoreUserId_() || context.userId; const identity = userId ? { userId: userId, anonymousId: getEloCoreAnonymousId_() } : { anonymousId: getEloCoreAnonymousId_() }; if (context.institutionId) identity.institutionId = context.institutionId; if (context.companyId) identity.companyId = context.companyId; if (context.projectId || window.ELO_PROJECT_ID) identity.projectId = sanitizeUserText(context.projectId || window.ELO_PROJECT_ID).slice(0, 140); return identity; }
   function getEloCoreTokenIdentity_() { const payload = decodeEloCoreJwtPayload_(getEloCoreAuthToken_()); return payload && typeof payload === "object" ? sanitizeUserText(payload.sub || payload.email || "").slice(0, 180) : ""; }
   function getEloCoreStorageIdentityScope_() { const contextIdentity = getEloCoreAuthContextIdentity_(getEloCoreAuthContext_()); const tokenIdentity = contextIdentity || getEloCoreTokenIdentity_(); if (tokenIdentity) return "user_" + tokenIdentity.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 180); return "anon_" + getEloCoreAnonymousId_().replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 180); }
+  function hasEloAuthenticatedMemoryIdentity_() { return getEloCoreStorageIdentityScope_().indexOf("user_") === 0; }
+  function getEloOnlineMemoryDeviceId_() {
+    if (!hasEloAuthenticatedMemoryIdentity_()) return getEloDeviceId();
+    const scope = getEloCoreStorageIdentityScope_();
+    let first = 2166136261;
+    let second = 2246822519;
+    for (let index = 0; index < scope.length; index += 1) {
+      const code = scope.charCodeAt(index);
+      first = Math.imul(first ^ code, 16777619);
+      second = Math.imul(second ^ code, 3266489917);
+    }
+    return "elo_dev_user_" + (first >>> 0).toString(36) + "_" + (second >>> 0).toString(36);
+  }
   function getEloCoreScopedStorageKey_(baseKey) { return baseKey + "::" + getEloCoreStorageIdentityScope_(); }
   function shouldReadEloCoreLegacyStorage_() { return getEloCoreStorageIdentityScope_().indexOf("anon_") === 0; }
   function removeEloCoreStorageKey_(key) { try { window.sessionStorage.removeItem(key); } catch (error) {} try { window.localStorage.removeItem(key); } catch (error) {} }
@@ -3699,7 +3716,7 @@
   }
   function updateEloComposerHeight_() { if (!ELO_UI.form || !ELO_UI.form.getBoundingClientRect) return; const height = Math.ceil(ELO_UI.form.getBoundingClientRect().height || 0); if (height > 0) document.documentElement.style.setProperty("--elo-composer-height", height + "px"); }
   function bindEloComposerResizeObserver_() { if (!ELO_UI.form || ELO_UI.composerResizeObserver) return; if (typeof ResizeObserver === "function") { ELO_UI.composerResizeObserver = new ResizeObserver(updateEloComposerHeight_); ELO_UI.composerResizeObserver.observe(ELO_UI.form); } }
-  function refreshEloInputHeight_() { if (!ELO_UI.input || String(ELO_UI.input.tagName || "").toLowerCase() !== "textarea") return; ELO_UI.input.style.height = "auto"; ELO_UI.input.style.height = Math.min(ELO_UI.input.scrollHeight, 160) + "px"; updateEloComposerHeight_(); scrollEloConversationToBottom_({ force: true }); }
+  function refreshEloInputHeight_() { if (!ELO_UI.input || String(ELO_UI.input.tagName || "").toLowerCase() !== "textarea") return; const shouldStick = isEloConversationNearBottom_(ELO_UI.messages); ELO_UI.input.style.height = "auto"; ELO_UI.input.style.height = Math.min(ELO_UI.input.scrollHeight, 160) + "px"; updateEloComposerHeight_(); scrollEloConversationToBottom_({ force: shouldStick }); }
   function getEloCoreMessageCount_() { return ELO_UI.messages && ELO_UI.messages.children ? ELO_UI.messages.children.length : 0; }
   function getEloCoreUserMessageCount_() { return ELO_UI.messages && ELO_UI.messages.querySelectorAll ? ELO_UI.messages.querySelectorAll(".elo-message.user").length : 0; }
   function setEloCoreLayoutState_(messageCount, userMessageCount) {
@@ -3898,7 +3915,7 @@
     appendEloOpeningMessageVisual_(buildEloOpeningMessage_());
     return true;
   }
-  function replayEloCoreMessages_(messages) {
+  function replayEloCoreMessages_(messages, restoreScrollTop) {
     if (!ELO_UI.messages) return;
     ELO_SESSION_MEMORY.temporaryConversationOnly = false;
     activateEloConversationOnlyMemoryScope_("", messages || []);
@@ -3912,7 +3929,20 @@
     ELO_UI.replayingCoreHistory = false;
     restoreEloAnalysisContextFromStoredMessages_(messages || []);
     setEloCoreWelcomeVisible_();
-    scrollEloConversationToBottom_({ force: true });
+    if (restoreScrollTop !== null && restoreScrollTop !== undefined && Number.isFinite(Number(restoreScrollTop))) {
+      const desiredScrollTop = Math.max(0, Number(restoreScrollTop) || 0);
+      const schedule = typeof window.requestAnimationFrame === "function"
+        ? window.requestAnimationFrame.bind(window)
+        : function (fn) { return (window.setTimeout || setTimeout)(fn, 0); };
+      const restore = function () {
+        if (!ELO_UI.messages) return;
+        ELO_UI.messages.scrollTop = desiredScrollTop;
+        updateEloScrollToBottomButton_();
+      };
+      schedule(function () { restore(); schedule(restore); });
+    } else {
+      scrollEloConversationToBottom_({ force: true });
+    }
   }
   function isEloCoreBootstrapSnapshotStale_(snapshot) { return !!(snapshot && ((snapshot.generation && snapshot.generation !== ELO_UI.coreBootstrapGeneration) || Number(snapshot.revision) !== Number(ELO_UI.coreConversationRevision || 0))); }
   function shouldEloCoreSkipStaleConversationRestore_(snapshot) { return isEloCoreBootstrapSnapshotStale_(snapshot) && (ELO_UI.userInteractedSinceBootstrap || getEloCoreUserMessageCount_() > 0 || sanitizeUserText(ELO_UI.coreConversationId || "") !== sanitizeUserText(snapshot && snapshot.conversationId || "")); }
@@ -3927,7 +3957,7 @@
         return false;
       }
       setEloCoreCurrentConversationId_(conversationId);
-      replayEloCoreMessages_(data.messages || []);
+      replayEloCoreMessages_(data.messages || [], snapshot.preserveScrollTop);
       return true;
     }).catch(function (error) {
       if (!snapshot.userInitiated && !shouldEloCoreSkipStaleConversationRestore_(snapshot)) setEloCoreCurrentConversationId_("");
@@ -4398,7 +4428,7 @@
     renderEloCoreAuthPanel_();
   }
 
-  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; ELO_UI.liveDataContext = {}; clearEloCoreSurfaceState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.activeTopic = ""; ELO_SESSION_MEMORY.lastStockItems = []; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); clearProductAttachmentPreview(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
+  function resetEloCoreConversationSurface_() { removeTypingIndicator(); closeEloCoreUtilityPanel_({ preserveScroll: true }); ELO_UI.lastLocalExecutionStockReport = null; ELO_UI.liveDataContext = {}; clearEloCoreSurfaceState_(); resetEloConversationContextState_(); removeEloCoreStorageKey_("elo_core_current_draft_v1"); removeEloCoreStorageKey_("elo_core_reopen_conversation_id_v1"); ELO_SESSION_MEMORY.activeConversationTopic = ""; ELO_SESSION_MEMORY.activeTopic = ""; ELO_SESSION_MEMORY.lastStockItems = []; ELO_SESSION_MEMORY.lastQuestion = ""; ELO_SESSION_MEMORY.lastAnswer = ""; ELO_SESSION_MEMORY.pathologyContext = []; clearEloActiveContextState_(); clearProductAttachmentPreview(); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); } setEloCoreWelcomeVisible_(); ELO_UI.coreConversationRevision = Number(ELO_UI.coreConversationRevision || 0) + 1; }
   function initEloCorePersistence_() {
     if (!isStandaloneMode()) return Promise.resolve(false);
     clearEloCoreProfileMenuIdentity_();
@@ -4436,8 +4466,12 @@
         ELO_UI.coreConversationId = migrateEloCoreLegacyConversationPointerAfterAuth_();
         loadEloCoreMemories_().then(function () { migrateLocalUserNameToEloCore_(); });
         const restoredSurfaceState = restoreEloCoreSurfaceState_();
+        const restoredSurfaceSnapshot = restoredSurfaceState ? readEloCoreSurfaceState_() : null;
+        const preserveScrollTop = restoredSurfaceSnapshot && restoredSurfaceSnapshot.conversationId === ELO_UI.coreConversationId
+          ? Number(restoredSurfaceSnapshot.scrollTop)
+          : null;
         if (ELO_UI.coreConversationId && !isEloCoreConversationCleared_(ELO_UI.coreConversationId)) {
-          loadEloCoreConversation_(ELO_UI.coreConversationId, bootstrapSnapshot);
+          loadEloCoreConversation_(ELO_UI.coreConversationId, Object.assign({}, bootstrapSnapshot, { preserveScrollTop: preserveScrollTop }));
         } else if (!restoredSurfaceState && !ELO_UI.userInteractedSinceBootstrap && getEloCoreUserMessageCount_() === 0) {
           resetEloCoreConversationSurface_();
           if (ELO_UI.coreSurfaceMounted) showEloOpeningMessage_();
@@ -5752,7 +5786,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deviceId: getEloDeviceId(),
+        deviceId: getEloOnlineMemoryDeviceId_(),
         anonymousId: getEloCoreAnonymousId_(),
         memory: {
           id: memoryItem.id,
@@ -5772,7 +5806,7 @@
   }
 
   function syncEloVectorMemories() {
-    if (!ELO_CONFIG.vectorMemoryEndpoint || !window.fetch) {
+    if (!ELO_CONFIG.vectorMemoryEndpoint || !window.fetch || hasEloAuthenticatedMemoryIdentity_()) {
       return;
     }
 
@@ -6421,7 +6455,7 @@
       nomeDocumento: cleanEloDocumentText_(ctx.nomeDocumento || safe.titulo || "Documento tecnico preliminar do Elo"),
       numero: cleanEloDocumentText_(safe.numero || ctx.numero, "nao informado"),
       versao: cleanEloDocumentText_(safe.versao || ctx.versao || "1", "1"),
-      cliente: cleanEloDocumentText_(safe.cliente || ctx.cliente, "nao informado"),
+      cliente: cleanEloDocumentText_(safe.cliente || ctx.cliente, "Aguardando identifica\u00e7\u00e3o"),
       obra: cleanEloDocumentText_(safe.obra || safe.nome || safe.name || ctx.obra, "nao informado"),
       cidade: cleanEloDocumentText_(cidadeUf, "nao informado"),
       dataHora: cleanEloDocumentText_(formatEloBudgetRecordDate_(dataHora), "nao informado"),
@@ -7801,7 +7835,6 @@
     return [
       "<article class=\"elo-professional-pdf elo-budget-document\">",
       "<section class=\"elo-budget-page\">",
-      "<span class=\"elo-page-label\">P\u00e1gina 1 de 2</span>",
       "<header class=\"elo-budget-header\">",
       "<div class=\"elo-pdf-brand\"><span>\u00cdcaro Amaral Engenharia</span><strong>ELO</strong></div>",
       "<h1>OR\u00c7AMENTO RESIDENCIAL</h1>",
@@ -7825,7 +7858,6 @@
       pendingSection,
       "</section>",
       "<section class=\"elo-budget-page\">",
-      "<span class=\"elo-page-label\">P\u00e1gina 2 de 2</span>",
       "<section class=\"elo-pdf-section\"><h2>Mem\u00f3ria de c\u00e1lculo resumida</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
       buildEloProfessionalCompositionTable_(budget.compositions),
       "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(finalPremises_()) + "</div></section>",
@@ -7913,7 +7945,6 @@
       ".elo-budget-document{font-size:11px;color:#0f172a}",
       ".elo-budget-page{position:relative;min-height:auto;padding-bottom:2mm}",
       ".elo-budget-page:last-of-type{break-after:auto}",
-      ".elo-page-label{float:right;color:#64748b;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
       ".elo-budget-header h1{clear:both;margin:10px 0 8px;color:#0f172a;font-size:21px;letter-spacing:0;text-transform:uppercase}",
       ".elo-budget-object{margin:0;border:1px solid #d8e2ef;border-left:4px solid #0f5ea8;padding:7px 9px;background:#f8fafc;font-size:10px;line-height:1.28}",
       ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.2px;background:#fff}",
@@ -9335,6 +9366,20 @@
     return lines.filter(Boolean).join("\n");
   }
 
+  function resetEloConversationContextState_() {
+    ELO_SESSION_MEMORY.activeConversationTopic = "";
+    ELO_SESSION_MEMORY.activeTopic = "";
+    ELO_SESSION_MEMORY.activeEntities = [];
+    ELO_SESSION_MEMORY.lastEnumeratedItems = [];
+    ELO_SESSION_MEMORY.lastReferenceSet = [];
+    ELO_SESSION_MEMORY.pathologyContext = [];
+    ELO_SESSION_MEMORY.subjectStack = [];
+    ELO_SESSION_MEMORY.detailLevel = 0;
+    ELO_SESSION_MEMORY.activeTask = null;
+    ELO_SESSION_MEMORY.lastQuestion = "";
+    ELO_SESSION_MEMORY.lastAnswer = "";
+  }
+
   function rememberSessionTurn(question, response, answer) {
     const safeResponse = response && typeof response === "object" ? response : {};
     const normalizedQuestion = normalizeText(question);
@@ -9602,34 +9647,10 @@
   }
 
   function getEloOnlineHistory(question) {
-    const history = [];
-    const cleanGeneralHistory = shouldUseCleanEloOnlineHistory_(question);
-    getRecentQuestions().slice().reverse().forEach(function (item) {
-      const questionText = sanitizeUserText(item.question);
-      const answerText = sanitizeUserText(item.answer);
-      if (cleanGeneralHistory && (isEloTechnicalHistoryContent_(questionText) || isEloTechnicalHistoryContent_(answerText))) {
-        return;
-      }
-      if (questionText) {
-        history.push({
-          role: "user",
-          content: questionText
-        });
-      }
-      if (answerText) {
-        history.push({
-          role: "assistant",
-          content: answerText
-        });
-      }
-    });
-    return history.filter(function (item) {
-      return item.content;
-    }).slice(-ELO_CONFIG.maxHistory);
+    return getEloRenderedConversationHistory_(question);
   }
 
-  function getEloStandaloneConversationHistory_(question) {
-    if (!isStandaloneMode()) return null;
+  function getEloRenderedConversationHistory_(question, includeArchived) {
     if (!ELO_UI.messages || typeof ELO_UI.messages.querySelectorAll !== "function") return [];
     const history = Array.prototype.slice.call(ELO_UI.messages.querySelectorAll(".elo-message") || []).map(function (message) {
       if (!message || message.dataset && message.dataset.eloTyping === "true") return null;
@@ -9642,7 +9663,42 @@
     const currentQuestion = sanitizeUserText(question || "");
     const last = history[history.length - 1];
     if (last && last.role === "user" && normalizeText(last.content) === normalizeText(currentQuestion)) history.pop();
-    return history.slice(-ELO_CONFIG.maxHistory);
+    return includeArchived ? history : history.slice(-ELO_ONLINE_HISTORY_MESSAGE_LIMIT);
+  }
+
+  function getEloConversationArchive_(question) {
+    const conversationId = sanitizeUserText(ELO_UI.coreConversationId || getEloCoreCurrentConversationId_());
+    if (!conversationId) return null;
+    const archived = getEloRenderedConversationHistory_(question, true).slice(0, -ELO_ONLINE_HISTORY_MESSAGE_LIMIT);
+    if (!archived.length) return null;
+    // Retain literal opening facts, relevant older turns, and the transition to
+    // recent history. Derive this anew from the open chat, never global memory.
+    const selected = new Set();
+    const terms = normalizeText(question || "").split(/[^a-z0-9]+/).filter(function (term) {
+      return term.length >= 4 && !/^(qual|quais|como|voce|lembra|sobre|antes|depois|disse|isso|essa|esse|para|mais)$/.test(term);
+    });
+    archived.forEach(function (_, index) {
+      if (archived.length <= 12 || index < 4 || index >= archived.length - 4) selected.add(index);
+    });
+    archived.map(function (entry, index) {
+      const content = normalizeText(entry.content);
+      return { index: index, score: terms.reduce(function (score, term) { return score + (content.indexOf(term) >= 0 ? 1 : 0); }, 0) };
+    }).filter(function (entry) { return entry.score > 0 && !selected.has(entry.index); })
+      .sort(function (a, b) { return b.score - a.score || b.index - a.index; }).slice(0, 4)
+      .forEach(function (entry) { selected.add(entry.index); });
+    return {
+      conversationId: conversationId,
+      messages: Array.from(selected).sort(function (a, b) { return a - b; }).map(function (index) {
+        const entry = archived[index];
+        const limit = entry.role === "assistant" ? 120 : 300;
+        return { role: entry.role, content: entry.content.length > limit ? entry.content.slice(0, limit - 1) + "…" : entry.content };
+      })
+    };
+  }
+
+  function getEloStandaloneConversationHistory_(question) {
+    if (!isStandaloneMode()) return null;
+    return getEloRenderedConversationHistory_(question);
   }
 
   function getEloTechnicalContinuationHistory_(question, topic) {
@@ -10099,8 +10155,9 @@
       history: history,
       context: {
         currentConversationId: getEloCoreCurrentConversationId_(),
+        conversationArchive: isTechnicalContinuation ? null : getEloConversationArchive_(question),
         memoryScope: temporaryMemoryScope ? "CONVERSATION_ONLY" : "",
-        memoriesSummary: temporaryMemoryScope ? "" : buildEloMemorySummary(),
+        memoriesSummary: temporaryMemoryScope || hasEloAuthenticatedMemoryIdentity_() ? "" : buildEloMemorySummary(),
         workingMemorySummary: temporaryMemoryScope ? "" : isTechnicalContinuation
           ? [
             "activeTopic: " + sanitizeUserText(requestOptions.activeTopic || ELO_SESSION_MEMORY.activeConversationTopic || ELO_SESSION_MEMORY.activeTopic || ""),
@@ -10108,7 +10165,7 @@
             "instruction: trate a consulta final como continuação do referent recente; não use tópicos históricos como assunto principal."
           ].filter(Boolean).join("\n")
           : buildEloWorkingMemorySummary_(question),
-        deviceId: getEloDeviceId(),
+        deviceId: getEloOnlineMemoryDeviceId_(),
         anonymousId: getEloCoreAnonymousId_(),
         source: "elo",
         mode: isStandaloneMode() ? "standalone" : "obrareport",
@@ -29118,6 +29175,7 @@ function isEloResidentialNewPipelineEnabled_() {
     coreProfileIdentityRequest: null,
     coreConversationRevision: 0,
     coreSurfaceMounted: false,
+    surfaceStateWriteTimer: 0,
     userInteractedSinceBootstrap: false,
     allowAuthContextChangeDuringBootstrap: false,
     scrollToBottomButton: null
@@ -29150,8 +29208,13 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function writeEloCoreSurfaceState_() {
     if (!isStandaloneMode() || !ELO_UI.messages || !ELO_UI.input) return;
+    if (ELO_UI.surfaceStateWriteTimer) {
+      window.clearTimeout(ELO_UI.surfaceStateWriteTimer);
+      ELO_UI.surfaceStateWriteTimer = 0;
+    }
     const identityScope = getEloCoreStorageIdentityScope_();
-    const items = Array.prototype.slice.call(ELO_UI.messages.querySelectorAll(".elo-message")).filter(function (message) {
+    const renderedMessages = Array.prototype.slice.call(ELO_UI.messages.querySelectorAll(".elo-message"));
+    const items = renderedMessages.slice(-80).filter(function (message) {
       return !(message.dataset && message.dataset.eloTyping === "true");
     }).map(function (message) {
       const bubble = message.querySelector && message.querySelector(".elo-message-bubble");
@@ -29162,7 +29225,7 @@ function isEloResidentialNewPipelineEnabled_() {
       };
     }).filter(function (item) {
       return item.text;
-    }).slice(-80);
+    });
     const payload = {
       version: 2,
       identityScope: identityScope,
@@ -29178,6 +29241,15 @@ function isEloResidentialNewPipelineEnabled_() {
     const scopedKey = getEloCoreScopedStorageKey_(ELO_CORE_SURFACE_STATE_KEY);
     try { window.sessionStorage.setItem(scopedKey, serialized); } catch (error) {}
     try { window.localStorage.setItem(scopedKey, serialized); } catch (error) {}
+  }
+
+  function scheduleEloCoreSurfaceStateWrite_() {
+    if (!isStandaloneMode() || !ELO_UI.messages || !ELO_UI.input) return;
+    if (ELO_UI.surfaceStateWriteTimer) window.clearTimeout(ELO_UI.surfaceStateWriteTimer);
+    ELO_UI.surfaceStateWriteTimer = window.setTimeout(function () {
+      ELO_UI.surfaceStateWriteTimer = 0;
+      writeEloCoreSurfaceState_();
+    }, 180);
   }
 
   function clearEloCoreSurfaceState_() {
@@ -33632,6 +33704,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!message || !pdfUrl) {
       return;
     }
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
 
     const actions = createElement("div", "elo-library-actions");
     const openButton = createElement("a", "elo-inline-button", "Abrir / baixar PDF");
@@ -33671,7 +33744,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     actions.appendChild(openButton);
     message.appendChild(actions);
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
   }
   function formatEloImageTextOnlyAnalysis_(result) {
     const analysis = result && typeof result === "object" ? (result.analysis || {}) : {};
@@ -33816,7 +33889,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendMessage(kind, text, options) {
     const metadata = options || {};
-    const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
     }
@@ -33855,6 +33928,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!ELO_UI.messages) {
       return null;
     }
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
 
     const message = createElement("article", "elo-message assistant is-typing");
     message.setAttribute("aria-live", "polite");
@@ -33875,7 +33949,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.typingIndicator = message;
     ELO_UI.activeRequestStartedAt = nowEloPerformance_();
     markEloInteraction_("elo:typing-visible");
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return message;
   }
 
@@ -34148,6 +34222,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendEloInlineMedia_(message, media) {
     if (!message || !media) return null;
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     const card = createElement("figure", "elo-inline-media-card");
     card.setAttribute("data-elo-media-type", media.type || "");
     if (media.title) card.appendChild(createElement("figcaption", "elo-inline-media-title", media.title));
@@ -34185,7 +34260,7 @@ function isEloResidentialNewPipelineEnabled_() {
       if (media.source) card.appendChild(createElement("span", "elo-inline-media-source", media.source));
     }
     message.appendChild(card);
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return card;
   }
 
@@ -36600,7 +36675,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (input && !input.dataset.eloCoreAutoGrowBound) {
       input.dataset.eloCoreAutoGrowBound = "true";
       input.addEventListener("input", refreshEloInputHeight_);
-      input.addEventListener("input", writeEloCoreSurfaceState_);
+      input.addEventListener("input", scheduleEloCoreSurfaceStateWrite_);
       bindEloComposerResizeObserver_();
       refreshEloInputHeight_();
     } else {
@@ -36610,7 +36685,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (messages && !messages.dataset.eloCoreSurfaceStateBound) {
       messages.dataset.eloCoreSurfaceStateBound = "true";
-      messages.addEventListener("scroll", function () { writeEloCoreSurfaceState_(); updateEloScrollToBottomButton_(); }, { passive: true });
+      messages.addEventListener("scroll", function () { scheduleEloCoreSurfaceStateWrite_(); updateEloScrollToBottomButton_(); }, { passive: true });
     }
     if (!window.__ELO_CORE_SURFACE_STATE_BOUND__) {
       window.__ELO_CORE_SURFACE_STATE_BOUND__ = true;
@@ -36619,12 +36694,12 @@ function isEloResidentialNewPipelineEnabled_() {
       window.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") writeEloCoreSurfaceState_(); });
       window.addEventListener("resize", function () {
         updateEloComposerHeight_();
-        writeEloCoreSurfaceState_();
+        scheduleEloCoreSurfaceStateWrite_();
       });
       window.addEventListener("orientationchange", function () {
         window.setTimeout(function () {
           updateEloComposerHeight_();
-          writeEloCoreSurfaceState_();
+          scheduleEloCoreSurfaceStateWrite_();
         }, 80);
       });
     }
@@ -36896,6 +36971,7 @@ function isEloResidentialNewPipelineEnabled_() {
     getCanonicalSessionForTest: getCanonicalEloSession_,
     validateSupabaseTokenForTest: validateEloCoreSupabaseToken_,
     initCorePersistenceForTest: initEloCorePersistence_,
+    replayCoreMessagesForTest: replayEloCoreMessages_,
     reconcileCriticalAvailabilityForTest: reconcileEloCriticalAvailability_,
     maybeShowProactiveAttentionForTest: maybeShowEloProactiveAttention_
   });

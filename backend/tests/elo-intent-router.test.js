@@ -597,7 +597,7 @@ test("Elo mantem PDF de orcamento quando a intencao e explicita", () => {
 
 test("Elo prioriza PDF anexado como documento antes dos handlers locais", () => {
   const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
-  const reportPdfIndex = source.indexOf("if (isEloReportPdfGenerationRequest_(cleanQuestion))");
+  const reportPdfIndex = source.indexOf("if (shouldGenerateEloReportPdfFromChat_(cleanQuestion, attachedFiles))");
   const attachmentPriorityIndex = source.indexOf("if (attachedFiles.length && !isEloBudgetV2PdfIntent_(cleanQuestion))");
   const noAttachmentRouterIndex = source.indexOf("if (!attachedFiles.length)", attachmentPriorityIndex);
   const lateAttachmentFallbackIndex = source.indexOf("if (attachedFiles.length)", noAttachmentRouterIndex);
@@ -609,6 +609,7 @@ test("Elo prioriza PDF anexado como documento antes dos handlers locais", () => 
   assert.notEqual(noAttachmentRouterIndex, -1);
   assert.notEqual(lateAttachmentFallbackIndex, -1);
   assert.ok(reportPdfIndex < attachmentPriorityIndex);
+  assert.ok(source.includes("return !files.length || files.some(isEloImageAttachment_);"));
   assert.ok(attachmentPriorityIndex < noAttachmentRouterIndex);
   assert.ok(noAttachmentRouterIndex < lateAttachmentFallbackIndex);
   assert.ok(source.includes("requestEloOnlineAnswer(cleanQuestion, attachedFiles)"));

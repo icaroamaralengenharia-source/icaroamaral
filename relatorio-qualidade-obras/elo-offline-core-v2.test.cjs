@@ -18,6 +18,7 @@ function load() {
     }
   };
   const context = { window, console, Date, Intl, JSON, Number, String, Math, Promise };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "elo-communication-policy.js"), "utf8"), context);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "elo-offline-core-v2.js"), "utf8"), context);
   return { core: window.EloOfflineCoreV2, calls };
 }
@@ -72,4 +73,19 @@ test("offline core plays local Für Elise and controls it without URL", () => {
   core.resolve("Pause");
   core.resolve("Continue");
   assert.deepEqual(calls.slice(1), [["pause"], ["resume"]]);
+});
+
+test("offline core keeps both sides of recent context and uses the shared communication policy", () => {
+  const { core } = load();
+  core.resolve("Oi");
+  const history = core.getState().recentMessages;
+  assert.equal(history.length, 2);
+  assert.equal(history[0].role, "user");
+  assert.equal(history[1].role, "assistant");
+  assert.match(history[1].content, /Oi|bom dia/i);
+
+  const technical = core.resolve("O que é impermeabilização?");
+  assert.equal(technical.offline, true);
+  assert.equal(technical.fullAnswer, technical.shortAnswer);
+  assert.match(technical.fullAnswer, /substrato|fissuras|testar/i);
 });

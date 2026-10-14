@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
 const OLD_CONVERSATION_ID = "conv-attachment-old";
 const OLD_USER_MESSAGE = "mensagem antiga sintética";
@@ -233,6 +234,193 @@ test("composer preserva 32.891 caracteres no DOM e no payload enviado", async ({
   await expect.poll(() => routes.chatBodies.length, { timeout: 10000 }).toBe(1);
   expect(routes.chatBodies[0].message.length).toBe(32891);
   expect(routes.chatBodies[0].message).toBe(longMessage);
+});
+
+test("conversa longa mantém rolagem, composer e posição de leitura em 300, 500 e 1.000 mensagens", async ({ page }) => {
+  await installSyntheticSession(page);
+  await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const messages = page.locator(".elo-messages");
+  const composer = page.locator(".elo-input-row");
+  const returnButton = page.locator("[data-elo-scroll-bottom]");
+
+  for (const count of [300, 500, 1000]) {
+    await messages.evaluate((container, total) => {
+      container.replaceChildren();
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < total; index += 1) {
+        const message = document.createElement("div");
+        message.className = "elo-message " + (index % 2 === 0 ? "user" : "assistant");
+        const bubble = document.createElement("div");
+        bubble.className = "elo-message-bubble";
+        bubble.textContent = `Mensagem ${index + 1}: contexto longo de teste para medir a rolagem contínua sem remover mensagens anteriores. ` + "conteúdo adicional ".repeat(index % 5);
+        if (total === 1000 && index === total - 1) {
+          const image = document.createElement("img");
+          image.alt = "Imagem anexada de teste";
+          image.width = 480;
+          image.height = 320;
+          image.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320'%3E%3Crect width='480' height='320' fill='%23dce8f5'/%3E%3C/svg%3E";
+          bubble.appendChild(image);
+          const pdf = document.createElement("a");
+          pdf.href = "data:application/pdf,%25PDF-1.4%0A%25synthetic";
+          pdf.textContent = "PDF anexado de teste";
+          pdf.setAttribute("data-elo-test-pdf", "true");
+          bubble.appendChild(pdf);
+        }
+        message.appendChild(bubble);
+        fragment.appendChild(message);
+      }
+      container.appendChild(fragment);
+    }, count);
+
+    const initial = await messages.evaluate((container) => ({
+      count: container.querySelectorAll(".elo-message").length,
+      scrollHeight: container.scrollHeight,
+      clientHeight: container.clientHeight
+    }));
+    expect(initial.count).toBe(count);
+    expect(initial.scrollHeight).toBeGreaterThan(initial.clientHeight * 2);
+
+    await messages.evaluate((container) => { container.scrollTop = 0; container.dispatchEvent(new Event("scroll")); });
+    await expect(returnButton).toBeVisible();
+    const beforeTyping = await messages.evaluate((container) => container.scrollTop);
+    const composerHeightBeforeTyping = await composer.evaluate((row) => row.getBoundingClientRect().height);
+    const longDraft = ("rascunho longo enquanto leio o histórico. ").repeat(300);
+    await page.locator(".elo-input").fill(longDraft);
+    await page.waitForTimeout(1000);
+    const afterTyping = await messages.evaluate((container) => container.scrollTop);
+    const composerHeightAfterTyping = await composer.evaluate((row) => row.getBoundingClientRect().height);
+    expect(Math.abs(afterTyping - beforeTyping)).toBeLessThanOrEqual(1);
+    expect(composerHeightAfterTyping).toBeGreaterThan(composerHeightBeforeTyping);
+    await page.locator(".elo-input").fill("");
+    await page.waitForTimeout(1000);
+    const afterClearingDraft = await messages.evaluate((container) => container.scrollTop);
+    expect(Math.abs(afterClearingDraft - beforeTyping)).toBeLessThanOrEqual(1);
+
+    const layout = await page.evaluate(() => {
+      const row = document.querySelector(".elo-input-row").getBoundingClientRect();
+      return { composerTop: row.top, composerBottom: row.bottom, viewportHeight: window.innerHeight };
+    });
+    expect(layout.composerTop).toBeGreaterThanOrEqual(0);
+    expect(layout.composerBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+
+    if (count === 1000) {
+      expect(await messages.locator("img[alt='Imagem anexada de teste']").count()).toBe(1);
+      expect(await messages.locator("[data-elo-test-pdf]").count()).toBe(1);
+      const userCount = await messages.locator(".elo-message.user").count();
+      const assistantCount = await messages.locator(".elo-message.assistant").count();
+      await page.locator(".elo-input").fill("Oi");
+      await page.locator(".elo-input-row").evaluate((form) => form.requestSubmit());
+      await expect(messages.locator(".elo-message.user")).toHaveCount(userCount + 1);
+      await expect(messages.locator(".elo-message.assistant")).toHaveCount(assistantCount + 1);
+      expect(Math.abs(await messages.evaluate((container) => container.scrollTop))).toBeLessThanOrEqual(1);
+    }
+
+    await returnButton.click();
+    await expect.poll(() => messages.evaluate((container) => Math.abs(container.scrollHeight - container.clientHeight - container.scrollTop))).toBeLessThanOrEqual(2);
+    expect(await messages.locator(".elo-message").count()).toBe(count + (count === 1000 ? 2 : 0));
+  }
+});
+
+test("histórico online usa somente a conversa ativa, sem reaproveitar memória de outro chat", async ({ page }) => {
+  await installSyntheticSession(page);
+  await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  await page.evaluate(() => window.EloAssistente.saveConversationForTest(
+    "FATO_PRIVADO_DE_OUTRA_CONVERSA",
+    "RESPOSTA_PRIVADA_DE_OUTRA_CONVERSA"
+  ));
+  const currentHistory = await page.evaluate(() => window.EloAssistente.getOnlineHistoryForTest("pergunta atual"));
+  expect(currentHistory.some((item) => item.content.includes("mensagem antiga sintética"))).toBe(true);
+  expect(currentHistory.some((item) => item.content.includes("FATO_PRIVADO_DE_OUTRA_CONVERSA"))).toBe(false);
+  await page.evaluate(() => window.EloAssistente.rememberSessionTurnForTest("Minha lista", {}, "1. Jiboia\n2. Samambaia"));
+  expect((await page.evaluate(() => window.EloAssistente.getWorkingMemoryForTest())).activeEntities.length).toBeGreaterThan(0);
+
+  await clickNewChat(page);
+  const newConversationHistory = await page.evaluate(() => window.EloAssistente.getOnlineHistoryForTest("nova conversa"));
+  const newConversationWorkingMemory = await page.evaluate(() => window.EloAssistente.getWorkingMemoryForTest());
+  expect(newConversationHistory).toEqual([]);
+  expect(JSON.stringify(newConversationHistory)).not.toContain("FATO_PRIVADO_DE_OUTRA_CONVERSA");
+  expect(newConversationWorkingMemory.activeEntities).toEqual([]);
+  expect(newConversationWorkingMemory.lastEnumeratedItems).toEqual([]);
+  expect(newConversationWorkingMemory.lastReferenceSet).toEqual([]);
+  expect(newConversationWorkingMemory.detailLevel).toBe(0);
+});
+
+test("histórico acima de 48 mensagens arquiva fatos da conversa atual sem vazar para Novo chat", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+  const fact = `Meu pássaro se chama ${randomUUID()} e o passeio é às 6h30.`;
+  await page.locator(".elo-messages").evaluate((container, openingFact) => {
+    container.replaceChildren();
+    for (let index = 0; index < 60; index += 1) {
+      const message = document.createElement("div");
+      message.className = "elo-message " + (index % 2 === 0 ? "user" : "assistant");
+      const bubble = document.createElement("div");
+      bubble.className = "elo-message-bubble";
+      bubble.textContent = index === 0 ? openingFact : `Conversa variada ${index + 1}.`;
+      message.appendChild(bubble);
+      container.appendChild(message);
+    }
+  }, fact);
+  await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("Qual o nome do meu pássaro e o horário do passeio?", [], {}));
+  const payload = routes.chatBodies[0];
+  expect(payload.history).toHaveLength(48);
+  expect(JSON.stringify(payload.history)).not.toContain(fact);
+  expect(payload.context.conversationArchive.conversationId).toBe(payload.context.currentConversationId);
+  expect(payload.context.conversationArchive.messages.length).toBeLessThanOrEqual(12);
+  expect(JSON.stringify(payload.context.conversationArchive.messages)).toContain(fact);
+
+  await clickNewChat(page);
+  await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("O que você sabe sobre meu pássaro?", [], {}));
+  expect(routes.chatBodies[1].context.conversationArchive).toBeNull();
+  expect(JSON.stringify(routes.chatBodies[1])).not.toContain(fact);
+});
+
+test("sessão autenticada não envia memória local sem escopo de usuário", async ({ page }) => {
+  await installSyntheticSession(page);
+  const routes = await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+  await page.evaluate(() => {
+    window.localStorage.setItem("elo_device_id_v1", "device-global-shared");
+    window.localStorage.setItem("elo_long_term_memory_v1", JSON.stringify([
+      { id: "legacy-memory-a", text: "FATO_PRIVADO_DE_OUTRO_USUARIO", category: "pessoa", importance: "alta", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    ]));
+  });
+
+  await page.evaluate(() => window.EloAssistente.requestOnlineAnswerForTest("Qual é uma forma simples de organizar ideias?", [], {}));
+  await expect.poll(() => routes.chatBodies.length, { timeout: 10000 }).toBe(1);
+  const context = routes.chatBodies[0].context;
+  expect(context.memoriesSummary).toBe("");
+  expect(context.deviceId).not.toBe("device-global-shared");
+  expect(context.deviceId).toMatch(/^elo_dev_user_/);
+  expect(JSON.stringify(routes.chatBodies[0])).not.toContain("FATO_PRIVADO_DE_OUTRO_USUARIO");
+  expect(routes.requests.filter((request) => request.path === "/api/elo/vector-memory" && request.method === "POST")).toHaveLength(0);
+});
+
+test("replay do histórico mantém a posição de leitura salva", async ({ page }) => {
+  await installSyntheticSession(page);
+  await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+
+  const history = [];
+  for (let index = 0; index < 300; index += 1) {
+    history.push({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `Mensagem histórica ${index + 1}: contexto preservado durante o replay. ` + "continuidade da conversa ".repeat(2)
+    });
+  }
+  const messages = page.locator(".elo-messages");
+  const targetScrollTop = 720;
+  await page.evaluate(({ historyMessages, scrollTop }) => {
+    window.EloAssistente.replayCoreMessagesForTest(historyMessages, scrollTop);
+  }, { historyMessages: history, scrollTop: targetScrollTop });
+  await expect(messages.locator(".elo-message")).toHaveCount(300);
+  await expect.poll(() => messages.evaluate((container) => container.scrollTop)).toBe(targetScrollTop);
+  await expect(page.locator(".elo-input-row")).toBeInViewport();
 });
 
 test("Novo chat remove PDF ativo, preview, FileList e contexto parseado", async ({ page }) => {

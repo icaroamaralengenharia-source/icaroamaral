@@ -43,6 +43,7 @@ const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
 const MAX_ELO_MESSAGE_LENGTH = 36000;
+const MAX_ELO_CHAT_HISTORY_MESSAGES = 48;
 const MAX_ELO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_ELO_TOTAL_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
@@ -7255,11 +7256,24 @@ export function validateEloChatRequest_(body) {
       role: item.role,
       content: clean_(item.content).slice(0, MAX_ELO_MESSAGE_LENGTH)
     }))
-    .filter((item) => item.content)
-    .slice(-20);
+    .filter((item) => item.content);
+  const recentHistory = normalizedHistory.slice(-MAX_ELO_CHAT_HISTORY_MESSAGES);
+  const suppliedArchive = context.conversationArchive && typeof context.conversationArchive === "object"
+    ? context.conversationArchive
+    : null;
+  const boundArchive = suppliedArchive && currentConversationId && clean_(suppliedArchive.conversationId) === currentConversationId;
+  const archivedHistory = normalizedHistory.length > MAX_ELO_CHAT_HISTORY_MESSAGES
+    ? normalizedHistory.slice(0, -MAX_ELO_CHAT_HISTORY_MESSAGES)
+    : boundArchive && Array.isArray(suppliedArchive.messages) ? suppliedArchive.messages : [];
+  const archivedMessages = archivedHistory.filter((item) => item && (item.role === "user" || item.role === "assistant"))
+    .slice(0, 12).map((item) => ({ role: item.role, content: clean_(item.content).slice(0, item.role === "assistant" ? 120 : 300) }))
+    .filter((item) => item.content);
+  const conversationArchive = !technicalContinuation && archivedMessages.length
+    ? { conversationId: currentConversationId, messages: archivedMessages }
+    : null;
   const history = technicalContinuation
-    ? filterEloTechnicalContinuationHistory_(normalizedHistory, technicalContinuation)
-    : normalizedHistory;
+    ? filterEloTechnicalContinuationHistory_(recentHistory, technicalContinuation)
+    : recentHistory;
   const temporaryMemoryScope = isEloConversationOnlyMemoryScope_(message, history, context);
   const contextForPlanning = Object.assign({}, context, temporaryMemoryScope ? {
     memoryScope: "CONVERSATION_ONLY",
@@ -7270,7 +7284,7 @@ export function validateEloChatRequest_(body) {
     documentsLibrarySummary: "",
     workingMemorySummary: "",
     technicalContinuation: null
-  } : {}, { history, imageAnalysisContext });
+  } : {}, { history, imageAnalysisContext, conversationArchive });
   delete contextForPlanning.currentConversationId;
   const contextSize = JSON.stringify(context).length;
 
@@ -7322,6 +7336,7 @@ export function validateEloChatRequest_(body) {
         screenContext: clean_(context.screenContext || "").slice(0, 1200),
         productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
         workingMemorySummary: temporaryMemoryScope ? "" : workingMemorySummary,
+        ...(conversationArchive ? { conversationArchive } : {}),
         technicalContinuation: temporaryMemoryScope ? null : technicalContinuation,
         imageAnalysisContext,
         projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
@@ -7365,40 +7380,29 @@ export function buildConversationSummary_(history = []) {
     return "";
   }
 
-  const olderText = entries
-    .slice(0, -6)
-    .map((item) => clean_(item.content))
-    .filter(Boolean)
-    .join(" ");
-  const allText = entries
-    .map((item) => clean_(item.content))
-    .filter(Boolean)
-    .join(" ");
-  const normalized = normalizeEloDecisionText_(allText);
-  const facts = [];
-  const add = (fact) => {
-    if (fact && !facts.includes(fact)) {
-      facts.push(fact);
+  // Keep literal turns from this conversation so facts, names, corrections,
+  // preferences, and earlier advice survive compaction without being guessed.
+  const lines = [];
+  let size = 0;
+  for (const entry of entries) {
+    const role = entry.role === "assistant" ? "ELO" : "Usuário";
+    const maxEntryLength = role === "ELO" ? 120 : 300;
+    const content = clean_(entry.content);
+    const excerpt = content.length > maxEntryLength ? content.slice(0, maxEntryLength - 1) + "…" : content;
+    const line = "- " + role + ": " + excerpt;
+    const separatorSize = lines.length ? 1 : 0;
+    if (size + separatorSize + line.length > 4400) {
+      const remaining = 4400 - size - separatorSize;
+      const prefix = "- " + role + ": ";
+      if (remaining > prefix.length + 24) lines.push(prefix + content.slice(0, remaining - prefix.length - 1) + "…");
+      break;
     }
-  };
-
-  if (/\b(elo|cerebro oficial|cérebro oficial|arquitetura)\b/.test(normalized)) add("usuario trabalha no projeto Elo e esta unificando a arquitetura");
-  if (/\b(stock full|lojista|loja|estoque)\b/.test(normalized)) add("ha contexto sobre Stock Full, estoque e lojistas");
-  if (/\b(cadista|planta|dxf|pdf tecnico|pdf técnico)\b/.test(normalized)) add("ha contexto sobre CADISTA IA e geracao tecnica");
-  if (/\b(respostas curtas|prefiro respostas curtas|direto)\b/.test(normalized)) add("usuario prefere respostas curtas e diretas");
-  if (/\b(memoria|memória|lembre|guardar)\b/.test(normalized)) add("conversa envolve memoria e recuperacao de preferencias");
-  if (/\b(biblioteca|documento|resumo)\b/.test(normalized)) add("conversa envolve biblioteca, documentos ou resumos");
-  if (/\b(obra|parede|concreto|laje|bloco|rdo)\b/.test(normalized)) add("ha contexto tecnico de obras, calculos e relatorios");
-  if (/\b(saude|saúde|medicamento|lote|validade)\b/.test(normalized) && !/\b(fica para depois|deixar para depois|para depois)\b/.test(normalized)) add("ha contexto operacional de saude, lote e validade");
-
-  if (!facts.length) {
-    const excerpt = clean_(olderText).slice(0, 420);
-    if (excerpt) {
-      add("historico anterior resumido: " + excerpt);
-    }
+    lines.push(line);
+    size += separatorSize + line.length;
   }
-
-  return facts.length ? "Resumo atual:\n" + facts.slice(0, 8).map((fact) => "- " + fact).join("\n") : "";
+  return lines.length
+    ? "Trechos literais do histórico desta conversa:\n" + lines.join("\n")
+    : "";
 }
 
 function extractEloExplicitMemoryCommandText_(message) {
@@ -7480,7 +7484,10 @@ export async function getEloRelevantContext_({ payload, memoryStore, canonicalMe
   const contextKeywords = extractContextKeywords_(safePayload.message);
   const recentHistoryText = getEloHistoryText_(safePayload.history);
   const query = buildEloContextQuery_(safePayload.message, intent);
-  const conversationSummary = buildConversationSummary_(safePayload.history);
+  const archivedHistory = context.conversationArchive && Array.isArray(context.conversationArchive.messages)
+    ? context.conversationArchive.messages
+    : [];
+  const conversationSummary = buildConversationSummary_(archivedHistory.concat(safePayload.history || []));
   const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
   const vectorStartedAt = nowMs_();
   const canonicalPermanentUserMemorySummary = conversationOnlyMemoryScope ? "" : await buildCanonicalPermanentUserMemorySummary_(canonicalMemoryStore, canonicalMemoryIdentity, query, {
@@ -8819,7 +8826,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
   const operationalSummary = clean_(context.operationalSummary || "").slice(0, 2500);
-  const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
+  const conversationSummary = clean_(context.conversationSummary || "").slice(0, 4600);
   const workingMemorySummary = clean_(context.workingMemorySummary || "").slice(0, 1200);
   const technicalContinuation = context.technicalContinuation && typeof context.technicalContinuation === "object"
     ? {

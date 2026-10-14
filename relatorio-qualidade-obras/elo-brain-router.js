@@ -52,9 +52,6 @@
     if (!context || !context.technical || !nextService) return;
     const previous = context.technical.activeService || "";
     if (previous && previous !== nextService) {
-      context.technical.services = {};
-      context.technical.audit = {};
-      context.technical.lastParametricBudget = null;
       context.technical.contextSwitch = { from: previous, to: nextService, at: new Date().toISOString() };
     }
     context.technical.activeService = nextService;
@@ -465,6 +462,7 @@
       resetServiceContextIfChanged(ctx, explicitService);
       const recipe = recipeForService(explicitService);
       ctx.bcpOverrides = recipe ? Object.assign({}, ctx.bcpOverrides || {}, { recipe: recipe }) : (ctx.bcpOverrides || {});
+      rememberServiceData(text, ctx, explicitService);
     }
     const parametricResponse = callParametricBrain(text, ctx);
     if (parametricResponse) {
