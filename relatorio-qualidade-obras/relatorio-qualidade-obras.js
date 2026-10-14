@@ -1581,17 +1581,37 @@
     return "";
   }
 
+  function isUnexpiredAccessToken_(value) {
+    const token = clean(value);
+    const parts = token.split(".");
+    if (parts.length !== 3 || !parts[1]) return false;
+    try {
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+      const payload = JSON.parse(window.atob(padded));
+      const expiresAt = Number(payload && payload.exp);
+      return Number.isFinite(expiresAt) && expiresAt * 1000 > Date.now();
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function getRdoApiAccessToken_() {
-    if (rdoCanonicalAuth && rdoCanonicalAuth.hasSession()) {
-      const rdoToken = clean(await rdoCanonicalAuth.getValidAccessToken());
-      if (rdoToken) return rdoToken;
-      return "";
+    if (rdoCanonicalAuth) {
+      try {
+        if (rdoCanonicalAuth.hasSession()) {
+          const rdoToken = clean(await rdoCanonicalAuth.getValidAccessToken());
+          if (isUnexpiredAccessToken_(rdoToken)) return rdoToken;
+        }
+      } catch (_) {
+        // A stale or unavailable RDO session must not block the Stock Full fallback.
+      }
     }
     const canonicalSession = window.EloCanonicalSession;
     if (canonicalSession && typeof canonicalSession.getValidAccessToken === "function") {
       try {
         const refreshedToken = clean(await canonicalSession.getValidAccessToken());
-        if (refreshedToken) return refreshedToken;
+        if (isUnexpiredAccessToken_(refreshedToken)) return refreshedToken;
       } catch (_) {
         // Fall back to the Stock Full session if the canonical refresh is unavailable.
       }
@@ -1599,7 +1619,7 @@
     if (canonicalSession && typeof canonicalSession.getAccessToken === "function") {
       try {
         const canonicalToken = clean(await canonicalSession.getAccessToken());
-        if (canonicalToken) return canonicalToken;
+        if (isUnexpiredAccessToken_(canonicalToken)) return canonicalToken;
       } catch (_) {
         // The adapter will report a missing session if no supported token exists.
       }
@@ -1607,11 +1627,12 @@
     try {
       const session = await getStockFullSupabaseSession_();
       const stockFullToken = clean(session && session.access_token);
-      if (stockFullToken) return stockFullToken;
+      if (isUnexpiredAccessToken_(stockFullToken)) return stockFullToken;
     } catch (_) {
       // The persisted Stock Full token remains the fallback when its SDK is unavailable.
     }
-    return getStockFullSupabaseToken_();
+    const persistedStockToken = clean(getStockFullSupabaseToken_());
+    return isUnexpiredAccessToken_(persistedStockToken) ? persistedStockToken : "";
   }
 
   function hasStockFullBackendToken_() {
