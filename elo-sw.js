@@ -40,6 +40,22 @@ function cacheOptionalMedia(cache, asset) {
   });
 }
 
+function isObraReportApiUrl(url) {
+  return /^\/api\/obrareport(?:\/|$)/i.test(url.pathname);
+}
+
+function removeCachedObraReportResponses() {
+  return caches.open(ELO_CACHE_NAME).then(function (cache) {
+    return cache.keys().then(function (requests) {
+      return Promise.all(requests.filter(function (request) {
+        return isObraReportApiUrl(new URL(request.url));
+      }).map(function (request) {
+        return cache.delete(request);
+      }));
+    });
+  });
+}
+
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(ELO_CACHE_NAME).then(function (cache) {
@@ -63,6 +79,8 @@ self.addEventListener("activate", function (event) {
         return caches.delete(name);
       }));
     }).then(function () {
+      return removeCachedObraReportResponses();
+    }).then(function () {
       return self.clients.claim();
     })
   );
@@ -72,6 +90,11 @@ self.addEventListener("fetch", function (event) {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== "GET") return;
+  // RDO reads must reflect the backend after create/update, never an offline snapshot.
+  if (isObraReportApiUrl(url)) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
   if (url.pathname.endsWith("/assets/elo-public-config.js")) {
     event.respondWith(fetch(request, { cache: "no-store" }));
     return;
