@@ -16,7 +16,7 @@ defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260906-rdo-final-real-test-bugs">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20261014-project-workspace-v1">
   <link rel="stylesheet" href="../elo.css">
 </head>
 <body>
@@ -182,16 +182,16 @@ defer></script>
       </div>
 
       <nav class="saas-tabs" aria-label="Navegação do SaaS">
-        <button type="button" data-route-target="dashboard" data-nav-role="admin" class="active">Dashboard</button>
+        <button type="button" data-route-target="dashboard" data-nav-role="admin" class="active">Início</button>
         <button type="button" data-route-target="clientes" data-nav-role="admin">Clientes</button>
-        <button type="button" data-route-target="obras" data-nav-role="admin">Obras</button>
+        <button type="button" data-route-target="obras" data-nav-role="admin">Minhas obras</button>
         <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
         <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
         <button type="button" data-route-target="stock-ia" data-nav-role="admin">Stock IA</button>
         <button type="button" data-route-target="almoxarifado" data-nav-role="admin">Almoxarifado</button>
         <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
         <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
-        <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
+        <button type="button" data-route-target="obras" data-nav-role="client">Início</button>
         <button type="button" data-route-target="minha-obra" data-nav-role="client">Minha Obra</button>
         <button type="button" data-route-target="meus-relatorios" data-nav-role="client">Meus Relatórios</button>
         <button type="button" data-route-target="meus-rdos" data-nav-role="client">Meus RDOs</button>
@@ -502,52 +502,56 @@ defer></script>
         </div>
       </section>
 
-      <section class="route-panel" data-route="obras" aria-label="Cadastro de obras">
-        <div class="workspace-card">
-          <h3>Cadastrar obra</h3>
-          <p class="auth-note">As obras usadas pelo Diário de Obras vêm do Stock Full. Cadastre ou atualize a obra no Stock Full para vinculá-la ao RDO.</p>
-          <form id="workForm" class="entity-form">
-            <div class="field-grid">
-              <label>
-                Cliente
-                <select name="workClientId" id="workClientSelect" required></select>
-              </label>
-              <label>
-                Nome da obra
-                <input name="workName" type="text" required>
-              </label>
-              <label>
-                Local/endereço
-                <input name="workAddress" type="text" required>
-              </label>
-              <label>
-                Tipo de obra
-                <select name="workType" required>
-                  <option value="">Escolher</option>
-                  <option value="Residencial">Residencial</option>
-                  <option value="Comercial">Comercial</option>
-                  <option value="Industrial">Industrial</option>
-                  <option value="Infraestrutura">Infraestrutura</option>
-                  <option value="Reforma">Reforma</option>
-                </select>
-              </label>
-              <label class="full-width">
-                Status
-                <select name="workStatus">
-                  <option value="Em andamento">Em andamento</option>
-                  <option value="Pausada">Pausada</option>
-                  <option value="Concluída">Concluída</option>
-                </select>
-              </label>
-            </div>
-            <button class="next-action" type="submit">Salvar obra</button>
-          </form>
+      <section class="route-panel project-home" data-route="obras" aria-labelledby="projectHomeTitle">
+        <div class="workspace-card project-home-intro">
+          <p class="eyebrow">ObraReport</p>
+          <h3 id="projectHomeTitle">Minhas obras</h3>
+          <p>Escolha uma obra para consultar o histórico e registrar o próximo diário.</p>
+          <div class="project-home-actions">
+            <a class="project-home-action primary" href="#canonicalWorkListSection">
+              <strong>Abrir obra cadastrada</strong>
+              <span>Continue o acompanhamento de uma das suas obras.</span>
+            </a>
+            <a class="project-home-action" href="/stockfull.html?produto=stock-full&amp;perfil=loja#app/dashboard" target="_blank" rel="noopener">
+              <strong>Cadastrar obra</strong>
+              <span>Abra o cadastro no Stock Full. Depois, atualize a lista aqui.</span>
+            </a>
+          </div>
         </div>
 
-        <div class="workspace-card">
-          <h3>Obras cadastradas</h3>
-          <div id="worksList" class="entity-list empty-list">Nenhuma obra cadastrada.</div>
+        <section class="workspace-card project-work-list" id="canonicalWorkListSection" aria-labelledby="canonicalWorkListTitle" tabindex="-1">
+          <div class="section-row">
+            <h3 id="canonicalWorkListTitle">Obras cadastradas</h3>
+            <button type="button" class="mini-button" id="refreshCanonicalWorksBtn">Atualizar obras</button>
+          </div>
+          <p id="canonicalWorksStatus" class="project-status" role="status" aria-live="polite">Carregando suas obras…</p>
+          <div id="worksList" class="entity-list empty-list">As obras aparecerão aqui.</div>
+        </section>
+      </section>
+
+      <section class="route-panel project-workspace" data-route="obra" aria-labelledby="activeProjectName">
+        <div class="workspace-card project-workspace-heading">
+          <div class="section-row">
+            <div>
+              <p class="eyebrow">Obra ativa</p>
+              <h3 id="activeProjectName">Selecione uma obra</h3>
+              <p id="activeProjectAddress" class="project-address"></p>
+              <span id="activeProjectId" hidden></span>
+            </div>
+            <button type="button" class="mini-button" id="activeProjectSwitchBtn">Trocar obra</button>
+          </div>
+          <div class="project-workspace-actions" aria-label="Ações da obra ativa">
+            <button type="button" class="mini-button primary" id="activeProjectNewRdoBtn">Novo RDO</button>
+            <button type="button" class="mini-button" id="activeProjectHistoryBtn">Ver RDOs</button>
+            <button type="button" class="mini-button" id="activeProjectMaterialsBtn">Materiais</button>
+            <button type="button" class="mini-button" id="activeProjectReportsBtn">Relatórios</button>
+          </div>
         </div>
+        <section class="workspace-card project-history" aria-labelledby="activeProjectHistoryTitle">
+          <h3 id="activeProjectHistoryTitle">Histórico de RDOs</h3>
+          <p id="activeProjectHistoryStatus" class="project-status" role="status" aria-live="polite">Abra uma obra para consultar seus diários.</p>
+          <div id="activeProjectHistory" class="entity-list empty-list">Nenhuma obra selecionada.</div>
+        </section>
       </section>
 
       <section class="route-panel" data-route="relatorios" aria-label="Relatórios por obra">
@@ -606,6 +610,14 @@ defer></script>
           <a href="#rdo-fotos">Fotos</a>
           <a href="#rdo-encerramento">Encerramento</a>
         </nav>
+
+        <div id="dailyLogActiveProjectBanner" class="active-project-banner" role="region" aria-label="Obra ativa do diário">
+          <div>
+            <span>Obra ativa</span>
+            <strong id="dailyLogActiveProjectName">Selecione uma obra</strong>
+          </div>
+          <button type="button" class="mini-button" id="dailyLogSwitchProjectBtn">Trocar obra</button>
+        </div>
 
         <div class="diary-workspace">
           <section class="workspace-card">
@@ -2353,7 +2365,8 @@ defer></script>
   <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
   <script src="./rdo-cloud-adapter.js?v=20261012-rdo-list-diagnostics-v1"></script>
   <script src="./rdo-canonical-auth.js?v=20261014-rdo-auth-fallback-v1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20261014-rdo-auth-fallback-v1"></script>
+  <script src="./rdo-project-workspace.js?v=20261014-project-workspace-v1"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20261014-project-workspace-v1"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20261008-stock-uuid-lookup-v2" defer></script>
   <script src="elo-municipal-action-adapter.js?v=20260906-municipal-action-v1"></script>

@@ -332,6 +332,20 @@
   let stockFullRemoteExits = [];
   let stockFullRemoteAuditLog = [];
   let currentUser = getCurrentUser_();
+  const projectWorkspaceEnabled = Boolean(document.getElementById("activeProjectHistory"));
+  const rdoProjectWorkspace = projectWorkspaceEnabled && rdoCloudAdapter && window.ObraReportProjectWorkspace
+    ? window.ObraReportProjectWorkspace.create({
+      adapter: rdoCloudAdapter,
+      storage: {
+        getItem: function (key) { return window.localStorage.getItem(key); },
+        setItem: function (key, value) { window.localStorage.setItem(key, value); },
+        removeItem: function (key) { window.localStorage.removeItem(key); }
+      },
+      getUserId: function () { return clean(currentUser && currentUser.id); }
+    }) : null;
+  let canonicalWorkspaceLoadGeneration = 0;
+  let projectHistoryLoading = false;
+  let dailyLogEditorRevision = 0;
   let activeReportId = null;
   let draftSaveTimer = null;
   let dailyLogDraftSaveTimer = null;
@@ -406,6 +420,7 @@
     initializeDraft_();
     initializeAiAssistant_();
     initializeDailyLogModule_();
+    initializeProjectWorkspace_();
   }
   initializeSaas_();
 
@@ -2274,10 +2289,11 @@
           grantLocalAccessSession_();
           loginForm.reset();
           renderSaasState_();
-          showDashboardPanel_(getRouteFromHash_());
+          showDashboardPanel_(projectWorkspaceEnabled ? getDefaultRouteForRole_() : getRouteFromHash_());
           setCloudStatus_("Sincronizado na nuvem", "success");
           setLoginAccessStatus_("", "");
-          runPendingHomeAction_();
+          if (projectWorkspaceEnabled) pendingHomeAction = "";
+          else runPendingHomeAction_();
         } catch (error) {
           console.error(error);
           const message = error && error.message ? error.message : "Não foi possível autenticar na nuvem.";
@@ -2299,6 +2315,7 @@
     if (logoutButton) {
       logoutButton.addEventListener("click", function () {
         activeReportId = null;
+        if (rdoProjectWorkspace) rdoProjectWorkspace.clear();
         if (rdoCanonicalAuth) rdoCanonicalAuth.clear();
         revokeLocalAccessSession_();
         appState.session = null;
@@ -3237,6 +3254,21 @@
   }
 
   function startQuickDailyLog_() {
+    if (projectWorkspaceEnabled) {
+      const work = getActiveProject_();
+      if (!work) { showDashboardPanel_("obras"); return; }
+      flushDailyLogDraft_();
+      resetDailyLogForm_({ clearDraft: false });
+      dailyLogWorkSelect.value = work.id;
+      setLastOpened_("diario", work.clientId, work.id, "");
+      saveLocalData({ syncCloud: false });
+      showDashboardPanel_("diario");
+      const identification = document.getElementById("rdo-identificacao");
+      if (identification) identification.open = true;
+      setDailyLogStatus_("Novo RDO para " + work.name + ". Informe os dados do dia.", "info");
+      focusElementSoon_(dailyLogForm && dailyLogForm.elements.date);
+      return;
+    }
     const works = getUserWorks_();
     const firstWork = works[0];
 
@@ -3266,7 +3298,8 @@
 
   function startQuickQualityReport_() {
     const works = getUserWorks_();
-    const firstWork = works[0];
+    const firstWork = projectWorkspaceEnabled ? getActiveProject_() : works[0];
+    if (projectWorkspaceEnabled && !firstWork) { showDashboardPanel_("obras"); return; }
 
     setLastOpened_("relatorios", firstWork ? firstWork.clientId : "", firstWork ? firstWork.id : "", "");
     scheduleLocalDataSave_();
@@ -3296,6 +3329,13 @@
   }
 
   function startQuickMaterials_() {
+    if (projectWorkspaceEnabled) {
+      if (!getActiveProject_()) { showDashboardPanel_("obras"); return; }
+      showDashboardPanel_("diario");
+      const section = document.getElementById("rdo-materiais");
+      if (section) { section.open = true; section.scrollIntoView({ block: "start" }); }
+      return;
+    }
     const works = getUserWorks_();
     const exampleWork = getExampleWork_();
     const selectedWork = exampleWork || works[0];
@@ -4164,15 +4204,15 @@
   }
 
   function getAllRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+    return ["dashboard", "clientes", "obras", "obra", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
   }
 
   function getAdminRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao"];
+    return ["dashboard", "clientes", "obras", "obra", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao"];
   }
 
   function getClientRoutes_() {
-    return ["cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+    return ["cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"].concat(projectWorkspaceEnabled ? ["obras", "obra"] : []);
   }
 
   function normalizeAuthRole_(value) {
@@ -4199,6 +4239,7 @@
   }
 
   function getDefaultRouteForRole_() {
+    if (projectWorkspaceEnabled) return "obras";
     return isAdminUser_() ? "dashboard" : "cliente";
   }
 
@@ -4208,6 +4249,10 @@
     }
 
     const allowedRoutes = isAdminUser_() ? getAdminRoutes_() : getClientRoutes_();
+    if (projectWorkspaceEnabled) {
+      if (route === "dashboard") return "obras";
+      if (["obra", "diario"].indexOf(route) >= 0 && !getActiveProject_()) return "obras";
+    }
     return allowedRoutes.indexOf(route) >= 0 ? route : getDefaultRouteForRole_();
   }
 
@@ -4298,6 +4343,8 @@
       return [];
     }
 
+    if (projectWorkspaceEnabled) return rdoProjectWorkspace ? rdoProjectWorkspace.getWorks() : [];
+
     if (canonicalStockWorksLoaded) return appState.works.slice();
 
     if (isAdminUser_()) {
@@ -4342,6 +4389,13 @@
   function getUserDailyLogs_() {
     if (!currentUser) {
       return [];
+    }
+
+    if (projectWorkspaceEnabled) {
+      const project = getActiveProject_();
+      return project ? (appState.dailyLogs || []).filter(function (row) {
+        return row.workId === project.id && rdoServerIds.has(row.id);
+      }).sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); }) : [];
     }
 
     if (isAdminUser_()) {
@@ -4436,6 +4490,7 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     renderDailyLogModule_(dailyLogs);
+    renderProjectWorkspace_();
     renderRdoE2EDiagnostics_();
     renderStockIaPanel_(dailyLogs);
     renderExampleSalesGuide_();
@@ -4857,7 +4912,239 @@
     });
   }
 
+  function getActiveProject_() {
+    return rdoProjectWorkspace ? rdoProjectWorkspace.getActiveWork() : null;
+  }
+
+  function initializeProjectWorkspace_() {
+    if (!projectWorkspaceEnabled) return;
+    function bind(id, handler) {
+      const button = document.getElementById(id);
+      if (button) button.addEventListener("click", handler);
+    }
+    bind("refreshCanonicalWorksBtn", function () { loadCanonicalRdoWorkspace_(); });
+    bind("activeProjectNewRdoBtn", startQuickDailyLog_);
+    bind("activeProjectMaterialsBtn", startQuickMaterials_);
+    bind("activeProjectReportsBtn", function () {
+      if (isAdminUser_()) startQuickQualityReport_();
+      else showDashboardPanel_("meus-relatorios");
+    });
+    bind("activeProjectHistoryBtn", function () {
+      const work = getActiveProject_();
+      if (work) loadActiveProjectHistory_(work.id).catch(function () {});
+      const list = document.getElementById("activeProjectHistory");
+      if (list) list.scrollIntoView({ block: "start" });
+    });
+    ["activeProjectSwitchBtn", "dailyLogSwitchProjectBtn"].forEach(function (id) {
+      bind(id, function () { activateProject_("", { route: "obras" }); });
+    });
+  }
+
+  async function activateProject_(projectId, options) {
+    if (!rdoProjectWorkspace || !canonicalStockWorksLoaded) return false;
+    const id = clean(projectId);
+    const previous = getActiveProject_();
+    // The select's native change has already happened; flush under the OLD project.
+    if (dailyLogWorkSelect) dailyLogWorkSelect.value = previous ? previous.id : "";
+    if (id && !rdoProjectWorkspace.getWorks().some(function (work) { return work.id === id; })) return false;
+    flushDailyLogDraft_();
+    rdoProjectWorkspace.selectProject(id);
+    ++rdoLoadGeneration;
+    appState.dailyLogs = [];
+    rdoServerIds = new Set();
+    canonicalRdoListLoadError = "";
+    projectHistoryLoading = false;
+    dailyLogSearchTerm = "";
+    if (dailyLogSearchInput) dailyLogSearchInput.value = "";
+    const work = getActiveProject_();
+    setLastOpened_(id ? "obra" : "obras", work && work.clientId || "", id, "");
+    resetDailyLogForm_({ clearDraft: false });
+    saveLocalData({ syncCloud: false });
+    showDashboardPanel_(id ? options && options.route || "obra" : "obras");
+    const context = rdoProjectWorkspace.context();
+    if (!id) return true;
+    try {
+      await loadActiveProjectHistory_(id);
+      if (!rdoProjectWorkspace.isCurrent(context)) return false;
+      restoreDailyLogDraftForCurrentContext_({ announce: false });
+      renderProjectWorkspace_();
+      return true;
+    } catch (error) {
+      // loadActiveProjectHistory_ presents the error only in its originating context.
+      return false;
+    }
+  }
+
+  async function loadProjectWorkspace_() {
+    const generation = ++canonicalWorkspaceLoadGeneration;
+    const userId = clean(currentUser && currentUser.id);
+    const refresh = document.getElementById("refreshCanonicalWorksBtn");
+    if (refresh) refresh.disabled = true;
+    flushDailyLogDraft_();
+    canonicalStockWorksLoaded = false;
+    canonicalStockWorksLoadError = "";
+    canonicalRdoListLoadError = "";
+    projectHistoryLoading = false;
+    ++rdoLoadGeneration;
+    appState.works = [];
+    appState.dailyLogs = [];
+    rdoServerIds = new Set();
+    function current() { return generation === canonicalWorkspaceLoadGeneration && userId === clean(currentUser && currentUser.id); }
+    try {
+      if (!rdoProjectWorkspace || !rdoCloudAdapter) throw new Error("A integração de obras não carregou. Atualize a página.");
+      const pending = rdoProjectWorkspace.loadProjects();
+      resetDailyLogForm_({ clearDraft: false });
+      renderSaasState_();
+      await pending;
+      if (!current()) return false;
+      canonicalStockWorksLoaded = true;
+      // Compatibility mirror only. The controller's fresh API catalog is authoritative.
+      appState.works = rdoProjectWorkspace.getWorks().map(function (work) {
+        return Object.assign({}, work, { userId: userId });
+      });
+      const work = getActiveProject_();
+      appState.local.lastWorkId = work ? work.id : "";
+      renderSaasState_();
+      resetDailyLogForm_({ clearDraft: false });
+      if (work) {
+        try {
+          await loadActiveProjectHistory_(work.id);
+          if (current() && getActiveProject_() && getActiveProject_().id === work.id) restoreDailyLogDraftForCurrentContext_({ announce: false });
+        } catch (error) { /* Keep the successfully loaded catalog available for retry. */ }
+      }
+      if (!current()) return false;
+      saveLocalData({ syncCloud: false });
+      renderSaasState_();
+      if (!getActiveProject_() && ["obra", "diario"].indexOf(getRouteFromHash_()) >= 0) showDashboardPanel_("obras");
+      recordRdoE2EUiList_(appState.dailyLogs);
+      await runPendingRdoE2EPostReloadReadbacks_();
+      return true;
+    } catch (error) {
+      if (!current()) return false;
+      canonicalStockWorksLoadError = error.message || "Não foi possível carregar as obras. Tente atualizar a lista.";
+      appState.local.lastWorkId = "";
+      resetDailyLogForm_({ clearDraft: false });
+      renderSaasState_();
+      return false;
+    } finally {
+      if (current() && refresh) refresh.disabled = false;
+    }
+  }
+
+  async function loadActiveProjectHistory_(projectId, options) {
+    const work = getActiveProject_();
+    if (!work || work.id !== clean(projectId)) throw new Error("rdo_project_not_in_stock_scope");
+    const context = rdoProjectWorkspace.context();
+    const generation = ++rdoLoadGeneration;
+    function current() { return generation === rdoLoadGeneration && rdoProjectWorkspace.isCurrent(context); }
+    projectHistoryLoading = true;
+    canonicalRdoListLoadError = "";
+    appState.dailyLogs = [];
+    rdoServerIds = new Set();
+    renderSaasState_();
+    try {
+      const rows = await rdoProjectWorkspace.loadHistory();
+      if (!current()) return [];
+      appState.dailyLogs = rows.map(function (row) {
+        const item = rdoCloudAdapter.mapRdoToDailyLog(row, currentUser.id);
+        item.backendStatus = clean(row.status);
+        item.backendTitle = clean(row.title);
+        return item;
+      }).filter(function (item) { return item.id && item.workId === context.projectId; });
+      rdoServerIds = new Set(appState.dailyLogs.map(function (item) { return item.id; }));
+      recordRdoE2EUiList_(appState.dailyLogs);
+      saveLocalData({ syncCloud: false });
+      return appState.dailyLogs;
+    } catch (error) {
+      if (!current()) return [];
+      canonicalRdoListLoadError = "Não foi possível carregar os RDOs desta obra. " + (error.message || "Tente novamente.");
+      throw error;
+    } finally {
+      if (current()) { projectHistoryLoading = false; renderSaasState_(); }
+    }
+  }
+
+  function renderCanonicalProjectCards_(works) {
+    if (!worksList) return;
+    worksList.replaceChildren();
+    worksList.className = "project-card-grid";
+    const status = document.getElementById("canonicalWorksStatus");
+    if (status) {
+      status.textContent = canonicalStockWorksLoadError || (!canonicalStockWorksLoaded
+        ? "Carregando suas obras…"
+        : works.length ? works.length + " obra(s) disponível(is). Escolha onde deseja trabalhar."
+          : "Nenhuma obra disponível. Use Cadastrar obra para começar.");
+      status.dataset.status = canonicalStockWorksLoadError ? "error" : "";
+    }
+    works.forEach(function (work) {
+      const summary = rdoProjectWorkspace.getSummary(work.id);
+      const detail = [work.address, work.status && work.status !== "Stock Full" ? work.status : "",
+        summary ? summary.count + " RDO(s)" : "Abra para consultar os RDOs",
+        summary && summary.lastDate ? "Último diário: " + formatDateOnly_(summary.lastDate) : ""].filter(Boolean).join(" · ");
+      const card = createEntityItem_(work.name, detail, [createMiniButton_("Abrir obra", "primary", function () {
+        activateProject_(work.id);
+      })]);
+      card.classList.add("project-card");
+      card.dataset.projectId = work.id;
+      worksList.appendChild(card);
+    });
+  }
+
+  function renderProjectWorkspace_() {
+    if (!projectWorkspaceEnabled) return;
+    const work = getActiveProject_();
+    const canEdit = isAdminUser_();
+    ["activeProjectNewRdoBtn", "activeProjectMaterialsBtn"].forEach(function (id) {
+      const button = document.getElementById(id);
+      if (button) {
+        button.disabled = !canEdit;
+        button.title = canEdit ? "" : "Seu perfil permite consultar os documentos da obra.";
+      }
+    });
+    function text(id, value) { const node = document.getElementById(id); if (node) node.textContent = value; }
+    text("activeProjectName", work ? work.name : "Selecione uma obra");
+    text("dailyLogActiveProjectName", work ? work.name : "Nenhuma obra selecionada");
+    text("activeProjectAddress", work && work.address || "");
+    text("activeProjectId", work ? work.id : "");
+    const banner = document.getElementById("dailyLogActiveProjectBanner");
+    if (banner) banner.dataset.projectId = work ? work.id : "";
+    const list = document.getElementById("activeProjectHistory");
+    if (!list) return;
+    list.replaceChildren();
+    const logs = getUserDailyLogs_();
+    text("activeProjectHistoryStatus", canonicalRdoListLoadError || (projectHistoryLoading
+      ? "Carregando RDOs da obra…"
+      : !work ? "Abra uma obra para consultar o histórico."
+        : logs.length ? logs.length + " RDO(s) nesta obra." : "Esta obra ainda não tem RDOs. Crie o primeiro diário."));
+    if (!work || projectHistoryLoading) return;
+    logs.forEach(function (logItem) {
+      const context = rdoProjectWorkspace.context();
+      function run(action) {
+        if (!rdoProjectWorkspace.isCurrent(context)) return;
+        action().catch(function (error) {
+          if (!rdoProjectWorkspace.isCurrent(context)) return;
+          text("activeProjectHistoryStatus", error.message || "Não foi possível abrir o RDO.");
+          setDailyLogStatus_(error.message || "Não foi possível abrir o RDO.", "error");
+        });
+      }
+      const statuses = { draft: "Rascunho", published: "Publicado", approved: "Aprovado", submitted: "Enviado", finalized: "Finalizado" };
+      const status = statuses[logItem.backendStatus] || logItem.backendStatus || "";
+      const actions = [createMiniButton_("PDF", "", function () { run(function () { return generateDailyLogDocument_(logItem.id); }); })];
+      if (canEdit) actions.push(createMiniButton_("Editar / Abrir", "primary", function () { run(async function () {
+            const opened = await openDailyLogFromBackend_(logItem.id);
+            if (opened && rdoProjectWorkspace.isCurrent(context)) showDashboardPanel_("diario");
+          }); }));
+      const row = createEntityItem_(logItem.backendTitle || logItem.summary || logItem.services || "Diário de obra",
+        [formatDateOnly_(logItem.date), status].filter(Boolean).join(" · "), actions);
+      row.classList.add("project-history-row");
+      row.dataset.rdoId = logItem.id;
+      row.dataset.projectId = work.id;
+      list.appendChild(row);
+    });
+  }
+
   function renderWorksList_(works) {
+    if (projectWorkspaceEnabled) { renderCanonicalProjectCards_(works); return; }
     if (!worksList) {
       return;
     }
@@ -5190,7 +5477,8 @@
 
     if (dailyLogResetButton) {
       dailyLogResetButton.addEventListener("click", function () {
-        resetDailyLogForm_({ clearDraft: true });
+        if (projectWorkspaceEnabled) startQuickDailyLog_();
+        else resetDailyLogForm_({ clearDraft: true });
       });
     }
 
@@ -5272,6 +5560,10 @@
 
     if (dailyLogWorkSelect) {
       dailyLogWorkSelect.addEventListener("change", function () {
+        if (projectWorkspaceEnabled) {
+          activateProject_(dailyLogWorkSelect.value, { route: "diario" });
+          return;
+        }
         const work = findWork_(dailyLogWorkSelect.value);
         setLastOpened_("diario", work ? work.clientId : "", dailyLogWorkSelect.value, "");
         loadRdosForWork_(dailyLogWorkSelect.value).catch(function (error) {
@@ -5360,7 +5652,7 @@
     });
 
     initializeCompositionLibrary_();
-    resetDailyLogForm_({ clearDraft: false, restoreDraft: true });
+    resetDailyLogForm_({ clearDraft: false, restoreDraft: !projectWorkspaceEnabled });
   }
 
   function createEmptyDailyLogDraft_() {
@@ -6819,7 +7111,9 @@
       return;
     }
 
-    const previous = dailyLogWorkSelect.value || (appState.local && appState.local.lastWorkId) || "";
+    const previous = projectWorkspaceEnabled
+      ? (getActiveProject_() && getActiveProject_().id || "")
+      : dailyLogWorkSelect.value || (appState.local && appState.local.lastWorkId) || "";
     dailyLogWorkSelect.innerHTML = "";
     dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : canonicalStockWorksLoadError || "Entre no Stock Full para carregar obras"));
 
@@ -7173,6 +7467,7 @@
   }
 
   async function loadCanonicalRdoWorkspace_() {
+    if (projectWorkspaceEnabled) return loadProjectWorkspace_();
     canonicalStockWorksLoaded = false;
     canonicalStockWorksLoadError = "";
     canonicalRdoListLoadError = "";
@@ -7260,6 +7555,7 @@
   }
 
   async function loadRdosForWork_(projectId, options) {
+    if (projectWorkspaceEnabled) return loadActiveProjectHistory_(projectId, options);
     const settings = options || {};
     const id = clean(projectId);
     canonicalRdoListLoadError = "";
@@ -7304,9 +7600,22 @@
 
   async function openDailyLogFromBackend_(dailyLogId) {
     if (!rdoCloudAdapter) throw new Error("rdo_cloud_adapter_unavailable");
-    const row = await rdoCloudAdapter.getRdo(dailyLogId);
+    const context = rdoProjectWorkspace && rdoProjectWorkspace.context();
+    const editorRevision = ++dailyLogEditorRevision;
+    if (projectWorkspaceEnabled && (!context || !context.projectId)) throw new Error("Selecione uma obra antes de abrir o RDO.");
+    let row;
+    try {
+      row = await rdoCloudAdapter.getRdo(dailyLogId);
+    } catch (error) {
+      if (context && (!rdoProjectWorkspace.isCurrent(context) || editorRevision !== dailyLogEditorRevision)) return null;
+      throw error;
+    }
+    if (context && (!rdoProjectWorkspace.isCurrent(context) || editorRevision !== dailyLogEditorRevision)) return null;
     if (!row) throw new Error("rdo_not_found");
     const logItem = rdoCloudAdapter.mapRdoToDailyLog(row, currentUser && currentUser.id);
+    if (context && (logItem.workId !== context.projectId || !rdoProjectWorkspace.upsertRecord(row, context))) {
+      throw new Error("rdo_work_mismatch");
+    }
     const selectedWorkId = clean(dailyLogWorkSelect && dailyLogWorkSelect.value);
     if (!logItem.id || !logItem.workId || (selectedWorkId && logItem.workId !== selectedWorkId)) {
       throw new Error("rdo_work_mismatch");
@@ -7346,8 +7655,18 @@
     if (dailyLogSaveButton && dailyLogSaveButton.disabled) {
       return null;
     }
+    if (projectWorkspaceEnabled && (projectHistoryLoading || canonicalRdoListLoadError)) {
+      setDailyLogStatus_("Aguarde o histórico da obra carregar antes de salvar. Se houve falha, abra a obra e tente Ver RDOs novamente.", "error");
+      return null;
+    }
 
     const logItem = collectDailyLogForm_();
+    const projectContext = rdoProjectWorkspace && rdoProjectWorkspace.context();
+    const editorRevision = dailyLogEditorRevision;
+    if (projectWorkspaceEnabled && (!projectContext || !projectContext.projectId || projectContext.projectId !== logItem.workId)) {
+      setDailyLogStatus_("Abra uma obra autorizada antes de salvar o RDO.", "error");
+      return null;
+    }
 
     if (!logItem.workId || !logItem.date || !logItem.responsible) {
       setDailyLogStatus_("Informe obra, data e responsável pelo registro.", "error");
@@ -7364,20 +7683,25 @@
       if (!rdoCloudAdapter || !canonicalStockWorksLoaded) {
         throw new Error("Carregue a sessão canônica do Stock Full antes de salvar RDOs.");
       }
-      const work = appState.works.find(function (item) { return item.id === logItem.workId && item.canonicalStockWork; });
+      const work = projectWorkspaceEnabled ? getActiveProject_()
+        : appState.works.find(function (item) { return item.id === logItem.workId && item.canonicalStockWork; });
       if (!work) throw new Error("Selecione uma obra canônica do Stock Full.");
 
       ensureLocalState_(appState);
-      const existingIndex = appState.dailyLogs.findIndex(function (item) { return item.id === logItem.id; });
       const isE2EDiagnosticCreate = isRdoE2EDiagnosticsEnabled_() && !rdoServerIds.has(logItem.id);
       if (isE2EDiagnosticCreate) beginRdoE2EDiagnostics_(work.id);
       const response = rdoServerIds.has(logItem.id)
         ? await rdoCloudAdapter.updateRdo(logItem.id, logItem, work)
         : await rdoCloudAdapter.createRdo(logItem, work, logItem.operationId || logItem.id);
       if (!response || !clean(response.id)) throw new Error("A API oficial não retornou o ID do RDO.");
+      if (projectContext && !rdoProjectWorkspace.isCurrent(projectContext)) return null;
       if (isE2EDiagnosticCreate) await runImmediateRdoE2EReadbacks_(response, work.id);
+      if (projectContext && !rdoProjectWorkspace.isCurrent(projectContext)) return null;
 
       const savedLog = rdoCloudAdapter.mapRdoToDailyLog(response, currentUser.id);
+      if (savedLog.workId !== work.id) throw new Error("rdo_work_mismatch");
+      if (projectContext && !rdoProjectWorkspace.upsertRecord(response, projectContext)) return null;
+      const existingIndex = appState.dailyLogs.findIndex(function (item) { return item.id === savedLog.id; });
       if (existingIndex >= 0) {
         savedLog.createdAt = appState.dailyLogs[existingIndex].createdAt || savedLog.createdAt;
         appState.dailyLogs[existingIndex] = savedLog;
@@ -7385,16 +7709,22 @@
         appState.dailyLogs.unshift(savedLog);
       }
       rdoServerIds.add(savedLog.id);
+      if (projectWorkspaceEnabled && editorRevision !== dailyLogEditorRevision) {
+        saveLocalData({ syncCloud: false });
+        renderSaasState_();
+        return null;
+      }
       if (dailyLogForm.elements.dailyLogId) dailyLogForm.elements.dailyLogId.value = savedLog.id;
       setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
       saveLocalData({ syncCloud: false });
       refreshExecutionStockAnalysisAfterRdoSave_(savedLog);
       renderSaasState_();
       clearDailyLogDraftForLog_(savedLog);
-      resetDailyLogForm_({ clearDraft: false });
+      if (!projectWorkspaceEnabled) resetDailyLogForm_({ clearDraft: false });
       setDailyLogStatus_("Diário salvo no backend oficial do RDO.", "success");
       return savedLog;
     } catch (error) {
+      if (projectContext && (!rdoProjectWorkspace.isCurrent(projectContext) || editorRevision !== dailyLogEditorRevision)) return null;
       console.error(error);
       setDailyLogStatus_(error.message || "Não foi possível salvar o diário.", "error");
       return null;
@@ -7646,6 +7976,7 @@
     }
 
     const logItem = collectDailyLogForm_();
+    if (projectWorkspaceEnabled && (!getActiveProject_() || logItem.workId !== getActiveProject_().id)) return false;
     if (!hasMeaningfulDailyLogDraft_(logItem)) {
       return false;
     }
@@ -7789,6 +8120,7 @@
     }
 
     const current = collectDailyLogForm_();
+    if (projectWorkspaceEnabled && (!canonicalStockWorksLoaded || !getActiveProject_() || current.workId !== getActiveProject_().id)) return false;
     const payload = findBestDailyLogDraftPayload_(current) || findLastDailyLogDraftPayload_(current);
     if (!payload || !payload.logItem) {
       return false;
@@ -7846,8 +8178,8 @@
 
     const sameUserContext = payload.identity.tenantId === currentIdentity.tenantId &&
       payload.identity.userId === currentIdentity.userId;
-    const sameWorkContext = currentIdentity.workId === "sem-obra" ||
-      payload.identity.workId === currentIdentity.workId;
+    const sameWorkContext = (!projectWorkspaceEnabled && currentIdentity.workId === "sem-obra") ||
+      (currentIdentity.workId !== "sem-obra" && payload.identity.workId === currentIdentity.workId);
 
     return sameUserContext && sameWorkContext ? payload : null;
   }
@@ -7872,6 +8204,8 @@
 
   function applyDailyLogDraftPayload_(payload) {
     const logItem = payload.logItem || {};
+    if (projectWorkspaceEnabled && (!getActiveProject_() || logItem.workId !== getActiveProject_().id || logItem.userId !== currentUser.id)) return;
+    ++dailyLogEditorRevision;
     isRestoringDailyLogDraft = true;
     try {
       dailyLogForm.elements.dailyLogId.value = logItem.id || "";
@@ -7958,6 +8292,7 @@
     if (!dailyLogForm) {
       return;
     }
+    ++dailyLogEditorRevision;
 
     if (settings.clearDraft) {
       clearCurrentDailyLogDraft_();
@@ -7982,8 +8317,10 @@
       dailyLogForm.elements.materialRequestRequestedBy.value = currentUser.name || "";
     }
 
-    if (dailyLogWorkSelect && appState.local && appState.local.lastWorkId) {
-      dailyLogWorkSelect.value = appState.local.lastWorkId;
+    if (dailyLogWorkSelect) {
+      dailyLogWorkSelect.value = projectWorkspaceEnabled
+        ? (getActiveProject_() && getActiveProject_().id || "")
+        : appState.local && appState.local.lastWorkId || "";
     }
 
     if (dailyLogAddProductionButton) {
@@ -8012,6 +8349,8 @@
     if (!logItem || !dailyLogForm) {
       return;
     }
+    if (projectWorkspaceEnabled && (!getActiveProject_() || logItem.workId !== getActiveProject_().id)) return;
+    ++dailyLogEditorRevision;
 
     flushDailyLogDraft_();
     isRestoringDailyLogDraft = true;
@@ -9019,6 +9358,11 @@
     }
 
     const files = Array.from(dailyLogPhotoInput.files || []);
+    const editorRevision = dailyLogEditorRevision;
+    const projectContext = rdoProjectWorkspace && rdoProjectWorkspace.context();
+    function currentEditor() {
+      return !projectWorkspaceEnabled || (editorRevision === dailyLogEditorRevision && rdoProjectWorkspace && rdoProjectWorkspace.isCurrent(projectContext));
+    }
     const caption = clean(dailyLogForm.elements.dailyPhotoCaption && dailyLogForm.elements.dailyPhotoCaption.value);
 
     if (!files.length) {
@@ -9034,9 +9378,16 @@
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const nextNumber = dailyLogDraft.photos.length + 1;
-      const record = await enqueueImageProcessing_(function () {
-        return processImageFile_(file, "DIARIO-" + String(nextNumber).padStart(2, "0"));
-      });
+      let record;
+      try {
+        record = await enqueueImageProcessing_(function () {
+          return processImageFile_(file, "DIARIO-" + String(nextNumber).padStart(2, "0"));
+        });
+      } catch (error) {
+        if (!currentEditor()) return;
+        throw error;
+      }
+      if (!currentEditor()) return;
 
       dailyLogDraft.photos.push({
         id: createId_("fot"),
@@ -21670,15 +22021,21 @@
 
     const original = clean(target.value);
     const context = buildDailyLogAiContext_(button, snapshot);
+    const editorRevision = dailyLogEditorRevision;
+    const projectContext = rdoProjectWorkspace && rdoProjectWorkspace.context();
     let result;
 
     setAiButtonBusy_(button, true);
     try {
       result = await assistant.improveTechnicalText(original, context);
+    } catch (error) {
+      if (projectWorkspaceEnabled && (editorRevision !== dailyLogEditorRevision || !rdoProjectWorkspace.isCurrent(projectContext))) return;
+      throw error;
     } finally {
       setAiButtonBusy_(button, false);
     }
 
+    if (projectWorkspaceEnabled && (editorRevision !== dailyLogEditorRevision || !rdoProjectWorkspace.isCurrent(projectContext))) return;
     target.value = result && result.suggestion ? result.suggestion : original;
     target.dispatchEvent(new Event("input", { bubbles: true }));
     setDailyLogStatus_("Texto gerado com IA. Revise antes de salvar o diário.", "success");
@@ -22674,6 +23031,7 @@
   }
 
   function findWork_(workId) {
+    if (projectWorkspaceEnabled) return getUserWorks_().find(function (work) { return work.id === workId; }) || null;
     return appState.works.find(function (work) {
       return work.id === workId;
     }) || null;
