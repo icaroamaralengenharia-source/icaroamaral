@@ -1341,8 +1341,9 @@ export function createApp(options = {}) {
     })
     : null);
   const documentArtifactBroker = options.documentArtifactBroker || createObraReportArtifactBroker({
-    brokerUrl: env.OBRAREPORT_ARTIFACT_BROKER_URL || env.OBRAREPORT_DRIVE_BROKER_URL || "",
+    brokerUrl: env.OBRAREPORT_ARTIFACT_BROKER_URL || env.OBRAREPORT_DRIVE_BROKER_URL || env.OBRAREPORT_APPS_SCRIPT_URL || "",
     brokerSecret: env.OBRAREPORT_ARTIFACT_BROKER_SECRET || env.OBRAREPORT_DRIVE_BROKER_SECRET || "",
+    provider: env.OBRAREPORT_ARTIFACT_BROKER_URL || env.OBRAREPORT_DRIVE_BROKER_URL ? "http_pdf" : "google_drive_apps_script",
     fetchImpl: options.artifactBrokerFetch || globalThis.fetch
   });
   const eloAutopilotService = options.eloAutopilotService || createEloAutopilotService({ env, fetchImpl: options.eloAutopilotFetch || globalThis.fetch });

@@ -1,5 +1,29 @@
 # Deploy Backend ObraReport / Stock Full no Render
 
+## RDO PDF artifact reader
+
+The official backend uses the existing Google Drive / Apps Script provider.
+With no explicit broker URL, OBRAREPORT_APPS_SCRIPT_URL is the canonical URL
+for generation and the protected artifact.read action. Configure a dedicated
+OBRAREPORT_ARTIFACT_BROKER_SECRET in the official Render service
+obrareport-backend and in the existing Apps Script's Script Properties.
+Generate the credential securely; never put its value in source, logs, reports,
+the frontend, or this document. Do not reuse OBRAREPORT_APP_SECRET.
+
+Update the existing Apps Script deployment to a version containing artifact.read;
+retain its deployment ID. The action accepts a server-only credential,
+externalFileId and documentId and returns JSON with PDF base64. Only PDFs directly
+in CONFIG.PDF_FOLDER_ID, at most 10 MiB, can be read. The backend validates MIME,
+decoded size, PDF signature and artifact/document identity before serving
+/api/obrareport/documents/:id/content (alias /file). Canonical authentication,
+institution-scoped document lookup and Cache-Control: private, no-store remain.
+
+Existing external binary-PDF brokers may continue using
+OBRAREPORT_ARTIFACT_BROKER_URL (alias OBRAREPORT_DRIVE_BROKER_URL) and the
+dedicated broker secret (alias OBRAREPORT_DRIVE_BROKER_SECRET). An explicit broker
+URL selects that binary contract; do not duplicate the Apps Script URL in those
+variables when using the canonical Apps Script fallback.
+
 # Servico
 
 Nome sugerido:
