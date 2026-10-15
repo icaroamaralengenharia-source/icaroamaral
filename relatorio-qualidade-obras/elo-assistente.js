@@ -942,14 +942,18 @@
     if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationNegative_(text)) {
       return { module: "obrareport_rdo", action: "rdo_cancel", payload: payload };
     }
-    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !isEloRdoConfirmationPositive_(text) && !isEloRdoConfirmationNegative_(text)) {
-      return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, { workName: raw }) };
-    }
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
     const explicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, payload, true);
     if (explicitRdoRequest) return explicitRdoRequest;
+    if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !isEloRdoConfirmationPositive_(text) && !isEloRdoConfirmationNegative_(text)) {
+      const isDateAnswer = /^(?:(?:para|em|na data|data|no dia|dia)\s+)?(?:hoje(?:\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?|ontem|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?:\s+(?:(?:mantenha\s+)?sem\s+salvar|(?:mas\s+)?nao\s+salve))?$/.test(text);
+      return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, {
+        workName: isDateAnswer ? "" : raw,
+        rdoPreviewContinuation: { field: isDateAnswer ? "date" : "work", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+      }) };
+    }
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     // Contextual reports are resolved before the generic ObraReport bridge.
     // This preserves the last meaningful analysis even while a PDF remains active.
@@ -1045,7 +1049,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|update\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function getEloAndroidStockCommandFromEvent_(event) {
     if (!event) return null;
