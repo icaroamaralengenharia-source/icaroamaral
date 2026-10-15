@@ -16,6 +16,7 @@ const WORK_ID = "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2";
 const WORK_NAME = "OBRA TESTE ELO E2E";
 const NATURAL_CREATE = "Crie um RDO na OBRA TESTE ELO E2E de 15/10/2026.";
 const CATALOG_TAG = "20261015-rdo-work-catalog-v1";
+const ROUTING_TAG = "20261015-routing-suite-v1";
 const CACHE_KEY = "obrareport-saas-v1";
 const PENDING_KEY = "elo_action_bus_rdo_pending_v1";
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -521,9 +522,12 @@ scenario("public HTML embedded HTML service worker precache and registration sha
     const match = source.match(/elo-command-bridge\.js\?v=([^"'\s]+)/);
     assert.ok(match, "bridge version is present");
     assert.equal(match[1], CATALOG_TAG);
+    const assistant = source.match(/elo-assistente\.js\?v=([^"'\s]+)/);
+    assert.ok(assistant, "assistant version is present");
+    assert.equal(assistant[1], ROUTING_TAG);
   }
-  assert.ok(publicHtml.includes('serviceWorker.register("./elo-sw.js?v=' + CATALOG_TAG + '")'));
-  assert.ok(worker.includes('const ELO_CACHE_NAME = "elo-web-offline-v36-' + CATALOG_TAG + '"'));
+  assert.ok(publicHtml.includes('serviceWorker.register("./elo-sw.js?v=' + ROUTING_TAG + '")'));
+  assert.ok(worker.includes('const ELO_CACHE_NAME = "elo-web-offline-v37-' + ROUTING_TAG + '"'));
 });
 
 after(() => {

@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
-const assetVersion = "20261014-elo-rdo-cloud-v2";
+const assetVersion = "20261015-rdo-work-catalog-v1";
 
 function read(relativePath) {
   return readFileSync(join(repoRoot, relativePath), "utf8");
@@ -18,8 +18,12 @@ test("ELO shells and service worker use the Stock item lookup bridge cache versi
   assert.match(shell, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
   assert.match(standalone, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
   assert.match(serviceWorker, new RegExp("elo-command-bridge\\.js\\?v=" + assetVersion));
-  assert.match(shell, /elo-sw\.js\?v=20261010-memory-scope-v1/);
-  assert.match(serviceWorker, /const ELO_CACHE_NAME = "elo-web-offline-v35-20261010-memory-scope-v1"/);
+  for (const source of [shell, standalone, serviceWorker]) {
+    assert.match(source, /elo-assistente\.js\?v=20261015-routing-suite-v1/);
+  }
+  assert.match(shell, /elo-sw\.js\?v=20261015-routing-suite-v1/);
+  assert.match(serviceWorker, /const ELO_CACHE_NAME = "elo-web-offline-v37-20261015-routing-suite-v1"/);
+  assert.doesNotMatch(serviceWorker, /const ELO_CACHE_NAME = "elo-web-offline-v3[56]-/);
   assert.doesNotMatch(shell, /elo-command-bridge\.js\?v=20261008-stock-auth-refresh-v1/);
   assert.doesNotMatch(serviceWorker, /elo-command-bridge\.js\?v=20261008-stock-auth-refresh-v1/);
 });

@@ -21,6 +21,13 @@ function createJwt(payload = {}) {
   }
   return encode({ alg: 'none', typ: 'JWT' }) + '.' + encode(payload) + '.sig';
 }
+function assertCriticalHealthRequest(calls) {
+  const healthCalls = calls.filter((call) => call.url === 'http://localhost:3000/api/health');
+  assert.equal(healthCalls.length, 1);
+  assert.equal(healthCalls[0].options.method, 'GET');
+  assert.equal(healthCalls[0].options.cache, 'no-store');
+  assert.equal(healthCalls[0].options.body, undefined);
+}
 function createElement(tag) {
   const classes = new Set();
   const element = {
@@ -319,7 +326,8 @@ test('ELO layout: empty state mostra hero e composer separado', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
 
   assert.match(html, /class="elo-product-heading elo-core-welcome"/);
-  assert.match(html, /class="elo-empty-copy"/);
+  assert.match(html, /<h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">/);
+  assert.match(html, /class="elo-rotating-text" data-elo-rotating-text/);
   assert.match(css, /body\[data-elo-product="chat"\]\.elo-empty-state \.elo-core-welcome[\s\S]*place-items:\s*center/);
   assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-input-row[\s\S]*border-radius:\s*26px/);
   assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-input-row[\s\S]*background:\s*#ffffff/);
@@ -416,15 +424,19 @@ test('ELO conversa natural roteia sem fallback generico', () => {
   const joke = elo.buildResponseForTest('me conte uma piada');
   assert.equal(joke.brain, 'conversational');
   assert.notEqual(joke.sessionIntent, 'fallback_comunicativo');
-  assert.match([joke.shortAnswer, joke.fullAnswer].filter(Boolean).join(' '), /or.amento|composi/i);
+  assert.equal(elo.detectConversationalIntentForTest('me conte uma piada'), 'humor');
+  assert.match(joke.fullAnswer, /régua|somaram 7|ideias em escala|ideia nova|computador|gato/i);
 
   const rdo = elo.buildResponseForTest('gerar RDO de hoje');
   assert.equal(rdo.brain, 'rdo');
   assert.match(rdo.fullAnswer + rdo.nextAction, /RDO|Di.rio|di.rio/i);
 
   const technical = elo.buildResponseForTest('parede de bloco baiano 8x3');
-  assert.equal(technical.brain, 'technical');
-  assert.notEqual(technical.brain, 'budget');
+  assert.equal(technical.brain, 'budget');
+  assert.equal(technical.sessionTheme, 'wall_budget_package');
+  assert.equal(technical.sessionIntent, 'budget_v2_wall_quantities');
+  assert.equal(technical.budgetOrchestratorV2.state.dimensions.grossAreaM2, 24);
+  assert.equal(technical.pdfAction.type, 'budget_v2_professional_pdf');
 });
 
 test('ELO roteia PDF de RDO existente para generateDocument', () => {
@@ -515,7 +527,7 @@ test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () =
       ResidentialConsumptionPriceAdapter: { price() { calls.push('consumptionPrice'); return { schema: 'elo.residential_consumption_price', status: 'complete', priceBase: { source: 'SINAPI_TEST' }, request: { rows: [{ takeoffItemId: 'area', serviceId: 'area', quantity: 70, unit: 'm2' }] }, price: { pricedRows: [{ takeoffItemId: 'area', serviceId: 'area', service: 'Area construida', compositionCode: 'SINAPI-AREA', compositionDescription: 'Area construida', compositionSource: 'SINAPI', quantity: 70, unit: 'm2', unitPrice: 10, totalPrice: 700 }] }, audit: { priceFingerprint: 'fp_test' } }; } },
       ResidentialRealBudgetAdapter: { build() { calls.push('realBudgetAdapter'); return { schema: 'elo.residential_real_budget_package', status: 'complete', realBudgetInput: { budgetEap: { etapas: [{ nome: 'Pipeline residencial' }], itens: [{ id: 'area', nome: 'Area construida', quantidadeBase: { valor: 70, unidade: 'm2' } }] }, quantities: [{ eapItemId: 'area', quantity: 70, unit: 'm2' }] }, realBudget: { status: 'complete', items: [{ item: 'Area construida', quantity: 70, unit: 'm2' }], subtotal: 700, bdiPercent: 20, bdiValue: 140, total: 840, missingPrices: [], canClose: true }, errors: [], warnings: [], blockingFields: [] }; } },
       EloCompositionResolver: { resolveEloEapCompositions() {} },
-      EloConsumptionEngine: { calculateConsumption() {} },
+      EloConsumptionEngine: { calculateConsumptionFromCompositions() {} },
       EloPriceEngine: { attachPricesToBudgetRows() {} },
       EloRealBudgetEngine: { buildCompleteBudget() {} },
       EloBudgetEngine: { buildPreliminaryBudget() { calls.push('oldBudget'); return {}; } }
@@ -816,11 +828,11 @@ test('ELO PDF parede: acao e documento profissional contem titulo e quantitativo
 
   const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
   const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
-  assert.match(html, /OrÃ§amento preliminar â€” Parede de bloco cerÃ¢mico/i);
+  assert.match(html, /Orçamento preliminar — Parede de bloco cerâmico/i);
   assert.match(html, /Salvador\/BA/i);
-  assert.match(html, /56,00 m2/i);
+  assert.match(html, /56,00 m(?:2|²)/i);
   assert.match(html, /14x19x29/i);
-  assert.match(html, /Blocos ceramicos aproximados/i);
+  assert.match(html, /Blocos cer[aâ]micos aproximados/i);
   assert.match(html, /Mao de obra[\s\S]*sim/i);
   assert.match(html, /pendente de composicao oficial|composicoes oficiais pendentes/i);
 });
@@ -837,14 +849,14 @@ test('ELO PDF banheiro: acao e documento profissional contem escopo da reforma',
 
   const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
   const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
-  assert.match(html, /OrÃ§amento preliminar â€” Reforma de banheiro/i);
+  assert.match(html, /Orçamento preliminar — Reforma de banheiro/i);
   assert.match(html, /Salvador\/BA/i);
-  assert.match(html, /4,00 m2|4 m2/i);
+  assert.match(html, /4(?:,00)? m(?:2|²)/i);
   assert.match(html, /Demolicao\/retirada/i);
   assert.match(html, /Piso/i);
   assert.match(html, /Revestimento de parede/i);
-  assert.match(html, /Pontos hidraulicos[\s\S]*2/i);
-  assert.match(html, /Pontos eletricos[\s\S]*2/i);
+  assert.match(html, /Pontos hidr[aá]ulicos[\s\S]*2/i);
+  assert.match(html, /Pontos el[eé]tricos[\s\S]*2/i);
   assert.match(html, /pendente de composicao oficial|composicoes oficiais pendentes/i);
 });
 
@@ -859,7 +871,7 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /Portas:/i);
   assert.match(answer, /Janelas:/i);
   assert.match(answer, /Box:/i);
-  assert.match(answer, /FUNDAÃ‡ÃƒO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
+  assert.match(answer, /FUNDA[ÇC][ÃA]O[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
 
@@ -933,7 +945,8 @@ test('ELO orcamento da obra ativa prioriza motor pendente da URL', () => {
   assert.equal(response.brain, 'budget');
   assert.notEqual(response.sessionTheme, 'elo_core_safe_mode');
   assert.notEqual(response.sessionIntent, 'safe_mode');
-  assert.match([response.sessionTheme, response.sessionIntent].join(' ' ), /orcamento|quantitativo|parede|confirmar/i);
+  assert.equal(response.sessionTheme, 'wall_budget_package');
+  assert.equal(response.sessionIntent, 'budget_v2_wall_quantities');
   assert.equal(response.eloBudgetRouteContext.projectId, 'obra-a');
   assert.equal(response.eloBudgetRouteContext.workId, 'work-a');
   assert.equal(context.window.ELO_PROJECT_ID, 'obra-a');
@@ -944,8 +957,13 @@ test('ELO orcamento da obra ativa prioriza motor pendente da URL', () => {
 
   const withoutIntent = loadEloContext();
   const oldRoute = withoutIntent.elo.buildResponseForTest(question);
-  assert.equal(oldRoute.sessionTheme, 'elo_core_safe_mode');
-  assert.equal(oldRoute.sessionIntent, 'safe_mode');
+  assert.equal(oldRoute.brain, 'budget');
+  assert.equal(oldRoute.sessionTheme, 'isolated_service_budget');
+  assert.equal(oldRoute.sessionIntent, 'budget_v2_isolated_service');
+  assert.equal(oldRoute.budgetOrchestratorV2.budgetPackage.quantities[0].quantity, 100);
+  assert.equal(oldRoute.pdfAction.budgetDocumentData.facts.builtAreaM2, 100);
+  assert.ok(!oldRoute.eloBudgetRouteContext);
+  assert.equal(withoutIntent.elo.hasBudgetRoutePendingForTest(), false);
 });
 
 test('ELO parede 100 m2 perda 10 evita PDF duplicado', () => {
@@ -1030,17 +1048,45 @@ test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () 
   const briefingResponse = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 3 quartos sendo 1 suite, 2 banheiros, garagem, obra completa, sem piscina, cobertura telha ceramica estrutura madeira, forro gesso, piso ceramico, revestimento cozinha e banheiros, pintura interna e externa, portas e janelas, loucas e metais, instalacoes eletricas e hidrossanitarias, limpeza final');
   const response = elo.buildResponseForTest('Pode gerar');
 
-  assert.equal(briefingResponse.sessionIntent, 'budget_v2_briefing');
-  assert.match(briefingResponse.nextAction || '', /Pode gerar/i);
+  assert.match(briefingResponse.sessionIntent || '', /^budget_v2_/);
+  assert.notEqual(briefingResponse.sessionIntent, 'budget_v2_briefing');
+  assert.ok(briefingResponse.pdfAction, 'dados completos devem liberar o documento V2 atual');
+  assert.equal(response.sessionIntent, 'budget_v2_current_pdf');
+  assert.ok(briefingResponse.pdfAction.budgetId);
+  assert.equal(response.pdfAction.budgetId, briefingResponse.pdfAction.budgetId);
   assert.match(response.sessionIntent || '', /^budget_v2_/);
-  assert.ok(response.budgetOrchestratorV2 && response.budgetOrchestratorV2.budgetPackage, 'casa 140m2 deve criar budgetPackage apos confirmacao');
+  assert.ok(briefingResponse.budgetOrchestratorV2 && briefingResponse.budgetOrchestratorV2.budgetPackage, 'casa 140m2 deve criar budgetPackage com os dados completos');
   assert.ok(response.budgetOrchestratorV2 && response.budgetOrchestratorV2.budgetDocumentData, 'casa 140m2 deve criar budgetDocumentData apos confirmacao');
   assert.ok(response.pdfAction, 'casa 140m2 deve liberar acao de PDF apos confirmacao');
   assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
   assert.equal(response.budgetOrchestratorV2.state.type, 'residential');
   const doc = response.pdfAction.budgetDocumentData;
+  assert.deepEqual(doc, briefingResponse.pdfAction.budgetDocumentData);
   const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(doc);
   const pdfText = [pdfData.record.quantitativos, pdfData.record.servicos, pdfData.record.custos_encontrados, pdfData.record.memoriaCalculo].join('\n');
+  const pack = briefingResponse.budgetOrchestratorV2.budgetPackage;
+  const program = { bedrooms: 3, suites: 1, bathrooms: 2, lavabos: 0, kitchens: 1, livingRooms: 1, serviceAreas: 0, garages: 1, balconies: 0, stairs: 0 };
+  assert.deepEqual(JSON.parse(JSON.stringify(pack.geometry.program)), program);
+  const round2 = (value) => Math.round(value * 100) / 100;
+  const internalFaces = round2(140 * 0.62 * 2.8 * 2);
+  const doorOpenings = round2((program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68);
+  const wetWalls = program.bathrooms * 18 + program.kitchens * 12 + program.serviceAreas * 8;
+  const expectedQuantities = [
+    ['pintura_interna', 'Pintura interna preliminar', round2(internalFaces - doorOpenings - wetWalls), 'm2'],
+    ['pontos_eletricos', 'Pontos eletricos preliminares', program.bedrooms * 6 + program.livingRooms * 8 + program.kitchens * 8 + program.bathrooms * 3 + program.serviceAreas * 4 + program.garages * 3 + program.balconies * 2, 'un'],
+    ['pontos_hidraulicos', 'Pontos hidraulicos preliminares', program.bathrooms * 3 + program.kitchens * 2 + program.serviceAreas * 2, 'un'],
+    ['esquadrias_portas', 'Portas internas e externas', program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + 1, 'un'],
+    ['esquadrias_janelas', 'Janelas preliminares', Math.max(4, program.bedrooms + program.bathrooms + program.kitchens + program.livingRooms + program.serviceAreas), 'un']
+  ];
+  for (const [serviceId, description, quantity, unit] of expectedQuantities) {
+    const item = pack.quantities.find((row) => row.serviceId === serviceId);
+    assert.ok(item, serviceId);
+    assert.equal(item.quantity, quantity, serviceId);
+    assert.equal(item.unit, unit, serviceId);
+    assert.ok(item.formula, serviceId + ' deve preservar a formula auditavel');
+    const quantityPattern = String(quantity).replace('.', '\\.');
+    assert.match(pdfText, new RegExp(description + '[\\s\\S]*' + quantityPattern + ' ' + unit, 'i'));
+  }
 
   assert.equal(pdfData.record.titulo, 'ELO Or\u00e7amentista V2');
   assert.match(pdfText, /Quantitativos/i);
@@ -1052,11 +1098,6 @@ test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () 
   assert.match(pdfText, /Viga baldrame preliminar[\s\S]*2.35 m3/i);
   assert.match(pdfText, /Alvenaria externa bruta[\s\S]*134.01 m2/i);
   assert.match(pdfText, /Piso interno[\s\S]*140 m2/i);
-  assert.match(pdfText, /Pintura interna preliminar[\s\S]*447.68 m2/i);
-  assert.match(pdfText, /Pontos eletricos preliminares[\s\S]*37 un/i);
-  assert.match(pdfText, /Pontos hidraulicos preliminares[\s\S]*5 un/i);
-  assert.match(pdfText, /Portas internas e externas[\s\S]*6 un/i);
-  assert.match(pdfText, /Janelas preliminares[\s\S]*6 un/i);
   assert.match(pdfText, /Valores pendentes. Nao ha fonte confiavel oficial informada/i);
   assert.match(pdfText, /status: unpriced/i);
   assert.match(pdfText, /Tabela financeira/i);
@@ -1074,23 +1115,23 @@ test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () 
 });
 
 function assertNoEloInternalState(answer) {
-  assert.doesNotMatch(answer, /Sess[aï¿½]o de trabalho/i);
+  assert.doesNotMatch(answer, /Sess[aã]o de trabalho/i);
   assert.doesNotMatch(answer, /\bStatus:/i);
   assert.doesNotMatch(answer, /Entrega alvo/i);
-  assert.doesNotMatch(answer, /Pr[eï¿½]via da entrega/i);
-  assert.doesNotMatch(answer, /Pr[oï¿½]ximo dado/i);
+  assert.doesNotMatch(answer, /Pr[eé]via da entrega/i);
+  assert.doesNotMatch(answer, /Pr[oó]ximo dado/i);
   assert.doesNotMatch(answer, /Para conduzir certo/i);
   assert.doesNotMatch(answer, /checklist de progresso/i);
 }
 
 function assertNoInventedPrice(answer) {
   assert.doesNotMatch(answer, /R\$\s*(?:25,00|1\.200,00|750,00|3\.000,00)/i);
-  assert.doesNotMatch(answer, /pre[cï¿½]os? m[eï¿½]dios? locais/i);
+  assert.doesNotMatch(answer, /pre[cç]os? m[eé]dios? locais/i);
 }
 
 test('ELO conversacional profissional: parede inicial calcula sem estado interno e libera PDF', () => {
   const elo = loadElo();
-  const response = elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
@@ -1102,52 +1143,52 @@ test('ELO conversacional profissional: parede inicial calcula sem estado interno
 
 test('ELO conversacional profissional: pedido de PDF usa orï¿½amento atual sem repetir orï¿½amento', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('gere o orï¿½amento em pdf');
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('gere o orçamento em pdf');
   const answer = response.fullAnswer || '';
 
-  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orï¿½amento atual');
-  assert.match(answer, /Use o botï¿½o abaixo para gerar o PDF do orï¿½amento atual/i);
-  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
+  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orçamento atual');
+  assert.match(answer, /Use o bot[aã]o abaixo para gerar o PDF do or[cç]amento atual/i);
+  assert.doesNotMatch(answer, /conte[uú]do exato/i);
   assert.doesNotMatch(answer, /Servicos executaveis e quantitativos preliminares/i);
   assertNoEloInternalState(answer);
 });
 
 test('ELO conversacional profissional: pdf curto retorna acao do orï¿½amento atual', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
   const response = elo.buildResponseForTest('pdf');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
   assert.ok(answer.length < 180, 'resposta para pdf deve ser curta');
-  assert.match(answer, /botï¿½o abaixo/i);
+  assert.match(answer, /bot[aã]o abaixo/i);
 });
 
 test('ELO conversacional profissional: cidade atualiza parede sem perder medidas', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('Vitória da Conquista/BA');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
   assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
-  assert.match(answer, /Cidade\/UF: Vit[oï¿½]ria da Conquista\/BA/i);
+  assert.match(answer, /Cidade\/UF: Vit[oó]ria da Conquista\/BA/i);
   assert.doesNotMatch(answer, /comprimento da parede|altura da parede|informe area|informe .*area/i);
   assert.ok(response.pdfAction);
 });
 
 test('ELO conversacional profissional: faca com orï¿½amento suficiente aciona PDF sem preco inventado', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
-  elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
-  const response = elo.buildResponseForTest('faï¿½a');
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('Vitória da Conquista/BA');
+  const response = elo.buildResponseForTest('faça');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
-  assert.match(answer, /Preï¿½o pendente de composiï¿½ï¿½o SINAPI\/ORSE, BDI e mï¿½s-base/i);
+  assert.match(answer, /Pre[cç]o pendente de composi[cç][aã]o SINAPI\/ORSE, BDI e m[eê]s-base/i);
   assertNoInventedPrice(answer);
-  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
+  assert.doesNotMatch(answer, /conte[uú]do exato/i);
 });
 
 test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa orï¿½amento atual', () => {
@@ -1156,8 +1197,8 @@ test('ELO conversacional profissional: casa e banheiro ocultam estado interno e 
   let response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'casa deve reutilizar orï¿½amento atual para PDF');
-  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
+  assert.ok(response.pdfAction, 'casa deve reutilizar orçamento atual para PDF');
+  assert.match(response.fullAnswer || '', /bot[aã]o abaixo/i);
   assert.doesNotMatch(response.fullAnswer || '', /Servicos executaveis e quantitativos preliminares/i);
 
   elo = loadElo();
@@ -1165,8 +1206,8 @@ test('ELO conversacional profissional: casa e banheiro ocultam estado interno e 
   response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'banheiro deve reutilizar orï¿½amento atual para PDF');
-  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
+  assert.ok(response.pdfAction, 'banheiro deve reutilizar orçamento atual para PDF');
+  assert.match(response.fullAnswer || '', /bot[aã]o abaixo/i);
 });
 
 test('ELO EAP: casa 70m2 cria escopo cronologico sem preco inventado', () => {
@@ -1214,7 +1255,7 @@ test('ELO EAP: forro PVC em casa entra no escopo sem valores ficticios', () => {
 
 test('ELO EAP: modo analitico mantem escopo e quantitativos sem valores ficticios', () => {
   const elo = loadElo();
-  const response = elo.buildResponseForTest('Or?amento anal?tico casa 70m2 padr?o m?dio');
+  const response = elo.buildResponseForTest('Orçamento analítico casa 70m2 padrão médio');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Resposta principal|Escopo preliminar/i);
@@ -1539,6 +1580,9 @@ test('ELO Stock Full: consultas derivadas usam o backend real e não inventam', 
     window: { STOCK_FULL_API_BASE_URL: 'https://backend.example' },
     fetch(url) {
       calls.push(String(url));
+      if (String(url) === 'https://backend.example/api/stock-full/items/lookup?query=telha%20xz-999') {
+        return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ error: 'stock_full_item_not_found' }) });
+      }
       if (String(url).endsWith('/api/stock-full/items')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [
           { id: 'cimento', name: 'Cimento CP II', unit: 'saco', currentQuantity: 85 },
@@ -1570,7 +1614,9 @@ test('ELO Stock Full: consultas derivadas usam o backend real e não inventam', 
   assert.match(lowest.fullAnswer, /menor saldo.*Vergalhão 10 mm/i);
   assert.match(lastEntry.fullAnswer, /Última entrada.*Cimento CP II/i);
   assert.match(missing.fullAnswer, /não encontrei esse produto/i);
-  assert.equal(calls.filter((url) => url.endsWith('/api/stock-full/items')).length, 3);
+  assert.equal(calls.filter((url) => url.endsWith('/api/stock-full/items')).length, 2);
+  assert.equal(calls.filter((url) => url === 'https://backend.example/api/stock-full/items/lookup?query=telha%20xz-999').length, 1);
+  assert.equal(calls.filter((url) => url.includes('/api/stock-full/items')).length, 3);
   assert.equal(calls.filter((url) => url.endsWith('/api/stock-full/live')).length, 1);
 });
 
@@ -2044,8 +2090,8 @@ test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita',
     fetch(url) {
       const href = String(url);
       calls.push(href);
-      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items') {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, items: [{ id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 }] }) });
+      if (href === 'https://obrareport-backend.onrender.com/api/stock-full/items/lookup?query=aco') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, item: { id: 'aco', name: 'Aco', unit: 'kg', currentQuantity: 420 } }) });
       }
       if (href.includes('/api/stock-full/sync')) throw new Error('stock_write_should_not_run_without_confirm');
       if (href.includes('/api/elo/chat')) throw new Error('elo_chat_should_not_run_for_stock');
@@ -2057,7 +2103,8 @@ test('ELO Action Bus Stock Full: preview de entrada no ask nao executa escrita',
   elo.ask('registre entrada de 10 kg de Aco', [], 'manual');
   await flushEloHotfixPromises();
 
-  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 1);
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items/lookup?query=aco').length, 1);
+  assert.equal(calls.filter((url) => url === 'https://obrareport-backend.onrender.com/api/stock-full/items').length, 0);
   assert.equal(calls.some((url) => url.includes('/api/stock-full/sync')), false);
   assert.equal(calls.some((url) => url.includes('/api/elo/chat')), false);
   assert.match(elementText(messages), /Preview de entrada/);
@@ -2076,6 +2123,7 @@ test('ELO Action Bus Stock Full: sim sem pendencia nao sequestra conversa', () =
 });
 test('ELO Action Bus Municipal: comandos da demo roteiam antes dos fallbacks genericos', () => {
   const { elo } = loadEloContext({
+    window: { ELO_MUNICIPAL_CONTEXT: { institutionId: 'municipal-demo' } },
     preloadScripts: [
       'elo-command-bridge.js',
       'elo-municipal-action-adapter.js',
@@ -2637,6 +2685,9 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
+      if (String(url) === 'http://localhost:3000/api/health') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+      }
       if (String(url).includes('/api/elo/identity/merge')) {
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: 'user-a', profile: { email: 'a@b.com' } } }) });
@@ -2650,8 +2701,10 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
   assert.deepEqual(calls.map((call) => call.url), [
     'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
     'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
+    'http://localhost:3000/api/health',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
+  assertCriticalHealthRequest(calls);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
   assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
@@ -2697,8 +2750,16 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
       if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
+      if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=refresh_token') {
+        assert.equal(options.method, 'POST');
+        assert.deepEqual(JSON.parse(options.body), { refresh_token: 'refresh-new' });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ access_token: newToken, refresh_token: 'refresh-new', user: { id: 'user-a' } }) });
+      }
       if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
+      }
+      if (String(url) === 'http://localhost:3000/api/health') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
         assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
@@ -2719,8 +2780,12 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
   assert.deepEqual(calls.map((call) => call.url), [
     'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
     'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
+    'http://localhost:3000/api/health',
+    'http://localhost:3000/api/elo/identity/merge',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=refresh_token',
     'http://localhost:3000/api/elo/identity/merge'
   ]);
+  assertCriticalHealthRequest(calls);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
   assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
@@ -2746,6 +2811,9 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
       if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
+      if (String(url) === 'http://localhost:3000/api/health') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+      }
       if (String(url).includes('/api/elo/identity/merge')) {
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: false, error: 'merge_failed' }) });
@@ -2762,10 +2830,19 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
 
   await elo.loginSupabaseForTest('a@b.com', 'secret');
 
+  assertCriticalHealthRequest(calls);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
   assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
-  assert.equal(calls[calls.length - 1].options.headers.Authorization, 'Bearer ' + newToken);
+  const mergeCall = calls.find((call) => call.url === 'http://localhost:3000/api/elo/identity/merge');
+  assert.ok(mergeCall);
+  assert.equal(mergeCall.options.headers.Authorization, 'Bearer ' + newToken);
+  assert.deepEqual(calls.map((call) => call.url), [
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/token?grant_type=password',
+    'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
+    'http://localhost:3000/api/health',
+    'http://localhost:3000/api/elo/identity/merge'
+  ]);
   assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
   assert.equal(context.window.ELO_AUTH_CONTEXT.userId, 'user-a');
   assert.equal(context.window.ELO_AUTH_CONTEXT.profile.email, 'a@b.com');
@@ -2791,6 +2868,9 @@ test('ELO restaura sessao somente apos validar token salvo', async () => {
         assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, false);
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
       }
+      if (String(url) === 'http://localhost:3000/api/health') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+      }
       if (String(url).includes('/api/elo/identity/merge')) {
         assert.equal(options.headers.Authorization, 'Bearer ' + validToken);
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, authContext: { userId: 'user-a' } }) });
@@ -2806,11 +2886,13 @@ test('ELO restaura sessao somente apos validar token salvo', async () => {
   const restored = await elo.initCorePersistenceForTest();
 
   assert.equal(restored, true);
+  assertCriticalHealthRequest(calls);
   assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).currentSession.access_token, validToken);
   assert.deepEqual(calls.map((call) => call.url), [
     'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user',
+    'http://localhost:3000/api/health',
     'http://localhost:3000/api/elo/identity/merge',
     'http://localhost:3000/api/elo/memories?userId=user-a&anonymousId=elo_anon_test-id'
   ]);
@@ -3026,12 +3108,24 @@ test('ELO token ELO: usa somente fonte do ELO Core', async () => {
   assert.equal(priority.getCoreAuthTokenForTest(), validToken);
 
   const calls = [];
+  let localSummaryReads = 0;
   const noEloToken = loadEloContext({
     localStorage: { 'sb-stock-full-backend-auth-token': stockStoragePayload, 'sb-anything-auth-token': genericStoragePayload },
+    window: {
+      EloTodayWorkCore: {
+        buildTodayWorkCore() {
+          localSummaryReads += 1;
+          return { summary: { text: 'Hoje na obra: resumo do RDO sintetico local.' }, dataQuality: { level: 'low', missingSources: ['stockBalances'], sourcesUsed: { rdos: true } }, priorities: [] };
+        }
+      }
+    },
     fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
   }).elo;
   const answer = await noEloToken.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
   assert.equal(calls.length, 0);
+  assert.equal(noEloToken.getCoreAuthTokenForTest(), '');
+  assert.equal(localSummaryReads, 1);
+  assert.match(answer, /resumo do RDO sintetico local/);
   // Contrato atual: Observador da Obra pode responder por fast-path local
   // deterministico sem promover token Stock/generico para sessao ELO Core.
   assert.match(answer, /Hoje na obra|Prioridades|dados locais/i);
@@ -3833,12 +3927,15 @@ test('ELO music implicit query sends fuzzy and phonetic candidates through the p
 
 test('ELO active topic recency lets an explicit laje topic outrank stale context', () => {
   const { elo } = loadEloContext();
+  const stale = elo.buildResponseForTest('estou fazendo uma parede');
+  elo.rememberSessionTurnForTest('estou fazendo uma parede', stale, stale.fullAnswer || stale.shortAnswer || '');
   const first = elo.buildResponseForTest('estou fazendo uma laje');
   elo.rememberSessionTurnForTest('estou fazendo uma laje', first, first.fullAnswer || first.shortAnswer || '');
   elo.buildResponseForTest('e se for treliçada?');
 
   const summary = elo.buildWorkingMemorySummaryForTest('e se for treliçada?');
-  assert.match(summary, /activeTopic: estrutura/);
+  assert.match(summary, /activeTopic: laje/);
+  assert.doesNotMatch(summary, /activeTopic: parede/);
 });
 
 test('ELO music implicit unknown faixa resolves to a terminal not-found decision', async () => {
@@ -4379,6 +4476,7 @@ test('ELO hero typography: suporta descenders q g p y em multiplas linhas', () =
 
 test('ELO offline classical routing: 5 obras executam local-first sem provider ou chat', async () => {
   const library = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media/classical/library.json'), 'utf8'));
+  const packCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media/pack-v1/catalog.json'), 'utf8'));
   const fetchCalls = [];
   const playCalls = [];
   const events = [];
@@ -4398,6 +4496,9 @@ test('ELO offline classical routing: 5 obras executam local-first sem provider o
     fetch(url) {
       const cleanUrl = String(url);
       fetchCalls.push(cleanUrl);
+      if (cleanUrl === './relatorio-qualidade-obras/offline-media/pack-v1/catalog.json?v=20261004-audio-v1') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(packCatalog) });
+      }
       if (/offline-media\/classical\/library\.json/.test(cleanUrl)) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(library) });
       }
@@ -4425,7 +4526,7 @@ test('ELO offline classical routing: 5 obras executam local-first sem provider o
   assert.equal(playCalls.length, 5);
   assert.equal(playCalls.find((media) => media.id === 'vivaldi-four-seasons-spring').files.length, 3);
   assert.equal(fetchCalls.filter((url) => /\/api\/elo\/media\/search/.test(url)).length, 0);
-  assert.ok(events.some((event) => event.name === 'MEDIA_OFFLINE_LIBRARY_MATCH'));
+  assert.equal(events.filter((event) => event.name === 'MUSIC_LOCAL_DIRECT_EXECUTION').length, 5);
 });
 
 test('ELO Autopilot: parser reconhece comandos editoriais e extrai tema limpo', () => {
