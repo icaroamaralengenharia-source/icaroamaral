@@ -1177,9 +1177,9 @@
   }
 
   function extractRdoWorkName_(raw) {
-    const text = clean(raw);
+    const text = clean(raw).replace(/[,;]\s*mas\s+n[aã]o\s+salve[.!?]*\s*$/i, "");
     if (!text) return "";
-    const explicitObra = text.match(/\b(?:da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    const explicitObra = text.match(/\b(?:para\s+a|da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
     if (explicitObra) return clean(explicitObra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
     const obra = text.match(/\bobra\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
     if (obra) {
@@ -1208,6 +1208,7 @@
       startDate: parseIsoDateOnly(payload.startDate || payload.start_date),
       endDate: parseIsoDateOnly(payload.endDate || payload.end_date),
       targetDate: parseIsoDateOnly(payload.date || payload.rdoDate || payload.rdo_date),
+      previewContinuation: payload.rdoPreviewContinuation && typeof payload.rdoPreviewContinuation === "object" ? payload.rdoPreviewContinuation : null,
       limit: Number(payload.limit || 0) || 0,
       updateNote: clean(payload.note || payload.observation || payload.observacao || payload.description || payload.descricao)
     };
@@ -1523,6 +1524,16 @@
     return pending && pending.tenantBinding && pending.tenantBinding === tenantBinding(identity);
   }
 
+  function matchesRdoPreviewContinuation_(input, intent, pending) {
+    const continuation = intent.previewContinuation;
+    return continuation && /^(?:date|work)$/.test(continuation.field) && pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work" &&
+      sameTenantBinding(input, pending) && continuation.operationId === pending.operationId && continuation.createdAt === pending.createdAt;
+  }
+
+  function blockRdoPreviewContinuation_(input) {
+    return rdoResult(input, { ok: false, action: "rdo.create.preview", mode: "blocked", humanAnswer: "A prévia anterior mudou ou pertence a outra sessão. Refaça o pedido na conta atual. Nenhum RDO foi criado.", error: "rdo_preview_context_changed" });
+  }
+
   function makeRdoPending(input, intent, work) {
     const identity = getRdoIdentity(input);
     const draft = {
@@ -1551,6 +1562,7 @@
       tenantBinding: tenantBinding(identity),
       identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: identity.projectId, clientId: identity.clientId },
       targetDate: intent.targetDate || "",
+      requestedWorkName: clean(intent.workName),
       raw: intent.raw || "",
       draft
     };
@@ -1575,7 +1587,13 @@
 
   function executeRdoCreatePreview(input, intent) {
     const pending = readRdoPending();
-    if (pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work") {
+    if (intent.previewContinuation) {
+      if (!matchesRdoPreviewContinuation_(input, intent, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
+      intent.workName = intent.previewContinuation.field === "date" ? clean(pending.requestedWorkName) || extractRdoWorkName_(pending.raw) : clean(input.payload.workName || intent.raw);
+      intent.targetDate = intent.targetDate || pending.targetDate;
+    } else if (input.action === "rdo.create.preview" && clean(input.payload && input.payload.workName) === intent.raw && intent.raw && pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work") {
+      // Compatibility for callers that already submit a literal work selection.
+      if (!sameTenantBinding(input, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
       intent.targetDate = intent.targetDate || pending.targetDate;
     }
     const missing = [];
@@ -1912,6 +1930,7 @@
       const intent = parseRdoIntent(input);
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
+      if (intent.action === "rdo.create.preview" && intent.previewContinuation && !matchesRdoPreviewContinuation_(input, intent, readRdoPending())) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.create.preview" || intent.workName) {
         const pendingBeforeCatalog = readRdoPending();
         try {
