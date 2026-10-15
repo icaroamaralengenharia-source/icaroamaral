@@ -7,6 +7,9 @@ on:
     paths:
       - "backend/**"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
+      - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
+      - "relatorio-qualidade-obras/elo-routing-*-regression.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -18,6 +21,9 @@ on:
     paths:
       - "backend/**"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
+      - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
+      - "relatorio-qualidade-obras/elo-routing-*-regression.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -44,6 +50,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configure Node.js
         uses: actions/setup-node@v4
@@ -72,6 +80,9 @@ jobs:
           node --check src/services/obrareport-report-orchestrator.js
           node --check ../relatorio-qualidade-obras/elo-command-bridge.js
           node --check ../relatorio-qualidade-obras/elo-assistente.js
+          node --check ../relatorio-qualidade-obras/elo-assistente-routing.test.cjs
+          node --check ../relatorio-qualidade-obras/elo-routing-intent-regression.test.cjs
+          node --check ../relatorio-qualidade-obras/elo-routing-budget-regression.test.cjs
           node --check tests/obrareport-artifact-broker.test.js
           node --check < ../apps-script-versionado/Code.gs
           if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
@@ -99,7 +110,33 @@ jobs:
           fi
           node --test "${test_files[@]}"
 
+      - name: Public ELO cloud work catalog and RDO frontend regression gate
+        working-directory: .
+        run: |
+          node --test relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs
+          node --test relatorio-qualidade-obras/elo-assistente-routing.test.cjs
+          node --test relatorio-qualidade-obras/elo-routing-intent-regression.test.cjs relatorio-qualidade-obras/elo-routing-budget-regression.test.cjs
+          node --test relatorio-qualidade-obras/rdo-final-real-test-bugs.test.cjs relatorio-qualidade-obras/rdo-project-workspace.test.cjs relatorio-qualidade-obras/rdo-project-workspace-page.test.cjs
+
       - name: Stock Full atomic movement, offline and UI regression gate
         run: |
           node --test tests/stock-full-*.test.js
           node --test --test-name-pattern="stock full|frontend Stock Full" tests/ai-endpoint.test.js
+
+      - name: RDO standalone auth, cloud contract, cache and material regression gate
+        run: |
+          node --test tests/rdo-api-cache.test.cjs tests/rdo-cloud-adapter.test.js tests/rdo-material-requests-anti-duplication.test.js tests/rdo-standalone-auth.test.js
+
+      - name: Frontend production build
+        working-directory: .
+        run: npm run build
+
+      - name: Complete diff whitespace gate
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base="$BASE_SHA"
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then base="HEAD^"; fi
+          git cat-file -e "$base^{commit}"
+          git diff --check "$base" HEAD

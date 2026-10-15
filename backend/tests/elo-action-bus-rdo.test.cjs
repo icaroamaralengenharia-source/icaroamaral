@@ -41,6 +41,10 @@ function loadBridge(options = {}) {
         const method = init.method || "GET";
         const projectId = target.searchParams.get("projectId") || "";
         const tenant = init.headers && init.headers["x-institution-id"];
+        if (target.pathname === "/api/stock-full/works" && method === "GET") {
+          const works = (options.works || []).filter((work) => (work.institutionId || work.institution_id) === tenant);
+          return { ok: true, status: 200, json: async () => ({ ok: true, works }) };
+        }
         if (/^\/api\/obrareport\/documents\/[^/]+\/content$/.test(target.pathname) && method === "GET") {
           const pdf = options.pdf || new Blob(["%PDF-1.7\nsynthetic fixture"], { type: "application/pdf" });
           return { ok: options.pdfStatus ? options.pdfStatus === 200 : true, status: options.pdfStatus || 200, headers: { get: (name) => name === "content-type" ? options.pdfMime || "application/pdf" : name === "content-length" ? options.pdfBody ? "" : String(pdf.size) : "" }, blob: async () => pdf, body: options.pdfBody };
@@ -134,7 +138,7 @@ test("EloActionBusRdo parseia intents list/get/problemsByPeriod", () => {
 
 test("EloActionBusRdo separa geração de documento do preenchimento de RDO", async () => {
   const generatedDocuments = [];
-  const { window, calls } = loadBridge({ localStorage: { "obrareport-saas-v1": JSON.stringify({ version: 1, works: [{ id: "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2", name: "OBRA TESTE ELO E2E" }] }) }, rdos: [rdo("obr_rdo_1721f1765e566e3a4d7a0f0b", "inst_a", "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2", "2026-09-14", "")], generatedDocuments });
+  const { window, calls } = loadBridge({ works: [{ id: "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2", institutionId: "inst_a", name: "OBRA TESTE ELO E2E" }], rdos: [rdo("obr_rdo_1721f1765e566e3a4d7a0f0b", "inst_a", "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2", "2026-09-14", "")], generatedDocuments });
   const parsed = window.EloActionBusRdo.parseIntent({ payload: { message: "Gere o PDF do RDO da OBRA TESTE ELO E2E de 14/09/2026" } });
   assert.equal(parsed.action, "rdo.generateDocument");
   assert.equal(parsed.targetDate, "2026-09-14");
@@ -146,7 +150,8 @@ test("EloActionBusRdo separa geração de documento do preenchimento de RDO", as
   assert.equal(response.data.rdo.id, "obr_rdo_1721f1765e566e3a4d7a0f0b");
   assert.equal(response.data.document.document_type, "rdo/daily_log");
   assert.deepEqual(generatedDocuments, ["obr_rdo_1721f1765e566e3a4d7a0f0b"]);
-  assert.equal(calls.filter((call) => call.init.method === "GET").length, 1);
+  assert.equal(calls.filter((call) => call.init.method === "GET" && new URL(call.url).pathname === "/api/stock-full/works").length, 1);
+  assert.equal(calls.filter((call) => call.init.method === "GET" && new URL(call.url).pathname === "/api/obrareport/rdos").length, 1);
   assert.equal(calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/generate-document")).length, 1);
   assert.equal(calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/api/obrareport/rdos")).length, 0);
   assert.equal(calls.filter((call) => call.init.method === "PUT").length, 0);
@@ -211,22 +216,21 @@ test("rdo.problemsByPeriod respeita periodo, obra e nenhum recorrente", async ()
   assert.equal(wrongProject.data.problems.length, 0);
 });
 
-function obraReportState(works) {
-  return JSON.stringify({ version: 1, works, clients: [], reports: [], dailyLogs: [] });
-}
+const workA = { id: "work-test-id", institutionId: "inst_a", name: "Residencia Teste", clientId: "cli-a", address: "Rua A", type: "Residencial", status: "Em andamento" };
+const workB = { id: "work-b-id", institutionId: "inst_a", name: "Edificio B", clientId: "cli-b", address: "Rua B", type: "Predial", status: "Em andamento" };
 
-const workA = { id: "work-test-id", name: "Residencia Teste", clientId: "cli-a", address: "Rua A", type: "Residencial", status: "Em andamento" };
-const workB = { id: "work-b-id", name: "Edificio B", clientId: "cli-b", address: "Rua B", type: "Predial", status: "Em andamento" };
-
-test("rdo.create.preview resolve obras reais do ObraReport sem chamar backend", async () => {
-  const zero = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([]) } });
+test("rdo.create.preview consulta obras cloud autorizadas sem executar POST ou PUT", async () => {
+  const zero = loadBridge({ rdos: fixtures, works: [] });
   const noWork = await zero.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(noWork.ok, false);
   assert.equal(noWork.error, "no_works");
   assert.match(noWork.humanAnswer, /Não encontrei nenhuma obra cadastrada/i);
-  assert.equal(zero.calls.length, 0);
+  assert.equal(zero.calls.length, 1);
+  assert.equal(new URL(zero.calls[0].url).pathname, "/api/stock-full/works");
+  assert.equal(zero.calls[0].init.method, "GET");
+  assert.equal(zero.calls.filter((call) => call.init.method === "POST" || call.init.method === "PUT").length, 0);
 
-  const one = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA]) } });
+  const one = loadBridge({ rdos: fixtures, works: [workA] });
   const preview = await one.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(preview.ok, true);
   assert.equal(preview.requiresConfirmation, true);
@@ -234,39 +238,47 @@ test("rdo.create.preview resolve obras reais do ObraReport sem chamar backend", 
   assert.match(preview.humanAnswer, /PROJECT ID: work-test-id/);
   assert.equal(preview.data.draft.projectId, "work-test-id");
   assert.equal(preview.data.draft.workId, "work-test-id");
-  assert.equal(one.calls.length, 0);
+  assert.equal(one.calls.length, 1);
+  assert.equal(new URL(one.calls[0].url).pathname, "/api/stock-full/works");
+  assert.equal(one.calls[0].init.method, "GET");
+  assert.equal(one.calls[0].init.headers.Authorization, "Bearer token-a");
+  assert.equal(one.calls[0].init.headers["x-institution-id"], "inst_a");
+  assert.equal(one.calls.filter((call) => call.init.method === "POST" || call.init.method === "PUT").length, 0);
 
-  const many = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  const many = loadBridge({ rdos: fixtures, works: [workA, workB] });
   const choose = await many.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(choose.ok, false);
   assert.equal(choose.error, "work_selection_required");
   assert.match(choose.humanAnswer, /Para qual obra/i);
   assert.match(choose.humanAnswer, /Residencia Teste/);
-  assert.equal(many.calls.length, 0);
+  assert.equal(many.calls.length, 1);
+  assert.ok(many.calls.every((call) => call.init.method === "GET" && new URL(call.url).pathname === "/api/stock-full/works"));
+  assert.equal(many.calls.filter((call) => call.init.method === "POST" || call.init.method === "PUT").length, 0);
 
   const followUp = await many.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "Residencia Teste", workName: "Residencia Teste" } });
   assert.equal(followUp.ok, true);
   assert.equal(followUp.requiresConfirmation, true);
   assert.equal(followUp.data.draft.rdoDate, "2026-09-04");
   assert.equal(followUp.data.draft.projectId, "work-test-id");
-  assert.equal(many.calls.length, 0);
+  assert.equal(many.calls.length, 2);
+  assert.ok(many.calls.every((call) => call.init.method === "GET" && new URL(call.url).pathname === "/api/stock-full/works"));
+  assert.equal(many.calls.filter((call) => call.init.method === "POST" || call.init.method === "PUT").length, 0);
 
-  const missingFlow = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  const missingFlow = loadBridge({ rdos: fixtures, works: [workA, workB] });
   await missingFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   const missing = await missingFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "Obra Inexistente", workName: "Obra Inexistente" } });
   assert.equal(missing.ok, false);
   assert.equal(missing.error, "work_not_found");
 
-  const arbitraryFlow = loadBridge({ rdos: fixtures, localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  const arbitraryFlow = loadBridge({ rdos: fixtures, works: [workA, workB] });
   await arbitraryFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   const arbitraryId = await arbitraryFlow.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "work-b-id", workName: "work-b-id" } });
   assert.equal(arbitraryId.ok, false);
   assert.equal(arbitraryId.error, "work_not_found");
 });
 test("rdo.create.execute confirma uma vez e preserva idempotencia em reload", async () => {
-  const state = obraReportState([workA]);
   const createdRdos = [];
-  const env = loadBridge({ localStorage: { "obrareport-saas-v1": state }, createdRdos });
+  const env = loadBridge({ works: [workA], createdRdos });
   const context = { authToken: "token-a", institutionId: "inst_a", companyId: "company_a", userId: "user_a" };
 
   const preview = await env.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
@@ -291,7 +303,7 @@ test("rdo.create.execute confirma uma vez e preserva idempotencia em reload", as
   assert.equal(env.calls.filter((call) => call.init.method === "POST" && String(call.url).endsWith("/api/obrareport/rdos")).length, 1);
 
   const persisted = env.window.localStorage.getItem("elo_action_bus_rdo_pending_v1");
-  const reloaded = loadBridge({ localStorage: { "obrareport-saas-v1": state, "elo_action_bus_rdo_pending_v1": persisted }, createdRdos });
+  const reloaded = loadBridge({ works: [workA], localStorage: { "elo_action_bus_rdo_pending_v1": persisted }, createdRdos });
   const afterReload = await reloaded.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo_confirm", context, payload: { message: "sim" } });
   assert.equal(afterReload.ok, true);
   assert.equal(createdRdos.length, 1);
@@ -299,17 +311,17 @@ test("rdo.create.execute confirma uma vez e preserva idempotencia em reload", as
 });
 
 test("rdo.create.execute bloqueia sem tenant e sem projeto real", async () => {
-  const noTenant = loadBridge({ canonicalContext: { userId: "user_a" }, localStorage: { "obrareport-saas-v1": obraReportState([workA]) } });
+  const noTenant = loadBridge({ canonicalContext: { userId: "user_a" }, works: [workA] });
   const preview = await noTenant.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(preview.ok, false);
   assert.equal(preview.error, "institution_required");
 
-  const noWork = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([]) } });
+  const noWork = loadBridge({ works: [] });
   const missing = await noWork.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(missing.ok, false);
   assert.equal(missing.error, "no_works");
 
-  const arbitrary = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([workA, workB]) } });
+  const arbitrary = loadBridge({ works: [workA, workB] });
   await arbitrary.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   const arbitraryId = await arbitrary.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "rdo.create.preview", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "work-b-id", workName: "work-b-id" } });
   assert.equal(arbitraryId.ok, false);
@@ -374,7 +386,7 @@ test("rdo bloqueia sem auth, sem tenant, periodo invalido e falha de backend", a
 test("sessão canônica própria substitui token e identidade stale em GET POST PUT e PDF", async () => {
   const own = { session: { access_token: "own-canonical-fixture", refresh_token: "refresh-fixture", expires_at: Math.floor(Date.now() / 1000) + 3600 }, user: { id: "user_a" }, profile: { institution_id: "inst_a", company_id: "company_a" } };
   const existing = rdo("rdo_existing_a", "inst_a", "obra_a", "2026-09-04", "", { rdo_data_json: { employeeCount: "3", date: "2026-09-04", custom: { preserve: true } } });
-  const env = loadBridge({ canonicalToken: "stale-elo-fixture", canonicalContext: { userId: "other", institutionId: "other" }, localStorage: { "obrareport-rdo-stock-canonical-session-v1": JSON.stringify(own), "obrareport-saas-v1": obraReportState([workA]) }, rdos: [existing], createdRdos: [] });
+  const env = loadBridge({ canonicalToken: "stale-elo-fixture", canonicalContext: { userId: "other", institutionId: "other" }, works: [workA], localStorage: { "obrareport-rdo-stock-canonical-session-v1": JSON.stringify(own) }, rdos: [existing], createdRdos: [] });
   const stale = { authToken: "stale-context", institutionId: "other", userId: "other", projectId: "obra_a" };
   assert.equal((await env.window.EloActionBusRdo.execute({ action: "rdo.get", context: stale, payload: { rdoId: existing.id } })).ok, true);
   assert.equal((await env.window.EloActionBusRdo.execute({ action: "rdo.update.preview", context: stale, payload: { message: "Acrescente ao RDO equipe: 4 funcionários; observação: registro sintético." } })).ok, true);
@@ -405,7 +417,7 @@ test("RDO não aceita token legado ou contexto sem provider canônico válido", 
 test("create substitui contexto standalone e add/correction preservam o mesmo RDO e produção", async () => {
   const standalone = rdo("rdo_standalone_1", "inst_a", "work-test-id", "2026-09-04", "preservar", { rdo_data_json: { date: "2026-09-04", summary: "standalone untouched" } });
   const before = JSON.stringify(standalone);
-  const options = { localStorage: { "obrareport-saas-v1": obraReportState([workA]) }, rdos: [standalone], createdRdos: [], updatedRdos: [] };
+  const options = { works: [workA], rdos: [standalone], createdRdos: [], updatedRdos: [] };
   const env = loadBridge(options);
   const context = Object.assign({}, contextA, { projectId: "work-test-id" });
   await env.window.EloActionBusRdo.execute({ action: "rdo.get", context, payload: { rdoId: standalone.id } });
@@ -525,7 +537,7 @@ test("RDO usa backend oficial em produção e base explícita somente no ambient
 
 test("troca de tenant bloqueia confirmação saved/saving sem retornar dados do tenant anterior", async () => {
   for (const action of ["create", "update"]) for (const status of ["saved", "saving"]) {
-    const options = { rdos: [rdo("rdo_private_tenant_a", "inst_a", "work-test-id", "2026-09-04", "", { rdo_data_json: { privateNote: "TENANT_A_PRIVATE_FIXTURE" } })], localStorage: { "obrareport-saas-v1": obraReportState([workA]) } };
+    const options = { works: [workA], rdos: [rdo("rdo_private_tenant_a", "inst_a", "work-test-id", "2026-09-04", "", { rdo_data_json: { privateNote: "TENANT_A_PRIVATE_FIXTURE" } })] };
     const env = loadBridge(options);
     const context = Object.assign({}, contextA, { projectId: "work-test-id" });
     if (action === "create") await env.window.EloActionBusRdo.execute({ action: "rdo.create.preview", context, payload: { workName: workA.name, date: "2026-09-05" } });
@@ -548,7 +560,7 @@ test("troca de tenant bloqueia confirmação saved/saving sem retornar dados do 
 
 test("cancelamento com outro tenant não expõe nem apaga pending do tenant anterior", async () => {
   for (const action of ["create", "update"]) {
-    const options = { rdos: [rdo("rdo_cancel_private_a", "inst_a", "work-test-id", "2026-09-04", "", { rdo_data_json: { privateNote: "TENANT_A_CANCEL_PRIVATE_FIXTURE" } })], localStorage: { "obrareport-saas-v1": obraReportState([workA]) } };
+    const options = { works: [workA], rdos: [rdo("rdo_cancel_private_a", "inst_a", "work-test-id", "2026-09-04", "", { rdo_data_json: { privateNote: "TENANT_A_CANCEL_PRIVATE_FIXTURE" } })] };
     const env = loadBridge(options);
     const context = Object.assign({}, contextA, { projectId: "work-test-id" });
     if (action === "create") await env.window.EloActionBusRdo.execute({ action: "rdo.create.preview", context, payload: { workName: workA.name, date: "2026-09-05" } });
@@ -568,11 +580,11 @@ test("cancelamento com outro tenant não expõe nem apaga pending do tenant ante
 });
 
 test("obra/data explícitas escolhem RDO correspondente antes do contexto anterior", async () => {
-  const work = { id: "work-test-id", name: "OBRA TESTE ELO E2E", entityType: "work" };
+  const work = { id: "work-test-id", institutionId: "inst_a", name: "OBRA TESTE ELO E2E", entityType: "work" };
   const earlier = rdo("rdo_standalone_oct14", "inst_a", work.id, "2026-10-14", "", { rdo_data_json: { generalNotes: "preserve standalone" } });
   const later = rdo("rdo_integration_oct15", "inst_a", work.id, "2026-10-15", "", { rdo_data_json: { productions: [] } });
   const before = JSON.stringify(earlier);
-  const env = loadBridge({ localStorage: { "obrareport-saas-v1": obraReportState([work]) }, rdos: [earlier, later] });
+  const env = loadBridge({ works: [work], rdos: [earlier, later] });
   const context = Object.assign({}, contextA, { projectId: work.id });
   await env.window.EloActionBusRdo.execute({ action: "rdo.get", context, payload: { rdoId: earlier.id } });
   const preview = await env.window.EloActionBusRdo.execute({ action: "rdo.update.preview", context, payload: { message: "Acrescente ao RDO da OBRA TESTE ELO E2E de 15/10/2026 observação: registro sintético novo." } });
