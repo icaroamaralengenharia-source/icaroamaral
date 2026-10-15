@@ -20,7 +20,7 @@
   const RDO_PENDING_KEY = "elo_action_bus_rdo_pending_v1";
   const RDO_CONTEXT_KEY = "elo_action_bus_rdo_context_v1";
   const RDO_CANONICAL_SESSION_KEY = "obrareport-rdo-stock-canonical-session-v1";
-  const OBRAREPORT_STATE_KEY = "obrareport-saas-v1";
+  const rdoCanonicalWorkCatalogs = new WeakMap();
   const STOCK_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
   const NUMBER_WORDS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
 
@@ -1447,30 +1447,49 @@
     });
   }
 
-  function readObraReportState_() {
-    try {
-      const raw = window.localStorage && window.localStorage.getItem(OBRAREPORT_STATE_KEY);
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed && parsed.version === 1 && typeof parsed === "object" ? parsed : null;
-    } catch (error) {
-      return null;
+  async function fetchRdoCanonicalWorks_(input) {
+    const auth = requireRdoAccess(input);
+    if (!auth.ok) throw new Error(auth.reason === "tenant" ? "institution_required" : "authentication_required");
+    if (typeof window.fetch !== "function") throw new Error("rdo_fetch_unavailable");
+    const binding = tenantBinding(auth.identity);
+    const response = await window.fetch(getRdoEndpoint("/api/stock-full/works"), { method: "GET", headers: rdoHeaders(input), cache: "no-store" });
+    let data;
+    try { data = await response.json(); } catch (_) { throw new Error("rdo_work_catalog_invalid_response"); }
+    if (!response.ok || !data || data.ok === false) {
+      const error = new Error("rdo_work_catalog_unavailable");
+      error.status = response.status;
+      throw error;
     }
+    if (!Array.isArray(data.works)) throw new Error("rdo_work_catalog_invalid_response");
+    const ids = new Set();
+    const works = data.works.map(function (work) {
+      if (!work || typeof work.id !== "string" || typeof work.name !== "string") throw new Error("rdo_work_catalog_invalid_response");
+      const id = clean(work.id);
+      const name = clean(work.name);
+      const institutionId = clean(work.institutionId || work.institution_id);
+      if (!id || !name || !institutionId || ids.has(id)) throw new Error("rdo_work_catalog_invalid_response");
+      if (institutionId !== auth.identity.institutionId) throw new Error("rdo_work_catalog_scope_mismatch");
+      if (work.projectId && clean(work.projectId) !== id || work.workId && clean(work.workId) !== id) throw new Error("rdo_work_catalog_invalid_response");
+      ids.add(id);
+      return { id, projectId: id, workId: id, name, institutionId, clientId: clean(work.clientId || work.client_id), address: clean(work.address), entityType: "work", source: "stock_full_api" };
+    });
+    const currentSession = await getCanonicalRdoSession_();
+    if (!currentSession.ok || tenantBinding(getRdoIdentity({ context: currentSession.authContext })) !== binding) throw new Error("rdo_tenant_changed");
+    // Keep the authorized snapshot within this invocation, never in the shared local SaaS cache.
+    rdoCanonicalWorkCatalogs.set(input, works);
+    return works;
   }
 
-  function resolveExistingObraReportWorks_() {
-    const state = readObraReportState_();
-    const works = state && Array.isArray(state.works) ? state.works : [];
-    return works.map(function (work) {
-      return work && typeof work === "object" ? {
-        id: clean(work.id),
-        name: clean(work.name || work.nome),
-        clientId: clean(work.clientId || work.client_id),
-        address: clean(work.address || work.endereco),
-        type: clean(work.type || work.tipo),
-        entityType: "work",
-        status: clean(work.status)
-      } : null;
-    }).filter(function (work) { return !!(work && work.id && work.name); });
+  function resolveExistingObraReportWorks_(input) {
+    return input && rdoCanonicalWorkCatalogs.has(input) ? rdoCanonicalWorkCatalogs.get(input).slice() : [];
+  }
+
+  // Public catalog lookup is asynchronous; callers receive Promise<Work[]>.
+  async function listCanonicalRdoWorks_() {
+    const session = await getCanonicalRdoSession_();
+    if (!session.ok) throw new Error(session.error || "authentication_required");
+    const input = { context: Object.assign({}, session.authContext, { rdoCanonicalAccessToken: session.accessToken }) };
+    return fetchRdoCanonicalWorks_(input);
   }
 
   function rdoPendingExpired_(pending) {
@@ -1512,7 +1531,7 @@
       projectName: clean(work && work.name),
       clientId: clean(work && work.clientId),
       rdoDate: intent.targetDate || "",
-      source: work && work.source || "obrareport_local_storage",
+      source: work && work.source || "stock_full_api",
       rdoData: {
         date: intent.targetDate || "",
         projectId: clean(work && work.id),
@@ -1538,8 +1557,8 @@
   }
 
   function resolveRdoWorkSelection_(input, intent) {
-    const identity = getRdoIdentity(input);
-    const works = resolveExistingObraReportWorks_();
+    const works = resolveExistingObraReportWorks_(input);
+    if (!works.length) return { ok: false, reason: "no_works", works };
     const requestedName = clean(intent.workName || input && input.payload && (input.payload.workName || input.payload.work_name));
     if (requestedName) {
       const normalized = normalize(requestedName);
@@ -1547,12 +1566,11 @@
         const name = normalize(work.name);
         return name === normalized || name.indexOf(normalized) >= 0 || normalized.indexOf(name) >= 0;
       });
-      if (matches.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: Object.assign({ source: "obrareport_local_storage" }, matches[0]) };
+      if (matches.length === 1) return { ok: true, source: "stock_full_api", works, work: matches[0] };
       return { ok: false, reason: matches.length > 1 ? "ambiguous_work" : "work_not_found", works, requestedName };
     }
-    if (works.length === 1) return { ok: true, source: "obrareport_local_storage", works, work: Object.assign({ source: "obrareport_local_storage" }, works[0]) };
-    if (works.length > 1) return { ok: false, reason: "work_selection_required", works };
-    return { ok: false, reason: "no_works", works };
+    if (works.length === 1) return { ok: true, source: "stock_full_api", works, work: works[0] };
+    return { ok: false, reason: "work_selection_required", works };
   }
 
   function executeRdoCreatePreview(input, intent) {
@@ -1888,12 +1906,23 @@
   }
   function executeRdo(input) {
     input = Object.assign({}, input || {}, { context: Object.assign({}, input && input.context || {}) });
-    return getCanonicalRdoSession_(input).then(function (session) {
+    return getCanonicalRdoSession_(input).then(async function (session) {
       if (!session.ok) return rdoAuthBlocked(input, { ok: false, reason: session.error === "institution_required" ? "tenant" : "auth" });
       input.context = Object.assign({}, input.context, session.authContext, { rdoCanonicalAccessToken: session.accessToken });
       const intent = parseRdoIntent(input);
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
+      if (intent.action === "rdo.create.preview" || intent.workName) {
+        const pendingBeforeCatalog = readRdoPending();
+        try {
+          await fetchRdoCanonicalWorks_(input);
+        } catch (error) {
+          const code = clean(error && error.message) || "rdo_work_catalog_unavailable";
+          const currentPending = readRdoPending();
+          if (sameTenantBinding(input, pendingBeforeCatalog) && sameTenantBinding(input, currentPending) && currentPending.operationId === pendingBeforeCatalog.operationId && currentPending.createdAt === pendingBeforeCatalog.createdAt) clearRdoPending();
+          return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: code === "rdo_tenant_changed" ? "A sessão mudou durante a consulta das obras. Refaça o pedido na conta atual. Nenhum RDO foi criado ou atualizado." : "Não consegui consultar as obras autorizadas agora. Tente novamente em instantes. Nenhum RDO foi criado ou atualizado.", error: code });
+        }
+      }
       if (intent.workName && intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview") {
         const work = resolveRdoWorkSelection_(input, intent);
         if (!work.ok) return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não identifiquei uma única obra cadastrada para esse RDO.", error: work.reason });
@@ -2137,7 +2166,7 @@
     parseIntent: parseRdoIntent,
     readPending: readRdoPending,
     clearPending: clearRdoPending,
-    resolveExistingWorks: resolveExistingObraReportWorks_,
+    resolveExistingWorks: listCanonicalRdoWorks_,
     resolveCanonicalAuthContext: resolveCanonicalRdoAuthContext_,
     aggregateRecurringProblems,
     normalizeProblemKey,
