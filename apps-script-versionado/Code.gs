@@ -19,13 +19,22 @@ function doPost(e) {
   const requestId = Utilities.getUuid();
 
   try {
-    logInfo_(requestId, "doPost iniciado");
-
     if (!e || !e.postData || !e.postData.contents) {
       throw new Error("Requisição sem corpo JSON.");
     }
 
-    const payload = JSON.parse(e.postData.contents);
+    let payload;
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch (_) {
+      throw new Error("Requisicao JSON invalida.");
+    }
+
+    if (payload && payload.action === "artifact.read") {
+      return json_(isAppApiRequest_(payload) ? handleArtifactRead_(payload) : artifactFailure_("artifact_invalid_request", 400));
+    }
+
+    logInfo_(requestId, "doPost iniciado");
 
     if (isAppApiRequest_(payload)) {
       return json_(processAppApi_(payload, requestId));
@@ -49,6 +58,68 @@ function doPost(e) {
       error: error.message || String(error),
       errorCode: error.code || "REQUEST_FAILED"
     });
+  }
+}
+
+function artifactFailure_(code, status) {
+  return { ok: false, error: code, errorCode: code, status: status };
+}
+
+function artifactSecretMatches_(actual, expected) {
+  if (!actual || actual.length > 256) return false;
+  const algorithm = Utilities.DigestAlgorithm.SHA_256;
+  const encoding = Utilities.Charset.UTF_8;
+  const left = Utilities.computeDigest(algorithm, actual, encoding);
+  const right = Utilities.computeDigest(algorithm, expected, encoding);
+  let difference = 0;
+  for (let i = 0; i < right.length; i += 1) difference |= left[i] ^ right[i];
+  return difference === 0;
+}
+
+function handleArtifactRead_(payload) {
+  const maxBytes = 10 * 1024 * 1024;
+  try {
+    const secret = String(PropertiesService.getScriptProperties().getProperty("OBRAREPORT_ARTIFACT_BROKER_SECRET") || "");
+    if (secret.length < 32 || secret.length > 256) return artifactFailure_("artifact_broker_not_configured", 503);
+    if (!artifactSecretMatches_(String(payload.secret || ""), secret)) return artifactFailure_("artifact_access_denied", 403);
+    const fileId = String(payload.externalFileId || "").trim();
+    const documentId = String(payload.documentId || "").trim();
+    if (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId) || !/^[A-Za-z0-9_-]{1,200}$/.test(documentId)) {
+      return artifactFailure_("artifact_invalid_request", 400);
+    }
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+      if (file.isTrashed()) return artifactFailure_("document_artifact_not_found", 404);
+    } catch (_) {
+      return artifactFailure_("document_artifact_not_found", 404);
+    }
+    const parents = file.getParents();
+    let allowed = false;
+    while (parents.hasNext()) {
+      if (parents.next().getId() === CONFIG.PDF_FOLDER_ID) allowed = true;
+    }
+    if (!allowed) return artifactFailure_("artifact_access_denied", 403);
+    if (file.getMimeType() !== "application/pdf") return artifactFailure_("artifact_not_pdf", 415);
+    const size = Number(file.getSize());
+    if (!Number.isSafeInteger(size) || size < 1 || size > maxBytes) return artifactFailure_("artifact_too_large", 413);
+    const bytes = file.getBlob().getBytes();
+    if (bytes.length !== size || bytes.length > maxBytes) return artifactFailure_("artifact_too_large", 413);
+    if (bytes.slice(0, 5).map(function (byte) { return String.fromCharCode(byte & 255); }).join("") !== "%PDF-") {
+      return artifactFailure_("artifact_not_pdf", 415);
+    }
+    return {
+      ok: true,
+      mimeType: "application/pdf",
+      fileId: fileId,
+      documentId: documentId,
+      fileName: String(file.getName() || "document.pdf").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120),
+      size: size,
+      base64: Utilities.base64Encode(bytes)
+    };
+  } catch (_) {
+    // Never serialize/log provider exceptions, which may contain request details.
+    return artifactFailure_("artifact_read_failed", 502);
   }
 }
 
