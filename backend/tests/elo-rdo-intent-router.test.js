@@ -64,6 +64,66 @@ test("documento generico nao sequestra o contexto para o modulo municipal", () =
   }));
 });
 
+test("RDO updates and quantity corrections reach the confirmed RDO action", () => {
+  const assistant = loadAssistant();
+  [
+    "adicione uma observação nesse RDO",
+    "acrescente ao RDO produção de Alvenaria: 12 m²; equipe: 4 funcionários",
+    "corrija no RDO a quantidade da produção de Alvenaria de 12 m² para 15 m²",
+    "ajuste a equipe do RDO de 4 para 5 funcionários",
+    "acrescente ao RDO produção de Fachada: 12 m²",
+    "corrija no RDO a produção de Escada de 12 m² para 15 m²",
+    "adicione material ao RDO: cimento 2 sacos"
+  ].forEach(message => {
+    const request = assistant.detectCommandBridgeRequestForTest(message);
+    assert.equal(request.module, "obrareport_rdo", message);
+    assert.equal(request.action, "rdo.update.preview", message);
+    assert.equal(assistant.isCommandBridgePriorityRequestForTest(request), true);
+  });
+});
+
+test("RDO submitted routing preserves field separators, decimal quantities and wake prefixes", () => {
+  const assistant = loadAssistant();
+  const message = "Acrescente ao RDO produção de Alvenaria: 12,5 m²; equipe: 4 funcionários; observação: registro sintético.";
+  for (const input of [message, "Elo, " + message]) {
+    const routed = assistant.stripWakePrefixForRoutingForTest(input);
+    assert.equal(routed, message);
+    assert.equal(assistant.detectCommandBridgeRequestForTest(routed).payload.message, message);
+  }
+});
+
+test("explicit RDO PDF and reads keep priority over generic document context", () => {
+  const assistant = loadAssistant();
+  assistant.rememberActiveDocumentForTest([{ fileName: "fixture.txt", type: "txt", text: "Documento ativo de teste." }]);
+  ["gere o PDF do RDO", "gere o PDF do RDO com isso", "exporte o documento do RDO ID obr_rdo_fixture"].forEach(message => {
+    const request = assistant.detectCommandBridgeRequestForTest(message);
+    assert.equal(request.module, "obrareport_rdo");
+    assert.equal(request.action, "rdo.generateDocument");
+    assert.equal(assistant.isCommandBridgePriorityRequestForTest(request), true);
+  });
+  ["abra o RDO ID obr_rdo_fixture", "liste os RDOs desta obra"].forEach(message => {
+    assert.equal(assistant.isCommandBridgePriorityRequestForTest(assistant.detectCommandBridgeRequestForTest(message)), true);
+  });
+  assert.equal(assistant.detectCommandBridgeRequestForTest("gere o PDF deste documento"), null);
+  assert.equal(assistant.detectCommandBridgeRequestForTest("desenhe a fachada no CADISTA"), null);
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  assert.match(source, /!hasExplicitRdoCommand && handleEloAnalysisReferenceFastPath_/);
+  assert.match(source, /!hasExplicitRdoCommand && handleEloReportFromAnalysisContextFastPath_/);
+});
+
+test("ELO offers an authenticated PDF action only for metadata linked to the requested RDO", () => {
+  const assistant = loadAssistant();
+  const bridgeResult = { handled: true, ok: true, action: "rdo.generateDocument", humanAnswer: "PDF oficial gerado.", data: {
+    rdo: { id: "obr_rdo_fixture" }, document: { id: "obr_doc_fixture", rdo_id: "obr_rdo_fixture", source_id: "obr_rdo_fixture" }
+  } };
+  const answer = assistant.buildCommandBridgeAnswerForTest(bridgeResult);
+  assert.equal(JSON.stringify(answer.pdfAction), JSON.stringify({ type: "rdo_official_pdf", label: "Abrir PDF oficial", documentId: "obr_doc_fixture", rdoId: "obr_rdo_fixture" }));
+  assert.equal(Object.hasOwn(answer.pdfAction, "token"), false);
+  assert.equal(Object.hasOwn(answer.pdfAction, "url"), false);
+  assert.equal(assistant.buildCommandBridgeAnswerForTest({ ...bridgeResult, ok: false }).pdfAction, null);
+  assert.equal(assistant.buildCommandBridgeAnswerForTest({ ...bridgeResult, data: { ...bridgeResult.data, document: { ...bridgeResult.data.document, rdo_id: "other-rdo" } } }).pdfAction, null);
+});
+
 test("follow-ups coerentes reutilizam documento ativo sem prender assuntos independentes", () => {
   const assistant = loadAssistant();
   assistant.rememberActiveDocumentForTest([{ fileName: "fixture.txt", type: "txt", text: "Codigo DOC-ELO-ALFA-271. Problema grave: infiltracao." }]);
@@ -77,12 +137,17 @@ test("follow-ups coerentes reutilizam documento ativo sem prender assuntos indep
     "resuma isso",
     "continue"
   ].forEach((question) => assert.equal(assistant.isActiveDocumentReferenceForTest(question), true, question));
-  assert.equal(assistant.detectCommandBridgeRequestForTest("faça um relatório disso"), null);
+  // Contextual reports already use the explicit report route in the baseline.
+  // Keep checking that this wording is not promoted to a municipal archive.
+  assert.equal(assistant.detectCommandBridgeRequestForTest("faça um relatório disso").module, "obrareport_report");
+  assert.equal(assistant.detectCommandBridgeRequestForTest("faça um relatório disso").action, "generate_report_from_context");
   assert.equal(assistant.isActiveDocumentReferenceForTest("quanto e 15% de 38000?"), false);
   assert.equal(assistant.isActiveDocumentReferenceForTest("por que o ceu e azul?"), false);
   assert.equal(assistant.isActiveDocumentReferenceForTest("agora fale sobre a prefeitura"), false);
   const payload = { message: "qual e o codigo?", context: {} };
   assert.equal(assistant.applyActiveDocumentContextToPayloadForTest(payload, payload.message), true);
-  assert.match(payload.message, /CONTEUDO EXTRAIDO DO PDF/i);
-  assert.match(payload.message, /DOC-ELO-ALFA-271/i);
+  assert.equal(payload.message, "qual e o codigo?");
+  assert.match(payload.context.documentsSummary, /Documento ativo/i);
+  assert.match(payload.context.documentsSummary, /DOC-ELO-ALFA-271/i);
+  assert.equal(payload.context.activeDocumentReused, true);
 });

@@ -914,11 +914,24 @@
     if (!pending || !/^(?:pending|saving|saved)$/.test(String(pending.status || ""))) return false;
     return /^(?:rdo\.(?:create|update)\.(?:preview|execute))$/.test(String(pending.action || ""));
   }
+  function detectEloRdoCommandBridgeRequest_(text, payload, explicitOnly) {
+    const hasRdoTerm = /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(text);
+    if (explicitOnly && !hasRdoTerm) return null;
+    const wantsUpdate = hasRdoTerm && /\b(?:atualize|atualizar|adicione|adicionar|inclua|incluir|registre|registrar|acrescente|acrescentar|corrija|corrigir|ajuste|ajustar)\b/.test(text);
+    const wantsPdf = hasRdoTerm && !wantsUpdate && /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar)\b/.test(text);
+    const wantsCreate = hasRdoTerm && !wantsPdf && !wantsUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|fazer|prepare|preparar|monte|montar)\b/.test(text);
+    const wantsList = hasRdoTerm && !wantsUpdate && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|recentes|existem|cadastrados|registrados)\b/.test(text));
+    const wantsGet = hasRdoTerm && !wantsUpdate && !wantsList && !wantsCreate && !wantsPdf && /\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text);
+    const wantsProblems = /\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);
+    const wantsClose = hasRdoTerm && !wantsUpdate && !wantsPdf && /\b(?:feche|fechar)\b/.test(text);
+    if (!(wantsProblems || wantsUpdate || wantsPdf || wantsCreate || wantsList || wantsGet || wantsClose)) return null;
+    const action = wantsUpdate ? "rdo.update.preview" : wantsProblems ? "rdo.problemsByPeriod" : wantsPdf ? "rdo.generateDocument" : wantsGet ? "rdo.get" : wantsCreate ? "preview_new_rdo" : wantsClose ? "close_rdo" : "rdo.list";
+    return { module: "obrareport_rdo", action: action, payload: payload };
+  }
   function detectEloCommandBridgeRequest_(message) {
     const raw = sanitizeUserText(message || "");
     const text = canonicalizeEloSemanticText_(raw);
     if (!text) return null;
-    if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
@@ -933,6 +946,9 @@
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
+    const explicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, payload, true);
+    if (explicitRdoRequest) return explicitRdoRequest;
+    if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
     // Contextual reports are resolved before the generic ObraReport bridge.
     // This preserves the last meaningful analysis even while a PDF remains active.
     if (isEloReportFromAnalysisContextRequest_(raw)) {
@@ -982,18 +998,8 @@
       const action = /\b(?:nc|ncs|nao\s+conformidade|nao\s+conformidades|não\s+conformidade|não\s+conformidades)\b/.test(text) ? "inspection.openNCs" : /\b(?:pdf|laudo)\b/.test(text) ? "inspection.generatePdf" : /\b(?:abra|abrir|apto|apartamento|unidade)\b/.test(text) ? "inspection.get" : "inspection.list";
       return { module: "inspection", action: action, payload: payload };
     }
-    const hasRdoTerm = /\b(?:rdo|rdos|diario\s+de\s+obra|diário\s+de\s+obra|diarios\s+de\s+obra|diários\s+de\s+obra)\b/.test(text);
-    const wantsRdoUpdate = hasRdoTerm && /\b(?:atualize|atualizar|adicione|adicionar|inclua|incluir|registre|registrar)\b/.test(text);
-    const wantsRdoGenerateDocument = hasRdoTerm && /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar|gerar\s+documento|gere\s+documento|relat[oó]rio\s+pdf)\b/.test(text);
-    const wantsRdoCreate = hasRdoTerm && !wantsRdoGenerateDocument && !wantsRdoUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|faça|fazer|prepare|preparar|monte|montar)\b/.test(text);
-    const wantsRdoList = hasRdoTerm && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|últimos|recentes|existem|cadastrados|registrados)\b/.test(text));
-    const wantsRdoGet = hasRdoTerm && /\b(?:abra|abrir|mostre|mostrar|ultimo|último|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text) && !wantsRdoList && !wantsRdoCreate && !wantsRdoGenerateDocument;
-    const wantsRdoProblems = /\b(?:problemas?|ocorrencias?|ocorrências?|pendencias?|pendências?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);
-    const wantsRdoClose = hasRdoTerm && /\b(?:feche|fechar)\b/.test(text) && !wantsRdoGenerateDocument;
-    if (wantsRdoProblems || wantsRdoGet || wantsRdoCreate || wantsRdoGenerateDocument || wantsRdoClose || wantsRdoList) {
-      const action = wantsRdoProblems ? "rdo.problemsByPeriod" : wantsRdoGenerateDocument ? "rdo.generateDocument" : wantsRdoGet ? "rdo.get" : wantsRdoCreate ? "preview_new_rdo" : wantsRdoClose ? "close_rdo" : "rdo.list";
-      return { module: "obrareport_rdo", action: action, payload: payload };
-    }
+    const implicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, payload, false);
+    if (implicitRdoRequest) return implicitRdoRequest;
     if (!activeDocumentTakesPrecedence && /\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel)\b/.test(text)) {
       return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
     }
@@ -1031,7 +1037,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.generateDocument$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|update\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function getEloAndroidStockCommandFromEvent_(event) {
     if (!event) return null;
@@ -1091,6 +1097,11 @@
     if (!answer) return null;
     const modeLabel = bridgeResult.requiresConfirmation ? "Preparei uma previa e preciso da sua confirmacao antes de executar." : "";
     const fullAnswer = [answer, modeLabel].filter(Boolean).join("\n\n");
+    const rdo = bridgeResult.data && bridgeResult.data.rdo;
+    const document = bridgeResult.data && bridgeResult.data.document;
+    const officialRdoPdf = bridgeResult.ok === true && bridgeResult.action === "rdo.generateDocument" &&
+      rdo && rdo.id && document && /^[A-Za-z0-9_-]{1,200}$/.test(String(document.id || "")) &&
+      document.rdo_id === rdo.id && document.source_id === rdo.id;
     return {
       shortAnswer: answer,
       fullAnswer: fullAnswer,
@@ -1099,8 +1110,32 @@
       sessionTheme: "elo_command_bridge",
       sessionIntent: "elo_command_bridge",
       route: "elo_command_bridge",
+      pdfAction: officialRdoPdf ? { type: "rdo_official_pdf", label: "Abrir PDF oficial", documentId: document.id, rdoId: rdo.id } : null,
       commandBridge: bridgeResult
     };
+  }
+
+  async function openEloOfficialRdoPdf_(action) {
+    const bus = window.EloActionBusRdo;
+    if (!bus || typeof bus.fetchDocumentPdf !== "function") throw new Error("rdo_pdf_reader_unavailable");
+    const popup = window.open("about:blank", "_blank");
+    try {
+      const pdf = await bus.fetchDocumentPdf(action.documentId);
+      const url = window.URL.createObjectURL(pdf);
+      if (popup && !popup.closed) popup.location.href = url;
+      else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "RDO_" + String(action.rdoId || "documento").replace(/[^A-Za-z0-9_-]/g, "_") + ".pdf";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 60000);
+    } catch (_) {
+      if (popup && !popup.closed) popup.close();
+      throw new Error("Não consegui abrir o PDF oficial. Verifique a sessão e tente novamente.");
+    }
   }
 
   function getEloMunicipalContext_() {
@@ -30674,9 +30709,11 @@ function isEloResidentialNewPipelineEnabled_() {
   function stripEloWakePrefixForRouting_(message) {
     const clean = sanitizeUserText(message || "").replace(/\s+/g, " ").trim();
     const wake = readEloWakeAliasForRouting_(clean);
-    if (!wake.matched) return normalizeEloRouteQuestionText_(clean);
-    const match = clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);
-    return normalizeEloRouteQuestionText_(match ? match[1] : wake.rest);
+    const match = wake.matched && clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);
+    const question = wake.matched ? match ? match[1] : wake.rest : clean;
+    // RDO quantities and separate field clauses require their original punctuation.
+    if (/\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(question))) return question;
+    return normalizeEloRouteQuestionText_(question);
   }
 
   function normalizeEloRoutingLogText_(message) {
@@ -31604,8 +31641,9 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
       return;
     }
-    if (!attachedFiles.length && handleEloAnalysisReferenceFastPath_(cleanQuestion)) return;
-    if (!attachedFiles.length && handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
+    const hasExplicitRdoCommand = domainCommandRequest && domainCommandRequest.module === "obrareport_rdo";
+    if (!attachedFiles.length && !hasExplicitRdoCommand && handleEloAnalysisReferenceFastPath_(cleanQuestion)) return;
+    if (!attachedFiles.length && !hasExplicitRdoCommand && handleEloReportFromAnalysisContextFastPath_(cleanQuestion)) return;
     if (!attachedFiles.length && isEloCommandBridgePriorityRequest_(domainCommandRequest)) {
       if (handleEloDomainCommandFastPath_(routeQuestion)) return;
     }
@@ -34332,13 +34370,15 @@ function isEloResidentialNewPipelineEnabled_() {
     if (pdfAction && pdfAction.type !== "budget_v2_professional_pdf") {
       const pdfButton = createElement("button", "elo-inline-button", pdfAction.label || "Gerar PDF");
       pdfButton.type = "button";
-      pdfButton.setAttribute("data-elo-action-type", "budget_pdf");
-      pdfButton.addEventListener("click", function () {
+      pdfButton.setAttribute("data-elo-action-type", pdfAction.type === "rdo_official_pdf" ? "rdo_pdf" : "budget_pdf");
+      pdfButton.addEventListener("click", async function () {
         if (pdfButton.dataset.loading === "true") return;
         pdfButton.dataset.loading = "true";
         pdfButton.disabled = true;
         try {
-          if (pdfAction.type === "elo_budget_pdf") {
+          if (pdfAction.type === "rdo_official_pdf") {
+            await openEloOfficialRdoPdf_(pdfAction);
+          } else if (pdfAction.type === "elo_budget_pdf") {
             const record = pdfAction.record || getEloBudgetRecordById_(pdfAction.budgetId || pdfAction.budgetNumber) || getLatestEloBudgetRecord_();
             if (!record) throw new Error("Orcamento nao encontrado para PDF.");
             openEloBudgetRecordPdf_(record);
@@ -36769,6 +36809,8 @@ function isEloResidentialNewPipelineEnabled_() {
     answerPersonalMemoryQuestionForTest: answerPersonalMemoryQuestion,
     buildCoreUserNameMemoryAnswerForTest: buildEloCoreUserNameMemoryAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
+    isCommandBridgePriorityRequestForTest: isEloCommandBridgePriorityRequest_,
+    buildCommandBridgeAnswerForTest: buildEloCommandBridgeAnswer_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     handleStockCommandBridgeFastPathForTest: handleEloStockCommandBridgeFastPath_,
     detectAutopilotPublicationIntentForTest: detectEloAutopilotPublicationIntent_,
