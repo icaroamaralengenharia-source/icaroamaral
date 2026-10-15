@@ -107,7 +107,7 @@ jobs:
         working-directory: .
         run: |
           node --test relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs
-          node --test --test-name-pattern="RDO|rdo" relatorio-qualidade-obras/elo-assistente-routing.test.cjs
+          node --test relatorio-qualidade-obras/elo-assistente-routing.test.cjs
           node --test relatorio-qualidade-obras/rdo-final-real-test-bugs.test.cjs relatorio-qualidade-obras/rdo-project-workspace.test.cjs relatorio-qualidade-obras/rdo-project-workspace-page.test.cjs
 
       - name: Stock Full atomic movement, offline and UI regression gate
