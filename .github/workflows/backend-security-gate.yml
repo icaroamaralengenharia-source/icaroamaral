@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "backend/**"
+      - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-assistente.js"
+      - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/backend-security-gate.yml"
@@ -14,6 +17,9 @@ on:
       - main
     paths:
       - "backend/**"
+      - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-assistente.js"
+      - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/backend-security-gate.yml"
@@ -63,6 +69,9 @@ jobs:
           node --check tests/canonical-session-rdo-security.test.js
           node --check tests/elo-me-endpoint.test.js
           node --check src/services/obrareport-artifact-broker.js
+          node --check src/services/obrareport-report-orchestrator.js
+          node --check ../relatorio-qualidade-obras/elo-command-bridge.js
+          node --check ../relatorio-qualidade-obras/elo-assistente.js
           node --check tests/obrareport-artifact-broker.test.js
           node --check < ../apps-script-versionado/Code.gs
           if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
@@ -81,6 +90,9 @@ jobs:
             tests/obrareport-step05-blockers.test.js
             tests/obrareport-step05-durable-documents.test.js
             tests/obrareport-rdo-work-scope.test.js
+            tests/elo-rdo-intent-router.test.js
+            tests/elo-action-bus-rdo.test.cjs
+            tests/obrareport-rdo-generator-contract.test.js
           )
           if [[ -f tests/obrareport-rdo-tenant-isolation-p0.test.js ]]; then
             test_files+=(tests/obrareport-rdo-tenant-isolation-p0.test.js)

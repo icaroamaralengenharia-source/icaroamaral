@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
-const assetVersion = "20261008-stock-uuid-lookup-v2";
+const assetVersion = "20261014-elo-rdo-cloud-v2";
 
 function read(relativePath) {
   return readFileSync(join(repoRoot, relativePath), "utf8");
