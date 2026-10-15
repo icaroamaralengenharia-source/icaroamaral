@@ -63,7 +63,8 @@ test("RDO PDF uses persisted standalone production and corrected team quantities
   assert.equal(payload.report.climate, "Sol");
   assert.equal(payload.report.team, "Equipe sintetica");
   assert.equal(payload.report.workers, 5);
-  assert.deepEqual(payload.report.production, production);
+  assert.equal(payload.report.production, "Alvenaria: 15 m² — Certificacao sintetica");
+  assert.doesNotMatch(payload.report.production, /production-stable|quantity|service|[{}]/);
   assert.deepEqual(payload.report.requests, requests);
   assert.equal(payload.report.observations, "ELO_RDO_E2E_20261014");
   assert.equal(payload.report.hours, "07:00 - 17:00");

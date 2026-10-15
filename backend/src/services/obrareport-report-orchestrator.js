@@ -16,6 +16,17 @@ function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && clean(value) !== "");
 }
 
+function standaloneProductionText(value) {
+  if (!Array.isArray(value)) return value;
+  return value.map((item) => {
+    if (!item || typeof item !== "object") return clean(item);
+    const quantity = item.quantity === 0 ? "0" : clean(item.quantity);
+    const amount = [quantity, clean(item.unit)].filter(Boolean).join(" ");
+    const description = [clean(item.service), amount].filter(Boolean).join(": ");
+    return [description, clean(item.note)].filter(Boolean).join(" — ");
+  }).filter(Boolean).join("; ");
+}
+
 export function buildRdoGeneratorPayload(rdo, input = {}, work = null, context = {}) {
   const data = objectOf(rdo && (rdo.rdo_data_json || rdo.rdoData));
   const workRecord = objectOf(work);
@@ -52,7 +63,7 @@ export function buildRdoGeneratorPayload(rdo, input = {}, work = null, context =
       workers: firstValue(data.workers, data.workerCount, data.trabalhadores, data.funcionarios, data.employeeCount),
       services: firstValue(data.services, data.activities, data.atividades, data.servicos, data.serviços),
       physicalProgress: firstValue(data.physicalProgress, data.progress, data.avancoFisico, data.avanco_fisico),
-      production: firstValue(data.production, data.producao, data.produção, data.productions),
+      production: firstValue(data.production, data.producao, data.produção, standaloneProductionText(data.productions)),
       materials: firstValue(data.materials, data.materiais),
       requests: firstValue(data.requests, data.solicitacoes, data.solicitações, data.materialRequests),
       tools: firstValue(data.tools, data.equipment, data.ferramentas, data.equipamentos),
