@@ -7,6 +7,8 @@ on:
     paths:
       - "backend/**"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
+      - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -18,6 +20,8 @@ on:
     paths:
       - "backend/**"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
+      - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
+      - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -98,6 +102,13 @@ jobs:
             test_files+=(tests/obrareport-rdo-tenant-isolation-p0.test.js)
           fi
           node --test "${test_files[@]}"
+
+      - name: Public ELO cloud work catalog and RDO frontend regression gate
+        working-directory: .
+        run: |
+          node --test relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs
+          node --test --test-name-pattern="RDO|rdo" relatorio-qualidade-obras/elo-assistente-routing.test.cjs
+          node --test relatorio-qualidade-obras/rdo-final-real-test-bugs.test.cjs relatorio-qualidade-obras/rdo-project-workspace.test.cjs relatorio-qualidade-obras/rdo-project-workspace-page.test.cjs
 
       - name: Stock Full atomic movement, offline and UI regression gate
         run: |
