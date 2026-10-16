@@ -6,6 +6,8 @@ Este ambiente é isolado em loopback e usa PostgreSQL real, o schema oficial de 
 
 Pré-requisitos: Node.js, dependências dos lockfiles, PostgreSQL 17 e Chromium do Playwright já instalado. É possível indicar `ELO_QA_PG_BIN` e `ELO_QA_CHROMIUM_EXECUTABLE`.
 
+Instalar o pequeno runtime SQL exclusivo de QA com `npm ci --prefix scripts/qa/runtime --ignore-scripts --no-audit --no-fund`. O lockfile fixa o driver `pg`; isso não altera dependências da aplicação. O gateway reutiliza até quatro conexões locais. A inicialização e os snapshots independentes usam o `psql` já instalado.
+
 1. `node scripts/qa/elo-rdo-environment-survey.mjs qa-artifacts/elo-rdo-commercial-certification-20261015/environment-survey.json`
 2. `node scripts/qa/elo-rdo-local-db.mjs`
 3. Em um terminal: `node scripts/qa/elo-rdo-local-stack.mjs`

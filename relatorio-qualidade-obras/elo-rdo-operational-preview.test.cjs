@@ -83,6 +83,7 @@ function work(id = WORK_ID, name = WORK_NAME, institutionId = IDENTITY.instituti
 }
 
 function runtime(works = [work()], options = {}) {
+  const optionsForRuntime = options;
   const calls = [];
   const localStorage = storage();
   const document = {
@@ -110,7 +111,7 @@ function runtime(works = [work()], options = {}) {
     localStorage, sessionStorage: storage(), document, console: quiet,
     navigator: { onLine: true, userAgent: "synthetic-pending-preview-test" },
     crypto: { randomUUID() { return "pending-fixture-id"; } },
-    addEventListener() {}, removeEventListener() {}, setTimeout: immediate, clearTimeout() {},
+    addEventListener() {}, removeEventListener() {}, setTimeout: optionsForRuntime.queryTimers ? (callback, delay) => delay < 10000 ? immediate(callback) : 0 : immediate, clearTimeout() {},
     open() { return null; }, URL,
     atob(value) { return Buffer.from(String(value), "base64").toString("binary"); },
     btoa(value) { return Buffer.from(String(value), "binary").toString("base64"); },
@@ -119,6 +120,10 @@ function runtime(works = [work()], options = {}) {
       const method = String(options.method || "GET").toUpperCase();
       calls.push({ url: String(rawUrl), method, options });
       assert.equal(url.origin, "https://obrareport-backend.onrender.com");
+      if (optionsForRuntime.rdos && url.pathname === "/api/obrareport/rdos" && method === "GET") {
+        assert.equal(options.headers.Authorization, "Bearer " + CREDENTIAL);
+        return { ok: true, status: 200, async json() { return { ok: true, rdos: optionsForRuntime.rdos }; } };
+      }
       assert.equal(url.pathname, "/api/stock-full/works", "only canonical catalog reads are permitted");
       assert.equal(method, "GET", "no RDO, chat, TTS or other POST is permitted");
       assert.equal(options.cache, "no-store");
@@ -494,3 +499,4 @@ test("AUDIT-005 work change resolves canonical catalog and keeps operational dat
 test("AUDIT-010 RDO payload preserves long notes beyond generic 600 character helper",async()=>{const env=runtime();const notes="Atenção à concretagem e proteção dos elementos. ".repeat(30)+"FIM_NOTA_EXTENSA";await env.ask("Prepare um RDO de 15/10/2026 para a "+WORK_NAME+". Observações: "+notes+". Não salve.");assert.equal(env.pending().draft.rdoData.generalNotes,notes);assert.match(env.answer(),/FIM_NOTA_EXTENSA/);assertNoWrites(env);});
 test("AUDIT-011 new conversation clears unsaved RDO without any write",async()=>{const env=runtime();await env.ask(FULL_COMMAND);env.api.startNewConversationForLayoutTest();assert.equal(env.pending(),null);assertNoWrites(env);});
 test("AUDIT-011 logout clears unsaved RDO without any write",async()=>{const env=runtime();await env.ask(FULL_COMMAND);await env.api.logoutSupabaseForTest();assert.equal(env.pending(),null);assertNoWrites(env);});
+test("AUDIT-015 list actions use only valid identifiers returned by authenticated backend",async()=>{const env=runtime([work()],{queryTimers:true,rdos:[{id:"rdo_qa_selection",project_id:WORK_ID,rdo_date:"2026-10-15",title:"RDO sintético"},{id:"<untrusted-id>",project_id:WORK_ID,rdo_date:"2026-10-14",title:"Outro RDO"}]});const answer=await env.api.buildCommandBridgeResponseForTest("Liste os RDOs.",{});assert.equal(answer.rdoActions.length,1);assert.equal(answer.rdoActions[0].id,"rdo_qa_selection");assert.match(answer.rdoActions[0].label,/Abrir RDO/);assert.ok(env.calls.every(call=>call.method==="GET"));});

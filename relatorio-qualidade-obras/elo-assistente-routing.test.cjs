@@ -2045,7 +2045,7 @@ test('ELO Action Bus RDO: confirmacao executa create uma vez e bloqueia duplicat
   const { elo } = loadEloContext({
     preloadScripts: ['rdo-canonical-auth.js', 'elo-command-bridge.js'],
     localStorage: { 'obrareport-rdo-stock-canonical-session-v1': createRdoCanonicalSessionFixture(token, auth), 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: token } }), 'obrareport-saas-v1': workState },
-    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com' },
+    window: { ELO_AUTH_TOKEN: token, ELO_SUPABASE_URL: 'https://mplpzyalcxhhinuvjthx.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_API_BASE_URL: 'https://obrareport-backend.onrender.com', setTimeout(callback, delay) { if (delay < 10000 && typeof callback === 'function') callback(); return 0; }, clearTimeout() {} },
     fetch(url, config = {}) {
       const href = String(url);
       const method = config.method || 'GET';
@@ -2075,6 +2075,7 @@ test('ELO Action Bus RDO: confirmacao executa create uma vez e bloqueia duplicat
   assert.equal(confirmRequest.action, 'rdo_confirm');
 
   const confirmed = await elo.buildCommandBridgeResponseForTest('sim', { context });
+  assert.equal(confirmed.commandBridge.ok, true, JSON.stringify(confirmed.commandBridge));
   assert.equal(confirmed.commandBridge.action, 'rdo.create.execute');
   assert.equal(createdRdos.length, 1);
   assert.equal(calls.filter((call) => call.method === 'POST' && call.href.includes('/api/obrareport/rdos')).length, 1);
@@ -5272,6 +5273,7 @@ test("ELO Action Bus RDO: confirmações explícitas priorizam pending, cancelam
 
 test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa geral", async () => {
   const calls = [];
+  let persistedRdo = null;
   const messages = createElement("div");
   const token = createEloHotfixToken();
   const auth = { userId: "user-1", institutionId: "inst-1", companyId: "company-1" };
@@ -5279,14 +5281,19 @@ test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa 
   const { elo } = loadEloContext({
     preloadScripts: ["rdo-canonical-auth.js", "elo-command-bridge.js"],
     localStorage: { "obrareport-rdo-stock-canonical-session-v1": createRdoCanonicalSessionFixture(token, auth), "sb-elo-core-auth-token": JSON.stringify({ currentSession: { access_token: token } }), "obrareport-saas-v1": workState },
-    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_CONTEXT: { userId: "user-1", role: "admin", institutionId: "inst-1", companyId: "company-1" }, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com" },
+    window: { ELO_AUTH_TOKEN: token, ELO_AUTH_CONTEXT: { userId: "user-1", role: "admin", institutionId: "inst-1", companyId: "company-1" }, ELO_SUPABASE_URL: "https://mplpzyalcxhhinuvjthx.supabase.co", ELO_SUPABASE_ANON_KEY: "anon-key", ELO_API_BASE_URL: "https://obrareport-backend.onrender.com", setTimeout(callback, delay) { if (delay < 10000 && typeof callback === 'function') callback(); return 0; }, clearTimeout() {} },
     fetch(url, config = {}) {
       const href = String(url);
       const method = config.method || "GET";
       calls.push({ href, method });
       const catalog = rdoCloudWorksFixture(url, config, JSON.parse(workState).works, token, auth);
       if (catalog) return catalog;
-      if (href.includes("/api/obrareport/rdos") && method === "POST") return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: { id: "rdo-ask-confirm-1", project_id: "work-ask-confirm-1", rdo_date: "2026-09-13" } }) });
+      if (href.includes("/api/obrareport/rdos") && method === "POST") {
+        const body = JSON.parse(config.body || "{}");
+        persistedRdo = { id: "rdo-ask-confirm-1", institution_id: auth.institutionId, project_id: body.projectId, rdo_date: body.rdoDate, rdo_data_json: body.rdoData };
+        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo: persistedRdo }) });
+      }
+      if (href.endsWith("/api/obrareport/rdos/rdo-ask-confirm-1") && method === "GET") return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdo: persistedRdo }) });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: [] }) });
     }
   });
