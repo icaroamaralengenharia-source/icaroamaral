@@ -12,7 +12,7 @@ export async function connectLocalSql(){
  return{
   async query(text){const r=await pool.query("select coalesce(json_agg(qa_result),'[]'::json) records from ("+text+") qa_result");return r.rows[0].records;},
   async sql(text){const r=await pool.query(text);const value=r.rows?.[0]&&Object.values(r.rows[0])[0];return value===undefined?"":typeof value==="object"?JSON.stringify(value):String(value);},
-  async insert(table,row){const fields=Object.keys(row),values=fields.map(k=>row[k]&&typeof row[k]==="object"?JSON.stringify(row[k]):row[k]);return(await pool.query("insert into "+ident(table)+" ("+fields.map(ident).join(",")+") values ("+fields.map((_,i)=>"$"+(i+1)).join(",")+") returning *",values)).rows;},
+  async insert(table,row){const fields=Object.keys(row),values=fields.map(k=>row[k]&&typeof row[k]==="object"?JSON.stringify(row[k]):row[k]);const result=await pool.query("with qa_insert as (insert into "+ident(table)+" ("+fields.map(ident).join(",")+") values ("+fields.map((_,i)=>"$"+(i+1)).join(",")+") returning *) select coalesce(json_agg(qa_insert),'[]'::json) records from qa_insert",values);return result.rows[0].records;},
   end:()=>pool.end()
  };
 }

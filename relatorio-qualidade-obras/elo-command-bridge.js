@@ -1219,7 +1219,8 @@
   // are text in the official RDO, not a second nested operational schema.
   function rdoOperationalSection_(raw, label) {
     const labels = "equipe(?: presente)?|hor[aá]rios?|jornada|clima|tempo|servi[cç]os?(?: executados?)?|produ[cç][aã]o|materia(?:l|is)(?: recebidos?)?|intercorr[eê]ncias?|ocorr[eê]ncias?|observa[cç][aã]o|observa[cç][oõ]es|respons[aá]vel";
-    const match = String(raw || "").match(new RegExp("\\b(?:" + label + ")\\s*(?::|(?:para|foi|era|est[aá])\\s+)\\s*(.*?)(?=\\s+(?:" + labels + ")\\s*:|\\s+N[aã]o\\s+salve\\b|$)", "i"));
+    const preserveDirective = "(?:n[aã]o\\s+(?:altere|modifique|mude)|mantenha|preserve)\\s+(?:(?:todos?\\s+)?(?:os?\\s+)?|nenhum\\s+)?(?:demais|outros?|restantes?)\\s+(?:dados?|campos?)\\b";
+    const match = String(raw || "").match(new RegExp("\\b(?:" + label + ")\\s*(?::|(?:para|foi|era|est[aá])\\s+)\\s*(.*?)(?=\\s+(?:" + labels + ")\\s*:|\\s+N[aã]o\\s+salve\\b|(?:[.!?;]\\s*|\\s+)" + preserveDirective + "|$)", "i"));
     return match ? clean(match[1]).replace(/[.;]+$/, "").trim() : "";
   }
 
@@ -1290,13 +1291,19 @@
     const absent = "Não informado";
     const team = [data.employeeCount ? data.employeeCount + " pessoas" : "", data.teamPresent].filter(Boolean).join(" — ");
     const production = (data.productions || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.service + (item.note ? " — " + item.note : ""); }).join("; ");
+    const serviceNames = (data.productions || []).map(function (item) { return normalize(item.service).replace(/[.;]+$/, ""); }).join("; ");
+    const description = clean(data.services);
+    const descriptionKey = normalize(description).replace(/[.;]+$/, "");
+    const serviceLines = [production];
+    if (description && (!production || descriptionKey !== serviceNames && descriptionKey !== normalize(production).replace(/[.;]+$/, ""))) serviceLines.push(description);
+    const services = serviceLines.filter(Boolean).join("; ");
     const materials = (data.materials || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.name + (item.note ? " — " + item.note : ""); }).join("; ");
     const date = clean(data.date).split("-").reverse().join("/");
     return [
       "OBRA: " + (projectName || absent), "DATA: " + (date || absent),
       "RESPONSÁVEL: " + (data.responsible || absent), "EQUIPE: " + (team || absent),
       "HORÁRIOS: " + ([data.startTime, data.endTime].filter(Boolean).join("–") || absent),
-      "CLIMA: " + (data.weather || absent), "SERVIÇOS: " + (production || data.services || absent),
+      "CLIMA: " + (data.weather || absent), "SERVIÇOS: " + (services || absent),
       "MATERIAIS: " + (materials || absent), "INTERCORRÊNCIAS: " + (data.occurrences || absent),
       "OBSERVAÇÕES: " + (data.generalNotes || absent)
     ];
