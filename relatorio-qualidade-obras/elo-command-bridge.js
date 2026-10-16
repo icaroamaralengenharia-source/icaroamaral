@@ -18,6 +18,8 @@
   ]);
   const STOCK_PENDING_KEY = "elo_action_bus_stock_full_pending_v1";
   const RDO_PENDING_KEY = "elo_action_bus_rdo_pending_v1";
+  let rdoPendingEpoch = 0;
+  let rdoPendingSequence = 0;
   const RDO_CONTEXT_KEY = "elo_action_bus_rdo_context_v1";
   const RDO_LIST_CONTEXT_KEY = "elo_action_bus_rdo_list_context_v1";
   const RDO_CANONICAL_SESSION_KEY = "obrareport-rdo-stock-canonical-session-v1";
@@ -1313,6 +1315,25 @@
     return ["Prévia do RDO"].concat(rdoOperationalFieldLines_(pending.draft.rdoData, pending.draft.projectName), ["", "Ainda não salvei. Deseja confirmar?"]).join("\n");
   }
 
+
+  // Shared by the router and bridge. A question or a hold never means consent.
+  function classifyRdoCancellation_(message, hasPending) {
+    const text = normalize(message).replace(/^elo[\s,:-]+/, "");
+    const verb = "(?:cancele|cancela|cancelar|cancelle|canceela|cansela|aborte|abortar|descarte|descartar|desista|desistir|interrompa)";
+    const hasVerb = new RegExp("\\b" + verb + "\\b|\\bcancelo\\b|\\bcancelamento\\b").test(text);
+    const target = /\b(?:previa|preview|rascunho|preparacao|operacao|rdo|diario de obra)\b/;
+    if (!hasPending && !target.test(text)) return "";
+    if (hasVerb && (/\?/.test(text) || /^(?:posso|podemos|como|sera|o que|se eu|se nos|voce pode)\b/.test(text))) return "question";
+    if (/^(?:cancelar|cancela|abortar|nao prossiga)[.!]*$/.test(text)) return "cancel";
+    const clauses = text.split(/[.;!\n]|\b(?:e|mas|depois)\s+(?=(?:por favor[,]?\s+)?(?:pode\s+)?(?:cancele|cancela|cancelar|cancelle|canceela|cansela|aborte|abortar|descarte|descartar|desista|desistir|interrompa)\b)/);
+    for (const clause of clauses) {
+      const match = clause.trim().match(new RegExp("^(?:por favor[,]?\\s+)?(?:(?:pode|quero|vamos)\\s+)?" + verb + "\\b([\\s\\S]*)$"));
+      if (match && (target.test(match[1]) || /^(?:\s*(?:isso|isto|agora|por favor|porfavor))*[,\s]*$/.test(match[1]))) return "cancel";
+    }
+    if (/^nao\s+(?:salve|salvar|crie|criar|prossiga)\s+(?:ainda|por enquanto)\b/.test(text) || hasVerb && /^nao\b/.test(text)) return "hold";
+    return "";
+  }
+
   function parseRdoIntent(input) {
     const action = clean(input && input.action);
     const payload = input && input.payload || {};
@@ -1334,6 +1355,8 @@
       limit: Number(payload.limit || 0) || 0,
       updateNote: clean(payload.note || payload.observation || payload.observacao || payload.description || payload.descricao)
     };
+    const cancellation = classifyRdoCancellation_(raw, Boolean(readRdoPending()));
+    if (cancellation) parsed.action = cancellation === "cancel" ? "rdo.cancel" : cancellation === "hold" ? "rdo.hold" : "rdo.cancel.question";
     if (!parsed.workName && (parsed.action === "rdo.create.preview" || /\bobra\b/i.test(raw))) parsed.workName = extractRdoWorkName_(raw);
     const idMatch = raw.match(/\bid\s+([a-z0-9_-]{6,})\b/i) || raw.match(/\brdo\s+((?:obr_rdo_|rdo_)[a-z0-9_-]+)\b/i);
     if (!parsed.rdoId && idMatch) parsed.rdoId = clean(idMatch[1]);
@@ -1668,7 +1691,18 @@
   }
 
   function saveRdoPending(pending) { window.localStorage.setItem(RDO_PENDING_KEY, JSON.stringify(pending)); }
-  function clearRdoPending() { try { window.localStorage.removeItem(RDO_PENDING_KEY); } catch (error) {} }
+  function clearRdoPending() { rdoPendingEpoch += 1; try { window.localStorage.removeItem(RDO_PENDING_KEY); } catch (error) {} }
+
+  function rdoPendingTarget_(pending) {
+    return pending ? { operationId: pending.operationId, createdAt: pending.createdAt, operationToken: pending.operationToken || "" } : null;
+  }
+  function sameRdoPendingTarget_(pending, target) {
+    return Boolean(pending && target && pending.operationId === target.operationId && pending.createdAt === target.createdAt && (pending.operationToken || "") === target.operationToken);
+  }
+  function newRdoPendingToken_() {
+    return (window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : Date.now() + ":" + Math.random()) + ":" + (++rdoPendingSequence);
+  }
+
 
   function makeRdoOperationId(action, identity, draft, raw) {
     return ["elo", action, draft.projectId || draft.workId || "work", draft.rdoDate || "date", identity.companyId || identity.institutionId || "tenant", identity.userId || "user", checksum(raw || draft.projectName || "rdo")].join(":");
@@ -1691,7 +1725,7 @@
     return continuation && /^(?:date|work|operational)$/.test(continuation.field) && compatible &&
       (continuation.field === "operational" ? intent.action === "rdo.create.revise" : intent.action === "rdo.create.preview") &&
       typeof pending.operationId === "string" && pending.operationId && Number.isFinite(pending.createdAt) &&
-      sameTenantBinding(input, pending) && continuation.operationId === pending.operationId && continuation.createdAt === pending.createdAt;
+      sameTenantBinding(input, pending) && continuation.operationId === pending.operationId && continuation.createdAt === pending.createdAt && (!continuation.operationToken || continuation.operationToken === pending.operationToken);
   }
 
   function blockRdoPreviewContinuation_(input) {
@@ -1729,6 +1763,7 @@
       action,
       status: work && work.id ? "pending" : "awaiting_work",
       createdAt: previous ? previous.createdAt : Date.now(),
+      operationToken: previous ? previous.operationToken : newRdoPendingToken_(),
       operationId,
       tenantBinding: tenantBinding(identity),
       identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: identity.projectId, clientId: identity.clientId },
@@ -1845,6 +1880,7 @@
     const workChange = editing && /\bobra\s+para\s+(.+)/i.exec(intent.raw);
     if (workChange) {
       await fetchRdoCanonicalWorks_(input);
+      if (!matchesRdoPreviewContinuation_(input, intent, readRdoPending())) return blockRdoPreviewContinuation_(input);
       const selection = resolveRdoWorkSelection_(input, { workName: clean(workChange[1]).replace(/[.!?]+$/, "") });
       if (!selection.ok) return rdoResult(input, { ok: false, action: "rdo.create.revise", mode: "blocked", humanAnswer: "Não identifiquei uma única obra autorizada. A prévia anterior foi preservada.", error: selection.reason });
       const work = selection.work;
@@ -1988,12 +2024,13 @@
     const update = buildRdoUpdateData_(rdo, intent, operationId);
     draft.rdoData = update.data;
     draft.descriptions = update.descriptions;
-    return { action: "rdo.update.execute", status: "pending", createdAt: Date.now(), operationId, tenantBinding: tenantBinding(identity), identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: draft.projectId }, raw: intent.raw || "", draft };
+    return { action: "rdo.update.execute", status: "pending", createdAt: Date.now(), operationToken: newRdoPendingToken_(), operationId, tenantBinding: tenantBinding(identity), identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: draft.projectId }, raw: intent.raw || "", draft };
   }
 
   function executeRdoUpdatePreview(input, intent) {
     const context = readRdoContext(input);
     clearRdoPending();
+    const updateEpoch = rdoPendingEpoch;
     if (intent.workName) {
       const work = resolveRdoWorkSelection_(input, intent);
       if (!work.ok) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.update.preview", mode: "blocked", humanAnswer: "Não identifiquei uma única obra cadastrada para atualizar o RDO.", error: "rdo_update_scope_mismatch" }));
@@ -2005,6 +2042,7 @@
     if (intent.updateError || !intent.updateNote && !(intent.changes || []).length) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.update.preview", mode: "blocked", humanAnswer: "Informe uma observação ou uma alteração explícita de equipe/produção. Nenhum PUT foi executado.", error: intent.updateError || "rdo_update_required_fields" }));
     const read = id ? fetchRdoById_(input, id) : fetchRdos(input, intent).then(function (rdos) { return resolveRdo(rdos, intent); });
     return read.then(function (rdo) {
+      if (updateEpoch !== rdoPendingEpoch) return blockRdoPreviewContinuation_(input);
       const summary = summarizeRdo(rdo);
       const projectId = clean(intent.projectId || getRdoIdentity(input).projectId);
       if (projectId && projectId !== summary.projectId || intent.targetDate && intent.targetDate !== summary.date) throw new Error("rdo_update_scope_mismatch");
@@ -2136,23 +2174,35 @@
     if (pending && pending.action === "rdo.update.execute") return executePendingRdoUpdate(input, pending);
     return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.confirm", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para confirmar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
   }
-  function executeRdoCancel(input) {
+  function executeRdoCancel(input, target) {
     const pending = readRdoPending();
-    if (!pending || !/^rdo\.(?:create|update)\.execute$/.test(String(pending.action || "")) || pending.status !== "pending") {
-      return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.cancel", mode: "blocked", humanAnswer: "Não há ação de RDO pendente para cancelar. Nenhum RDO foi criado ou atualizado.", error: "rdo_pending_missing" }));
+    if (!pending || !/^rdo\.(?:create|update)\.(?:preview|execute)$/.test(String(pending.action || "")) || !/^(?:pending|awaiting_work)$/.test(pending.status)) {
+      return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.cancel", mode: "blocked", humanAnswer: pending && pending.status === "saving" ? "A confirmação já está em andamento. Não posso afirmar cancelamento; consulte o histórico antes de qualquer nova tentativa." : "Não há ação de RDO pendente para cancelar. Nenhum RDO foi criado ou atualizado.", error: pending && pending.status === "saving" ? "rdo_confirmation_in_progress" : "rdo_pending_missing" }));
     }
     if (!sameTenantBinding(input, pending)) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.cancel", mode: "blocked", humanAnswer: "O tenant da sessão mudou desde o preview. Nenhuma ação de RDO foi cancelada.", error: "rdo_tenant_changed" }));
+    if (!sameRdoPendingTarget_(pending, target)) return Promise.resolve(blockRdoPreviewContinuation_(input));
     clearRdoPending();
     return Promise.resolve(rdoResult(input, { action: "rdo.cancel", mode: "cancel", humanAnswer: "A ação de RDO foi cancelada. Nenhum RDO foi criado ou atualizado.", data: { pending } }));
   }
+  function executeRdoCancellationInfo_(input, action) {
+    const pending = readRdoPending();
+    const ownPending = pending && sameTenantBinding(input, pending) && /^(?:pending|awaiting_work)$/.test(pending.status);
+    return Promise.resolve(rdoResult(input, { action: action, mode: "read", humanAnswer: !ownPending ? "Não há prévia de RDO pendente nesta sessão. Nenhum RDO foi criado ou atualizado." : action === "rdo.hold" ? "A prévia continua pendente, sem alterações e sem salvar. Quando quiser cancelar, diga: cancele a prévia." + (pending.status === "pending" ? "\n\n" + renderRdoOperationalPreview_(pending) : "") : "Você pode cancelar a prévia dizendo: cancele a prévia. Esta pergunta não cancelou nem confirmou a operação; ainda não salvei." }));
+  }
   function executeRdo(input) {
     input = Object.assign({}, input || {}, { context: Object.assign({}, input && input.context || {}) });
+    const dispatchTarget = rdoPendingTarget_(readRdoPending());
+    const dispatchEpoch = rdoPendingEpoch;
     return getCanonicalRdoSession_(input).then(async function (session) {
       if (!session.ok) return rdoAuthBlocked(input, { ok: false, reason: session.error === "institution_required" ? "tenant" : "auth" });
       input.context = Object.assign({}, input.context, session.authContext, { rdoCanonicalAccessToken: session.accessToken });
       const intent = parseRdoIntent(input);
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
+      if (intent.action === "rdo.cancel") return executeRdoCancel(input, dispatchTarget);
+      if (intent.action === "rdo.cancel.question" || intent.action === "rdo.hold") return executeRdoCancellationInfo_(input, intent.action);
+      if (intent.action === "rdo.confirm" && !sameRdoPendingTarget_(readRdoPending(), dispatchTarget)) return blockRdoPreviewContinuation_(input);
+      if (/^rdo\.(?:create|update)\.(?:preview|revise)$/.test(intent.action) && dispatchEpoch !== rdoPendingEpoch) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.create.revise") return executeRdoOperationalRevision_(input, intent);
       if (intent.action === "rdo.create.preview" && intent.previewContinuation && !matchesRdoPreviewContinuation_(input, intent, readRdoPending())) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.create.preview" || intent.workName) {
@@ -2166,6 +2216,7 @@
           return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: code === "rdo_tenant_changed" ? "A sessão mudou durante a consulta das obras. Refaça o pedido na conta atual. Nenhum RDO foi criado ou atualizado." : "Não consegui consultar as obras autorizadas agora. Tente novamente em instantes. Nenhum RDO foi criado ou atualizado.", error: code });
         }
       }
+      if (/^rdo\.(?:create|update)\.preview$/.test(intent.action) && dispatchEpoch !== rdoPendingEpoch) return blockRdoPreviewContinuation_(input);
       if (intent.workName && intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview") {
         const work = resolveRdoWorkSelection_(input, intent);
         if (!work.ok) return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não identifiquei uma única obra cadastrada para esse RDO.", error: work.reason });
@@ -2415,6 +2466,7 @@
   window.EloActionBusRdo = Object.assign({}, window.EloActionBusRdo || {}, {
     execute: executeRdo,
     parseIntent: parseRdoIntent,
+    classifyCancellation: classifyRdoCancellation_,
     readPending: readRdoPending,
     clearPending: clearRdoPending,
     resolveExistingWorks: listCanonicalRdoWorks_,

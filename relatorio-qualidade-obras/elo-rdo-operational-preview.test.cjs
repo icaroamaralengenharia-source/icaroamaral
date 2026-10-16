@@ -267,7 +267,7 @@ for (const phrase of [
     await env.ask(FULL_COMMAND);
     const before = plain(env.pending());
     const request = env.api.detectCommandBridgeRequestForTest(phrase);
-    assert.equal(request.action, "rdo.create.revise");
+    assert.equal(request.action, phrase === "não salve ainda" ? "rdo.hold" : "rdo.create.revise");
     assert.equal(env.api.isCommandBridgePriorityRequestForTest(request), true);
     await env.ask(phrase);
     assert.deepEqual(plain(env.pending()), before);

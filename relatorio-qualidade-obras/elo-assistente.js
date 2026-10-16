@@ -937,6 +937,8 @@
     if (!text) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
+    const cancellation = window.EloActionBusRdo && typeof window.EloActionBusRdo.classifyCancellation === "function" ? window.EloActionBusRdo.classifyCancellation(raw, Boolean(pendingRdo)) : "";
+    if (cancellation) return { module: "obrareport_rdo", action: cancellation === "cancel" ? "rdo_cancel" : cancellation === "hold" ? "rdo.hold" : "rdo.cancel.question", payload: payload };
     if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
       return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
     }
@@ -956,7 +958,7 @@
     const operationalChange = (/^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar|troque|trocar|mude|mudar|altere|alterar)\b/.test(text) && /\b(?:obra|data|equipe|horarios?|saida|jornada|clima|servicos?|producao|materia(?:l|is)|sacos?|cimento|intercorrencias?|ocorrencias?|observacoes|recebimento|chegaram)\b/.test(text)) || /^(?:foram|chegaram|recebemos)\s+\d[\s\S]*\bnao\s+\d/.test(text);
     if (pendingCreatePreview && (previewReview || operationalChange && !isEloExplicitStockProductCreateRequest_(text))) {
       return { module: "obrareport_rdo", action: "rdo.create.revise", payload: Object.assign({}, rdoPayload, {
-        rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+        rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt, operationToken: pendingRdo.operationToken || "" }
       }) };
     }
     if (explicitRdoRequest) return explicitRdoRequest;
@@ -964,7 +966,7 @@
       const isDateAnswer = /^(?:(?:para|em|na data|data|no dia|dia)\s+)?(?:hoje(?:\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?|ontem|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?:\s+(?:(?:mantenha\s+)?sem\s+salvar|(?:mas\s+)?nao\s+salve))?$/.test(text);
       return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, {
         workName: isDateAnswer ? "" : raw,
-        rdoPreviewContinuation: { field: isDateAnswer ? "date" : "work", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+        rdoPreviewContinuation: { field: isDateAnswer ? "date" : "work", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt, operationToken: pendingRdo.operationToken || "" }
       }) };
     }
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
@@ -1062,7 +1064,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|create\.revise|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|hold|cancel\.question|create\.revise|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function getEloAndroidStockCommandFromEvent_(event) {
     if (!event) return null;
@@ -30847,7 +30849,8 @@ function isEloResidentialNewPipelineEnabled_() {
   function stripEloWakePrefixForRouting_(message) {
     const pending = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     const rdoRevision = pending && pending.status === "pending" && /^(?:corrija|corrigir|ajuste|inclua|adicione|acrescente|troque|mude|altere|foram|recebemos|chegaram)\b/.test(normalizeText(message));
-    const preserveRdo = rdoRevision || /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(message));
+    const rdoCancellation = window.EloActionBusRdo && typeof window.EloActionBusRdo.classifyCancellation === "function" && window.EloActionBusRdo.classifyCancellation(message, Boolean(pending));
+    const preserveRdo = Boolean(rdoCancellation) || rdoRevision || /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(message));
     const clean = (preserveRdo ? sanitizeEloUserMessage_(message || "") : sanitizeUserText(message || "")).replace(/\s+/g, " ").trim();
     const wake = readEloWakeAliasForRouting_(clean);
     const match = wake.matched && clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);

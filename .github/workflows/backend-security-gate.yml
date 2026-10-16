@@ -13,6 +13,7 @@ on:
       - "relatorio-qualidade-obras/elo-rdo-pending-preview-routing.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs"
+      - "relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -30,6 +31,7 @@ on:
       - "relatorio-qualidade-obras/elo-rdo-pending-preview-routing.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs"
+      - "relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -91,6 +93,7 @@ jobs:
           node --check ../relatorio-qualidade-obras/elo-rdo-pending-preview-routing.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs
+          node --check ../relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs
           node --check ../relatorio-qualidade-obras/elo-routing-budget-regression.test.cjs
           node --check tests/obrareport-artifact-broker.test.js
           node --check < ../apps-script-versionado/Code.gs
@@ -128,6 +131,7 @@ jobs:
           node --test relatorio-qualidade-obras/elo-rdo-pending-preview-routing.test.cjs
           node --test relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs
           node --test relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs
+          node --test relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs
           node --test relatorio-qualidade-obras/rdo-final-real-test-bugs.test.cjs relatorio-qualidade-obras/rdo-project-workspace.test.cjs relatorio-qualidade-obras/rdo-project-workspace-page.test.cjs
 
       - name: Stock Full atomic movement, offline and UI regression gate
