@@ -946,6 +946,17 @@
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
     const explicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, payload, true);
+    // A new explicit create starts with its own data. Revision language belongs
+    // to the bound unsaved draft, before generic RDO list/update/report routing.
+    if (explicitRdoRequest && explicitRdoRequest.action === "preview_new_rdo") return explicitRdoRequest;
+    const pendingCreatePreview = pendingRdo && (pendingRdo.action === "rdo.create.execute" && pendingRdo.status === "pending" || pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work");
+    const previewReview = /^(?:(?:mostre|mostrar|exiba|ver|veja)\s+(?:a\s+)?previa\b|quais\s+(?:os\s+)?campos\b|faltou\s+(?:mostrar|incluir)\b|nao\s+salve\s+ainda\b)/.test(text);
+    const operationalChange = /^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar)\b/.test(text) && /\b(?:equipe|horarios?|jornada|clima|servicos?|producao|materia(?:l|is)|sacos?|cimento|intercorrencias?|ocorrencias?|observacoes|recebimento|chegaram)\b/.test(text);
+    if (pendingCreatePreview && (previewReview || operationalChange && !isEloExplicitStockProductCreateRequest_(text))) {
+      return { module: "obrareport_rdo", action: "rdo.create.revise", payload: Object.assign({}, payload, {
+        rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+      }) };
+    }
     if (explicitRdoRequest) return explicitRdoRequest;
     if (pendingRdo && pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work" && !isEloRdoConfirmationPositive_(text) && !isEloRdoConfirmationNegative_(text)) {
       const isDateAnswer = /^(?:(?:para|em|na data|data|no dia|dia)\s+)?(?:hoje(?:\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?|ontem|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?:\s+(?:(?:mantenha\s+)?sem\s+salvar|(?:mas\s+)?nao\s+salve))?$/.test(text);
@@ -1049,7 +1060,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|create\.revise|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function getEloAndroidStockCommandFromEvent_(event) {
     if (!event) return null;
@@ -1107,7 +1118,8 @@
     if (!bridgeResult || bridgeResult.handled === false) return null;
     const answer = sanitizeEloHumanFacingAnswer_(bridgeResult.humanAnswer || bridgeResult.preview || bridgeResult.error || "");
     if (!answer) return null;
-    const modeLabel = bridgeResult.requiresConfirmation ? "Preparei uma previa e preciso da sua confirmacao antes de executar." : "";
+    const completeRdoPreview = bridgeResult.module === "obrareport_rdo" && bridgeResult.action === "rdo.create.preview" && bridgeResult.mode === "preview";
+    const modeLabel = bridgeResult.requiresConfirmation && !completeRdoPreview ? "Preparei uma previa e preciso da sua confirmacao antes de executar." : "";
     const fullAnswer = [answer, modeLabel].filter(Boolean).join("\n\n");
     const rdo = bridgeResult.data && bridgeResult.data.rdo;
     const document = bridgeResult.data && bridgeResult.data.document;
@@ -1117,7 +1129,7 @@
     return {
       shortAnswer: answer,
       fullAnswer: fullAnswer,
-      nextAction: bridgeResult.requiresConfirmation ? "Revise a previa e confirme se deseja prosseguir." : "",
+      nextAction: bridgeResult.requiresConfirmation && !completeRdoPreview ? "Revise a previa e confirme se deseja prosseguir." : "",
       canSave: false,
       sessionTheme: "elo_command_bridge",
       sessionIntent: "elo_command_bridge",

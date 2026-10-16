@@ -1878,10 +1878,11 @@ test('ELO Action Bus RDO: pending create preserva data e resolve follow-up por n
     context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth' } }
   });
   assert.equal(preview.commandBridge.requiresConfirmation, true);
-  assert.match(preview.fullAnswer, /PROJECT: Residencia Teste/);
-  assert.match(preview.fullAnswer, /PROJECT ID: work-test-id/);
-  assert.match(preview.fullAnswer, /DATE:/);
-  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.match(preview.fullAnswer, /OBRA: Residencia Teste/);
+  assert.equal(preview.commandBridge.data.draft.projectId, 'work-test-id');
+  assert.doesNotMatch(preview.fullAnswer, /PROJECT ID|work-test-id/);
+  assert.match(preview.fullAnswer, /DATA:/);
+  assert.doesNotMatch(preview.fullAnswer, /WRITE EXECUTED|MODULE:|ACTION:/);
   assert.equal(calls.some((call) => call.href.includes('/api/obrareport/rdos') && call.method !== 'GET'), false);
   assert.equal(calls.some((call) => call.href.includes('/api/elo/chat')), false);
   assert.equal(calls.some((call) => call.href.endsWith('/api/stock-full/works')), true);
@@ -1925,11 +1926,12 @@ test('ELO Action Bus RDO: sem obra inequívoca pede seleção e consome a respos
   assert.equal(followRequest.payload.workName, 'OBRA TESTE ELO E2E');
   const preview = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context });
   assert.equal(preview.commandBridge.requiresConfirmation, true);
-  assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
-  assert.match(preview.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
-  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
-  assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
-  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.match(preview.fullAnswer, /OBRA: OBRA TESTE ELO E2E/);
+  assert.equal(preview.commandBridge.data.draft.projectId, expectedId);
+  assert.doesNotMatch(preview.fullAnswer, new RegExp(expectedId));
+  assert.equal(preview.commandBridge.data.draft.source, 'stock_full_api');
+  assert.match(preview.fullAnswer, /Ainda não salvei\. Deseja confirmar\?/);
+  assert.doesNotMatch(preview.fullAnswer, /WRITE EXECUTED|MODULE:|ACTION:/);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
   assert.equal(calls.some((call) => call.href.endsWith('/api/stock-full/works')), true);
 });
@@ -1958,8 +1960,9 @@ test('ELO Action Bus RDO: obra explícita inline vence o projeto do contexto', a
     context: { identity: { institutionId: 'inst_auth', companyId: 'inst_auth', userId: 'profile_auth', projectId: 'obr_mpm0ugmi_71rfcq' } }
   });
   assert.equal(response.commandBridge.requiresConfirmation, true);
-  assert.match(response.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
-  assert.match(response.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.match(response.fullAnswer, /OBRA: OBRA TESTE ELO E2E/);
+  assert.equal(response.commandBridge.data.draft.projectId, expectedId);
+  assert.doesNotMatch(response.fullAnswer, new RegExp(expectedId));
   assert.doesNotMatch(response.fullAnswer, /Residência teste/);
   assert.equal(calls.filter((call) => call.href.endsWith('/api/stock-full/works')).length >= 1, true);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
@@ -1991,8 +1994,9 @@ test('ELO Action Bus RDO: seleção explícita vence obra antiga no contexto', a
   assert.equal(ask.commandBridge.requiresConfirmation, false);
   const response = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context });
   assert.equal(response.commandBridge.requiresConfirmation, true);
-  assert.match(response.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
-  assert.match(response.fullAnswer, new RegExp('PROJECT ID: ' + expectedId));
+  assert.match(response.fullAnswer, /OBRA: OBRA TESTE ELO E2E/);
+  assert.equal(response.commandBridge.data.draft.projectId, expectedId);
+  assert.doesNotMatch(response.fullAnswer, new RegExp(expectedId));
   assert.doesNotMatch(response.fullAnswer, /Residência teste/);
   assert.equal(calls.filter((call) => call.href.endsWith('/api/stock-full/works')).length >= 1, true);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
@@ -5204,10 +5208,10 @@ test('ELO Action Bus RDO: hidrata contexto canonico imediatamente antes da actio
 
   const preview = await elo.buildCommandBridgeResponseForTest('OBRA TESTE ELO E2E', { context: staleEmbeddedContext });
   assert.equal(preview.commandBridge.requiresConfirmation, true);
-  assert.match(preview.fullAnswer, /PROJECT: OBRA TESTE ELO E2E/);
-  assert.match(preview.fullAnswer, /ENTITY TYPE: WORK/);
-  assert.match(preview.fullAnswer, /CONFIRMATION REQUIRED: SIM/);
-  assert.match(preview.fullAnswer, /WRITE EXECUTED: 0/);
+  assert.match(preview.fullAnswer, /OBRA: OBRA TESTE ELO E2E/);
+  assert.equal(preview.commandBridge.data.draft.source, 'stock_full_api');
+  assert.match(preview.fullAnswer, /Ainda não salvei\. Deseja confirmar\?/);
+  assert.doesNotMatch(preview.fullAnswer, /WRITE EXECUTED|MODULE:|ACTION:/);
   assert.equal(calls.filter((call) => call.method !== 'GET').length, 0);
   assert.equal(calls.filter((call) => call.href.endsWith('/api/stock-full/works')).length, 2);
 });
@@ -5288,7 +5292,7 @@ test("ELO Action Bus RDO: ask prioriza confirmação pendente antes da conversa 
   elo.setCoreMessagesElementForTest(messages);
   elo.ask("crie um RDO para hoje", [], "manual");
   await flushEloHotfixPromises();
-  assert.match(elementText(messages), /CONFIRMATION REQUIRED: SIM/);
+  assert.match(elementText(messages), /Ainda não salvei\. Deseja confirmar\?/);
   assert.equal(calls.filter((call) => call.href.endsWith("/api/stock-full/works")).length, 1);
   assert.equal(calls.filter((call) => call.method === "POST" && call.href.includes("/api/obrareport/rdos")).length, 0, JSON.stringify(calls));
   elo.ask("sim", [], "manual");

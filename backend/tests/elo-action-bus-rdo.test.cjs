@@ -234,8 +234,8 @@ test("rdo.create.preview consulta obras cloud autorizadas sem executar POST ou P
   const preview = await one.window.EloActionBusRdo.execute({ module: "obrareport_rdo", action: "preview_new_rdo", context: { authToken: "token-a", institutionId: "inst_a", userId: "user_a" }, payload: { message: "crie um RDO para hoje", now: "2026-09-04T12:00:00.000Z" } });
   assert.equal(preview.ok, true);
   assert.equal(preview.requiresConfirmation, true);
-  assert.match(preview.humanAnswer, /PROJECT: Residencia Teste/);
-  assert.match(preview.humanAnswer, /PROJECT ID: work-test-id/);
+  assert.match(preview.humanAnswer, /OBRA: Residencia Teste/);
+  assert.doesNotMatch(preview.humanAnswer, /PROJECT ID|work-test-id|operationId/);
   assert.equal(preview.data.draft.projectId, "work-test-id");
   assert.equal(preview.data.draft.workId, "work-test-id");
   assert.equal(one.calls.length, 1);
