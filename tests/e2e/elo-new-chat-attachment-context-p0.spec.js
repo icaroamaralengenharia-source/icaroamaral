@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
 const OLD_CONVERSATION_ID = "conv-attachment-old";
 const OLD_USER_MESSAGE = "mensagem antiga sintética";
@@ -381,7 +382,19 @@ test("viewport Android acompanha pan do teclado sem deslocar leitura ou cobrir c
       window.visualViewport.update(468, 60);
       window.visualViewport.update(468, 96, "scroll");
     });
-    await expect.poll(() => page.evaluate(() => Math.round(document.body.getBoundingClientRect().height))).toBe(468);
+    await testInfo.attach(`ime-frame-${cycle}.json`, {contentType:"application/json",body:JSON.stringify(await page.evaluate(()=>({
+      classes:document.body.className,rootClasses:document.documentElement.className,viewport:window.EloVisibleViewport.getState(),
+      body:{height:getComputedStyle(document.body).height,maxHeight:getComputedStyle(document.body).maxHeight,display:getComputedStyle(document.body).display},
+      root:{height:getComputedStyle(document.documentElement).height},shell:{display:getComputedStyle(document.querySelector('.elo-product-shell')).display,height:getComputedStyle(document.querySelector('.elo-product-shell')).height}
+    })))});
+    await expect.poll(() => page.evaluate(() => Math.round(document.body.getBoundingClientRect().height))).toBe(468).catch(async error => {
+      console.log("IME_LAYOUT_FAILURE", await page.evaluate(()=>({classes:document.body.className,root:document.documentElement.className,
+        viewport:window.EloVisibleViewport.getState(),cssHeight:document.documentElement.style.getPropertyValue('--elo-visible-height'),
+        rootHeight:getComputedStyle(document.documentElement).height,bodyHeight:getComputedStyle(document.body).height,
+        bodyMaxHeight:getComputedStyle(document.body).maxHeight,bodyDisplay:getComputedStyle(document.body).display,
+        shellDisplay:getComputedStyle(document.querySelector('.elo-product-shell')).display,shellHeight:getComputedStyle(document.querySelector('.elo-product-shell')).height})));
+      throw error;
+    });
     await page.waitForTimeout(80);
     const snapshot = await page.evaluate(() => {
       const viewport = window.visualViewport;
@@ -438,6 +451,73 @@ test("viewport Android acompanha pan do teclado sem deslocar leitura ou cobrir c
   await expect(page.locator(".elo-input-row")).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("ime-after.png") });
   await testInfo.attach("ime-cycles.json", { body: JSON.stringify(snapshots, null, 2), contentType: "application/json" });
+});
+
+test("controles HTML nativos cabem em retrato, paisagem e teclado com alvos de 50px", async ({ page }, testInfo) => {
+  await installSyntheticSession(page);
+  await installSyntheticRoutes(page);
+  await openSyntheticConversation(page);
+  // Exercise the canonical CSS with the same HTML structure as the native adapter.
+  // Private-port callbacks and trusted clicks are covered by the channel unit suite.
+  await page.evaluate(() => {
+    const actions = document.createElement("div");
+    actions.className = "elo-native-conversation-actions";
+    actions.setAttribute("role", "group");
+    actions.setAttribute("aria-label", "Controles da conversa");
+    for (const [kind, text] of [["resume-wake", "Retomar chamado"], ["end-conversation", "Encerrar conversa"]]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "elo-inline-button elo-native-" + kind;
+      button.setAttribute("aria-label", text);
+      button.innerHTML = '<svg class="elo-native-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg><span></span>';
+      button.querySelector("span").textContent = text;
+      actions.append(button);
+    }
+    const mode = document.querySelector(".elo-voice-mode-button");
+    mode.textContent = "Desativar assistente";
+    mode.after(actions);
+    const status = document.querySelector(".elo-voice-status");
+    status.textContent = "Escuta suspensa. Toque em Retomar chamado.";
+    const transcript = document.createElement("div");
+    transcript.className = "elo-native-transcript";
+    transcript.style.cssText = "max-height:2.8em;overflow:auto;font-size:14px;line-height:1.35;margin:4px 8px;max-width:calc(100% - 16px);flex-shrink:0;overflow-wrap:anywhere;color:#244a68";
+    transcript.textContent = "Você: Qual é uma forma simples de organizar esta conversa e retomar a próxima pergunta?";
+    status.before(transcript);
+  });
+  for (const viewport of [{width:384,height:779},{width:320,height:640},{width:781,height:360},{width:846,height:384},{width:384,height:407}]) {
+    await page.setViewportSize(viewport);
+    await page.waitForTimeout(120);
+    const layout = await page.evaluate(() => {
+      const rect = node => {
+        const r = node.getBoundingClientRect();
+        return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height,width:r.width};
+      };
+      return {
+        viewport:{width:innerWidth,height:innerHeight},
+        composer:rect(document.querySelector(".elo-input-row")),
+        messages:rect(document.querySelector(".elo-messages")),
+        actions:rect(document.querySelector(".elo-native-conversation-actions")),
+        buttons:[...document.querySelectorAll(".elo-native-conversation-actions button")].map(node => {
+          const r = rect(node), hit = document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2);
+          return {...r,hit:node===hit||node.contains(hit),background:getComputedStyle(node).backgroundColor};
+        })
+      };
+    });
+    await testInfo.attach(`native-controls-${viewport.width}x${viewport.height}.json`, {body:JSON.stringify(layout),contentType:"application/json"});
+    for (const button of layout.buttons) {
+      expect(button.height).toBeGreaterThanOrEqual(48);
+      expect(button.height).toBeLessThanOrEqual(54);
+      expect(button.top).toBeGreaterThanOrEqual(0);
+      expect(button.bottom).toBeLessThanOrEqual(viewport.height+1);
+      expect(button.left).toBeGreaterThanOrEqual(0);
+      expect(button.right).toBeLessThanOrEqual(viewport.width+1);
+      expect(button.hit).toBe(true);
+    }
+    expect(layout.messages.bottom).toBeLessThanOrEqual(layout.composer.top+1);
+    expect(layout.composer.bottom).toBeLessThanOrEqual(layout.actions.top+1);
+    expect(layout.buttons[0].background).toBe("rgb(29, 78, 216)");
+    await page.screenshot({path:testInfo.outputPath(`native-controls-${viewport.width}x${viewport.height}.png`)});
+  }
 });
 
 test("composer mantém limites quando o evento de viewport do teclado atrasa", async ({ page }) => {
