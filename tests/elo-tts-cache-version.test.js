@@ -9,7 +9,8 @@ const html = fs.readFileSync(path.join(root, "elo.html"), "utf8");
 const serviceWorker = fs.readFileSync(path.join(root, "elo-sw.js"), "utf8");
 
 test("ELO neural TTS cache version is synchronized across page and service worker", () => {
-  const version = "20261010-safe-humor-v2";
+  const version = html.match(/elo-assistente\.js\?v=([^"\s]+)/)?.[1];
+  assert.ok(version, "the official assistant must have a versioned URL");
   const scriptUrl = `relatorio-qualidade-obras/elo-assistente.js?v=${version}`;
   const workerUrl = `./elo-sw.js?v=${version}`;
 
@@ -19,5 +20,12 @@ test("ELO neural TTS cache version is synchronized across page and service worke
 
   assert.ok(!html.includes("elo-assistente.js?v=20261008-android-stock-routing-v1"));
   assert.ok(!serviceWorker.includes("elo-assistente.js?v=20261008-android-stock-routing-v1"));
-  assert.ok(serviceWorker.includes('const ELO_CACHE_NAME = "elo-web-offline-v34-20261010-safe-humor-v2";'));
+  const cacheName = serviceWorker.match(/const ELO_CACHE_NAME = "([^"]+)"/)?.[1];
+  assert.ok(cacheName && cacheName.includes(version), "the worker cache must identify the same candidate");
+  for (const asset of ["elo-viewport.js", "elo-voice-session.js"]) {
+    const path = `relatorio-qualidade-obras/${asset}?v=${version}`;
+    assert.ok(html.includes(`<script src="${path}"></script>`));
+    assert.ok(serviceWorker.includes(`"./${path}"`));
+  }
+  assert.ok(html.indexOf("elo-voice-session.js?v=") < html.indexOf("elo-assistente.js?v="));
 });

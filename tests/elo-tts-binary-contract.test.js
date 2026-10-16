@@ -43,6 +43,7 @@ function extractFunction(source, name) {
 const functionNames = [
   "chooseEloPortugueseVoice_",
   "getEloTtsEndpoint_",
+  "getEloTtsInstructions_",
   "getEloAudioConstructor_",
   "revokeEloNeuralSpeechObjectUrl_",
   "cleanupEloNeuralSpeechAudio_",
@@ -129,6 +130,7 @@ function createHarness(responses, options = {}) {
     speak(utterance) { calls.speak += 1; this.lastUtterance = utterance; }
   };
   const window = {
+    location: { pathname: "/elo.html" },
     fetch: async (...args) => {
       calls.fetch += 1;
       calls.lastFetch = args;

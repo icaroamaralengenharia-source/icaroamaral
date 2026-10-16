@@ -384,7 +384,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun configureQaServiceWorker() {
-        if (!isQaDebugBuild()) return
         val controller = ServiceWorkerController.getInstance()
         controller.serviceWorkerWebSettings.cacheMode = WebSettings.LOAD_NO_CACHE
         controller.setServiceWorkerClient(object : ServiceWorkerClient() {
@@ -395,6 +394,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun interceptQaWebResource(uri: Uri): WebResourceResponse? {
+        EloBundledWebResourcePolicy.match(uri.toString())?.let { path ->
+            return qaAssetResponse("elo-web" + path, EloBundledWebResourcePolicy.mime(path))
+        }
         return when (EloQaWebResourcePolicy.match(isQaDebugBuild(), uri.toString())) {
             EloQaWebResource.HTML -> qaAssetResponse(
                 checkNotNull(EloQaWebResource.HTML.assetPath),
@@ -781,7 +783,7 @@ class MainActivity : ComponentActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
-        const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html"
+        const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html?elo-apk=brain-v10"
         const val BRIDGE_NAME = "EloNativeBridge"
         private const val QA_NO_OP_SERVICE_WORKER = "self.addEventListener('install', function(event) { event.waitUntil(self.skipWaiting()); });\nself.addEventListener('activate', function(event) { event.waitUntil(self.clients.claim()); });"
         private val QA_NO_CACHE_HEADERS = mapOf(

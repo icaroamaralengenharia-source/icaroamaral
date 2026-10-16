@@ -46,7 +46,8 @@ $taskArgs=@('--no-daemon','--max-workers=1','--offline','--console=plain','--pro
  '--tests','br.com.icaroamaral.elo.EloCanonicalVoiceClientTest',
  '--tests','br.com.icaroamaral.elo.EloVoiceUtteranceBufferTest',
  '--tests','br.com.icaroamaral.elo.EloNativeMusicIntentTest',
- '--tests','br.com.icaroamaral.elo.EloMusicPlayerCoordinatorTest','assembleDebug')
+ '--tests','br.com.icaroamaral.elo.EloMusicPlayerCoordinatorTest',
+ '--tests','br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest','assembleDebug')
 $taskLauncher=Join-Path (Split-Path (Split-Path $taskGradle -Parent) -Parent) 'lib\gradle-launcher-8.10.2.jar'
 $taskPreviousJavaOptions=$env:JDK_JAVA_OPTIONS
 try {
