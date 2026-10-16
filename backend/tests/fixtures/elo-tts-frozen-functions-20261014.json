@@ -1,0 +1,8 @@
+{
+  "getEloTtsEndpoint_": "58a8f921f31f1ff5b80a30fc59e3563d1434bf74aac9e230a0e79ada377abbfb",
+  "getEloTtsInstructions_": "5475db91a6935679356ef16517d7e0c7041eb65b1bcc8116545b8da52f1f1324",
+  "requestEloNeuralSpeech_": "a491ba55187ef6b8d2ead4ea181ef55c31df7effb21fb1262cf56a52bfa7f0fc",
+  "playEloNeuralSpeechAudio_": "09fcff5f37fc750c9ae8493d1b293e1f1619e86fadbabcbe6ddf1ec1d33b6be4",
+  "speakEloTextFallback_": "1c8d1e65cf0870014ac9604aa9e977e8ab4bad6a4a22c49074917bc14eb63b77",
+  "speakEloText_": "fbcadc90cad3ee41f82dd91cc6d9f7d663d1db004954c8c6a6a5c713c7b5b4d2"
+}

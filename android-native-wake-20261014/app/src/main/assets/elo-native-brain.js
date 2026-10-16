@@ -5,6 +5,7 @@
   let port = null, sequence = 0, state = { state: "WAKE_DISABLED", enabled: false, owner: "NONE" }, syncing = false, syncAgain = false, mounting = false, activationPending = false, activationRequested = false;
   let boundScope = null, clearingContext = false, readingControl = null, lastTranscript = "", lastTranscriptFinal = false;
   let activeMusic = null, ownsMusicConfirmation = false;
+  let controlPending = "";
   const pending = new Map();
   const api = () => window.EloAssistente;
   function request(type, payload) {
@@ -56,11 +57,26 @@
         notice("Voz indisponível (" + state.reason + "). Abra o ELO e verifique a sessão e as permissões.");
       else if (state.reason === "CAPTURE_STARTING") notice("Abrindo microfone. Aguarde…");
       else if (state.reason === "CAPTURE_RELEASING") notice("Finalizando escuta…");
-      else if (state.reason === "NO_SPEECH_RETRY") notice("Não ouvi uma frase. Preparando a escuta novamente…");
+      else if (["NO_SPEECH_RETRY", "SILENCE_RETRY", "CAPTURE_WATCHDOG_RETRY"].includes(state.reason)) notice("Reabrindo o microfone…");
       else notice(labels[state.state] || "Preparando chamado ELO.");
       let resume = document.querySelector(".elo-native-resume-wake");
       if (!resume) { resume = document.createElement("button"); resume.type = "button"; resume.className = "elo-inline-button elo-native-resume-wake"; resume.textContent = "Retomar chamado"; end.after(resume); }
       resume.hidden = state.state !== "SUSPENDED";
+      let actions = document.querySelector(".elo-native-conversation-actions");
+      if (!actions) {
+        actions = document.createElement("div"); actions.className = "elo-native-conversation-actions";
+        actions.setAttribute("role", "group"); actions.setAttribute("aria-label", "Controles da conversa");
+        button.after(actions); actions.append(resume, end);
+        const icon = path => '<svg class="elo-native-control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="' + path + '"></path></svg><span></span>';
+        resume.innerHTML = icon("M8 5v14l11-7z"); end.innerHTML = icon("M6 6h12v12H6z");
+      }
+      actions.hidden = end.hidden && resume.hidden;
+      for (const [el, key, label, busyLabel] of [[resume, "resume", "Retomar chamado", "Retomando…"], [end, "end", "Encerrar conversa", "Encerrando…"]]) {
+        const pending = controlPending === key, text = pending ? busyLabel : label;
+        if (el.querySelector("span").textContent !== text) el.querySelector("span").textContent = text;
+        el.setAttribute("aria-label", label); el.setAttribute("aria-busy", String(pending));
+        el.disabled = !!controlPending;
+      }
       let transcript = document.querySelector(".elo-native-transcript");
       if (!transcript) {
         transcript = document.createElement("div"); transcript.className = "elo-native-transcript";
@@ -170,13 +186,16 @@
     if (control.matches(".elo-mic-button") && !state.enabled) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (!event.isTrusted) return;
+    const pendingKey = control.matches(".elo-native-end-conversation") ? "end" : control.matches(".elo-native-resume-wake") ? "resume" : "";
+    if (pendingKey && controlPending) return;
+    if (pendingKey) { controlPending = pendingKey; mount(); }
     const operation = control.matches(".elo-native-end-conversation") ? request("END") :
       control.matches(".elo-native-resume-wake") ? request("RESUME_WAKE") :
       control.matches(".elo-mic-button") ?
         (["PROCESSING", "BRAIN_SPEAKING"].includes(state.state) ? request("INTERRUPT") :
           state.state === "WAKE_LISTENING" ? Promise.resolve(notice("Diga ELO para começar a conversa.")) : request("END")) :
       state.enabled ? request("DISABLE") : activate();
-    Promise.resolve(operation).catch(error => notice(error.message));
+    Promise.resolve(operation).catch(error => notice(error.message)).finally(() => { if (pendingKey) { controlPending = ""; mount(); } });
   }, true);
   document.addEventListener("input", event => {
     if (state.enabled && event.target.matches?.(".elo-input") && event.target.value.trim()) request("SUSPEND").catch(() => {});
@@ -270,8 +289,8 @@
         if (!routed?.handled || ["NO_HANDLER", "CANCELLED", "OFFLINE"].includes(result.decision)) return;
         ownsMusicConfirmation = false;
         result.answer = "Tocando " + (label || "a música solicitada") + ".";
-      }
         if (op.confirmed) { result.played = true; result.positionAdvanced = true; return; }
+      }
       // Intent/resolver success is insufficient. Observe the existing real player.
       const end = Date.now() + 10000;
       let previous = null;
@@ -354,6 +373,6 @@
   document.addEventListener("visibilitychange", onResume);
   new MutationObserver(() => { mount(); if (window.document?.body) checkVisibleScope(); }).observe(document.body, { childList: true, subtree: true });
   new MutationObserver(checkVisibleScope).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-  window.EloNativeBrain = Object.freeze({ version: "20261015-native-brain-v5", onResume, getState: () => ({ ...state }) });
+  window.EloNativeBrain = Object.freeze({ version: "20261016-native-brain-v6", onResume, getState: () => ({ ...state }) });
   mount();
 })();
