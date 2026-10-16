@@ -1118,7 +1118,7 @@
   }
   function rdoResult(input, values) {
     const response = result(input, Object.assign({ module: "obrareport_rdo" }, values || {}));
-    if (values && values.action === "rdo.create.preview" && values.mode === "preview") {
+    if (values && (values.action === "rdo.create.preview" && values.mode === "preview" || values.action === "rdo.get" && values.mode === "read")) {
       response.preview = String(values.preview || "").trim();
       response.humanAnswer = String(values.humanAnswer || values.preview || "").trim();
     }
@@ -1183,6 +1183,19 @@
     return date.toISOString().slice(0, 10);
   }
 
+  function rdoCalendarNow_(instant, input) {
+    const context = input && input.context || {};
+    const payload = input && input.payload || {};
+    const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+    const timeZone = clean(context.workTimeZone || context.projectTimeZone || context.timeZone || context.timezone || payload.timeZone || payload.timezone || config.rdoTimeZone) || "America/Sao_Paulo";
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant);
+    const values = {};
+    parts.forEach(function (part) { values[part.type] = part.value; });
+    // Work with calendar days at UTC noon after resolving the work's time zone.
+    // This avoids treating UTC midnight as the next workday in western zones.
+    return new Date(values.year + "-" + values.month + "-" + values.day + "T12:00:00.000Z");
+  }
+
   function extractRdoWorkName_(raw) {
     const text = clean(raw).replace(/[,;]\s*mas\s+n[aã]o\s+salve[.!?]*\s*$/i, "");
     if (!text) return "";
@@ -1204,7 +1217,7 @@
   // are text in the official RDO, not a second nested operational schema.
   function rdoOperationalSection_(raw, label) {
     const labels = "equipe(?: presente)?|hor[aá]rios?|jornada|clima|tempo|servi[cç]os?(?: executados?)?|produ[cç][aã]o|materia(?:l|is)(?: recebidos?)?|intercorr[eê]ncias?|ocorr[eê]ncias?|observa[cç][aã]o|observa[cç][oõ]es|respons[aá]vel";
-    const match = String(raw || "").match(new RegExp("\\b(?:" + label + ")\\s*:\\s*(.*?)(?=\\s+(?:" + labels + ")\\s*:|\\s+N[aã]o\\s+salve\\b|$)", "i"));
+    const match = String(raw || "").match(new RegExp("\\b(?:" + label + ")\\s*(?::|(?:para|foi|era|est[aá])\\s+)\\s*(.*?)(?=\\s+(?:" + labels + ")\\s*:|\\s+N[aã]o\\s+salve\\b|$)", "i"));
     return match ? clean(match[1]).replace(/[.;]+$/, "").trim() : "";
   }
 
@@ -1268,21 +1281,24 @@
     return data;
   }
 
-  function renderRdoOperationalPreview_(pending) {
-    const data = pending.draft.rdoData;
+  function rdoOperationalFieldLines_(data, projectName) {
     const absent = "Não informado";
     const team = [data.employeeCount ? data.employeeCount + " pessoas" : "", data.teamPresent].filter(Boolean).join(" — ");
     const production = (data.productions || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.service + (item.note ? " — " + item.note : ""); }).join("; ");
     const materials = (data.materials || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.name + (item.note ? " — " + item.note : ""); }).join("; ");
     const date = clean(data.date).split("-").reverse().join("/");
     return [
-      "Prévia do RDO", "OBRA: " + (pending.draft.projectName || absent), "DATA: " + (date || absent),
+      "OBRA: " + (projectName || absent), "DATA: " + (date || absent),
       "RESPONSÁVEL: " + (data.responsible || absent), "EQUIPE: " + (team || absent),
       "HORÁRIOS: " + ([data.startTime, data.endTime].filter(Boolean).join("–") || absent),
       "CLIMA: " + (data.weather || absent), "SERVIÇOS: " + (production || data.services || absent),
       "MATERIAIS: " + (materials || absent), "INTERCORRÊNCIAS: " + (data.occurrences || absent),
-      "OBSERVAÇÕES: " + (data.generalNotes || absent), "", "Ainda não salvei. Deseja confirmar?"
-    ].join("\n");
+      "OBSERVAÇÕES: " + (data.generalNotes || absent)
+    ];
+  }
+
+  function renderRdoOperationalPreview_(pending) {
+    return ["Prévia do RDO"].concat(rdoOperationalFieldLines_(pending.draft.rdoData, pending.draft.projectName), ["", "Ainda não salvei. Deseja confirmar?"]).join("\n");
   }
 
   function parseRdoIntent(input) {
@@ -1290,7 +1306,7 @@
     const payload = input && input.payload || {};
     const raw = clean(payload.message);
     const text = normalize(raw);
-    const nowDate = payload.now ? new Date(payload.now) : new Date();
+    const nowDate = rdoCalendarNow_(payload.now ? new Date(payload.now) : new Date(), input);
     const parsed = {
       action: /^rdo\./.test(action) ? action : /^(?:close_rdo|generate_rdo_document|generate_document|rdo_generate_document)$/.test(action) ? "rdo.generateDocument" : action === "rdo_confirm" ? "rdo.confirm" : action === "rdo_cancel" ? "rdo.cancel" : action === "list_rdos" ? "rdo.list" : action === "get_rdo" ? "rdo.get" : action === "problems_by_period" ? "rdo.problemsByPeriod" : /^(?:create_rdo|preview_new_rdo)$/.test(action) ? "rdo.create.preview" : /^(?:update_rdo|preview_update_rdo)$/.test(action) ? "rdo.update.preview" : "",
       raw,
@@ -1514,7 +1530,11 @@
       const rdo = resolveRdo(rdos, intent);
       const summary = summarizeRdo(rdo);
       saveRdoContext(input, rdo);
-      return rdoResult(input, { action: "rdo.get", mode: "read", humanAnswer: "Encontrei o RDO " + (summary.date ? "de " + summary.date + " " : "") + "(" + summary.title + ").", data: { rdo: summary, rawRdo: rdo } });
+      const data = Object.assign({}, rdoData(rdo), { date: summary.date });
+      const work = resolveExistingObraReportWorks_(input).find(function (item) { return clean(item.id) === summary.projectId; });
+      const projectName = work && work.name || data.projectName || data.workName || intent.workName;
+      const details = rdoOperationalFieldLines_(data, projectName).join("\n");
+      return rdoResult(input, { action: "rdo.get", mode: "read", humanAnswer: "Encontrei o RDO " + (summary.date ? "de " + summary.date + " " : "") + "(" + summary.title + ").\n" + details, data: { rdo: summary, rawRdo: rdo } });
     });
   }
   function executeRdoGenerateDocument(input, intent) {

@@ -1,0 +1,602 @@
+[
+  {
+    "id": "ELO-RDO-001",
+    "category": "A",
+    "description": "Entrar no ELO com conta de homologação válida.",
+    "expected": "Entrar no ELO com conta de homologação válida."
+  },
+  {
+    "id": "ELO-RDO-002",
+    "category": "A",
+    "description": "Localizar obra pelo nome exato.",
+    "expected": "Localizar obra pelo nome exato."
+  },
+  {
+    "id": "ELO-RDO-003",
+    "category": "A",
+    "description": "Localizar obra por parte do nome.",
+    "expected": "Localizar obra por parte do nome."
+  },
+  {
+    "id": "ELO-RDO-004",
+    "category": "A",
+    "description": "Localizar obra com variação de maiúsculas, minúsculas e acentos.",
+    "expected": "Localizar obra com variação de maiúsculas, minúsculas e acentos."
+  },
+  {
+    "id": "ELO-RDO-005",
+    "category": "A",
+    "description": "Solicitar obra inexistente e receber resposta correta.",
+    "expected": "Solicitar obra inexistente e receber resposta correta."
+  },
+  {
+    "id": "ELO-RDO-006",
+    "category": "A",
+    "description": "Encontrar duas obras com nomes parecidos e solicitar desambiguação.",
+    "expected": "Encontrar duas obras com nomes parecidos e solicitar desambiguação."
+  },
+  {
+    "id": "ELO-RDO-007",
+    "category": "A",
+    "description": "Identificar obra vinculada ao projeto correto.",
+    "expected": "Identificar obra vinculada ao projeto correto."
+  },
+  {
+    "id": "ELO-RDO-008",
+    "category": "A",
+    "description": "Impedir seleção de obra pertencente a outro tenant.",
+    "expected": "Impedir seleção de obra pertencente a outro tenant."
+  },
+  {
+    "id": "ELO-RDO-009",
+    "category": "A",
+    "description": "Trocar a obra selecionada antes de confirmar a operação.",
+    "expected": "Trocar a obra selecionada antes de confirmar a operação."
+  },
+  {
+    "id": "ELO-RDO-010",
+    "category": "A",
+    "description": "Preservar corretamente a obra durante follow-ups relacionados ao mesmo RDO.",
+    "expected": "Preservar corretamente a obra durante follow-ups relacionados ao mesmo RDO."
+  },
+  {
+    "id": "ELO-RDO-011",
+    "category": "B",
+    "description": "Perguntar: \"Quais RDOs existem nesta obra?\"",
+    "expected": "Perguntar: \"Quais RDOs existem nesta obra?\""
+  },
+  {
+    "id": "ELO-RDO-012",
+    "category": "B",
+    "description": "Solicitar o RDO mais recente.",
+    "expected": "Solicitar o RDO mais recente."
+  },
+  {
+    "id": "ELO-RDO-013",
+    "category": "B",
+    "description": "Consultar um RDO por data específica.",
+    "expected": "Consultar um RDO por data específica."
+  },
+  {
+    "id": "ELO-RDO-014",
+    "category": "B",
+    "description": "Consultar RDO usando seu identificador autorizado.",
+    "expected": "Consultar RDO usando seu identificador autorizado."
+  },
+  {
+    "id": "ELO-RDO-015",
+    "category": "B",
+    "description": "Consultar data em que não existe RDO.",
+    "expected": "Consultar data em que não existe RDO."
+  },
+  {
+    "id": "ELO-RDO-016",
+    "category": "B",
+    "description": "Consultar todos os RDOs de determinado período.",
+    "expected": "Consultar todos os RDOs de determinado período."
+  },
+  {
+    "id": "ELO-RDO-017",
+    "category": "B",
+    "description": "Consultar registros do mês anterior.",
+    "expected": "Consultar registros do mês anterior."
+  },
+  {
+    "id": "ELO-RDO-018",
+    "category": "B",
+    "description": "Confirmar ordenação correta dos resultados.",
+    "expected": "Confirmar ordenação correta dos resultados."
+  },
+  {
+    "id": "ELO-RDO-019",
+    "category": "B",
+    "description": "Validar paginação quando existem mais registros do que o limite de resposta.",
+    "expected": "Validar paginação quando existem mais registros do que o limite de resposta."
+  },
+  {
+    "id": "ELO-RDO-020",
+    "category": "B",
+    "description": "Abrir novamente um RDO existente após reload e comparar com os dados persistidos.",
+    "expected": "Abrir novamente um RDO existente após reload e comparar com os dados persistidos."
+  },
+  {
+    "id": "ELO-RDO-021",
+    "category": "C",
+    "description": "\"Crie o RDO de hoje.\"",
+    "expected": "\"Crie o RDO de hoje.\""
+  },
+  {
+    "id": "ELO-RDO-022",
+    "category": "C",
+    "description": "\"Mostre o RDO de ontem.\"",
+    "expected": "\"Mostre o RDO de ontem.\""
+  },
+  {
+    "id": "ELO-RDO-023",
+    "category": "C",
+    "description": "\"Mostre o de anteontem.\"",
+    "expected": "\"Mostre o de anteontem.\""
+  },
+  {
+    "id": "ELO-RDO-024",
+    "category": "C",
+    "description": "\"Mostre o RDO da última segunda-feira.\"",
+    "expected": "\"Mostre o RDO da última segunda-feira.\""
+  },
+  {
+    "id": "ELO-RDO-025",
+    "category": "C",
+    "description": "Data explícita em formato brasileiro.",
+    "expected": "Data explícita em formato brasileiro."
+  },
+  {
+    "id": "ELO-RDO-026",
+    "category": "C",
+    "description": "Data explícita em formato ISO.",
+    "expected": "Data explícita em formato ISO."
+  },
+  {
+    "id": "ELO-RDO-027",
+    "category": "C",
+    "description": "Data na virada de mês.",
+    "expected": "Data na virada de mês."
+  },
+  {
+    "id": "ELO-RDO-028",
+    "category": "C",
+    "description": "Data em ano bissexto.",
+    "expected": "Data em ano bissexto."
+  },
+  {
+    "id": "ELO-RDO-029",
+    "category": "C",
+    "description": "Data em fim de semana, sem presumir que houve expediente.",
+    "expected": "Data em fim de semana, sem presumir que houve expediente."
+  },
+  {
+    "id": "ELO-RDO-030",
+    "category": "C",
+    "description": "Corrigir somente a data durante o pending, preservando os demais campos.",
+    "expected": "Corrigir somente a data durante o pending, preservando os demais campos."
+  },
+  {
+    "id": "ELO-RDO-031",
+    "category": "D",
+    "description": "Extrair equipe: 1 encarregado, 2 pedreiros e 3 serventes.",
+    "expected": "Extrair equipe: 1 encarregado, 2 pedreiros e 3 serventes."
+  },
+  {
+    "id": "ELO-RDO-032",
+    "category": "D",
+    "description": "Calcular corretamente equipe total igual a seis.",
+    "expected": "Calcular corretamente equipe total igual a seis."
+  },
+  {
+    "id": "ELO-RDO-033",
+    "category": "D",
+    "description": "Extrair jornada das 08h às 17h.",
+    "expected": "Extrair jornada das 08h às 17h."
+  },
+  {
+    "id": "ELO-RDO-034",
+    "category": "D",
+    "description": "Extrair condição climática \"sol\".",
+    "expected": "Extrair condição climática \"sol\"."
+  },
+  {
+    "id": "ELO-RDO-035",
+    "category": "D",
+    "description": "Extrair serviço \"alvenaria\".",
+    "expected": "Extrair serviço \"alvenaria\"."
+  },
+  {
+    "id": "ELO-RDO-036",
+    "category": "D",
+    "description": "Extrair quantidade de 17 m², preservando unidade.",
+    "expected": "Extrair quantidade de 17 m², preservando unidade."
+  },
+  {
+    "id": "ELO-RDO-037",
+    "category": "D",
+    "description": "Extrair 24 sacos de cimento recebidos.",
+    "expected": "Extrair 24 sacos de cimento recebidos."
+  },
+  {
+    "id": "ELO-RDO-038",
+    "category": "D",
+    "description": "Preservar horário de recebimento às 10h.",
+    "expected": "Preservar horário de recebimento às 10h."
+  },
+  {
+    "id": "ELO-RDO-039",
+    "category": "D",
+    "description": "Extrair paralisação parcial entre 14h e 14h30 por falta de material.",
+    "expected": "Extrair paralisação parcial entre 14h e 14h30 por falta de material."
+  },
+  {
+    "id": "ELO-RDO-040",
+    "category": "D",
+    "description": "Processar o comando natural completo com todos os dados acima, sem perder informações.",
+    "expected": "Processar o comando natural completo com todos os dados acima, sem perder informações."
+  },
+  {
+    "id": "ELO-RDO-041",
+    "category": "E",
+    "description": "Mostrar obra e data corretas.",
+    "expected": "Mostrar obra e data corretas."
+  },
+  {
+    "id": "ELO-RDO-042",
+    "category": "E",
+    "description": "Mostrar quantidade e composição da equipe.",
+    "expected": "Mostrar quantidade e composição da equipe."
+  },
+  {
+    "id": "ELO-RDO-043",
+    "category": "E",
+    "description": "Mostrar jornada de trabalho.",
+    "expected": "Mostrar jornada de trabalho."
+  },
+  {
+    "id": "ELO-RDO-044",
+    "category": "E",
+    "description": "Mostrar clima.",
+    "expected": "Mostrar clima."
+  },
+  {
+    "id": "ELO-RDO-045",
+    "category": "E",
+    "description": "Mostrar serviços, quantitativos e unidades.",
+    "expected": "Mostrar serviços, quantitativos e unidades."
+  },
+  {
+    "id": "ELO-RDO-046",
+    "category": "E",
+    "description": "Mostrar materiais, quantitativos e horários.",
+    "expected": "Mostrar materiais, quantitativos e horários."
+  },
+  {
+    "id": "ELO-RDO-047",
+    "category": "E",
+    "description": "Mostrar intercorrências e respectivos intervalos.",
+    "expected": "Mostrar intercorrências e respectivos intervalos."
+  },
+  {
+    "id": "ELO-RDO-048",
+    "category": "E",
+    "description": "Preservar texto longo, acentos e informações de observações.",
+    "expected": "Preservar texto longo, acentos e informações de observações."
+  },
+  {
+    "id": "ELO-RDO-049",
+    "category": "E",
+    "description": "Não inventar campos ausentes; apresentar pendências de forma apropriada.",
+    "expected": "Não inventar campos ausentes; apresentar pendências de forma apropriada."
+  },
+  {
+    "id": "ELO-RDO-050",
+    "category": "E",
+    "description": "Abrir a prévia completa e comprovar zero escritas no backend.",
+    "expected": "Abrir a prévia completa e comprovar zero escritas no backend."
+  },
+  {
+    "id": "ELO-RDO-051",
+    "category": "F",
+    "description": "\"Mostre novamente a prévia completa.\"",
+    "expected": "\"Mostre novamente a prévia completa.\""
+  },
+  {
+    "id": "ELO-RDO-052",
+    "category": "F",
+    "description": "\"Quais campos foram preenchidos?\"",
+    "expected": "\"Quais campos foram preenchidos?\""
+  },
+  {
+    "id": "ELO-RDO-053",
+    "category": "F",
+    "description": "\"Faltou mostrar a equipe.\"",
+    "expected": "\"Faltou mostrar a equipe.\""
+  },
+  {
+    "id": "ELO-RDO-054",
+    "category": "F",
+    "description": "\"Inclua o horário de saída.\"",
+    "expected": "\"Inclua o horário de saída.\""
+  },
+  {
+    "id": "ELO-RDO-055",
+    "category": "F",
+    "description": "\"Corrija o clima para nublado.\"",
+    "expected": "\"Corrija o clima para nublado.\""
+  },
+  {
+    "id": "ELO-RDO-056",
+    "category": "F",
+    "description": "\"Foram 22 sacos de cimento, não 24.\"",
+    "expected": "\"Foram 22 sacos de cimento, não 24.\""
+  },
+  {
+    "id": "ELO-RDO-057",
+    "category": "F",
+    "description": "Preservar todos os demais campos após a correção.",
+    "expected": "Preservar todos os demais campos após a correção."
+  },
+  {
+    "id": "ELO-RDO-058",
+    "category": "F",
+    "description": "\"Não salve ainda.\"",
+    "expected": "\"Não salve ainda.\""
+  },
+  {
+    "id": "ELO-RDO-059",
+    "category": "F",
+    "description": "Cancelar o RDO pendente sem criar registro.",
+    "expected": "Cancelar o RDO pendente sem criar registro."
+  },
+  {
+    "id": "ELO-RDO-060",
+    "category": "F",
+    "description": "Iniciar novo RDO sem herdar indevidamente dados do pending cancelado.",
+    "expected": "Iniciar novo RDO sem herdar indevidamente dados do pending cancelado."
+  },
+  {
+    "id": "ELO-RDO-061",
+    "category": "G",
+    "description": "Pedido de criação deve abrir fluxo de RDO, não calculadora.",
+    "expected": "Pedido de criação deve abrir fluxo de RDO, não calculadora."
+  },
+  {
+    "id": "ELO-RDO-062",
+    "category": "G",
+    "description": "Pedido de consulta não deve iniciar criação.",
+    "expected": "Pedido de consulta não deve iniciar criação."
+  },
+  {
+    "id": "ELO-RDO-063",
+    "category": "G",
+    "description": "Pedido de edição deve identificar corretamente o RDO-alvo.",
+    "expected": "Pedido de edição deve identificar corretamente o RDO-alvo."
+  },
+  {
+    "id": "ELO-RDO-064",
+    "category": "G",
+    "description": "Pergunta técnica comum não deve criar pending de RDO.",
+    "expected": "Pergunta técnica comum não deve criar pending de RDO."
+  },
+  {
+    "id": "ELO-RDO-065",
+    "category": "G",
+    "description": "Mudança de assunto não deve provocar escrita.",
+    "expected": "Mudança de assunto não deve provocar escrita."
+  },
+  {
+    "id": "ELO-RDO-066",
+    "category": "G",
+    "description": "\"Sim\" sem pending válido não deve criar RDO.",
+    "expected": "\"Sim\" sem pending válido não deve criar RDO."
+  },
+  {
+    "id": "ELO-RDO-067",
+    "category": "G",
+    "description": "\"Não\" ou \"Cancelar\" deve encerrar a operação pendente sem salvar.",
+    "expected": "\"Não\" ou \"Cancelar\" deve encerrar a operação pendente sem salvar."
+  },
+  {
+    "id": "ELO-RDO-068",
+    "category": "G",
+    "description": "Dois cliques de confirmação não podem produzir duplicidade no ambiente isolado de testes.",
+    "expected": "Dois cliques de confirmação não podem produzir duplicidade no ambiente isolado de testes."
+  },
+  {
+    "id": "ELO-RDO-069",
+    "category": "G",
+    "description": "Falha de rede durante confirmação deve preservar idempotência e permitir verificar o resultado real.",
+    "expected": "Falha de rede durante confirmação deve preservar idempotência e permitir verificar o resultado real."
+  },
+  {
+    "id": "ELO-RDO-070",
+    "category": "G",
+    "description": "O ELO somente deve afirmar que um RDO foi criado depois de confirmar a persistência no backend.",
+    "expected": "O ELO somente deve afirmar que um RDO foi criado depois de confirmar a persistência no backend."
+  },
+  {
+    "id": "ELO-RDO-071",
+    "category": "H",
+    "description": "Conta A consulta seus próprios RDOs.",
+    "expected": "Conta A consulta seus próprios RDOs."
+  },
+  {
+    "id": "ELO-RDO-072",
+    "category": "H",
+    "description": "Conta B consulta seus próprios RDOs.",
+    "expected": "Conta B consulta seus próprios RDOs."
+  },
+  {
+    "id": "ELO-RDO-073",
+    "category": "H",
+    "description": "Conta A não consegue consultar RDO da conta B por identificador direto.",
+    "expected": "Conta A não consegue consultar RDO da conta B por identificador direto."
+  },
+  {
+    "id": "ELO-RDO-074",
+    "category": "H",
+    "description": "Conta A não consegue acessar projeto da conta B.",
+    "expected": "Conta A não consegue acessar projeto da conta B."
+  },
+  {
+    "id": "ELO-RDO-075",
+    "category": "H",
+    "description": "Logout encerra acesso autenticado.",
+    "expected": "Logout encerra acesso autenticado."
+  },
+  {
+    "id": "ELO-RDO-076",
+    "category": "H",
+    "description": "Expiração de sessão não libera dados indevidamente.",
+    "expected": "Expiração de sessão não libera dados indevidamente."
+  },
+  {
+    "id": "ELO-RDO-077",
+    "category": "H",
+    "description": "Troca de conta não mistura histórico ou contexto.",
+    "expected": "Troca de conta não mistura histórico ou contexto."
+  },
+  {
+    "id": "ELO-RDO-078",
+    "category": "H",
+    "description": "Nova conversa não herda pending de outra conversa.",
+    "expected": "Nova conversa não herda pending de outra conversa."
+  },
+  {
+    "id": "ELO-RDO-079",
+    "category": "H",
+    "description": "Instrução maliciosa incluída no texto de um RDO não pode alterar regras de segurança ou autorizar escrita.",
+    "expected": "Instrução maliciosa incluída no texto de um RDO não pode alterar regras de segurança ou autorizar escrita."
+  },
+  {
+    "id": "ELO-RDO-080",
+    "category": "H",
+    "description": "Nenhum dado sensível aparece em respostas, logs ou documentos de evidência.",
+    "expected": "Nenhum dado sensível aparece em respostas, logs ou documentos de evidência."
+  },
+  {
+    "id": "ELO-RDO-081",
+    "category": "I",
+    "description": "Reload durante prévia pendente, com recuperação ou descarte conforme contrato oficial.",
+    "expected": "Reload durante prévia pendente, com recuperação ou descarte conforme contrato oficial."
+  },
+  {
+    "id": "ELO-RDO-082",
+    "category": "I",
+    "description": "Resposta lenta do servidor.",
+    "expected": "Resposta lenta do servidor."
+  },
+  {
+    "id": "ELO-RDO-083",
+    "category": "I",
+    "description": "Rede temporariamente indisponível.",
+    "expected": "Rede temporariamente indisponível."
+  },
+  {
+    "id": "ELO-RDO-084",
+    "category": "I",
+    "description": "Timeout de consulta.",
+    "expected": "Timeout de consulta."
+  },
+  {
+    "id": "ELO-RDO-085",
+    "category": "I",
+    "description": "Duas abas autenticadas simultaneamente.",
+    "expected": "Duas abas autenticadas simultaneamente."
+  },
+  {
+    "id": "ELO-RDO-086",
+    "category": "I",
+    "description": "Cliques rápidos e repetidos no botão de prévia.",
+    "expected": "Cliques rápidos e repetidos no botão de prévia."
+  },
+  {
+    "id": "ELO-RDO-087",
+    "category": "I",
+    "description": "Comando natural longo com múltiplas informações operacionais.",
+    "expected": "Comando natural longo com múltiplas informações operacionais."
+  },
+  {
+    "id": "ELO-RDO-088",
+    "category": "I",
+    "description": "Prévia em viewport mobile.",
+    "expected": "Prévia em viewport mobile."
+  },
+  {
+    "id": "ELO-RDO-089",
+    "category": "I",
+    "description": "Prévia em desktop.",
+    "expected": "Prévia em desktop."
+  },
+  {
+    "id": "ELO-RDO-090",
+    "category": "I",
+    "description": "Resposta do backend incompleta ou inesperada, com tratamento seguro e sem perda silenciosa de dados.",
+    "expected": "Resposta do backend incompleta ou inesperada, com tratamento seguro e sem perda silenciosa de dados."
+  },
+  {
+    "id": "ELO-RDO-091",
+    "category": "J",
+    "description": "Abrir o ELO autenticado e encontrar uma obra existente.",
+    "expected": "Abrir o ELO autenticado e encontrar uma obra existente."
+  },
+  {
+    "id": "ELO-RDO-092",
+    "category": "J",
+    "description": "Consultar um RDO persistido dessa obra e conferir os campos no backend.",
+    "expected": "Consultar um RDO persistido dessa obra e conferir os campos no backend."
+  },
+  {
+    "id": "ELO-RDO-093",
+    "category": "J",
+    "description": "Abrir a listagem, selecionar um registro e exibir seus detalhes.",
+    "expected": "Abrir a listagem, selecionar um registro e exibir seus detalhes."
+  },
+  {
+    "id": "ELO-RDO-094",
+    "category": "J",
+    "description": "Preparar RDO completo por um único comando natural.",
+    "expected": "Preparar RDO completo por um único comando natural."
+  },
+  {
+    "id": "ELO-RDO-095",
+    "category": "J",
+    "description": "Conferir os dados extraídos contra o comando original.",
+    "expected": "Conferir os dados extraídos contra o comando original."
+  },
+  {
+    "id": "ELO-RDO-096",
+    "category": "J",
+    "description": "Exibir a prévia operacional completa, sem JSON interno.",
+    "expected": "Exibir a prévia operacional completa, sem JSON interno."
+  },
+  {
+    "id": "ELO-RDO-097",
+    "category": "J",
+    "description": "Corrigir um único campo e preservar todos os demais.",
+    "expected": "Corrigir um único campo e preservar todos os demais."
+  },
+  {
+    "id": "ELO-RDO-098",
+    "category": "J",
+    "description": "Retomar a prévia após follow-up sem desviar para listagem ou calculadora.",
+    "expected": "Retomar a prévia após follow-up sem desviar para listagem ou calculadora."
+  },
+  {
+    "id": "ELO-RDO-099",
+    "category": "J",
+    "description": "Demonstrar que nenhuma escrita ocorre antes da confirmação explícita.",
+    "expected": "Demonstrar que nenhuma escrita ocorre antes da confirmação explícita."
+  },
+  {
+    "id": "ELO-RDO-100",
+    "category": "J",
+    "description": "Executar o fluxo completo autorizado em homologação: confirmação, persistência, GET/listagem e conferência dos campos salvos, sem alterar produção.",
+    "expected": "Executar o fluxo completo autorizado em homologação: confirmação, persistência, GET/listagem e conferência dos campos salvos, sem alterar produção."
+  }
+]
