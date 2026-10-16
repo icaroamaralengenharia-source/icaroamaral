@@ -14,6 +14,16 @@ $taskModelBytes=(Get-ChildItem -LiteralPath $taskModel -Recurse -File | Measure-
 $taskEstimate=[Math]::Max(2.5GB,4*($taskAssetBytes+$taskModelBytes)+700MB)
 $taskMerged=Join-Path $taskWork 'app-build\intermediates\assets\debug\mergeDebugAssets'
 $taskCachedAssetBytes=0
+$taskDexCache=Join-Path $taskWork 'app-build\intermediates\dex\debug\mergeExtDexDebug'
+$taskNativeCacheReady=(Test-Path -LiteralPath (Join-Path $taskWork 'project-cache')) -and
+ (Test-Path -LiteralPath $taskDexCache) -and
+ (@(Get-ChildItem -LiteralPath $taskDexCache -Filter '*.dex' -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0)
+if($taskNativeCacheReady) {
+ # Dependencies and DEX are already materialized. Reserve merged assets,
+ # compression and final APK concurrently, native library outputs and 768 MiB
+ # headroom. The verifier moves the APK; there is no second staging copy.
+ $taskEstimate=[Math]::Max(1.75GB,3*($taskAssetBytes+$taskModelBytes)+768MB)
+}
 if(Test-Path -LiteralPath $taskMerged) {
  $taskCachedAssetBytes=(Get-ChildItem -LiteralPath $taskMerged -Recurse -File | Measure-Object Length -Sum).Sum
  if($taskCachedAssetBytes -ge ($taskAssetBytes+$taskModelBytes)) {
@@ -24,7 +34,7 @@ if(Test-Path -LiteralPath $taskMerged) {
 }
 $taskStamp=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff')
 if($TestOnly -and $taskCachedAssetBytes -ge ($taskAssetBytes+$taskModelBytes)) { $taskEstimate=512MB }
-$taskPreflight=[ordered]@{atUtc=[DateTime]::UtcNow.ToString('o');free=$taskDrive.AvailableFreeSpace;preferred=5GB;requiredEstimate=$taskEstimate;existingAssets=$taskAssetBytes;modelBytes=$taskModelBytes;cachedAssets=$taskCachedAssetBytes;workRoot=$taskWork;dataDeleted=$false}
+$taskPreflight=[ordered]@{atUtc=[DateTime]::UtcNow.ToString('o');free=$taskDrive.AvailableFreeSpace;preferred=5GB;requiredEstimate=$taskEstimate;existingAssets=$taskAssetBytes;modelBytes=$taskModelBytes;cachedAssets=$taskCachedAssetBytes;nativeCacheReady=$taskNativeCacheReady;workRoot=$taskWork;dataDeleted=$false}
 $taskPreflight | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskArtifacts ('build-preflight-'+$taskStamp+'.json')) -Encoding utf8
 if($taskDrive.AvailableFreeSpace -lt $taskEstimate) { throw 'BUILD_BLOCKED_INSUFFICIENT_SAFE_SPACE' }
 [IO.Directory]::CreateDirectory($taskWork) | Out-Null
