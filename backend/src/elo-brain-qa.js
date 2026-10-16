@@ -34,7 +34,8 @@ export function createEloBrainQaApp({env = process.env, fetchImpl = fetch, infer
     res.set('X-ELO-Source-Commit', String(env.RENDER_GIT_COMMIT || 'local').replace(/[^a-f0-9]/g, '').slice(0, 40));
     next();
   });
-  app.use(cors({origin(origin, done) { done(null, !origin || origins.includes(origin)); }}));
+  app.use(cors({origin(origin, done) { done(null, !origin || origins.includes(origin)); },
+    exposedHeaders: ['X-ELO-Environment', 'X-ELO-Source-Commit']}));
   app.get('/api/health', (req, res) => res.json({ok: true, service: 'elo-brain-qa',
     sourceCommit: env.RENDER_GIT_COMMIT || 'local', inferenceConfigured: Boolean(env.OPENAI_API_KEY),
     allowedUserConfigured: allowedHashes.size > 0, historyRoutesExposed: false,
@@ -64,7 +65,8 @@ export function createEloBrainQaApp({env = process.env, fetchImpl = fetch, infer
     try {
       const identityResponse = await fetchImpl(CANONICAL_IDENTITY_URL, {method:'GET', redirect:'error',
         headers:{Authorization:authorization,Accept:'application/json'},signal:AbortSignal.timeout(12_000)});
-      if (!identityResponse.ok) return res.status([401,403].includes(identityResponse.status)?identityResponse.status:503).json({ok:false,error:'canonical_auth_rejected'});
+      if (!identityResponse.ok) return res.status([401,403].includes(identityResponse.status)?identityResponse.status:503)
+        .json({ok:false,error:'canonical_auth_rejected',canonicalStatus:identityResponse.status});
       const identity = await identityResponse.json();
       if (!identity.ok || typeof identity.user_id !== 'string' || !allowedHashes.has(createHash('sha256').update(identity.user_id).digest('hex')))
         return res.status(403).json({ok:false,error:'qa_user_not_allowed'});

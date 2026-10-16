@@ -37,6 +37,14 @@ test('canonical rejected or different account cannot infer',async()=>{
  await run(async(base)=>assert.equal((await post(base)).status,401),{status:401});
  await run(async(base)=>assert.equal((await post(base)).status,403),{identity:{ok:true,user_id:'different'}});
 });
+test('canonical outage fails closed with only numeric diagnostic',async()=>run(async(base)=>{
+ const r=await post(base);assert.equal(r.status,503);
+ assert.deepEqual(await r.json(),{ok:false,error:'canonical_auth_rejected',canonicalStatus:502});
+},{status:502}));
+test('browser can read QA provenance without exposing credentials',async()=>run(async(base)=>{
+ const r=await post(base,{}, {Origin:'https://www.icaroamaral.com.br'});
+ assert.equal(r.headers.get('access-control-expose-headers'),'X-ELO-Environment,X-ELO-Source-Commit');
+}));
 test('only verified account runs inference, forces conversation memory and only GETs identity',async()=>run(async(base,calls)=>{
  const r=await post(base,{message:'Olá',context:{memoryScope:'PERMANENT',currentConversationId:'fixture'}});
  assert.equal(r.status,200);const d=await r.json();assert.equal(d.context.memoryScope,'CONVERSATION_ONLY');assert.equal(d.context.currentConversationId,'fixture');assert.equal(d.auth,true);
