@@ -1,0 +1,40 @@
+{
+  "atUtc": "2026-10-16T03:54:58.2506918Z",
+  "freeBefore": 724037632,
+  "freeAfter": 714080256,
+  "regenerableCachesRemoved": [
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\compressed_assets",
+      "bytes": 277345391.0
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\merged_native_libs",
+      "bytes": 40723200.0
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\stripped_native_libs",
+      "bytes": 40723200.0
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\assets\\debug\\mergeDebugAssets",
+      "bytes": 299472318.0
+    }
+  ],
+  "restored": [
+    {
+      "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-build-work\\app-build\\outputs\\apk\\debug\\app-debug.apk",
+      "sha256": "b2668f1c7fa684cf6d92bf8ab37c4d1e2abf74b0204e73a88ebb5c4720aeae46",
+      "restoredAndVerified": true,
+      "phoneDuplicateRemoved": true
+    },
+    {
+      "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\audio-focus-fix-stage2-before-trace-label.apk",
+      "sha256": "c79c93f35f480fcbed3cecc79dc23f51009912ef4e5cb52e53f81898127b826c",
+      "restoredAndVerified": true,
+      "phoneDuplicateRemoved": true
+    }
+  ],
+  "remainingPhoneArchive": "v6, v7, v8",
+  "sourcesAndModelsPreserved": true,
+  "applicationDataModified": false
+}

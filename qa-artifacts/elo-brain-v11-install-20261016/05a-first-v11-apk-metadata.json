@@ -1,0 +1,92 @@
+{
+  "atUtc": "2026-10-16T03:50:39.3137245Z",
+  "apkPath": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-final-v11-qa-20261016.apk",
+  "bytes": 320662194,
+  "sha256": "c85d79132234e7c702e40e8f85dafbdfaa8ec6ac1f87413e5a99300dea5e2d5b",
+  "signatureValid": true,
+  "signerSha256": "8442425d1b3d0c5d5f241276d5efc570b01bcfbd2387103d46c04909f87fba52",
+  "package": "br.com.icaroamaral.elo",
+  "versionCode": 11,
+  "versionName": "0.4.5-brain-final-v11",
+  "buildSource": "dce4d264bdf0be3e542e256965af479a070caf95",
+  "inferenceBackend": "https://elo-brain-qa-v11-20261016.onrender.com",
+  "authenticationAndHistoryBackend": "https://obrareport-backend.onrender.com",
+  "nativeTestsPassed": 92.0,
+  "nativeTestSuites": 8,
+  "webManifestVersion": "20261016-brain-final-v3",
+  "webAssets": [
+    {
+      "path": "elo.html",
+      "sha256": "cf8ec2980981976c768d2fb2d936633c4dc399614557e97abe4dc52fd2178be0",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "elo.css",
+      "sha256": "6b92bf2e1b1b2638dc5ae05f71f24ae34d2b67b5d6584ca33ce0707d08586c21",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "elo-sw.js",
+      "sha256": "0b6cbb16db4e06ad6496802aadd47208df5c660167dc98fd0ffe4092daff7502",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-viewport.js",
+      "sha256": "67940c5b892cca98a1a09da3ed24e5dea5b4c04e8932b13751a4d20804875cda",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-voice-session.js",
+      "sha256": "f0aa4618988ff39feae8c1edec43f5a981e5f11d282a0e3479dec66dde4baba7",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-assistente.js",
+      "sha256": "9a1656d4184e7d4b62214ec34750bf5fdd99c6445000487b078c176fc439a103",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-media-player.js",
+      "sha256": "a4f921b19e971486b4e9623ea5e5ea9eacb32ccb47a08487091134794daaa35d",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-music-resolver.js",
+      "sha256": "3945bc27ce36aa61995bcce2c95d6cdddc42f8f322d6e1cea4ed6c7fcb0e4668",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-offline-media-library.js",
+      "sha256": "cea0de7dabe0992ed55cb9cd313ee9cf5f10b8022aaa371fcbdf45938bbfe3d6",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-communication-policy.js",
+      "sha256": "745454858b845bc458ea25a15f945793ed656da5b9801d035a7b6eee08e04db4",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-proactive-reasoning-policy.js",
+      "sha256": "7e6a05a4ba1f5551463002f33feaf9370f61155d568b200c86131f8a93388be4",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-technical-validator.js",
+      "sha256": "591590f9392fa3ece36f899bf158ed4925a38782380c6dea4b4b775cb69f3df2",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-brain-router.js",
+      "sha256": "474ced47834dcf29a629bff1c5e9bc1da6f4b1c8995626bd61666a35213505b4",
+      "sourceAndEmbeddedMatch": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-offline-core-v2.js",
+      "sha256": "00986bf6aff39838a9d70b5427ea50fb5ac2d902f88c98bc12e24fdd6aa7b72f",
+      "sourceAndEmbeddedMatch": true
+    }
+  ],
+  "offlineCatalogSha256": "a201e41c10fcdfa6336a97c6c7b14a6ed98cee875508d20576ce70fdff00a5f7",
+  "offlineMediaCount": 52,
+  "installed": false
+}

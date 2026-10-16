@@ -1,0 +1,43 @@
+{
+  "before": {
+    "atUtc": "2026-10-16T04:03:25.004Z",
+    "authenticated": true,
+    "validatedUi": true,
+    "conversationHash": "2d03027289f9110e9de0090096ccc971acb08da820851af761d3e60e706254b8",
+    "canonicalMessageCount": 236,
+    "canonicalMessagesHash": "332c9777bff6c372026bc3697e5b7a2663e888898c4285a816454146c687236a",
+    "uiMessageCount": 236,
+    "original135PrefixHash": "25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431",
+    "draftLength": 0,
+    "nativeWakeEnabled": false,
+    "inferenceBase": "",
+    "webVersion": "",
+    "credentialsExported": false,
+    "contentsExported": false,
+    "productionWrites": 0
+  },
+  "after": {
+    "atUtc": "2026-10-16T04:19:27.963Z",
+    "authenticated": true,
+    "validatedUi": true,
+    "conversationHash": "2d03027289f9110e9de0090096ccc971acb08da820851af761d3e60e706254b8",
+    "canonicalMessageCount": 236,
+    "canonicalMessagesHash": "332c9777bff6c372026bc3697e5b7a2663e888898c4285a816454146c687236a",
+    "uiMessageCount": 236,
+    "original135PrefixHash": "25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431",
+    "draftLength": 0,
+    "nativeWakeEnabled": false,
+    "inferenceBase": "https://elo-brain-qa-v11-20261016.onrender.com",
+    "webVersion": "20261016-brain-final-v4",
+    "credentialsExported": false,
+    "contentsExported": false,
+    "productionWrites": 0
+  },
+  "sameAccount": true,
+  "sameConversation": true,
+  "all236MessagesHashMatch": true,
+  "original135PrefixHashMatch": true,
+  "applicationDataCleared": false,
+  "uninstalled": false,
+  "productionHistoryWritesByValidation": 0
+}

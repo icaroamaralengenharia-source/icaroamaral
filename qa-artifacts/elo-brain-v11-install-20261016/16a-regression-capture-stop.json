@@ -1,0 +1,14 @@
+{
+  "atUtc": "2026-10-16T04:30:58.953Z",
+  "before": {
+    "state": "WAKE_DISABLED",
+    "reason": "SERVICE_DESTROYED",
+    "enabled": false,
+    "turn": 13,
+    "captureLease": 92
+  },
+  "disableAccepted": true,
+  "wakeEnabledAfter": false,
+  "credentialsExported": false,
+  "transcriptExported": false
+}

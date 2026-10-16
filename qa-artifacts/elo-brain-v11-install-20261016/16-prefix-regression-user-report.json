@@ -1,0 +1,17 @@
+{
+  "date":"2026-10-16",
+  "apk":"v11 r2, source957301002219, Webv4",
+  "intendedCommandReportedByUser":"pare de ouvir",
+  "recognizedFragmentReportedByUser":"de ouvir",
+  "userCouldDetermineSpeechReadinessTiming":false,
+  "physicalTranscriptPrefix":"FAIL_REAL_USER_INTERMITTENT",
+  "fifteenTurnAndSilenceTest":"NOT_COMPLETED_OR_CONFIRMED",
+  "earlierInterruptionContinuationAndStopPass":"Preserved for its separate first sample",
+  "softwareGap":"Opening restoration permits interrogatives only; an observed imperative opener is rejected even when final text is its exact suffix",
+  "actualEarlierHypothesisForFailedUtteranceAvailable":false,
+  "physicalRootCause":"UNDETERMINED: missing capture before readiness versus decoder revision cannot be distinguished from available technical trace",
+  "trace":"16b-prefix-regression-technical-trace.json; no audio/transcript/token",
+  "captureFinalState":"Already disabled before the agent's idempotent disable request",
+  "qaFictionalContextTestsRepeated":false,
+  "nextAction":"Local regression, conservative same-utterance command-prefix recovery, new APK revision and focused physical retest"
+}

@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-16",
+  "qaUrlUnchanged": "https://elo-brain-qa-v11-20261016.onrender.com/api/elo/chat",
+  "canonicalAuthProjectUnchanged": true,
+  "accessTokenOnly": true,
+  "refreshTokenSentToQa": false,
+  "sessionTokensDisplayed": false,
+  "sessionTokensSaved": false,
+  "initialQaValidationUsedFictionalContextOnly": true,
+  "initialQaValidationWrotePermanentHistory": false,
+  "productionPublishedOrMerged": false,
+  "qaFictionalContextValidation": "4/4 PASS; not repeated after user instruction",
+  "silentInferenceFailoverToProduction": false,
+  "silentFailoverEvidence": {
+    "webActualRequestFunctionFaultTests": "network rejection and HTTP503 each call QA chat once, return failure without canonical inference retry",
+    "routingTests": "5/5 PASS, local doubles only, no real QA request",
+    "nativeTransport": "BuildConfig exact QA address selected for /api/elo/chat, connection errors propagate; canonical backend only for non-inference routes",
+    "configurationRuntime": "09-runtime.json confirms approved QA URL and v11 r2 source"
+  },
+  "cacheIdAligned": "PASS: Web v4, worker v46, 14 embedded/source/manifest hashes",
+  "nativeTests": "92/92 PASS in final build",
+  "stockMockFailure": "PREEXISTING_VERIFIED: 15/16 same failure on main50452bc and pre-fixture-fix candidate; production bridge identical",
+  "stockEvidence": "13-stock-mock-classification.json",
+  "updateInstall": "PASS: adb install -r --streaming, unchanged package/certificate",
+  "installedApkSha256": "3b25a82295a47f5023256b208785262fd7bae3adedc27696977042f01e596d15",
+  "dataPreservation": "PASS: same authenticated account/conversation, all236 messages and original135 prefix by hash, ceDataInode601715",
+  "physicalRetest": "PASS_REAL_USER: interruption, continuation without ELO, stop listening; user reactivated afterward",
+  "finalPhysicalCertification": "NOT_READY: prefix loss under correction; 15 turns/silence and other physical gates pending",
+  "separateOpenAiKeyIncident": "Render secret field appeared in a private DOM tool output; user informed and coordinated rotation remains pending. Session-token claims above do not refer to the reused OpenAI key.",
+  "currentPhysicalRegression": "Intermittent command prefix loss: pare de ouvir => de ouvir"
+}

@@ -1,0 +1,22 @@
+{
+  "atUtc": "2026-10-16T03:55:41.670Z",
+  "qaBase": "https://elo-brain-qa-v11-20261016.onrender.com",
+  "productionDeployed": false,
+  "productionWrites": 0,
+  "credentialsSaved": false,
+  "fixturesOnly": true,
+  "checks": [],
+  "health": {
+    "ok": true,
+    "service": "elo-brain-qa",
+    "sourceCommit": "dce4d264bdf0be3e542e256965af479a070caf95",
+    "inferenceConfigured": true,
+    "allowedUserConfigured": true,
+    "historyRoutesExposed": false,
+    "productionDatabaseCredentials": false
+  },
+  "unauthenticatedStatus": 401,
+  "historyAndMemoryRoutesBlocked": true,
+  "passed": false,
+  "failure": "ERR_ASSERTION"
+}

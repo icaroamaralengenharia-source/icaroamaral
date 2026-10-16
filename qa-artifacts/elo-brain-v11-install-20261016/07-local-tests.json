@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-16",
+  "sourceApk": "dce4d264bdf0be3e542e256965af479a070caf95",
+  "batches": [
+    {"scope":"QA, routing, context, TTS binary and cache contracts", "passed":43, "failed":0},
+    {"scope":"Playwright E2E, context, long history, controls and keyboard", "passed":23, "failed":0},
+    {"scope":"Native JVM", "passed":92, "failed":0, "suites":8},
+    {"scope":"QA provenance/auth diagnostics and routing rerun", "source":"5cb7ecb07f782ef02e0b03249759b4665c314064", "passed":15, "failed":0},
+    {"scope":"Late native QA binding, cache and TTS contracts", "source":"7518ba8", "passed":26, "failed":0},
+    {"scope":"Bare pronoun context, QA security and routing", "source":"52eccdb187b0d67a05679fcfd9d7d4d23d82e670", "passed":28, "failed":0},
+    {"scope":"Actual Web request on QA network/503 failure: no production inference retry", "source":"a01bb7c", "passed":5, "failed":0, "realQaRequests":0}
+  ],
+  "rerunsNotAddedToUniqueTotals":true,
+  "gradleAssemble":"Initial 9m 31s; final revision 4m 11s, BUILD SUCCESSFUL",
+  "finalApkSource":"95730100221921d8be5062aa2a833b6af7920c58",
+  "newPhysicalAudioCertification":false,
+  "productionDeploy":false
+}

@@ -1,0 +1,25 @@
+{
+  "atUtc": "2026-10-16T03:08:50.9338222Z",
+  "freeBefore": 595316736,
+  "freeAfter": 1235066880,
+  "files": [
+    {
+      "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-native-v7-20261015T0324.apk",
+      "archive": "/sdcard/Download/ELO-build-archive-20261016/elo-brain-native-v7-20261015T0324.apk",
+      "bytes": 320143654,
+      "sha256": "c6ac80cc739075bdc53fee96e8e5306497dc9169f1eab5c8aed4a0f9315ae7db",
+      "verified": true,
+      "localRemoved": true
+    },
+    {
+      "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-native-v8-20261015T0407.apk",
+      "archive": "/sdcard/Download/ELO-build-archive-20261016/elo-brain-native-v8-20261015T0407.apk",
+      "bytes": 319958933,
+      "sha256": "015aba1cd6341d7d40b593b69a0eb8ca859247c743f028fd10e8f6011db7a1de",
+      "verified": true,
+      "localRemoved": true
+    }
+  ],
+  "v10RollbackKeptOnPc": true,
+  "applicationDataModified": false
+}

@@ -1,0 +1,11 @@
+{
+  "atUtc": "2026-10-16T04:16:27.961Z",
+  "status": 200,
+  "environment": "qa",
+  "source": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+  "answer": "Ela é a Amália, sua esposa, sobre quem você fez a brincadeira de chamar de peste.",
+  "mode": "remote",
+  "fixturesOnly": true,
+  "productionWrites": 0,
+  "credentialsSaved": false
+}

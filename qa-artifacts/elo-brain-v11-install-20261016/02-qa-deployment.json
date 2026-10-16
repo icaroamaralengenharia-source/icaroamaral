@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-16",
+  "environment": "QA ELO v11",
+  "environmentId": "evm-db8pc00n74is73cbc040",
+  "service": "elo-brain-qa-v11-20261016",
+  "serviceId": "srv-db8pp6mi0phs738j3mng",
+  "url": "https://elo-brain-qa-v11-20261016.onrender.com",
+  "branch": "fix/elo-brain-final-context-listening-music-ux",
+  "instance": "Free",
+  "autoDeploy": false,
+  "prPreviews": false,
+  "rootDirectory": "backend",
+  "buildCommand": "npm ci --omit=dev --ignore-scripts && npm ci --prefix .. --omit=dev --ignore-scripts",
+  "startCommand": "node scripts/start-elo-brain-qa.js",
+  "healthCheck": "/api/health",
+  "deploys": [
+    {
+      "id": "dep-db8pp6ui0phs738j3nd0",
+      "source": "dce4d264bdf0be3e542e256965af479a070caf95",
+      "result": "failed",
+      "cause": "Missing root dependency @mozilla/readability; root npm ci added to build command"
+    },
+    {
+      "id": "dep-db8ptcrl550s73epcljg",
+      "source": "dce4d264bdf0be3e542e256965af479a070caf95",
+      "result": "live",
+      "liveBahia": "2026-10-16 00:50:27"
+    },
+    {
+      "id": "dep-db8q2r2vcj2c73aqchm0",
+      "source": "5cb7ecb07f782ef02e0b03249759b4665c314064",
+      "result": "live",
+      "liveBahia": "2026-10-16 01:02:06"
+    },
+    {
+      "id": "dep-db8q9aavcj2c73ar2otg",
+      "source": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+      "result": "live",
+      "liveBahia": "2026-10-16 01:15:49"
+    }
+  ],
+  "environmentVariableNames": [
+    "NODE_ENV",
+    "OPENAI_API_KEY",
+    "ELO_QA_ALLOWED_USER_HASHES"
+  ],
+  "productionAdminDatabaseCredentialsCopied": false,
+  "onlyChatExposed": true,
+  "canonicalIdentityReadOnly": true,
+  "restrictedToApprovedAccount": true,
+  "refreshTokenSentToQa": false,
+  "productionDeployed": false,
+  "initialAuthenticatedProbe": {
+    "status": 503,
+    "error": "canonical_auth_rejected",
+    "underlyingCanonicalStatusNotObserved": true,
+    "rootCauseNotEstablished": true
+  },
+  "finalAuthenticatedProbe": "4/4 PASS: 04-deployed-qa-context.json and 04c-bare-pronoun.json",
+  "freeServiceColdStartWarning": "Render UI reports inactivity can delay requests by 50 seconds or more",
+  "credentialHandlingIncident": "Render form DOM snapshot exposed the existing OpenAI key in private tool output despite masked UI. No value saved to source, evidence or APK. User informed. Rotation must be coordinated with production owner; no rotation performed.",
+  "barePronounCorrection": "Initial QA response invented a reaction; generic prompt now identifies explicit name/relation and attributes only stated facts. Failed and passed evidence both retained.",
+  "sessionTokensSavedOrPrinted": false
+}

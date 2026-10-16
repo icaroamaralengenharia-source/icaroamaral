@@ -1,0 +1,34 @@
+{
+  "atUtc": "2026-10-16T04:21:32.0617777Z",
+  "freeBefore": 2574712832,
+  "freeAfter": 3554217984,
+  "supersededApkArchived": {
+    "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-final-v11-qa-20261016.apk",
+    "archive": "/sdcard/Download/ELO-build-archive-20261016/elo-brain-final-v11-qa-initial-20261016.apk",
+    "sha256": "c85d79132234e7c702e40e8f85dafbdfaa8ec6ac1f87413e5a99300dea5e2d5b",
+    "bytes": 320662194,
+    "verified": true,
+    "localRemoved": true
+  },
+  "regenerableCachesRemoved": [
+    {
+      "regenerableBytes": 277345454.0,
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\compressed_assets"
+    },
+    {
+      "regenerableBytes": 40723200.0,
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\merged_native_libs"
+    },
+    {
+      "regenerableBytes": 40723200.0,
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\stripped_native_libs"
+    },
+    {
+      "regenerableBytes": 299472417.0,
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\intermediates\\assets\\debug\\mergeDebugAssets"
+    }
+  ],
+  "finalApkOnPc": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-final-v11-qa-20261016-r2.apk",
+  "v10OnPc": true,
+  "sourcesModelsAndApplicationDataPreserved": true
+}

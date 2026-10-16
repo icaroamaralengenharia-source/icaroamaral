@@ -1,0 +1,24 @@
+{
+  "atUtc": "2026-10-16T03:27:13.5688057Z",
+  "freeBefore": 286437376,
+  "freeAfter": 719917056,
+  "caches": [
+    {
+      "path": "C:\\Users\\Wia Engenharia\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1223",
+      "bytes": 280496778.0,
+      "regenerable": true,
+      "removed": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\android-elo-native-header-qa-20261008\\.gradle-home-qa\\wrapper",
+      "bytes": 151734464.0,
+      "regenerable": true,
+      "removed": true
+    }
+  ],
+  "fullBrowserPreserved": true,
+  "headlessTestsAlreadyPassed": "23/23",
+  "gradleActiveDistributionPreserved": true,
+  "uniqueApksDeleted": false,
+  "applicationDataModified": false
+}

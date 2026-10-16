@@ -1,0 +1,82 @@
+{
+  "atUtc": "2026-10-16T03:29:34.1926361Z",
+  "freeBefore": 719482880,
+  "freeAfter": 1654571008,
+  "installations": [
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-baseline-57cd-local\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\node_modules",
+      "packageLockSha256": "46C4C5ED3919A30E3BAEBA471CA6A3E83BFEFD3221EF6B0E6A5A14BBDC830459",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 60939320.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-baseline-57cd-local\\backend\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\backend\\node_modules",
+      "packageLockSha256": "D761BE1E799B9A185D03C348644837A189E98FC5C8A87E27FBB37274AC969A4A",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 158838259.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\elo-stock-actions-20261006\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\node_modules",
+      "packageLockSha256": "46C4C5ED3919A30E3BAEBA471CA6A3E83BFEFD3221EF6B0E6A5A14BBDC830459",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 60931249.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\elo-stock-actions-20261006-stock-work-create\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\node_modules",
+      "packageLockSha256": "46C4C5ED3919A30E3BAEBA471CA6A3E83BFEFD3221EF6B0E6A5A14BBDC830459",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 60931249.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\elo-stock-actions-20261006-stock-work-create\\backend\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\backend\\node_modules",
+      "packageLockSha256": "D761BE1E799B9A185D03C348644837A189E98FC5C8A87E27FBB37274AC969A4A",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 158838259.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\elo-tts-cache-bust-20261009-lfs-skip\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\node_modules",
+      "packageLockSha256": "46C4C5ED3919A30E3BAEBA471CA6A3E83BFEFD3221EF6B0E6A5A14BBDC830459",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 60931418.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\elo-tts-cache-bust-20261009-lfs-skip\\backend\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\backend\\node_modules",
+      "packageLockSha256": "D761BE1E799B9A185D03C348644837A189E98FC5C8A87E27FBB37274AC969A4A",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 158838259.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\rdo-standalone-work-20261006\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\node_modules",
+      "packageLockSha256": "46C4C5ED3919A30E3BAEBA471CA6A3E83BFEFD3221EF6B0E6A5A14BBDC830459",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 60931249.0,
+      "backupRemoved": true
+    },
+    {
+      "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\rdo-standalone-work-20261006\\backend\\node_modules",
+      "target": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-cert-49c840-local\\backend\\node_modules",
+      "packageLockSha256": "D761BE1E799B9A185D03C348644837A189E98FC5C8A87E27FBB37274AC969A4A",
+      "installedLockMatched": true,
+      "regenerableInstallationBytes": 158838259.0,
+      "backupRemoved": true
+    }
+  ],
+  "sourceFilesDeleted": false,
+  "uniqueApksDeleted": false,
+  "applicationDataModified": false
+}

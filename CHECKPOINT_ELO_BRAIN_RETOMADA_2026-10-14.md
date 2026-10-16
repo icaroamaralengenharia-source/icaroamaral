@@ -1,6 +1,6 @@
 # ELO Premium / Brain — execução — 2026-10-14
 
-**REVISÃO ATUAL — CHECKPOINT 18, 15/10/2026: auditoria final e candidata oficial em andamento.** Retomada explicitamente autorizada. Branch limpa `fix/elo-brain-final-context-listening-music-ux`, baseada em `origin/main` 50452bc. Leia o Checkpoint 18 ao final. Música audível seguida de timeout/pausa e falha de pronome com histórico enviado foram reproduzidas. APK v10 instalado com dados preservados; música e expiração reprovaram a rodada. Fonte v11 preparado, sem nova instalação. Certificação física final pendente. Sem PR, merge ou deploy. O aviso de interrupção do Checkpoint 8 foi sucedido pelas retomadas e pelos Checkpoints 9–16.
+**REVISÃO ATUAL — CHECKPOINT 19, 16/10/2026: APK v11 r2 instalado com autenticação e histórico preservados.** Espaço e backend de QA resolvidos para esta entrega. Branch `fix/elo-brain-final-context-listening-music-ux`, baseada em `origin/main` 50452bc. Interface Web v4 embutida; inferência em QA e autenticação/histórico no serviço canônico. 236 mensagens e prefixo original de 135 conferidos por hash. Testes físicos novos e certificação final pendentes. Sem PR, merge, push de main ou deploy de produção. Leia o Checkpoint 19 ao final; os resultados anteriores conservam seus respectivos escopos.
 
 ## Workspace e preservação
 
@@ -635,3 +635,49 @@ Pacote de comprovantes finais (sem duplicar APKs/mídias): `tmp/elo-brain-native
 ### Bloqueios confirmados pelo usuário nesta consolidação
 
 O usuário informou que o backend de QA ainda não existe e que não consegue liberar espaço no C: agora. A compilação e os 91 testes nativos passaram; a confirmação Web passou em 23/23, além de 119 contratos/unidades. APK v11 não foi gerado nem instalado. V10 permanece instalado e seus dados preservados. Gates físicos e publicação continuam pendentes. Código e comprovantes foram preparados na branch autorizada; sem PR, push de main ou deploy de produção.
+
+
+## Checkpoint 19 — espaço, QA e instalação v11 concluídos — 16/10/2026
+
+### Resultado da entrega
+
+- APK v11 r2 instalado por `adb install -r --streaming`; package e certificado existentes, sem desinstalar nem limpar dados. Na conferência após instalação, aplicativo aberto, autenticado, chamado e microfone desativados. O usuário iniciou depois o reteste físico, sem comandos do agente no Samsung durante sua execução.
+- APK: `C:\Users\Wia Engenharia\Documents\ChatGPT\SaaS Inspeção Técnica\ELO-premium-release-20261014\tmp\elo-brain-native-20261014\elo-brain-final-v11-qa-20261016-r2.apk`. 320662258 bytes; SHA256 `3b25a82295a47f5023256b208785262fd7bae3adedc27696977042f01e596d15`; versionCode 11, versionName `0.4.5-brain-final-v11`. Fonte nativa/Web `95730100221921d8be5062aa2a833b6af7920c58`. Assinatura compatível `8442425d1b3d0c5d5f241276d5efc570b01bcfbd2387103d46c04909f87fba52`.
+- Runtime confirmou fonte `957301002219`, canal `qa-inference-v11`, Web `20261016-brain-final-v4` e QA exato. Os 14 assets embutidos correspondem aos fontes e ao manifesto; worker v46; catálogo e 52 mídias offline preservados. Nenhum recurso de preview localhost foi observado.
+- Autenticação validada pela rota canônica antes/depois; mesma conta e conversa, **236 mensagens canônicas e na UI**, hash integral `332c9777bff6c372026bc3697e5b7a2663e888898c4285a816454146c687236a` igual. Prefixo original de 135: `25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431`, igual. ceDataInode 601715 e primeira instalação 07/09/2026 preservados. Conteúdos de histórico e tokens da sessão não foram exportados.
+
+### QA e correções encontradas na conferência
+
+- Serviço gratuito `https://elo-brain-qa-v11-20261016.onrender.com`, ambiente QA ELO v11. Deploy manual `dep-db8q9aavcj2c73ar2otg`, fonte backend `52eccdb187b0d67a05679fcfd9d7d4d23d82e670`; auto deploy e previews desativados. Produção permanece sem publicação desta branch.
+- Somente POST /api/elo/chat exposto, origem oficial e conta autorizada por hash. Identidade validada por GET canônico; nenhum segredo administrativo Supabase copiado. Refresh token continua no fluxo existente. Histórico, memória e ferramentas permanecem no serviço canônico; QA força CONVERSATION_ONLY e não expõe rotas de persistência.
+- Quatro cenários fictícios reais passaram com HTTP 200 e modo remote: nome/pronome com brincadeira, outra relação/nome, conversa nova sem herança e pergunta exata “E ela?”. Nenhuma gravação de histórico ou memória permanente nesses testes. Resultado físico da conversa pessoal ainda depende do usuário.
+- Primeiro deploy falhou por dependência de raiz ausente; build agora instala backend e raiz. Primeiro probe autenticado retornou canonical_auth_rejected 503; causa do status canônico inicial não foi determinada, e os retestes passaram. Não classificar o acréscimo de diagnóstico como correção comprovada dessa falha transitória.
+- A primeira revisão v11 foi instalada e preservou dados, mas a auditoria encontrou o endpoint de texto calculado antes da configuração nativa de QA. A revisão final usa getter resolvido por requisição e tem regressão específica de vínculo tardio. Nova build e segunda atualização realizadas; primeira revisão preservada como artefato histórico.
+- O probe adicional “E ela?” identificou uma reação inventada. A orientação genérica agora exige nome/relação explícitos e fatos declarados pelo usuário; não usa catálogo de nomes nem transforma humor em atributo. Evidência FAIL e reteste PASS preservados.
+- O Render gratuito informa que a primeira requisição após inatividade pode demorar 50 segundos ou mais. Esse atraso de inicialização não é ganho de latência certificado; o primeiro pedido pode exigir nova tentativa após o serviço acordar.
+
+### Espaço e testes
+
+- Margem recuperada por caches regeneráveis e compartilhamento de dependências com hashes iguais de package-lock e lock instalado. APKs antigos foram arquivados com SHA256 verificado em `/sdcard/Download/ELO-build-archive-20261016`; manifesto de recuperação no diretório QA. Nenhum arquivo de código, modelo ou APK único descartado; v10 e v9 corrigido permanecem no PC. Após limpeza final, C: tinha 3.554.217.984 bytes livres; a variação adicional inclui recuperação de espaço do sistema depois do encerramento da build. Não foram modificadas configurações de paginação do Windows.
+- A última cópia de APK antigo apresentou hash divergente; o original foi mantido, a cópia foi repetida e só então removido o original após dupla conferência. A primeira revisão v11 e os artefatos de falha permanecem identificados.
+- Gradle final: BUILD SUCCESSFUL em 4m11s; 92/92 testes em 8 suítes. Preflight considerou caches DEX existentes, três saídas de assets e margem; não ignorou o espaço mínimo.
+- Lotes desta execução: 43 contratos/contexto/QA; 23 E2E; 26 roteamento/cache/TTS após correção do vínculo; 28 contexto/QA/roteamento finais. Todos PASS nos respectivos lotes; reruns não são somados como testes únicos. Baseline anterior 119 contratos e Stock PREEXISTING_VERIFIED continuam registrados no Checkpoint 18.
+- Auditoria final sem nova chamada ao QA: 5/5 testes locais de roteamento, incluindo falha de rede e HTTP503 executando a função Web real. Cada falha chamou somente o chat de QA e não tentou inferência em produção. O cliente nativo também fixa a URL QA por rota, propagando falhas sem trocar o destino. A presença de rotas canônicas para autenticação/histórico não constitui failover de inferência. Confirmações de access token somente, ausência de envio do refresh token e ausência de gravação/exibição de tokens da sessão registradas em `14-qa-and-install-gates.json`.
+- Mock Stock: `PREEXISTING_VERIFIED`, 15/16 na main 50452bc e 15/16 na candidata antes do ajuste do fixture, com a mesma falha e bridge de produção idêntico. Comprovante anterior incorporado em `13-stock-mock-classification.json`; nenhuma mudança de produção Stock.
+
+### Pendências de certificação e credencial
+
+- Reteste físico v11 r2: usuário respondeu **“PERFEITO, DEU TUDO CERTO”** à sequência de interrupção por “espere” ou “calma”, nova pergunta sem repetir ELO e “pare de escutar”. **INTERRUPTION=PASS_REAL_USER; CONTINUATION_WITHOUT_ELO=PASS_REAL_USER; STOP_LISTENING=PASS_REAL_USER.** Não informou qual das duas palavras usou, portanto não há certificação acústica individual de ambas. Latência não medida. Evidência `15-physical-interruption-continuation-stop.json`.
+- A leitura posterior mostrou 252 mensagens canônicas e na UI, mesma conversa autenticada, prefixo de 135 intacto e chamado ativo. O usuário esclareceu **“Reativei para continuar”**: esse estado posterior não foi classificado como reativação espontânea. Os 16 registros novos são posteriores à conferência de preservação das 236 mensagens da instalação; não houve export de conteúdos ou tokens. Metadados em `15a-post-physical-metadata.json`.
+- Rodada seguinte orientada: 15 turnos sem repetir ELO, tela bloqueada após o terceiro, 60 segundos de silêncio depois do 15º e nova pergunta sem wake, finalizando “pare de escutar” e mantendo desativado para conferência. Retorno pendente. Ainda faltam renovação atravessando a expiração real, controles/TalkBack e uso sem USB. O agente não ativou o microfone nem enviou comandos ao Samsung enquanto o usuário testava.
+- Música YouTube com tela bloqueada continua sem certificação; preservar os dois resultados anteriores (áudio seguido de falso timeout; v10 sem áudio/posição zero). Não há extractor, segundo player ou falsificação de visibilidade.
+- Durante configuração autorizada no Render, uma captura DOM revelou a chave OpenAI apesar do campo mascarado. Valor não incluído em fontes, APK ou evidências salvas. Usuário avisado; rotação precisa ser coordenada com o backend atual para evitar interrupção. Nenhuma rotação ou alteração de produção realizada.
+- Evidências: `qa-artifacts/elo-brain-v11-install-20261016/`. Estado final de serviços/microfone, integridade instalada, preservação e hashes incluídos. Sem PR, merge, push de main ou deploy de produção.
+
+### Falha posterior de prefixo — correção em andamento
+
+Na rodada seguinte, o usuário relatou “pare de ouvir” reconhecido como **“de ouvir”**. Não conseguiu perceber se começou enquanto o microfone abria. `TRANSCRIPT_PREFIX=FAIL_REAL_USER_INTERMITTENT`; 15 turnos e silêncio ainda não confirmados. O PASS anterior de interrupção/continuação/desligamento permanece limitado à primeira amostra.
+
+A recuperação no código r2 aceita apenas inícios interrogativos presentes em outra hipótese da mesma fala. Um início imperativo já observado é rejeitado mesmo quando o resultado final corresponde exatamente ao sufixo. Essa lacuna de software pode ser reproduzida localmente; não comprova que o reconhecedor chegou a fornecer o prefixo no episódio físico. O trace técnico não contém palavras nem áudio, mostrou reaberturas após NO_MATCH e terminou desativado antes da intervenção idempotente do agente. A causa física entre captura tardia e revisão do decoder permanece indeterminada.
+
+Nova regressão cobre comandos observados e frases negadas. Candidata r3 em preparação, preservando QA já validado, Web v4, dados e assinatura. Nenhuma repetição dos fixtures reais de contexto após a instrução do usuário. Evidências `16-*`, `16a-*` e `16b-*`.

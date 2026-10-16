@@ -1,0 +1,19 @@
+{
+  "atUtc": "2026-10-16T04:26:30.700Z",
+  "authenticated": true,
+  "validatedUi": true,
+  "conversationHash": "2d03027289f9110e9de0090096ccc971acb08da820851af761d3e60e706254b8",
+  "canonicalMessageCount": 252,
+  "canonicalMessagesHash": "be17a3766d4c94639f29eec9a71ecb2ed1576b6e5b30725ed3dd5b2a3a776a4d",
+  "uiMessageCount": 252,
+  "original135PrefixHash": "25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431",
+  "draftLength": 0,
+  "nativeWakeEnabled": true,
+  "inferenceBase": "https://elo-brain-qa-v11-20261016.onrender.com",
+  "webVersion": "20261016-brain-final-v4",
+  "credentialsExported": false,
+  "contentsExported": false,
+  "diagnosticWrites": 0,
+  "userConversationWritesSinceInstallation": 16,
+  "userConfirmedReactivatedAfterStop": true
+}

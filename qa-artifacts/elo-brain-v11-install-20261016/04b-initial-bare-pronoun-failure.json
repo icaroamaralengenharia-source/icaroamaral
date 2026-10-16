@@ -1,0 +1,11 @@
+{
+  "atUtc": "2026-10-16T04:12:22.850Z",
+  "status": 200,
+  "environment": "qa",
+  "source": "5cb7ecb07f782ef02e0b03249759b4665c314064",
+  "answer": "Ela parece levar a brincadeira na boa, né? Se quiser, posso ajudar a pensar em algo divertido para vocês dois.",
+  "mode": "remote",
+  "fixturesOnly": true,
+  "productionWrites": 0,
+  "credentialsSaved": false
+}

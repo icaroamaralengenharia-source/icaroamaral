@@ -1,0 +1,19 @@
+{
+  "date":"2026-10-16",
+  "apkRevision":"v11 r2, source957301002219, Webv4",
+  "userReport":"PERFEITO, DEU TUDO CERTO",
+  "questionScope":["Interrupt long speech with espere or calma","Ask another question without repeating ELO","Stop listening with pare de escutar"],
+  "interruption":"PASS_REAL_USER",
+  "continuationWithoutWakeWord":"PASS_REAL_USER",
+  "stopListening":"PASS_REAL_USER",
+  "individualKeywordUsed":"Not separately reported; instruction allowed either espere or calma",
+  "latencyMeasurement":"NOT_MEASURED",
+  "subsequentWakeEnabledObservation":true,
+  "observationExplainedByUser":"Reativei para continuar",
+  "unexpectedReactivationConfirmed":false,
+  "postTestMetadata":{"canonicalMessages":252,"uiMessages":252,"sameAuthenticatedConversation":true,"original135PrefixHashMatch":true},
+  "personalHistoryContentsExported":false,
+  "audioRecordedByAgent":false,
+  "furtherPhysicalTest":"15 turns, screen locked after third turn, 60 seconds silence, another question, stop listening; user response pending",
+  "fullPhysicalCertification":"PENDING_STABILITY_RENEWAL_AND_OTHER_REMAINING_GATES"
+}

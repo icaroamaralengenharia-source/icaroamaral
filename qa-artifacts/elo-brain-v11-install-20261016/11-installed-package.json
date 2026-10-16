@@ -1,0 +1,14 @@
+{
+  "atUtc": "2026-10-16T04:19:56.4053433Z",
+  "package": "br.com.icaroamaral.elo",
+  "versionCode": 11,
+  "versionName": "0.4.5-brain-final-v11",
+  "ceDataInode": 601715,
+  "firstInstallTime": "2026-09-07 15:35:35",
+  "lastUpdateTime": "2026-10-16 01:17:33",
+  "installedApkHash": "3b25a82295a47f5023256b208785262fd7bae3adedc27696977042f01e596d15",
+  "wakeServiceRunning": false,
+  "microphoneRunning": false,
+  "authOrHistoryCleared": false,
+  "appUninstalled": false
+}

@@ -1,0 +1,52 @@
+{
+  "atUtc": "2026-10-16T04:16:29.442Z",
+  "qaBase": "https://elo-brain-qa-v11-20261016.onrender.com",
+  "productionDeployed": false,
+  "productionWrites": 0,
+  "credentialsSaved": false,
+  "fixturesOnly": true,
+  "checks": [
+    {
+      "fixture": "pronoun_and_joke",
+      "status": 200,
+      "environment": "qa",
+      "source": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+      "ok": true,
+      "mode": "remote",
+      "answer": "Ela é a Clarissa, sua irmã.",
+      "passed": true
+    },
+    {
+      "fixture": "different_relation_and_name",
+      "status": 200,
+      "environment": "qa",
+      "source": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+      "ok": true,
+      "mode": "remote",
+      "answer": "Ele se chama Jonas.",
+      "passed": true
+    },
+    {
+      "fixture": "new_conversation_isolation",
+      "status": 200,
+      "environment": "qa",
+      "source": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+      "ok": true,
+      "mode": "remote",
+      "answer": "Não tenho essa informação no momento. Se quiser, pode me contar o nome dela!",
+      "passed": true
+    }
+  ],
+  "health": {
+    "ok": true,
+    "service": "elo-brain-qa",
+    "sourceCommit": "52eccdb187b0d67a05679fcfd9d7d4d23d82e670",
+    "inferenceConfigured": true,
+    "allowedUserConfigured": true,
+    "historyRoutesExposed": false,
+    "productionDatabaseCredentials": false
+  },
+  "unauthenticatedStatus": 401,
+  "historyAndMemoryRoutesBlocked": true,
+  "passed": true
+}

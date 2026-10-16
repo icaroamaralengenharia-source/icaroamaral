@@ -1,0 +1,34 @@
+[
+  {
+    "duplicateRemoved": true,
+    "sha256": "678480c1fd16b3d0f1c487f192daa48b4ee31002c7f939e028ad2f339d346104",
+    "bytes": 245841214,
+    "archive": "/sdcard/Download/ELO-build-archive-20261016/installed-elo-0.4.2-v6.apk",
+    "source": "C:\\Users\\Wia Engenharia\\AppData\\Local\\Temp\\elo-official-installed-apk-diagnostic-20261009\\installed-base.apk"
+  },
+  {
+    "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\android-build-work\\app-build\\outputs\\apk\\debug\\app-debug.apk",
+    "archive": "/sdcard/Download/ELO-build-archive-20261016/initial-native-debug-b2668.apk",
+    "sha256": "b2668f1c7fa684cf6d92bf8ab37c4d1e2abf74b0204e73a88ebb5c4720aeae46",
+    "bytes": 319977153,
+    "verified": true,
+    "localRemoved": true
+  },
+  {
+    "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-v9-stage3-before-button-transcript.apk",
+    "archive": "/sdcard/Download/ELO-build-archive-20261016/elo-brain-v9-stage3-before-button-transcript.apk",
+    "sha256": "2811f44db0617152c2accca26df776c1d32d38cee6fe80e5733e468bfa1cef54",
+    "bytes": 320190218,
+    "verified": true,
+    "localRemoved": true
+  },
+  {
+    "source": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-premium-release-20261014\\tmp\\elo-brain-native-20261014\\elo-brain-native-v9-20261015T0449.apk",
+    "archive": "/sdcard/Download/ELO-build-archive-20261016/elo-brain-native-v9-20261015T0449.apk",
+    "bytes": 319977153,
+    "sha256": "b506a7cdeb3002d2008285118955f3d735463f1c6fe1759369184ed46a7fc640",
+    "verified": true,
+    "localRemoved": true,
+    "copyRetriedAfterMismatch": true
+  }
+]

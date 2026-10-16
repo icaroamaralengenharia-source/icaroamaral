@@ -1,0 +1,100 @@
+NOTE: Picked up JDK_JAVA_OPTIONS: "-Djdk.net.unixdomain.tmpdir=C:\Users\Wia Engenharia\Documents\ChatGPT\SaaS Inspe��o T�cnica\ELO-premium-release-20261014\tmp\elo-brain-native-20261014\android-audio-focus-fix-20261015" -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+
+> Configure project :app
+WARNING: The option setting 'android.overridePathCheck=true' is experimental.
+The current default is 'false'.
+Warning: SDK processing. This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:bundleCanonicalEloWeb
+> Task :app:preBuild
+> Task :app:preDebugBuild
+> Task :app:generateDebugBuildConfig
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/EloWakeService.kt:370:36 'constructor(p0: Int, p1: CharSequence!, p2: PendingIntent?): Notification.Action.Builder' is deprecated. Deprecated in Java.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:77:60 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:163:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:168:15 'fun onBackPressed(): Unit' is deprecated. This method has been deprecated in favor of using the
+      {@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.
+      The OnBackPressedDispatcher controls how back button events are dispatched
+      to one or more {@link OnBackPressedCallback} objects.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:171:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:172:15 'fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray): Unit' is deprecated. This method has been deprecated in favor of using the Activity Result API
+      which brings increased type safety via an {@link ActivityResultContract} and the prebuilt
+      contracts for common intents available in
+      {@link androidx.activity.result.contract.ActivityResultContracts}, provides hooks for
+      testing, and allow receiving results in separate, testable classes independent from your
+      activity. Use
+      {@link #registerForActivityResult(ActivityResultContract, ActivityResultCallback)} passing
+      in a {@link RequestMultiplePermissions} object for the {@link ActivityResultContract} and
+      handling the result in the {@link ActivityResultCallback#onActivityResult(Object) callback}.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:237:24 'val systemWindowInsetTop: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:261:18 'var allowFileAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/Wia%20Engenharia/Documents/ChatGPT/SaaS%20Inspe��o%20T�cnica/ELO-brain-final-20261015/android-native-wake-20261014/app/src/main/java/br/com/icaroamaral/elo/MainActivity.kt:262:18 'var allowUniversalAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:compileDebugUnitTestKotlin
+
+The Daemon will expire after the build after running out of JVM Metaspace.
+The project memory settings are likely not configured or are configured to an insufficient value.
+The daemon will restart for the next build, which may increase subsequent build times.
+These settings can be adjusted by setting 'org.gradle.jvmargs' in 'gradle.properties'.
+The currently configured max heap space is '512 MiB' and the configured max metaspace is '384 MiB'.
+For more information on how to set these values, please refer to https://docs.gradle.org/8.10.2/userguide/build_environment.html#sec:configuring_jvm_memory in the Gradle documentation.
+To disable this warning, set 'org.gradle.daemon.performance.disable-logging=true'.
+
+> Task :app:preDebugUnitTestBuild
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:compileDebugUnitTestJavaWithJavac UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+
+> Task :app:testDebugUnitTest
+NOTE: Picked up JDK_JAVA_OPTIONS: "-Djdk.net.unixdomain.tmpdir=C:\Users\Wia Engenharia\Documents\ChatGPT\SaaS Inspe��o T�cnica\ELO-premium-release-20261014\tmp\elo-brain-native-20261014\android-audio-focus-fix-20261015" -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false
+
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libjnidispatch.so, libvosk.so.
+
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 9m 31s
+44 actionable tasks: 17 executed, 27 up-to-date
