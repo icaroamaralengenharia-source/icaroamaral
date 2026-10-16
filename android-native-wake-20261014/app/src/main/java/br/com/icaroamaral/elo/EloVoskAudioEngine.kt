@@ -8,6 +8,7 @@ import android.media.AudioRecord
 import android.media.AudioManager
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -27,12 +28,14 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
         fun partial(lease: Long, text: String)
         fun final(lease: Long, text: String)
         fun failed(lease: Long, reason: String)
+        fun interruption(lease: Long, command: String) {}
     }
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var model: Model? = null
     @Volatile private var worker: Thread? = null
     @Volatile private var recorder: AudioRecord? = null
     @Volatile private var currentLease = -1L
+    @Volatile private var interruptVocabularyAvailable = false
     private val workers = AtomicInteger(0)
     @Volatile var peakWorkers = 0
         private set
@@ -48,13 +51,20 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
                 com.sun.jna.NativeLibrary.getInstance("vosk").getFunction("vosk_model_find_word")
                     .invokeInt(arrayOf(loaded.pointer, "elo")) >= 0
             }.getOrDefault(false)
-            if (wordAvailable) { model = loaded; done(true) }
+            if (wordAvailable) {
+                interruptVocabularyAvailable = runCatching {
+                    val lookup = com.sun.jna.NativeLibrary.getInstance("vosk").getFunction("vosk_model_find_word")
+                    listOf("espere", "calma").all { lookup.invokeInt(arrayOf(loaded.pointer, it)) >= 0 }
+                }.getOrDefault(false)
+                model = loaded; done(true)
+            }
             else { loaded.close(); done(false) }
         }, { _ -> done(false) })
     }
     @Suppress("MissingPermission")
     fun start(owner: EloVoiceCoordinator.Owner, lease: Long): Boolean {
-        if (!ready() || owner != EloVoiceCoordinator.Owner.WAKE || worker?.isAlive == true || workers.get() != 0) return false
+        if (!ready() || owner !in setOf(EloVoiceCoordinator.Owner.WAKE, EloVoiceCoordinator.Owner.INTERRUPT) || worker?.isAlive == true || workers.get() != 0) return false
+        if (owner == EloVoiceCoordinator.Owner.INTERRUPT && !interruptVocabularyAvailable) return false
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return false
         currentLease = lease
         val myModel = model ?: return false
@@ -62,22 +72,30 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
             var input: AudioRecord? = null
             var recognizer: Recognizer? = null
             var recordingCallback: AudioManager.AudioRecordingCallback? = null
+            var echoCanceler: AcousticEchoCanceler? = null
             val active = workers.incrementAndGet()
             peakWorkers = maxOf(peakWorkers, active)
             try {
                 check(active == 1) { "MIC_OWNER_CONFLICT" }
-                recognizer = if (owner == EloVoiceCoordinator.Owner.WAKE)
-                    Recognizer(myModel, SAMPLE_RATE.toFloat(), """["elo","[unk]"]""")
-                else Recognizer(myModel, SAMPLE_RATE.toFloat())
+                val interrupting = owner == EloVoiceCoordinator.Owner.INTERRUPT
+                recognizer = Recognizer(myModel, SAMPLE_RATE.toFloat(), if (interrupting)
+                    """["espere","calma","[unk]"]""" else """["elo","[unk]"]""")
                 recognizer.setWords(true)
-                if (owner == EloVoiceCoordinator.Owner.BRAIN) recognizer.setEndpointerDelays(30.0f, 1.0f, 40.0f)
+                if (interrupting) recognizer.setEndpointerDelays(0.35f, 0.35f, 15.0f)
                 val minimum = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 check(minimum > 0) { "CAPTURE_CONFIGURATION" }
-                input = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE,
+                input = AudioRecord(if (interrupting) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum * 2, 6400))
                 check(input.state == AudioRecord.STATE_INITIALIZED) { "CAPTURE_INITIALIZATION" }
                 recorder = input
                 if (currentLease != lease) return@Thread
+                if (interrupting) {
+                    if (AcousticEchoCanceler.isAvailable()) echoCanceler = AcousticEchoCanceler.create(input.audioSessionId)
+                    echoCanceler?.enabled = true
+                    if (echoCanceler?.enabled != true) {
+                        post(lease) { listener.failed(lease, "ECHO_CANCELLATION_UNAVAILABLE") }; return@Thread
+                    }
+                }
                 if (Build.VERSION.SDK_INT >= 29) {
                     recordingCallback = object : AudioManager.AudioRecordingCallback() {
                         override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
@@ -104,6 +122,9 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
                                 val continuation = text.split(Regex("\\s+")).drop(1).any { it.isNotBlank() }
                                 post(lease) { listener.wake(lease, continuation) }; break
                             }
+                        } else if (interrupting) {
+                            val command = EloSpeechInterruptDecision.command(result)
+                            if (command != null) post(lease) { listener.interruption(lease, command) }
                         } else {
                             utterance.segment(text, SystemClock.elapsedRealtime())
                             if (text.isNotBlank()) {
@@ -133,6 +154,7 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
                     runCatching { input?.unregisterAudioRecordingCallback(callback) }
                 }
                 runCatching { input?.stop() }; runCatching { input?.release() }
+                runCatching { echoCanceler?.release() }
                 if (recorder === input) recorder = null
                 runCatching { recognizer?.close() }
                 workers.decrementAndGet()

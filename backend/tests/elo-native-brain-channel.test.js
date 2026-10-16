@@ -56,6 +56,45 @@ function sendMusic(h, text = 'Toque uma faixa') {
   h.port.onmessage({data:JSON.stringify({type:'MUSIC_REQUEST',request:{id:'music-qa',text,generation:2,turn:1}})});
 }
 const musicResult = h => h.sent.find(x=>x.type==='MUSIC_RESULT')?.payload.result;
+
+test('session renewal can run hidden and returns only access context on the private port', async t => {
+  const h=harness(t);h.connect();h.state({state:'BRAIN_LISTENING',enabled:true,owner:'BRAIN'});
+  Object.defineProperty(h.w.document,'visibilityState',{value:'hidden',configurable:true});
+  h.w.EloAssistente.renewNativeVoiceContext=async()=>({accessToken:'test-access-only',identity:{userId:'user_qa'},conversationId:'conv_qa'});
+  const challenge='12345678-1234-4234-8234-123456789012';
+  await h.w.EloNativeBrain.renewSession(challenge);
+  const message=h.sent.find(x=>x.type==='RENEW_CONTEXT');
+  assert.equal(message.payload.challenge,challenge);assert.equal(message.payload.context.accessToken,'test-access-only');
+  assert.equal(JSON.stringify(message).includes('refresh_token'),false);assert.equal(h.calls.includes('context'),false);
+});
+test('late renewal cannot reactivate explicit OFF',async t=>{
+  const h=harness(t);h.connect();h.state({state:'BRAIN_LISTENING',enabled:true,owner:'BRAIN'});
+  let finish;h.w.EloAssistente.renewNativeVoiceContext=()=>new Promise(r=>finish=r);
+  const renewal=h.w.EloNativeBrain.renewSession('12345678-1234-4234-8234-123456789012');
+  h.state({state:'WAKE_DISABLED',enabled:false,owner:'NONE'});finish({accessToken:'not-used'});await renewal;
+  assert.equal(h.sent.some(x=>x.type==='RENEW_CONTEXT'),false);
+});
+test('transient canonical renewal failure is reported without a fake success',async t=>{
+  const h=harness(t);h.connect();h.state({state:'BRAIN_LISTENING',enabled:true,owner:'BRAIN'});
+  h.w.EloAssistente.renewNativeVoiceContext=async()=>{throw new Error('offline')};
+  await h.w.EloNativeBrain.renewSession('12345678-1234-4234-8234-123456789012');
+  assert.equal(h.sent.find(x=>x.type==='RENEW_CONTEXT_FAILED').payload.authenticationRejected,false);
+  assert.equal(h.sent.some(x=>x.type==='RENEW_CONTEXT'),false);
+});
+
+test('hidden refresh uses the canonical auth function and rejects a changed conversation',async()=>{
+  const begin=web.indexOf('  function renewNativeVoiceContext_('),end=web.indexOf('\n  function ',begin+1);
+  let conversation='same',refreshes=0;
+  const c={window:{location:{origin:'https://www.icaroamaral.com.br',pathname:'/elo.html'},ELO_AUTH_SESSION_VALIDATED:true,EloNativeBrain:{getState:()=>({enabled:true})}},
+    getEloCoreIdentity_:()=>({userId:'qa'}),getEloCoreCurrentConversationId_:()=>conversation,
+    ensureEloCoreValidSession_:async options=>{assert.equal(options.forceRefresh,true);refreshes++;return {accessToken:'only-access'}},
+    buildNativeVoiceContext_:token=>({accessToken:token})};
+  vm.createContext(c);vm.runInContext(web.slice(begin,end),c);
+  assert.equal((await c.renewNativeVoiceContext_()).accessToken,'only-access');assert.equal(refreshes,1);
+  c.ensureEloCoreValidSession_=async()=>{conversation='different';return {accessToken:'discard'}};
+  await assert.rejects(c.renewNativeVoiceContext_(),/scope_changed/);
+  c.window.EloNativeBrain.getState=()=>({enabled:false});await assert.rejects(c.renewNativeVoiceContext_(),/active_session_required/);
+});
 test('native music requires actual advancing playback rather than resolver success', async t => {
   const h=harness(t);let position=0;
   h.w.EloAssistente.handleMusicQueryForTest=async()=>({handled:true,decision:'AUTO_EXACT',candidate:{title:'Faixa',artist:'Artista'}});

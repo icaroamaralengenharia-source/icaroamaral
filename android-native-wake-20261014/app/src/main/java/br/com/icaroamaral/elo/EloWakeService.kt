@@ -63,9 +63,13 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
         val silence = getSharedPreferences(EloServiceSettings.PREFS_NAME, MODE_PRIVATE)
             .getLong("elo_brain_silence_ms", 30_000).coerceIn(10_000, 120_000)
         coordinator = EloVoiceCoordinator(this, silence)
+        client.trace = { phase, elapsed -> audioTrace("canonical_request_timing", "phase" to phase, "elapsedMs" to elapsed) }
         music = EloNativeMusicGateway { turn, generation -> coordinator.yieldForMusic(turn, generation) }
         EloNativeBrainRegistry.command = receiver
         EloNativeBrainRegistry.readMessage = { text -> alive && coordinator.readMessage(text) }
+        EloNativeBrainRegistry.sessionRenewed = {
+            if (alive) { audioTrace("session_renewed"); coordinator.sessionRenewed() }
+        }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
             NotificationChannel(CHANNEL, "Chamado ELO", NotificationManager.IMPORTANCE_LOW))
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
@@ -125,10 +129,7 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
             if (!coordinator.enable()) return@prepare
             EloServiceSettings.setServiceEnabled(this, true)
             main.post(renewWakeLock)
-            val context = EloNativeVoiceSession.current() ?: return@prepare
-            expiry = Runnable { coordinator.disable("SESSION_EXPIRED") }.also {
-                main.postDelayed(it, (context.expiresAt * 1000 - System.currentTimeMillis() - 30_000).coerceAtLeast(1))
-            }
+            scheduleSessionRenewal()
         }
         // Process death, boot and force-stop never silently restart microphone capture.
         return START_NOT_STICKY
@@ -146,11 +147,26 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
             ACTION_RESUME -> coordinator.resumeWake()
         }
     }
+    private fun scheduleSessionRenewal() {
+        expiry?.let { main.removeCallbacks(it) }
+        expiry = object : Runnable {
+            override fun run() {
+                if (!alive || !coordinator.snapshot().enabled) return
+                val context = EloNativeVoiceSession.candidate() ?: return
+                if (!context.usable()) coordinator.sessionRenewalRequired()
+                if (context.expiresAt * 1000 - System.currentTimeMillis() < 180_000) {
+                    audioTrace("session_renewal_requested")
+                    EloNativeBrainRegistry.renewDispatcher?.invoke()
+                }
+                main.postDelayed(this, 5000)
+            }
+        }.also { main.post(it) }
+    }
     override fun sessionReady() = EloNativeVoiceSession.current() != null
     override fun startCapture(owner: EloVoiceCoordinator.Owner, lease: Long): Boolean {
         audioTrace("capture_start_requested", "captureOwner" to owner.name, "lease" to lease)
         if (engine.activeWorkers() != 0 || conversation.active || conversation.isStopping()) return false
-        val started = if (owner == EloVoiceCoordinator.Owner.WAKE) engine.start(owner, lease)
+        val started = if (owner in setOf(EloVoiceCoordinator.Owner.WAKE, EloVoiceCoordinator.Owner.INTERRUPT)) engine.start(owner, lease)
             else if (owner == EloVoiceCoordinator.Owner.BRAIN) conversation.start(lease) else false
         if (started) peakCaptureOwners = maxOf(peakCaptureOwners, 1)
         audioTrace("capture_start_result", "captureOwner" to owner.name, "lease" to lease, "started" to started)
@@ -253,7 +269,11 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
                 }
             } catch (failure: Exception) {
                 val code = (failure as? EloNativeVoiceFailure)?.code ?: "REQUEST_FAILED"
-                main.post { if (alive) coordinator.requestFailed(turn, generation, code) }
+                main.post { if (alive) {
+                    if (code in setOf("SESSION_EXPIRED", "SESSION_REJECTED")) {
+                        coordinator.sessionRenewalRequired(); EloNativeBrainRegistry.renewDispatcher?.invoke()
+                    } else coordinator.requestFailed(turn, generation, code)
+                } }
             }
         }
     }
@@ -266,7 +286,10 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
                 lastVoiceStage = report.voiceStage
                 audioTrace("tts_status", "outputGeneration" to generation, "voiceStage" to report.voiceStage,
                     "dataSource" to report.dataSource)
-                if (report.voiceStage == "PLAYING" && report.dataSource == "CACHE_FILE") neural = true
+                if (report.voiceStage == "PLAYING" && report.dataSource == "CACHE_FILE") {
+                    neural = true
+                    coordinator.outputStarted(generation)
+                }
                 if (report.voiceStage in listOf("NEURAL_REQUIRED", "WATCHDOG_NEURAL_FAILED")) failed = true
                 if (report.voiceStage.startsWith("AUDIO_FOCUS_LOSS")) coordinator.suspend("AUDIO_FOCUS_LOST")
             }
@@ -303,6 +326,10 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
         audioTrace("wake_detected", "lease" to lease, "continuationConsumed" to continuationConsumed)
         coordinator.wakeDetected(lease, continuationConsumed)
     }
+    override fun interruption(lease: Long, command: String) {
+        audioTrace("speech_interruption_candidate", "lease" to lease)
+        coordinator.interruption(lease, command)
+    }
     override fun ready(lease: Long) {
         audioTrace("capture_ready_callback", "lease" to lease)
         coordinator.captureReady(lease)
@@ -334,7 +361,7 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
         EloVoiceCoordinator.State.BRAIN_LISTENING -> if (s.reason == "CAPTURE_STARTING") "Abrindo microfone" else if (s.reason == "CAPTURE_RELEASING") "Finalizando escuta" else "Ouvindo sua conversa"
         EloVoiceCoordinator.State.PROCESSING -> "Preparando resposta"
         EloVoiceCoordinator.State.BRAIN_SPEAKING -> "Respondendo por voz"
-        EloVoiceCoordinator.State.SUSPENDED -> "Escuta suspensa. Abra o ELO para retomar"
+        EloVoiceCoordinator.State.SUSPENDED -> if (s.reason == "SESSION_RENEWAL_REQUIRED") "Reconectando a sessão para retomar a escuta" else "Escuta suspensa. Abra o ELO para retomar"
         else -> "Chamado ELO ativo"
     }
     private fun action(label: String, action: String, request: Int): Notification.Action {
@@ -373,6 +400,7 @@ class EloWakeService : Service(), EloVoiceCoordinator.Ports, EloVoskAudioEngine.
         alive = false
         if (EloNativeBrainRegistry.command === receiver) EloNativeBrainRegistry.command = null
         EloNativeBrainRegistry.readMessage = null
+        EloNativeBrainRegistry.sessionRenewed = null
         main.removeCallbacksAndMessages(null)
         conversation.close(); engine.close(); voice.shutdown(); client.cancel(); music.clear(); executor.shutdownNow()
         releaseOutputFocus("SERVICE_DESTROYED"); EloNativeVoiceSession.clear()

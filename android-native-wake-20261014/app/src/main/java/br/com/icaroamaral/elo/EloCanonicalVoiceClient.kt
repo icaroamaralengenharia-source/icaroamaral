@@ -17,7 +17,8 @@ class EloCanonicalVoiceContext private constructor(
     fun sameScope(other: EloCanonicalVoiceContext) =
         userId == other.userId && conversationId == other.conversationId &&
         identity.optString("institutionId") == other.identity.optString("institutionId") &&
-        identity.optString("companyId") == other.identity.optString("companyId")
+        identity.optString("companyId") == other.identity.optString("companyId") &&
+        identity.optString("projectId") == other.identity.optString("projectId")
     override fun toString() = "EloCanonicalVoiceContext(redacted)"
     companion object {
         fun parse(raw: String): EloCanonicalVoiceContext {
@@ -68,6 +69,11 @@ object EloNativeVoiceSession {
         validated = true; return true
     }
     fun clear() { validated = false; current = null }
+    @Synchronized fun renew(previous: EloCanonicalVoiceContext, next: EloCanonicalVoiceContext): Boolean {
+        if (!validated || current !== previous || !previous.sameScope(next) || !next.usable() || next.expiresAt <= previous.expiresAt) return false
+        current = next
+        return true
+    }
 }
 
 class EloNativeVoiceFailure(val code: String) : Exception(code)
@@ -75,23 +81,26 @@ data class EloVoiceToolResult(val answer: String, val played: Boolean = false, v
 
 /** Uses the same authenticated conversation endpoints as the official Web client. */
 class EloCanonicalVoiceClient(private val testTransport: JsonTransport? = null) {
+    var trace: ((String, Long) -> Unit)? = null
     fun interface JsonTransport {
         fun exchange(method: String, path: String, body: JSONObject?): JSONObject
     }
     private val active = AtomicReference<HttpURLConnection?>()
     @Volatile private var revision = 0L
     fun cancel() { revision += 1; active.getAndSet(null)?.disconnect() }
-    private fun check(context: EloCanonicalVoiceContext, expected: Long) {
+    private fun check(context: EloCanonicalVoiceContext, expected: Long, expectedSession: EloCanonicalVoiceContext = context) {
         if (Thread.currentThread().isInterrupted || revision != expected) throw EloNativeVoiceFailure("CANCELLED")
         if (!context.usable()) throw EloNativeVoiceFailure("SESSION_EXPIRED")
-        if (EloNativeVoiceSession.candidate() !== context) throw EloNativeVoiceFailure("CONTEXT_CHANGED")
+        if (EloNativeVoiceSession.candidate() !== expectedSession) throw EloNativeVoiceFailure("CONTEXT_CHANGED")
     }
-    private fun request(context: EloCanonicalVoiceContext, expected: Long, path: String, body: JSONObject? = null): JSONObject {
-        check(context, expected)
+    private fun request(context: EloCanonicalVoiceContext, expected: Long, path: String, body: JSONObject? = null,
+                        expectedSession: EloCanonicalVoiceContext = context): JSONObject {
+        val started = System.nanoTime()
+        check(context, expected, expectedSession)
         require(path.startsWith("/api/elo/")) { "INVALID_ENDPOINT" }
         testTransport?.let {
             val result = it.exchange(if (body == null) "GET" else "POST", path, body)
-            check(context, expected)
+            check(context, expected, expectedSession)
             return result
         }
         val connection = URL(BACKEND + path).openConnection() as HttpURLConnection
@@ -103,10 +112,12 @@ class EloCanonicalVoiceClient(private val testTransport: JsonTransport? = null) 
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
         active.set(connection)
         try {
-            check(context, expected)
+            check(context, expected, expectedSession)
             if (body != null) {
                 connection.doOutput = true
-                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val bytes = body.toString().toByteArray(Charsets.UTF_8)
+                connection.setFixedLengthStreamingMode(bytes.size)
+                connection.outputStream.use { it.write(bytes) }
             }
             val status = connection.responseCode
             if (status !in 200..299) throw EloNativeVoiceFailure(if (status == 401 || status == 403) "SESSION_REJECTED" else "HTTP_" + status)
@@ -114,25 +125,31 @@ class EloCanonicalVoiceClient(private val testTransport: JsonTransport? = null) 
                 val output = java.io.ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 while (true) {
-                    check(context, expected)
+                    check(context, expected, expectedSession)
                     val count = stream.read(buffer); if (count < 0) break
                     if (output.size() + count > 2_000_000) throw EloNativeVoiceFailure("RESPONSE_TOO_LARGE")
                     output.write(buffer, 0, count)
                 }
                 JSONObject(output.toString("UTF-8"))
             }
-            check(context, expected)
+            check(context, expected, expectedSession)
             if (data.optBoolean("ok", true).not()) throw EloNativeVoiceFailure("BACKEND_REJECTED")
             return data
-        } finally { active.compareAndSet(connection, null); connection.disconnect() }
+        } finally {
+            active.compareAndSet(connection, null); connection.disconnect()
+            val phase = if (body == null) "history" else if (path.endsWith("/messages"))
+                if (body.optString("role") == "user") "save_user" else "save_assistant" else "answer"
+            trace?.invoke(phase, (System.nanoTime() - started) / 1_000_000)
+        }
     }
     private fun conversationPath(context: EloCanonicalVoiceContext): String =
         "/api/elo/conversations/" + context.conversationId + "?" +
             context.identity.keys().asSequence().joinToString("&") { key ->
                 URLEncoder.encode(key, "UTF-8") + "=" + URLEncoder.encode(context.identity.optString(key), "UTF-8")
             }
-    fun validate(context: EloCanonicalVoiceContext): Int {
-        val result = request(context, revision, conversationPath(context))
+    fun validate(context: EloCanonicalVoiceContext, expectedSession: EloCanonicalVoiceContext = context): Int {
+        require(context.sameScope(expectedSession)) { "CONTEXT_CHANGED" }
+        val result = request(context, revision, conversationPath(context), expectedSession = expectedSession)
         if (result.optJSONObject("conversation")?.optString("id") != context.conversationId)
             throw EloNativeVoiceFailure("CONVERSATION_MISMATCH")
         return result.optJSONArray("messages")?.length() ?: 0

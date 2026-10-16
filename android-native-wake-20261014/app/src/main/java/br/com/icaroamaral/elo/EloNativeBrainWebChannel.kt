@@ -12,6 +12,22 @@ class EloNativeBrainWebChannel(
     private val activate: () -> Boolean
 ) {
     private var port: WebMessagePort? = null
+    private var renewalChallenge: String? = null
+    private var renewalStarted = 0L
+    private var renewalValidating = false
+    private var channelRevision = 0L
+    private val renewDispatcher: () -> Boolean = {
+        if (!trusted() || port == null) false else {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (!renewalValidating && (renewalChallenge == null || now - renewalStarted > 45_000)) {
+                renewalChallenge = java.util.UUID.randomUUID().toString(); renewalStarted = now
+                // MessagePort tasks may be deferred in a hidden WebView. Execute the
+                // canonical refresh entry point; credentials return only on the private port.
+                webView.evaluateJavascript("window.EloNativeBrain?.renewSession?.(" + JSONObject.quote(renewalChallenge) + ")", null)
+            }
+            true
+        }
+    }
     private val musicPending = mutableMapOf<String, (JSONObject) -> Unit>()
     private val musicDispatcher: (JSONObject, (JSONObject) -> Unit) -> Boolean = { request, result ->
         if (!trusted() || port == null) false else {
@@ -55,6 +71,27 @@ class EloNativeBrainWebChannel(
                         send(JSONObject().put("type", "RESULT").put("id", id).put("ok", ok).put("code", code))
                     }
                     when (type) {
+                        "RENEW_CONTEXT" -> {
+                            val payload = json.optJSONObject("payload") ?: JSONObject()
+                            if (renewalChallenge == null || payload.optString("challenge") != renewalChallenge ||
+                                android.os.SystemClock.elapsedRealtime() - renewalStarted > 45_000) reply(false, "RENEWAL_CHALLENGE_REJECTED")
+                            else {
+                                renewalChallenge = null
+                                renewalValidating = true
+                                val expectedRevision = channelRevision
+                                EloNativeBrainRegistry.renewContext(payload.optJSONObject("context")?.toString().orEmpty()) { ok, code ->
+                                    if (expectedRevision == channelRevision) { renewalValidating = false; reply(ok, code) }
+                                }
+                            }
+                        }
+                        "RENEW_CONTEXT_FAILED" -> {
+                            val payload = json.optJSONObject("payload") ?: JSONObject()
+                            if (renewalChallenge != null && payload.optString("challenge") == renewalChallenge) {
+                                renewalChallenge = null
+                                if (payload.optBoolean("authenticationRejected")) EloNativeBrainRegistry.clearContext()
+                            }
+                            reply(true, "RENEWAL_RETRY_PENDING")
+                        }
                         "CONTEXT" -> {
                             val payload = json.optJSONObject("payload")
                             if (payload == null) reply(false, "INVALID_CONTEXT")
@@ -106,6 +143,7 @@ class EloNativeBrainWebChannel(
             EloNativeBrainRegistry.observeTranscripts(transcriptObserver)
             EloNativeBrainRegistry.musicDispatcher = musicDispatcher
             EloNativeBrainRegistry.musicCancel = musicCancel
+            EloNativeBrainRegistry.renewDispatcher = renewDispatcher
         }
     }
     fun resume() {
@@ -113,6 +151,10 @@ class EloNativeBrainWebChannel(
     }
     private fun send(json: JSONObject) { runCatching { port?.postMessage(WebMessage(json.toString())) } }
     fun close() {
+        channelRevision += 1
+        if (EloNativeBrainRegistry.renewDispatcher === renewDispatcher) EloNativeBrainRegistry.renewDispatcher = null
+        renewalChallenge = null
+        renewalValidating = false
         if (EloNativeBrainRegistry.musicDispatcher === musicDispatcher) EloNativeBrainRegistry.musicDispatcher = null
         if (EloNativeBrainRegistry.musicCancel === musicCancel) EloNativeBrainRegistry.musicCancel = null
         musicPending.values.toList().forEach { it(JSONObject().put("handled", true).put("decision", "WEBVIEW_CLOSED").put("answer", "Abra novamente o ELO para acionar o player.")) }

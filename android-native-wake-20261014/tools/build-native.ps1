@@ -1,4 +1,4 @@
-param([string]$WorkRoot)
+param([string]$WorkRoot, [switch]$TestOnly)
 $ErrorActionPreference='Stop'
 $taskProject=Split-Path $PSScriptRoot -Parent
 $taskWorkspace=Split-Path $taskProject -Parent
@@ -23,6 +23,7 @@ if(Test-Path -LiteralPath $taskMerged) {
  }
 }
 $taskStamp=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff')
+if($TestOnly -and $taskCachedAssetBytes -ge ($taskAssetBytes+$taskModelBytes)) { $taskEstimate=512MB }
 $taskPreflight=[ordered]@{atUtc=[DateTime]::UtcNow.ToString('o');free=$taskDrive.AvailableFreeSpace;preferred=5GB;requiredEstimate=$taskEstimate;existingAssets=$taskAssetBytes;modelBytes=$taskModelBytes;cachedAssets=$taskCachedAssetBytes;workRoot=$taskWork;dataDeleted=$false}
 $taskPreflight | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskArtifacts ('build-preflight-'+$taskStamp+'.json')) -Encoding utf8
 if($taskDrive.AvailableFreeSpace -lt $taskEstimate) { throw 'BUILD_BLOCKED_INSUFFICIENT_SAFE_SPACE' }
@@ -47,7 +48,9 @@ $taskArgs=@('--no-daemon','--max-workers=1','--offline','--console=plain','--pro
  '--tests','br.com.icaroamaral.elo.EloVoiceUtteranceBufferTest',
  '--tests','br.com.icaroamaral.elo.EloNativeMusicIntentTest',
  '--tests','br.com.icaroamaral.elo.EloMusicPlayerCoordinatorTest',
- '--tests','br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest','assembleDebug')
+ '--tests','br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest',
+ '--tests','br.com.icaroamaral.elo.EloSpeechInterruptDecisionTest')
+if(-not $TestOnly) { $taskArgs += 'assembleDebug' }
 $taskLauncher=Join-Path (Split-Path (Split-Path $taskGradle -Parent) -Parent) 'lib\gradle-launcher-8.10.2.jar'
 $taskPreviousJavaOptions=$env:JDK_JAVA_OPTIONS
 try {

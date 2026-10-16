@@ -14,6 +14,8 @@ object EloNativeBrainRegistry {
     @Volatile var readMessage: ((String) -> Boolean)? = null
     @Volatile var musicDispatcher: ((JSONObject, (JSONObject) -> Unit) -> Boolean)? = null
     @Volatile var musicCancel: ((String) -> Unit)? = null
+    @Volatile var renewDispatcher: (() -> Boolean)? = null
+    @Volatile var sessionRenewed: (() -> Unit)? = null
     @Volatile var enabled = false
         private set
     @Volatile private var status = """{"state":"WAKE_DISABLED","enabled":false,"owner":"NONE","reason":""}"""
@@ -43,8 +45,12 @@ object EloNativeBrainRegistry {
         val context = runCatching { EloCanonicalVoiceContext.parse(raw) }.getOrElse {
             result(false, "INVALID_SESSION_CONTEXT"); return
         }
-        val existing = EloNativeVoiceSession.current()
-        if (enabled && existing != null && existing.sameScope(context)) { result(true, "READY"); return }
+        val existing = EloNativeVoiceSession.candidate()
+        if (enabled && existing != null && existing.sameScope(context)) {
+            if (context.expiresAt > existing.expiresAt) renewContext(raw, result)
+            else result(existing.usable(), if (existing.usable()) "READY" else "RENEWAL_RETRY_PENDING")
+            return
+        }
         if (enabled) {
             command?.invoke(EloWakeService.ACTION_STOP)
             result(false, "CONTEXT_CHANGED_RETRY")
@@ -64,5 +70,27 @@ object EloNativeBrainRegistry {
         client.cancel()
         command?.invoke(EloWakeService.ACTION_STOP)
         EloNativeVoiceSession.clear()
+    }
+    fun renewContext(raw: String, result: (Boolean, String) -> Unit) {
+        val previous = EloNativeVoiceSession.candidate()
+        val next = runCatching { EloCanonicalVoiceContext.parse(raw) }.getOrNull()
+        if (!enabled || previous == null || next == null || !previous.sameScope(next) || next.expiresAt <= previous.expiresAt) {
+            result(false, "RENEWAL_SCOPE_REJECTED"); return
+        }
+        validator.execute {
+            val valid = runCatching { client.validate(next, previous); true }.getOrDefault(false)
+            main.post {
+                if (!valid) { result(false, "RENEWAL_VALIDATION_FAILED"); return@post }
+                fun commitWhenIdle() {
+                    if (!enabled || EloNativeVoiceSession.candidate() !== previous) { result(false, "RENEWAL_CANCELLED"); return }
+                    // Never swap a context used by an in-flight canonical POST.
+                    if (JSONObject(status).optString("state") == "PROCESSING") { main.postDelayed({ commitWhenIdle() }, 200); return }
+                    val ok = EloNativeVoiceSession.renew(previous, next)
+                    if (ok) sessionRenewed?.invoke()
+                    result(ok, if (ok) "SESSION_RENEWED" else "RENEWAL_REJECTED")
+                }
+                commitWhenIdle()
+            }
+        }
     }
 }

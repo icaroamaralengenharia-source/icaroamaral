@@ -35,8 +35,8 @@ private class VoicePorts : EloVoiceCoordinator.Ports {
     override fun sessionReady() = ready
     override fun startCapture(owner: EloVoiceCoordinator.Owner, lease: Long): Boolean {
         check(capture == EloVoiceCoordinator.Owner.NONE)
-        check(!output)
-        check(!focusHeld) { "Output focus must be released before capture starts" }
+        check(!output || owner == EloVoiceCoordinator.Owner.INTERRUPT)
+        check(!focusHeld || owner == EloVoiceCoordinator.Owner.INTERRUPT) { "Output focus must be released before conversational capture starts" }
         events.add("capture-start-${owner.name}")
         capture = owner; peak = maxOf(peak, 1)
         return true
@@ -73,6 +73,64 @@ private class VoicePorts : EloVoiceCoordinator.Ports {
 }
 
 class EloVoiceCoordinatorTest {
+    @Test fun isolatedSpeechInterruptionStopsOutputBeforeOpeningAnotherTurn() {
+        val (c,p)=talking();c.heard(c.snapshot().captureLease,"Receita de coxinha")
+        val generation=c.snapshot().generation;c.answerReady(c.snapshot().turn,generation,"Primeiro prepare a massa e o recheio.")
+        c.outputStarted(generation);val lease=c.snapshot().captureLease
+        assertEquals(EloVoiceCoordinator.Owner.INTERRUPT,p.capture)
+        c.interruption(lease,"espere");assertFalse(p.output);p.advance(650)
+        assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture);assertEquals(1,p.peak)
+        c.outputDone(generation,true);assertEquals(EloVoiceCoordinator.State.BRAIN_LISTENING,c.snapshot().state)
+    }
+    @Test fun outgoingKeywordCannotInterruptItself() {
+        val(c,p)=talking();c.heard(c.snapshot().captureLease,"Como devo agir?")
+        val s=c.snapshot();c.answerReady(s.turn,s.generation,"Espere um minuto e mantenha a calma.");c.outputStarted(s.generation)
+        c.interruption(c.snapshot().captureLease,"espere");c.interruption(c.snapshot().captureLease,"calma")
+        assertTrue(p.output);assertEquals(EloVoiceCoordinator.State.BRAIN_SPEAKING,c.snapshot().state)
+    }
+    @Test fun unsupportedEchoCancellationLeavesOutputAndButtonAvailable() {
+        val(c,p)=talking();c.heard(c.snapshot().captureLease,"Explique")
+        val s=c.snapshot();c.answerReady(s.turn,s.generation,"Resposta longa");c.outputStarted(s.generation)
+        c.captureFailed(c.snapshot().captureLease,"ECHO_CANCELLATION_UNAVAILABLE")
+        assertTrue(p.output);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+        assertEquals("INTERRUPT_UNAVAILABLE",c.snapshot().reason)
+        c.interrupt();p.advance(650);assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture)
+    }
+    @Test fun lateSpeechInterruptionCannotRestartAfterOff() {
+        val(c,p)=talking();c.heard(c.snapshot().captureLease,"Explique")
+        val s=c.snapshot();c.answerReady(s.turn,s.generation,"Resposta");c.outputStarted(s.generation)
+        val lease=c.snapshot().captureLease;c.disable();c.interruption(lease,"calma");p.advance(300_000)
+        assertFalse(c.snapshot().enabled);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+    }
+    @Test fun greetingDoesNotOpenAnInterruptOrConversationRecognizer() {
+        val(c,p)=started();c.wakeDetected(c.snapshot().captureLease);c.outputStarted(c.snapshot().generation)
+        assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture);assertTrue(p.output)
+    }
+    @Test fun normalOutputReleasesInterruptOwnerBeforeConversationRecognizer() {
+        val(c,p)=talking();c.heard(c.snapshot().captureLease,"Explique")
+        val s=c.snapshot();c.answerReady(s.turn,s.generation,"Resposta");c.outputStarted(s.generation)
+        p.output=false;c.outputDone(s.generation,true);p.advance(650)
+        assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture);assertEquals(1,p.peak)
+    }
+    @Test fun explicitStopListeningPhrasesDisableWithoutCallingBackend() {
+        for(text in listOf("Pare de escutar","ELO, pare de ouvir","desliguei","desligue")) {
+            val(c,p)=talking();c.heard(c.snapshot().captureLease,text);p.advance(90_000)
+            assertFalse(text,c.snapshot().enabled);assertEquals(0,p.requests);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+        }
+    }
+    @Test fun sessionRenewalRecoversContinuousListeningWithoutAnotherWakeWord() {
+        val(c,p)=talking();p.ready=false;c.sessionRenewalRequired();assertTrue(c.snapshot().enabled)
+        assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture);assertEquals("SESSION_RENEWAL_REQUIRED",c.snapshot().reason)
+        p.advance(60_000);p.ready=true;c.sessionRenewed();assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture)
+    }
+    @Test fun sessionRenewalCannotOverrideExplicitOff() {
+        val(c,p)=talking();p.ready=false;c.sessionRenewalRequired();c.disable();p.ready=true;c.sessionRenewed();p.advance(90_000)
+        assertFalse(c.snapshot().enabled);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+    }
+    @Test fun renewalFromWakeWaitingReturnsOnlyToWake() {
+        val(c,p)=started();p.ready=false;c.sessionRenewalRequired();p.ready=true;c.sessionRenewed()
+        assertEquals(EloVoiceCoordinator.Owner.WAKE,p.capture)
+    }
     @Test fun outputFocusIsReleasedBeforeAndroidRecognizerStarts() {
         val (c, p) = started()
         c.wakeDetected(c.snapshot().captureLease)

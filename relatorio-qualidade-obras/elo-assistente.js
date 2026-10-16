@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v1";
+  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v2";
   window.ELO_ASSISTENTE_BUILD_VERSION = ELO_ASSISTENTE_BUILD_VERSION;
 
   // ELO_CONFIG
@@ -5909,7 +5909,9 @@
   }
 
   function syncEloVectorMemories() {
-    if (!ELO_CONFIG.vectorMemoryEndpoint || !window.fetch) {
+    // Legacy local records have no authenticated owner. Explicit saves use
+    // syncEloVectorMemory directly; never import these records into a signed-in account.
+    if (hasEloAuthenticatedMemoryIdentity_() || !ELO_CONFIG.vectorMemoryEndpoint || !window.fetch) {
       return;
     }
 
@@ -32902,7 +32904,24 @@ function isEloResidentialNewPipelineEnabled_() {
         document.visibilityState !== "visible" || window.ELO_AUTH_SESSION_VALIDATED !== true) {
       return Promise.reject(new Error("native_voice_visible_authenticated_elo_required"));
     }
-    return getEloCoreValidAccessToken_().then(function (accessToken) {
+    return getEloCoreValidAccessToken_().then(buildNativeVoiceContext_);
+  }
+
+  function renewNativeVoiceContext_() {
+    if (window.location.origin !== "https://www.icaroamaral.com.br" || window.location.pathname !== "/elo.html" ||
+        window.ELO_AUTH_SESSION_VALIDATED !== true || !window.EloNativeBrain?.getState?.().enabled) {
+      return Promise.reject(new Error("native_voice_active_session_required"));
+    }
+    const identity = getEloCoreIdentity_().userId;
+    const conversation = getEloCoreCurrentConversationId_();
+    return ensureEloCoreValidSession_({ forceRefresh: true }).then(function (session) {
+      if (identity !== getEloCoreIdentity_().userId || conversation !== getEloCoreCurrentConversationId_())
+        throw new Error("native_voice_scope_changed");
+      return buildNativeVoiceContext_(session.accessToken);
+    });
+  }
+
+  function buildNativeVoiceContext_(accessToken) {
       if (!accessToken) throw new Error("native_voice_session_required");
       return ensureEloCoreConversation_().then(function (conversationId) {
         const identity = getEloCoreIdentity_();
@@ -32930,7 +32949,6 @@ function isEloResidentialNewPipelineEnabled_() {
         return { accessToken: accessToken, identity: identity, conversationId: conversationId, chatContext: chatContext,
           neuralVoice: { voice: sanitizeUserText(window.ELO_TTS_VOICE || "") } };
       });
-    });
   }
 
   function ensureEloVoiceSession_() {
@@ -34323,7 +34341,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function appendMessage(kind, text, options) {
     const metadata = options || {};
-    const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
     }
@@ -34362,6 +34380,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!ELO_UI.messages) {
       return null;
     }
+    const shouldStick = isEloConversationNearBottom_(ELO_UI.messages);
 
     const message = createElement("article", "elo-message assistant is-typing");
     message.setAttribute("aria-live", "polite");
@@ -34382,7 +34401,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.typingIndicator = message;
     ELO_UI.activeRequestStartedAt = nowEloPerformance_();
     markEloInteraction_("elo:typing-visible");
-    scrollEloConversationToBottom_({ force: true });
+    scrollEloConversationToBottom_({ force: shouldStick });
     return message;
   }
 
@@ -37234,6 +37253,8 @@ function isEloResidentialNewPipelineEnabled_() {
     },
     getCoreIdentityForTest: getEloCoreIdentity_,
     exportNativeVoiceContext: exportNativeVoiceContext_,
+    renewNativeVoiceContext: renewNativeVoiceContext_,
+    replayCoreMessagesForTest: replayEloCoreMessages_,
     applyCoreAuthContextForTest: applyEloCoreAuthContext_,
     handoffSurfaceContextForTest: function (surface) { return handoffEloSurfaceContext_({ surface: surface || "report" }); },
     buildSurfaceContextForTest: function (surface, auth) { return buildEloSurfaceContext_(surface || "elo", auth || getEloCoreAuthContext_()); },

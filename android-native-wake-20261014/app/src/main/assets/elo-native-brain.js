@@ -58,6 +58,9 @@
       else if (state.reason === "CAPTURE_STARTING") notice("Abrindo microfone. Aguarde…");
       else if (state.reason === "CAPTURE_RELEASING") notice("Finalizando escuta…");
       else if (["NO_SPEECH_RETRY", "SILENCE_RETRY", "CAPTURE_WATCHDOG_RETRY"].includes(state.reason)) notice("Reabrindo o microfone…");
+      else if (state.reason === "SESSION_RENEWAL_REQUIRED") notice("Reconectando a sessão. A escuta será retomada ao confirmar a conexão.");
+      else if (state.reason === "INTERRUPT_READY") notice("Respondendo. Diga espere ou calma para interromper.");
+      else if (state.reason === "INTERRUPT_UNAVAILABLE") notice("Respondendo. Interrompa pelo botão do microfone.");
       else notice(labels[state.state] || "Preparando chamado ELO.");
       let resume = document.querySelector(".elo-native-resume-wake");
       if (!resume) { resume = document.createElement("button"); resume.type = "button"; resume.className = "elo-inline-button elo-native-resume-wake"; resume.textContent = "Retomar chamado"; end.after(resume); }
@@ -209,6 +212,15 @@
       if (result.ok) boundScope = { userId: c.identity.userId, conversationId: c.conversationId };
     }).catch(() => request("CLEAR_CONTEXT").catch(() => {}));
     syncCanonicalHistory().catch(() => notice("Não foi possível sincronizar o histórico agora."));
+  }
+  async function renewSession(challenge) {
+    if (!state.enabled || typeof challenge !== "string" || challenge.length !== 36) return;
+    try {
+      const c = await api()?.renewNativeVoiceContext?.();
+      if (c && state.enabled) await request("RENEW_CONTEXT", { challenge, context: c });
+    } catch (error) {
+      request("RENEW_CONTEXT_FAILED", { challenge, authenticationRejected: error?.authFailure === true }).catch(() => {});
+    }
   }
   function checkVisibleScope() {
     if (!window.document?.body || !port || !state.enabled || clearingContext || document.visibilityState !== "visible") return;
@@ -373,6 +385,6 @@
   document.addEventListener("visibilitychange", onResume);
   new MutationObserver(() => { mount(); if (window.document?.body) checkVisibleScope(); }).observe(document.body, { childList: true, subtree: true });
   new MutationObserver(checkVisibleScope).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-  window.EloNativeBrain = Object.freeze({ version: "20261016-native-brain-v6", onResume, getState: () => ({ ...state }) });
+  window.EloNativeBrain = Object.freeze({ version: "20261016-native-brain-v7", onResume, renewSession, getState: () => ({ ...state }) });
   mount();
 })();

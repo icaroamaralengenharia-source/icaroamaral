@@ -16,6 +16,24 @@ class EloCanonicalVoiceClientTest {
     }
     private fun context()=EloCanonicalVoiceContext.parse(raw()).also { EloNativeVoiceSession.replace(it);EloNativeVoiceSession.confirm(it) }
     @After fun clear() { EloNativeVoiceSession.clear() }
+    @Test fun renewalCannotChangeProjectScope() {
+        val old=context();val json=JSONObject(raw(expires=old.expiresAt+3600))
+        json.getJSONObject("identity").put("projectId","another-project")
+        val next=EloCanonicalVoiceContext.parse(json.toString())
+        assertFalse(old.sameScope(next));assertFalse(EloNativeVoiceSession.renew(old,next))
+    }
+    @Test fun renewalKeepsValidatedScopeAndRejectsLateOrDifferentAccount() {
+        val old=context();val next=EloCanonicalVoiceContext.parse(raw(expires=old.expiresAt+3600))
+        assertTrue(EloNativeVoiceSession.renew(old,next));assertSame(next,EloNativeVoiceSession.current())
+        assertFalse(EloNativeVoiceSession.renew(old,next))
+        assertFalse(EloNativeVoiceSession.renew(next,EloCanonicalVoiceContext.parse(raw(user="other",expires=next.expiresAt+3600))))
+        EloNativeVoiceSession.clear();assertFalse(EloNativeVoiceSession.renew(next,EloCanonicalVoiceContext.parse(raw(expires=next.expiresAt+3600))))
+    }
+    @Test fun renewalValidationUsesNewTokenWithoutReplacingLiveContext() {
+        val old=context();val next=EloCanonicalVoiceContext.parse(raw(expires=old.expiresAt+3600))
+        val validator=EloCanonicalVoiceClient { _,_,_ -> JSONObject().put("conversation",JSONObject().put("id","conv_qa")).put("messages",JSONArray()) }
+        assertEquals(0,validator.validate(next,old));assertSame(old,EloNativeVoiceSession.current())
+    }
     @Test fun musicToolReusesCanonicalPersistenceAndBypassesGenericChat() {
         val c=context();val writes=mutableListOf<String>();var chats=0
         val client=EloCanonicalVoiceClient { method,path,body ->

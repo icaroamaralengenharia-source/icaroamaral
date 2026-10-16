@@ -97,7 +97,7 @@ class EloVoicePlayer(
             return
         }
 
-        val chunks = buildChunks(text)
+        val chunks = EloSpeechChunks.build(text)
         onStatus(baseReport("TTS_NEURAL_PENDING", playerError = "chunks=" + chunks.size, latency = "t4=tts-start; chunking=" + (chunks.size > 1)))
         scheduleFirstAudioWatchdog(text, myGeneration)
         speakChunkQueue(chunks, 0, myGeneration)

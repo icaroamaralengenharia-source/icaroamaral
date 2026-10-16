@@ -12,7 +12,7 @@ class EloVoiceCoordinator(
         WAKE_DISABLED, WAKE_LISTENING, WAKE_DETECTED, BRAIN_LISTENING,
         PROCESSING, BRAIN_SPEAKING, BRAIN_ENDING, RETURN_TO_WAKE, SUSPENDED
     }
-    enum class Owner { NONE, WAKE, BRAIN }
+    enum class Owner { NONE, WAKE, BRAIN, INTERRUPT }
     data class Snapshot(
         val state: State, val enabled: Boolean, val owner: Owner,
         val generation: Long, val captureLease: Long, val turn: Long, val reason: String
@@ -52,6 +52,9 @@ class EloVoiceCoordinator(
     private var manualReading = false
     private var releaseRevision = 0L
     private var quietDeadline = 0L
+    private var outgoingText = ""
+    private var renewalOwner = Owner.WAKE
+    private var interruptAttempted = false
 
     fun snapshot() = Snapshot(state, enabled, owner, generation, captureLease, turn, reason)
     private fun publish(next: State, why: String = "") {
@@ -81,6 +84,7 @@ class EloVoiceCoordinator(
         generation += 1
         quietDeadline = 0
         manualReading = false
+        outgoingText = ""
         cancelTimers()
         ports.cancelRequest()
         ports.stopOutput()
@@ -88,7 +92,7 @@ class EloVoiceCoordinator(
     }
     private fun listen(nextOwner: Owner) {
         if (!enabled) return
-        if (!ports.sessionReady()) { disable("SESSION_REQUIRED"); return }
+        if (!ports.sessionReady()) { sessionRenewalRequired(); return }
         releaseCapture {
         if (!enabled) return@releaseCapture
         val lease = ++captureLease
@@ -105,6 +109,9 @@ class EloVoiceCoordinator(
         }
     }
     fun captureReady(lease: Long) {
+        if (enabled && state == State.BRAIN_SPEAKING && owner == Owner.INTERRUPT && captureLease == lease) {
+            publish(state, "INTERRUPT_READY"); return
+        }
         if (!enabled || captureLease != lease || reason != "CAPTURE_STARTING") return
         deadline?.cancel(); deadline = null
         publish(state)
@@ -173,7 +180,8 @@ class EloVoiceCoordinator(
         val normalized = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), "").replace(Regex("[^a-z0-9 ]"), " ")
             .replace(Regex("\\s+"), " ").trim().removePrefix("elo ").trim()
-        if (normalized in setOf("desativar assistente", "desative o assistente", "desativar elo", "desligar assistente")) {
+        if (normalized in setOf("desativar assistente", "desative o assistente", "desativar elo", "desligar assistente",
+                "pare de escutar", "parar de escutar", "pare de ouvir", "desliguei", "desligue", "desligue o elo")) {
             disable("SPOKEN_DISABLE"); return
         }
         if (normalized in setOf("encerrar conversa", "encerre a conversa", "encerrar a conversa", "finalizar conversa", "parar conversa")) {
@@ -181,7 +189,7 @@ class EloVoiceCoordinator(
         }
         cancelTimers()
         releaseCapture {
-        if (!ports.sessionReady()) { disable("SESSION_EXPIRED"); return@releaseCapture }
+        if (!ports.sessionReady()) { sessionRenewalRequired(); return@releaseCapture }
         turn += 1
         quietDeadline = 0
         greeting = false
@@ -199,6 +207,8 @@ class EloVoiceCoordinator(
         deadline?.cancel(); deadline = null
         if (answer.isBlank()) { requestFailed(expectedTurn, expectedGeneration, "EMPTY_ANSWER"); return }
         failures = 0; greeting = false
+        outgoingText = answer
+        interruptAttempted = false
         if (!ports.acquireOutputFocus()) { suspend("AUDIO_FOCUS_DENIED"); return }
         publish(State.BRAIN_SPEAKING)
         ports.speak(generation, answer)
@@ -219,6 +229,16 @@ class EloVoiceCoordinator(
         if (!enabled || state != State.PROCESSING || turn != expectedTurn || generation != expectedGeneration) return
         endConversation("MUSIC_PLAY_CONFIRMED")
     }
+    fun sessionRenewalRequired() {
+        if (!enabled || state == State.SUSPENDED && reason == "SESSION_RENEWAL_REQUIRED") return
+        renewalOwner = if (state in setOf(State.BRAIN_LISTENING, State.BRAIN_SPEAKING, State.PROCESSING)) Owner.BRAIN else Owner.WAKE
+        suspend("SESSION_RENEWAL_REQUIRED")
+    }
+    fun sessionRenewed() {
+        if (!enabled || state != State.SUSPENDED || reason != "SESSION_RENEWAL_REQUIRED" || !ports.sessionReady()) return
+        cancelTimers()
+        listen(renewalOwner)
+    }
     private fun armOutputTimeout() {
         val expected = generation
         deadline?.cancel()
@@ -226,21 +246,44 @@ class EloVoiceCoordinator(
             if (generation == expected && state == State.BRAIN_SPEAKING) suspend("OUTPUT_TIMEOUT")
         }
     }
+    /** Arm the existing local engine only after real neural playback starts. */
+    fun outputStarted(expectedGeneration: Long) {
+        if (!enabled || state != State.BRAIN_SPEAKING || generation != expectedGeneration || greeting || owner != Owner.NONE || interruptAttempted) return
+        interruptAttempted = true
+        if (listOf("espere", "calma").none { EloSpeechInterruptDecision.allowed(it, outgoingText) }) {
+            publish(state, "INTERRUPT_UNAVAILABLE"); return
+        }
+        val lease = ++captureLease
+        owner = Owner.INTERRUPT
+        publish(state, "INTERRUPT_STARTING")
+        if (!ports.startCapture(Owner.INTERRUPT, lease)) interruptCaptureFailed(lease)
+    }
+    private fun interruptCaptureFailed(lease: Long) {
+        if (owner != Owner.INTERRUPT || lease != captureLease) return
+        releaseCapture { if (enabled && state == State.BRAIN_SPEAKING) publish(state, "INTERRUPT_UNAVAILABLE") }
+    }
+    fun interruption(lease: Long, command: String) {
+        if (!enabled || state != State.BRAIN_SPEAKING || owner != Owner.INTERRUPT || lease != captureLease ||
+            !EloSpeechInterruptDecision.allowed(command, outgoingText)) return
+        interrupt(spoken = true)
+    }
     fun outputDone(expectedGeneration: Long, ok: Boolean) {
         if (!enabled || state != State.BRAIN_SPEAKING || expectedGeneration != generation) return
         deadline?.cancel(); deadline = null
         if (!ok) { suspend("NEURAL_OUTPUT_FAILED"); return }
+        releaseCapture {
         ports.releaseOutputFocus("OUTPUT_COMPLETED")
-        if (manualReading) { endConversation("MANUAL_READING_DONE"); return }
+        if (manualReading) { endConversation("MANUAL_READING_DONE"); return@releaseCapture }
         greeting = false
         val expected = generation
         timer = ports.later(releaseTailMs) {
             if (enabled && generation == expected && state == State.BRAIN_SPEAKING) listen(Owner.BRAIN)
         }
+        }
     }
-    fun interrupt() {
+    fun interrupt(spoken: Boolean = false) {
         if (!enabled || state !in setOf(State.PROCESSING, State.BRAIN_SPEAKING)) return
-        if (manualReading) { endConversation("MANUAL_READING_INTERRUPTED"); return }
+        if (manualReading && !spoken) { endConversation("MANUAL_READING_INTERRUPTED"); return }
         invalidate {
         greeting = false
         ports.releaseOutputFocus("OUTPUT_INTERRUPTED")
@@ -271,6 +314,8 @@ class EloVoiceCoordinator(
         ports.pauseMusic()
         if (!ports.acquireOutputFocus()) { suspend("AUDIO_FOCUS_DENIED"); return@invalidate }
         manualReading = true
+        outgoingText = text
+        interruptAttempted = false
         publish(State.BRAIN_SPEAKING, "MANUAL_READING")
         ports.speak(generation, text.take(12_000))
         armOutputTimeout()
@@ -284,6 +329,7 @@ class EloVoiceCoordinator(
     }
     fun captureFailed(lease: Long, why: String) {
         if (!enabled || lease != captureLease) return
+        if (owner == Owner.INTERRUPT && state == State.BRAIN_SPEAKING) { interruptCaptureFailed(lease); return }
         failures += 1
         val recoverable = why in setOf("CAPTURE_READY_TIMEOUT", "SYSTEM_STT_ERROR_1", "SYSTEM_STT_ERROR_2", "SYSTEM_STT_ERROR_8", "SYSTEM_STT_ERROR_10", "SYSTEM_STT_ERROR_11")
         if ((!recoverable && failures >= 3) || why in setOf("PERMISSION_REVOKED", "CLIENT_SILENCED")) { suspend(why); return }
