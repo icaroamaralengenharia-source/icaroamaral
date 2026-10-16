@@ -12,7 +12,7 @@ fs.writeFileSync(path.join(qaDir,'cloud-init.sql'),schema);
 const provenance={atUtc:new Date().toISOString(),projectRef,productionProjectRefsExcluded:['mplpzyalcxhhinuvjthx','lidueokjpzxdybtongbk'],officialRdoSchemaAppliedUnchanged:true,identityTablesExtractedOnly:true,officialWorksRpcExtractedUnchanged:true,qaOnlyRls:'All public tables RLS enabled, no direct anon/auth writes; own-profile read and official tenant-scoped works RPC; backend service repository performs tenant filtering',sources:Object.fromEntries(Object.entries(sources).map(([k,v])=>[k,{path:v,sha256:createHash('sha256').update(text[k]).digest('hex')}])),scriptSha256:createHash('sha256').update(schema).digest('hex')};
 fs.writeFileSync(path.join(qaDir,'cloud-schema-provenance.json'),JSON.stringify(provenance,null,2));
 // Initial generated database password is masked in the UI. Do not retain that placeholder.
-delete c.sql.password;
+if(c.sql)delete c.sql.password;
 if(!c.accounts)c.accounts=Object.fromEntries(['A','B'].map(actor=>[actor,{email:'qa-'+actor.toLowerCase()+'@elo-cloud.test',password:randomBytes(27).toString('base64url'),institutionId:randomUUID(),companyId:randomUUID(),profileId:randomUUID(),unitId:randomUUID()}]));
 fs.writeFileSync(path.join(privateDir,'cloud-config.json'),JSON.stringify(c,null,2));
 console.log(JSON.stringify({prepared:true,projectRef,sqlContainsCredentials:false,officialRuntimeSchemaUnchanged:true}));
