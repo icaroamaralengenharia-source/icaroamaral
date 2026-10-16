@@ -1,0 +1,3 @@
+# The preserved native snapshot contains Windows line endings.
+# Keep the existing text/LFS attributes and recognize CR as a line terminator.
+* whitespace=cr-at-eol

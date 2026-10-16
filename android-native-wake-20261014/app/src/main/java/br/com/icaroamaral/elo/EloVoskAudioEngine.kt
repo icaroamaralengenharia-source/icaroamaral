@@ -180,4 +180,3 @@ class EloVoskAudioEngine(private val context: Context, private val listener: Lis
     }
     companion object { const val SAMPLE_RATE = 16_000 }
 }
-
