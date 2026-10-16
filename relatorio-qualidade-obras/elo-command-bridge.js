@@ -1116,7 +1116,14 @@
       return inspectionResult(input, { ok: false, action: intent.action, mode: "error", humanAnswer: "Não consegui executar a action de vistoria. O backend retornou: " + code + ".", error: code });
     });
   }
-  function rdoResult(input, values) { return result(input, Object.assign({ module: "obrareport_rdo" }, values || {})); }
+  function rdoResult(input, values) {
+    const response = result(input, Object.assign({ module: "obrareport_rdo" }, values || {}));
+    if (values && values.action === "rdo.create.preview" && values.mode === "preview") {
+      response.preview = String(values.preview || "").trim();
+      response.humanAnswer = String(values.humanAnswer || values.preview || "").trim();
+    }
+    return response;
+  }
 
   function getRdoIdentity(input) {
     const context = input && input.context || {};
@@ -1179,17 +1186,103 @@
   function extractRdoWorkName_(raw) {
     const text = clean(raw).replace(/[,;]\s*mas\s+n[aã]o\s+salve[.!?]*\s*$/i, "");
     if (!text) return "";
-    const explicitObra = text.match(/\b(?:para\s+a|da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    const explicitObra = text.match(/\b(?:para\s+a|da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?](?:\s|$)|$)/i);
     if (explicitObra) return clean(explicitObra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
-    const obra = text.match(/\bobra\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    const obra = text.match(/\bobra\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?](?:\s|$)|$)/i);
     if (obra) {
       const obraCandidate = clean(obra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
       if (obraCandidate && !/^(?:ela|ele)$/i.test(obraCandidate)) return obraCandidate;
     }
-    const inline = text.match(/\b(?:na|no|em|da|do|das|dos)\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?]+\s*$|$)/i);
+    const inline = text.match(/\b(?:na|no|em|da|do|das|dos)\s+(.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?](?:\s|$)|$)/i);
     if (!inline) return "";
     const candidate = clean(inline[1]).replace(/^["“']|["”']$/g, "");
-    return /^(?:obra|projeto|ela|ele)$/i.test(candidate) || /^(?:rdo|di[aá]rio\s+de\s+obra)\b/i.test(candidate) ? "" : candidate;
+    return /^(?:obra|projeto|ela|ele)$/i.test(candidate) || /^(?:rdo|di[aá]rio\s+de\s+obra)\b/i.test(candidate) || /^\d{1,2}(?:h|:)/i.test(candidate) ? "" : candidate;
+  }
+
+  // Use the existing daily-log fields, also consumed by buildRdoGeneratorPayload.
+  // Receipt times belong to materials[].note; team composition and occurrences
+  // are text in the official RDO, not a second nested operational schema.
+  function rdoOperationalSection_(raw, label) {
+    const labels = "equipe(?: presente)?|hor[aá]rios?|jornada|clima|tempo|servi[cç]os?(?: executados?)?|produ[cç][aã]o|materia(?:l|is)(?: recebidos?)?|intercorr[eê]ncias?|ocorr[eê]ncias?|observa[cç][aã]o|observa[cç][oõ]es|respons[aá]vel";
+    const match = String(raw || "").match(new RegExp("\\b(?:" + label + ")\\s*:\\s*(.*?)(?=\\s+(?:" + labels + ")\\s*:|\\s+N[aã]o\\s+salve\\b|$)", "i"));
+    return match ? clean(match[1]).replace(/[.;]+$/, "").trim() : "";
+  }
+
+  function rdoOperationalTime_(value) {
+    const match = clean(value).match(/^(\d{1,2})(?:h|:)(\d{2})?$/i);
+    if (!match || Number(match[1]) > 23 || Number(match[2] || 0) > 59) return "";
+    return match[1].padStart(2, "0") + ":" + (match[2] || "00");
+  }
+
+  function parseRdoOperationalData_(raw) {
+    const data = {};
+    const text = clean(raw);
+    const team = rdoOperationalSection_(text, "equipe(?: presente)?");
+    if (team) {
+      const roles = team.split(/\s*[,;]\s*|\s+e\s+(?=\d+\s+)/i).map(function (entry) { return entry.match(/^(\d+)\s+([a-zÀ-ÿ][^.;]*)$/i); });
+      if (roles.every(function (role) { return role && Number.isSafeInteger(Number(role[1])) && Number(role[1]) > 0; })) {
+        const total = roles.reduce(function (sum, role) { return sum + Number(role[1]); }, 0);
+        if (Number.isSafeInteger(total)) data.employeeCount = String(total);
+      }
+      data.teamPresent = team;
+    }
+    const schedule = rdoOperationalSection_(text, "hor[aá]rios?|jornada");
+    const range = schedule.match(/(?:^|\b(?:das?|de)\s+)(\d{1,2}(?:h|:)(?:\d{2})?)\s*(?:[àa]s?|at[eé]|[-–])\s*(\d{1,2}(?:h|:)(?:\d{2})?)/i);
+    if (range) {
+      const start = rdoOperationalTime_(range[1]);
+      const end = rdoOperationalTime_(range[2]);
+      if (start && end) { data.startTime = start; data.endTime = end; }
+    }
+    const weather = rdoOperationalSection_(text, "clima|tempo");
+    if (weather) data.weather = weather;
+    const responsible = rdoOperationalSection_(text, "respons[aá]vel");
+    if (responsible) data.responsible = responsible;
+    const service = rdoOperationalSection_(text, "servi[cç]os?(?: executados?)?|produ[cç][aã]o");
+    if (service) {
+      const productions = [...service.matchAll(/(?<![-+\d.,])\b(\d+(?:[,.]\d+)?)\s*(m²|m2|m³|m3|kg|unidades?|un|m)\s+(?:de\s+)?([^.;]+?)(?=[.;]|$)/gi)].map(function (match) {
+        return { service: clean(match[3]), quantity: rdoQuantity_(match[1]), unit: clean(match[2]).replace(/^m2$/i, "m²").replace(/^m3$/i, "m³") };
+      }).filter(function (item) { return Number.isFinite(item.quantity); });
+      if (productions.length) {
+        data.productions = productions;
+        data.services = productions.map(function (item) { return item.service; }).join("; ");
+      } else data.services = service;
+    }
+    const received = rdoOperationalSection_(text, "materia(?:l|is)(?: recebidos?)?") || (text.match(/\b(?:chegaram|recebemos|recebido)\s+(.+)/i) || [])[1] || "";
+    const materials = [];
+    for (const match of received.matchAll(/(?<![-+\d.,])\b(\d+(?:[,.]\d+)?)\s+(sacos?|kg|toneladas?|unidades?|un|m³|m3|litros?)\s+de\s+(.+?)(?=\s+[àa]s?\s+\d|\s*,?\s*n[aã]o\s+\d|[.;]|$)/gi)) {
+      const quantity = rdoQuantity_(match[1]);
+      if (!Number.isFinite(quantity)) continue;
+      const time = received.slice(match.index + match[0].length).match(/^\s+[àa]s?\s+(\d{1,2}(?:h|:)(?:\d{2})?)/i);
+      const arrival = time && rdoOperationalTime_(time[1]);
+      const material = { name: clean(match[3]), quantity, unit: clean(match[2]) };
+      if (arrival) material.note = "Recebido às " + arrival;
+      materials.push(material);
+    }
+    if (materials.length) data.materials = materials;
+    const occurrences = rdoOperationalSection_(text, "intercorr[eê]ncias?|ocorr[eê]ncias?");
+    if (occurrences) data.occurrences = occurrences.replace(/\b\d{1,2}h(?:\d{2})?\b/gi, function (time) { return rdoOperationalTime_(time) || time; });
+    const observations = rdoOperationalSection_(text, "observa[cç][aã]o|observa[cç][oõ]es");
+    const marker = text.match(/\bPILOTO_[A-Z0-9_]+\b/i);
+    const notes = [observations, marker && marker[0]].filter(Boolean);
+    if (notes.length) data.generalNotes = notes.join("\n");
+    return data;
+  }
+
+  function renderRdoOperationalPreview_(pending) {
+    const data = pending.draft.rdoData;
+    const absent = "Não informado";
+    const team = [data.employeeCount ? data.employeeCount + " pessoas" : "", data.teamPresent].filter(Boolean).join(" — ");
+    const production = (data.productions || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.service + (item.note ? " — " + item.note : ""); }).join("; ");
+    const materials = (data.materials || []).map(function (item) { return item.quantity + " " + item.unit + " de " + item.name + (item.note ? " — " + item.note : ""); }).join("; ");
+    const date = clean(data.date).split("-").reverse().join("/");
+    return [
+      "Prévia do RDO", "OBRA: " + (pending.draft.projectName || absent), "DATA: " + (date || absent),
+      "RESPONSÁVEL: " + (data.responsible || absent), "EQUIPE: " + (team || absent),
+      "HORÁRIOS: " + ([data.startTime, data.endTime].filter(Boolean).join("–") || absent),
+      "CLIMA: " + (data.weather || absent), "SERVIÇOS: " + (production || data.services || absent),
+      "MATERIAIS: " + (materials || absent), "INTERCORRÊNCIAS: " + (data.occurrences || absent),
+      "OBSERVAÇÕES: " + (data.generalNotes || absent), "", "Ainda não salvei. Deseja confirmar?"
+    ].join("\n");
   }
 
   function parseRdoIntent(input) {
@@ -1209,6 +1302,7 @@
       endDate: parseIsoDateOnly(payload.endDate || payload.end_date),
       targetDate: parseIsoDateOnly(payload.date || payload.rdoDate || payload.rdo_date),
       previewContinuation: payload.rdoPreviewContinuation && typeof payload.rdoPreviewContinuation === "object" ? payload.rdoPreviewContinuation : null,
+      rdoData: parseRdoOperationalData_(raw),
       limit: Number(payload.limit || 0) || 0,
       updateNote: clean(payload.note || payload.observation || payload.observacao || payload.description || payload.descricao)
     };
@@ -1526,7 +1620,12 @@
 
   function matchesRdoPreviewContinuation_(input, intent, pending) {
     const continuation = intent.previewContinuation;
-    return continuation && /^(?:date|work)$/.test(continuation.field) && pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work" &&
+    const compatible = pending && (continuation && continuation.field === "operational"
+      ? pending.action === "rdo.create.execute" && pending.status === "pending" || pending.action === "rdo.create.preview" && pending.status === "awaiting_work"
+      : pending.action === "rdo.create.preview" && pending.status === "awaiting_work");
+    return continuation && /^(?:date|work|operational)$/.test(continuation.field) && compatible &&
+      (continuation.field === "operational" ? intent.action === "rdo.create.revise" : intent.action === "rdo.create.preview") &&
+      typeof pending.operationId === "string" && pending.operationId && Number.isFinite(pending.createdAt) &&
       sameTenantBinding(input, pending) && continuation.operationId === pending.operationId && continuation.createdAt === pending.createdAt;
   }
 
@@ -1534,7 +1633,7 @@
     return rdoResult(input, { ok: false, action: "rdo.create.preview", mode: "blocked", humanAnswer: "A prévia anterior mudou ou pertence a outra sessão. Refaça o pedido na conta atual. Nenhum RDO foi criado.", error: "rdo_preview_context_changed" });
   }
 
-  function makeRdoPending(input, intent, work) {
+  function makeRdoPending(input, intent, work, previous) {
     const identity = getRdoIdentity(input);
     const draft = {
       projectId: clean(work && work.id),
@@ -1543,27 +1642,34 @@
       clientId: clean(work && work.clientId),
       rdoDate: intent.targetDate || "",
       source: work && work.source || "stock_full_api",
-      rdoData: {
+      rdoData: Object.assign({ observations: [] }, intent.rdoData || {}, {
         date: intent.targetDate || "",
         projectId: clean(work && work.id),
         workId: clean(work && work.id),
-        projectName: clean(work && work.name),
-        observations: []
-      }
+        projectName: clean(work && work.name)
+      })
     };
     const action = work && work.id ? "rdo.create.execute" : "rdo.create.preview";
-    const operationId = makeRdoOperationId(action, identity, draft, intent.raw);
+    const operationId = previous ? previous.operationId : makeRdoOperationId(action, identity, draft, intent.raw);
     draft.rdoData.operationId = operationId;
+    // Official daily-log item IDs are local row keys used by Standalone edits.
+    // Canonical work/project IDs above always come from the authorized catalog.
+    ["productions", "materials"].forEach(function (field) {
+      if (!Array.isArray(draft.rdoData[field])) return;
+      draft.rdoData[field] = draft.rdoData[field].map(function (item, index) {
+        return Object.assign({ id: "elo_" + (field === "productions" ? "prd_" : "mat_") + checksum(operationId + "|" + index + "|" + (item.service || item.name)) }, item);
+      });
+    });
     return {
       action,
       status: work && work.id ? "pending" : "awaiting_work",
-      createdAt: Date.now(),
+      createdAt: previous ? previous.createdAt : Date.now(),
       operationId,
       tenantBinding: tenantBinding(identity),
       identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: identity.projectId, clientId: identity.clientId },
       targetDate: intent.targetDate || "",
       requestedWorkName: clean(intent.workName),
-      raw: intent.raw || "",
+      raw: previous ? previous.raw : intent.raw || "",
       draft
     };
   }
@@ -1587,20 +1693,24 @@
 
   function executeRdoCreatePreview(input, intent) {
     const pending = readRdoPending();
+    let previous = null;
     if (intent.previewContinuation) {
       if (!matchesRdoPreviewContinuation_(input, intent, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
       intent.workName = intent.previewContinuation.field === "date" ? clean(pending.requestedWorkName) || extractRdoWorkName_(pending.raw) : clean(input.payload.workName || intent.raw);
       intent.targetDate = intent.targetDate || pending.targetDate;
+      previous = pending;
     } else if (input.action === "rdo.create.preview" && clean(input.payload && input.payload.workName) === intent.raw && intent.raw && pending && pending.action === "rdo.create.preview" && pending.status === "awaiting_work") {
       // Compatibility for callers that already submit a literal work selection.
       if (!sameTenantBinding(input, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
       intent.targetDate = intent.targetDate || pending.targetDate;
+      previous = pending;
     }
+    if (previous) intent.rdoData = Object.assign({}, previous.draft.rdoData, intent.rdoData);
     const missing = [];
     if (!intent.targetDate) missing.push("data do RDO");
     const workResolution = resolveRdoWorkSelection_(input, intent);
     if (missing.length) {
-      saveRdoPending(makeRdoPending(input, intent, null));
+      saveRdoPending(makeRdoPending(input, intent, null, previous));
       return Promise.resolve(rdoResult(input, {
         ok: false,
         action: "rdo.create.preview",
@@ -1611,7 +1721,7 @@
       }));
     }
     if (!workResolution.ok) {
-      const pendingDraft = makeRdoPending(input, intent, null);
+      const pendingDraft = makeRdoPending(input, intent, null, previous);
       if (workResolution.reason === "work_selection_required" || workResolution.reason === "work_not_found" || workResolution.reason === "ambiguous_work") saveRdoPending(pendingDraft);
       else clearRdoPending();
       const names = (workResolution.works || []).map(function (work) { return "- " + work.name; }).join("\n");
@@ -1641,24 +1751,13 @@
         data: { works: workResolution.works || [] }
       }));
     }
-    const pendingExecute = makeRdoPending(input, intent, work);
+    const pendingExecute = makeRdoPending(input, intent, work, previous);
     saveRdoPending(pendingExecute);
     return Promise.resolve(rdoResult(input, {
       action: "rdo.create.preview",
       mode: "preview",
       requiresConfirmation: true,
-      preview: [
-        "Preview de criação de RDO:",
-        "MODULE: obrareport_rdo",
-        "ACTION: rdo.create",
-        "PROJECT: " + work.name,
-        "PROJECT ID: " + work.id,
-        "ENTITY TYPE: WORK",
-        "DATE: " + intent.targetDate,
-        "CONFIRMATION REQUIRED: SIM",
-        "WRITE EXECUTED: 0",
-        "/api/obrareport/rdos POST: 0"
-      ].join("\n"),
+      preview: renderRdoOperationalPreview_(pendingExecute),
       data: { draft: pendingExecute.draft, pending: pendingExecute }
     }));
   }
@@ -1666,6 +1765,38 @@
   function rdoQuantity_(value) {
     const number = Number(String(value).replace(",", "."));
     return Number.isFinite(number) && number > 0 && number <= Number.MAX_SAFE_INTEGER ? number : NaN;
+  }
+
+  function executeRdoOperationalRevision_(input, intent) {
+    const pending = readRdoPending();
+    if (!intent.previewContinuation || intent.previewContinuation.field !== "operational" || !matchesRdoPreviewContinuation_(input, intent, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
+    const patch = intent.rdoData;
+    const data = pending.draft.rdoData;
+    const text = normalize(intent.raw);
+    const editing = /^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar)\b/.test(text);
+    const correctingMaterial = editing && /\b(?:corrija|corrigir|corrige|ajuste|ajustar)\b/.test(text) && /\b(?:material|materiais|sacos?|cimento|recebimento|chegaram)\b/.test(text);
+    if (correctingMaterial) {
+      const correction = patch.materials && patch.materials.length === 1 ? patch.materials[0] : null;
+      const matches = correction && Array.isArray(data.materials) ? data.materials.filter(function (item) {
+        return normalize(item.name) === normalize(correction.name) && normalize(item.unit).replace(/s$/, "") === normalize(correction.unit).replace(/s$/, "");
+      }) : [];
+      const previous = intent.raw.match(/\bn[aã]o\s+(\d+(?:[,.]\d+)?)/i);
+      if (matches.length !== 1 || previous && Number(matches[0].quantity) !== rdoQuantity_(previous[1])) {
+        pending.revisionError = "rdo_material_correction_requires_match";
+        saveRdoPending(pending);
+        return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.revise", mode: "blocked", humanAnswer: "Informe o material e a quantidade correta de um único recebimento da prévia. Não alterei os dados e ainda não salvei.", error: pending.revisionError }));
+      }
+      matches[0].quantity = correction.quantity;
+      delete pending.revisionError;
+    } else if (editing) {
+      Object.assign(data, patch);
+    }
+    saveRdoPending(pending);
+    if (pending.revisionError) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.revise", mode: "blocked", humanAnswer: "Ainda preciso que você esclareça a correção do material. Nenhum RDO foi criado.", error: pending.revisionError }));
+    return Promise.resolve(rdoResult(input, {
+      action: "rdo.create.preview", mode: "preview", requiresConfirmation: true,
+      preview: renderRdoOperationalPreview_(pending), data: { draft: pending.draft, pending }
+    }));
   }
 
   function rdoUnitKey_(value) {
@@ -1840,7 +1971,7 @@
     if (!identity.institutionId) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "blocked", humanAnswer: "Preciso do tenant autenticado para criar RDO. Nenhum POST foi executado.", error: "institution_required" }));
     if (!sameTenantBinding(input, pending)) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "blocked", humanAnswer: "O tenant da sessão mudou desde o preview. Refaça o preview antes de confirmar. Nenhum RDO foi criado.", error: "rdo_tenant_changed" }));
     if (pending.status === "saving" || pending.status === "saved") return Promise.resolve(rdoResult(input, { action: pending.action, mode: pending.status === "saved" ? "execute" : "blocked", humanAnswer: pending.status === "saved" ? "Esse RDO já foi confirmado. Não criei duplicado." : "Esse RDO já está em confirmação. Não vou enviar outro POST.", data: { pending, rdo: pending.rdo || null } }));
-    if (!pending.draft || !pending.draft.projectId || !pending.draft.rdoDate || !pending.operationId) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "blocked", humanAnswer: "O preview de RDO está incompleto. Refaça o preview antes de confirmar. Nenhum POST foi executado.", error: "rdo_pending_incomplete" }));
+    if (pending.revisionError || !pending.draft || !pending.draft.projectId || !pending.draft.rdoDate || !pending.operationId) return Promise.resolve(rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "blocked", humanAnswer: "O preview de RDO está incompleto. Refaça o preview antes de confirmar. Nenhum POST foi executado.", error: "rdo_pending_incomplete" }));
     pending.status = "saving";
     saveRdoPending(pending);
     return postRdoJson(input, pending).then(function (data) {
@@ -1930,6 +2061,7 @@
       const intent = parseRdoIntent(input);
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
+      if (intent.action === "rdo.create.revise") return executeRdoOperationalRevision_(input, intent);
       if (intent.action === "rdo.create.preview" && intent.previewContinuation && !matchesRdoPreviewContinuation_(input, intent, readRdoPending())) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.create.preview" || intent.workName) {
         const pendingBeforeCatalog = readRdoPending();

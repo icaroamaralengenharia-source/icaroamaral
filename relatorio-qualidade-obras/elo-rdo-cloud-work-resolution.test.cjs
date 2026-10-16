@@ -15,8 +15,8 @@ const authSource = fs.readFileSync(path.join(__dirname, "rdo-canonical-auth.js")
 const WORK_ID = "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2";
 const WORK_NAME = "OBRA TESTE ELO E2E";
 const NATURAL_CREATE = "Crie um RDO na OBRA TESTE ELO E2E de 15/10/2026.";
-const CATALOG_TAG = "20261015-rdo-work-preview-v2";
-const ROUTING_TAG = "20261015-rdo-pending-preview-v2";
+const CATALOG_TAG = "20261015-rdo-operational-preview-v1";
+const ROUTING_TAG = "20261015-rdo-operational-preview-v1";
 const CACHE_KEY = "obrareport-saas-v1";
 const PENDING_KEY = "elo_action_bus_rdo_pending_v1";
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -219,8 +219,9 @@ function assertPreview(result, expectedId = WORK_ID) {
   assert.equal(result.data.draft.workId, expectedId);
   assert.equal(result.data.draft.rdoDate, "2026-10-15");
   assert.equal(result.data.draft.source, "stock_full_api");
-  assert.match(result.preview, /WRITE EXECUTED: 0/);
-  assert.match(result.preview, /ENTITY TYPE: WORK/);
+  assert.equal(result.data.pending.status, "pending");
+  assert.match(result.preview, /Ainda não salvei\. Deseja confirmar\?/);
+  assert.doesNotMatch(result.preview, /PROJECT ID|ENTITY TYPE|WRITE EXECUTED|operationId/);
 }
 
 scenario("natural exact command resolves canonical work with completely empty local cache and zero writes", async () => {
@@ -527,7 +528,7 @@ scenario("public HTML embedded HTML service worker precache and registration sha
     assert.equal(assistant[1], ROUTING_TAG);
   }
   assert.ok(publicHtml.includes('serviceWorker.register("./elo-sw.js?v=' + ROUTING_TAG + '")'));
-  assert.ok(worker.includes('const ELO_CACHE_NAME = "elo-web-offline-v38-' + ROUTING_TAG + '"'));
+  assert.ok(worker.includes('const ELO_CACHE_NAME = "elo-web-offline-v39-' + ROUTING_TAG + '"'));
 });
 
 after(() => {
