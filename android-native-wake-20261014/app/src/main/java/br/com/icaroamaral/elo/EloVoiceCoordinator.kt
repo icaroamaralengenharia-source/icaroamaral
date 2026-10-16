@@ -111,7 +111,7 @@ class EloVoiceCoordinator(
         if (owner == Owner.BRAIN) {
             armSilence(lease)
             deadline = ports.later(45_000) {
-                if (enabled && owner == Owner.BRAIN && captureLease == lease) endConversation("CAPTURE_LIMIT")
+                if (enabled && owner == Owner.BRAIN && captureLease == lease) retryCapture(lease, "CAPTURE_WATCHDOG_RETRY")
             }
         }
     }
@@ -119,7 +119,7 @@ class EloVoiceCoordinator(
         timer?.cancel()
         if (quietDeadline == 0L) quietDeadline = ports.elapsedMs() + silenceMs.coerceIn(10_000, 120_000)
         timer = ports.later((quietDeadline - ports.elapsedMs()).coerceAtLeast(1)) {
-            if (enabled && owner == Owner.BRAIN && captureLease == lease) endConversation("SILENCE")
+            if (enabled && owner == Owner.BRAIN && captureLease == lease) retryCapture(lease, "SILENCE_RETRY")
         }
     }
     fun enable(): Boolean {
@@ -150,15 +150,18 @@ class EloVoiceCoordinator(
         }
     }
     fun captureEmpty(lease: Long) {
+        retryCapture(lease, "NO_SPEECH_RETRY")
+    }
+    private fun retryCapture(lease: Long, why: String) {
         if (!enabled || state != State.BRAIN_LISTENING || owner != Owner.BRAIN || lease != captureLease) return
-        if (quietDeadline == 0L || ports.elapsedMs() >= quietDeadline) { endConversation("SILENCE"); return }
         cancelTimers()
+        quietDeadline = 0L
         releaseCapture {
-            publish(State.BRAIN_LISTENING, "NO_SPEECH_RETRY")
+            publish(State.BRAIN_LISTENING, why)
             val expected = generation
             timer = ports.later(releaseTailMs) {
                 if (enabled && generation == expected && state == State.BRAIN_LISTENING) {
-                    if (ports.elapsedMs() >= quietDeadline) endConversation("SILENCE") else listen(Owner.BRAIN)
+                    listen(Owner.BRAIN)
                 }
             }
         }
@@ -204,6 +207,11 @@ class EloVoiceCoordinator(
     fun yieldForMusic(expectedTurn: Long, expectedGeneration: Long): Boolean {
         if (!enabled || state != State.PROCESSING || turn != expectedTurn || generation != expectedGeneration) return false
         ports.releaseOutputFocus("MUSIC_HANDOFF")
+        deadline?.cancel()
+        deadline = ports.later(90_000) {
+            if (enabled && state == State.PROCESSING && turn == expectedTurn && generation == expectedGeneration)
+                requestFailed(expectedTurn, expectedGeneration, "MUSIC_REQUEST_TIMEOUT")
+        }
         publish(State.PROCESSING, "MUSIC_RESOLVING")
         return true
     }
@@ -277,13 +285,14 @@ class EloVoiceCoordinator(
     fun captureFailed(lease: Long, why: String) {
         if (!enabled || lease != captureLease) return
         failures += 1
-        if (failures >= 3 || why in setOf("PERMISSION_REVOKED", "CLIENT_SILENCED")) { suspend(why); return }
+        val recoverable = why in setOf("CAPTURE_READY_TIMEOUT", "SYSTEM_STT_ERROR_1", "SYSTEM_STT_ERROR_2", "SYSTEM_STT_ERROR_8", "SYSTEM_STT_ERROR_10", "SYSTEM_STT_ERROR_11")
+        if ((!recoverable && failures >= 3) || why in setOf("PERMISSION_REVOKED", "CLIENT_SILENCED")) { suspend(why); return }
         val resumeOwner = owner
         releaseCapture {
         publish(State.SUSPENDED, why)
         val expected = generation
         timer?.cancel()
-        timer = ports.later((failures * 1500).toLong()) {
+        timer = ports.later((failures * 1500L).coerceAtMost(5000)) {
             if (enabled && generation == expected && state == State.SUSPENDED) listen(resumeOwner.takeUnless { it == Owner.NONE } ?: Owner.WAKE)
         }
         }

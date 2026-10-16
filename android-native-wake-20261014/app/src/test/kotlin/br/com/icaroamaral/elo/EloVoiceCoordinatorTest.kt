@@ -86,11 +86,12 @@ class EloVoiceCoordinatorTest {
         assertTrue("focus release must precede the next microphone owner", release >= 0 && recognizer > release)
         assertEquals(EloVoiceCoordinator.Owner.BRAIN, p.capture)
     }
-    @Test fun emptyRecognizerTurnDoesNotPrematurelyEndConversationOrExtendSilenceForever() {
+    @Test fun emptyRecognizerTurnKeepsExplicitConversationActiveAcrossSilence() {
         val(c,p)=talking();p.advance(7000);c.captureEmpty(c.snapshot().captureLease);p.advance(650)
         assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture);assertEquals(0,p.requests)
         p.advance(7000);c.captureEmpty(c.snapshot().captureLease);p.advance(650)
-        p.advance(20_000);assertEquals(EloVoiceCoordinator.Owner.WAKE,p.capture)
+        p.advance(65_000);assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture)
+        assertTrue(c.snapshot().enabled)
     }
     @Test fun wakeGreetingWaitsForActualRelease() {
         val(c,p)=started();p.asyncRelease=true;c.wakeDetected(c.snapshot().captureLease)
@@ -161,7 +162,7 @@ class EloVoiceCoordinatorTest {
         val p=VoicePorts();val c=EloVoiceCoordinator(p);assertFalse(c.readMessage("Mensagem."));assertEquals(0,p.speaks)
     }
     @Test fun spokenDisableStopsEveryCapture() { val (c,p)=talking();c.heard(c.snapshot().captureLease,"Desativar assistente");p.advance(200_000);assertFalse(c.snapshot().enabled);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture) }
-    @Test fun silenceReturnsToWake() { val (c,p)=talking();p.advance(30_650);assertEquals(EloVoiceCoordinator.State.WAKE_LISTENING,c.snapshot().state) }
+    @Test fun silenceRecyclesCaptureWithoutEndingConversation() { val (c,p)=talking();p.advance(61_300);assertEquals(EloVoiceCoordinator.State.BRAIN_LISTENING,c.snapshot().state);assertEquals(1,p.peak) }
     @Test fun interruptRejectsLateAnswerAndRestartsBrain() { val(c,p)=talking();c.heard(c.snapshot().captureLease,"projeto");val old=c.snapshot();c.interrupt();c.answerReady(old.turn,old.generation,"atrasada");p.advance(650);assertEquals(1,p.speaks);assertEquals(EloVoiceCoordinator.State.BRAIN_LISTENING,c.snapshot().state) }
     @Test fun outputFailureSuspendsWithoutCapture() { val(c,p)=talking();c.heard(c.snapshot().captureLease,"projeto");val s=c.snapshot();c.answerReady(s.turn,s.generation,"resposta");p.output=false;c.outputDone(s.generation,false);p.advance(200_000);assertEquals(EloVoiceCoordinator.State.SUSPENDED,c.snapshot().state);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture) }
     @Test fun networkFailureDoesNotRetryPost() { val(c,p)=talking();c.heard(c.snapshot().captureLease,"projeto");val s=c.snapshot();c.requestFailed(s.turn,s.generation,"HTTP_TIMEOUT");p.advance(200_000);assertEquals(1,p.requests);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture) }
@@ -183,7 +184,27 @@ class EloVoiceCoordinatorTest {
     @Test fun permissionRevocationDoesNotLoop() { val(c,p)=started();c.captureFailed(c.snapshot().captureLease,"PERMISSION_REVOKED");p.advance(200_000);assertEquals(EloVoiceCoordinator.State.SUSPENDED,c.snapshot().state);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture) }
     @Test fun disableCancelsDelayedResume() { val(c,p)=started();c.wakeDetected(c.snapshot().captureLease);p.output=false;c.outputDone(c.snapshot().generation,true);c.disable();p.advance(200_000);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture);assertFalse(c.snapshot().enabled) }
     @Test fun captureMustConfirmRelease() { val(c,p)=started();p.release=false;c.wakeDetected(c.snapshot().captureLease);assertFalse(c.snapshot().enabled);assertEquals(0,p.speaks) }
-    @Test fun configuredSilenceIsBounded() { val p=VoicePorts();val c=EloVoiceCoordinator(p,1);c.enable();c.wakeDetected(c.snapshot().captureLease);p.output=false;c.outputDone(c.snapshot().generation,true);p.advance(650+9_999);assertEquals(EloVoiceCoordinator.State.BRAIN_LISTENING,c.snapshot().state);p.advance(651);assertEquals(EloVoiceCoordinator.State.WAKE_LISTENING,c.snapshot().state) }
+    @Test fun configuredSilenceRearmRemainsBounded() { val p=VoicePorts();val c=EloVoiceCoordinator(p,1);c.enable();c.wakeDetected(c.snapshot().captureLease);p.output=false;c.outputDone(c.snapshot().generation,true);p.advance(650+9_999);assertEquals(EloVoiceCoordinator.State.BRAIN_LISTENING,c.snapshot().state);p.advance(651);assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture) }
+    @Test fun fifteenTurnsAcrossNoMatchAndLongSilenceKeepOneOwner() {
+        val(c,p)=talking()
+        repeat(15) {
+            if(it==3 || it==8) p.advance(if(it==3) 30_650 else 61_300)
+            c.captureEmpty(c.snapshot().captureLease);p.advance(650)
+            c.heard(c.snapshot().captureLease,"pergunta $it");val s=c.snapshot()
+            c.answerReady(s.turn,s.generation,"resposta $it");p.output=false;c.outputDone(s.generation,true);p.advance(650)
+            assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture)
+        }
+        assertEquals(15,p.requests);assertEquals(1,p.peak)
+        c.endConversation();p.advance(200_000);assertEquals(EloVoiceCoordinator.Owner.WAKE,p.capture)
+        c.disable();p.advance(200_000);assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+    }
+    @Test fun recoverableRecognizerErrorsKeepRetryingButOffCancelsBackoff() {
+        val(c,p)=talking()
+        repeat(5) { c.captureFailed(c.snapshot().captureLease,"SYSTEM_STT_ERROR_2");p.advance(5000) }
+        assertEquals(EloVoiceCoordinator.Owner.BRAIN,p.capture)
+        c.captureFailed(c.snapshot().captureLease,"SYSTEM_STT_ERROR_8");c.disable();p.advance(200_000)
+        assertEquals(EloVoiceCoordinator.Owner.NONE,p.capture)
+    }
     @Test fun brainFinalBeforeWakeIsIgnored() { val(c,p)=started();c.heard(c.snapshot().captureLease,"fala ambiente");assertEquals(0,p.requests) }
     @Test fun keywordNeedsConfidenceAndLeadingPosition() {
         fun word(text:String,word:String,confidence:Double)=JSONObject().put("text",text).put("result",JSONArray().put(JSONObject().put("word",word).put("start",0.1).put("end",0.5).put("conf",confidence)))
