@@ -22,8 +22,8 @@ android {
         applicationId = "br.com.icaroamaral.elo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.4.4-brain-final-v10"
+        versionCode = 11
+        versionName = "0.4.5-brain-final-v11"
         buildConfigField("String", "FLAVOR", "\"\"")
 
         buildConfigField("String", "ELO_BUILD_GIT_SHA", "\"${gitSha()}\"")
@@ -64,7 +64,7 @@ val bundleCanonicalEloWeb by tasks.registering(Copy::class) {
             val bytes = rootProject.projectDir.parentFile.resolve(path).readBytes()
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
-        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v1", "sha256" to hashes)))
+        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v2", "sha256" to hashes)))
     }
 }
 tasks.named("preBuild").configure { dependsOn(bundleCanonicalEloWeb) }

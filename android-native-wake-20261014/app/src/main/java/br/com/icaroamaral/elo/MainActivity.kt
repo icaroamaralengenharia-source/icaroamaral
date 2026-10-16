@@ -783,7 +783,7 @@ class MainActivity : ComponentActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
-        const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html?elo-apk=brain-v10"
+        const val ELO_WEB_URL = "https://www.icaroamaral.com.br/elo.html?elo-apk=brain-v11"
         const val BRIDGE_NAME = "EloNativeBridge"
         private const val QA_NO_OP_SERVICE_WORKER = "self.addEventListener('install', function(event) { event.waitUntil(self.skipWaiting()); });\nself.addEventListener('activate', function(event) { event.waitUntil(self.clients.claim()); });"
         private val QA_NO_CACHE_HEADERS = mapOf(
