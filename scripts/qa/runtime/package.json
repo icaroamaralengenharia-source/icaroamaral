@@ -1,0 +1,9 @@
+{
+  "name": "elo-rdo-local-qa-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local PostgreSQL driver for isolated ELO RDO QA only",
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

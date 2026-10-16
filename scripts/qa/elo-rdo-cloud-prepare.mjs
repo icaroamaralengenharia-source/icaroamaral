@@ -1,0 +1,18 @@
+// Prepare additive synthetic QA infrastructure, never an existing/public project.
+import fs from 'node:fs';import path from 'node:path';import {createHash,randomBytes,randomUUID} from 'node:crypto';
+import {root,qaDir,privateDir,config,projectRef} from './elo-rdo-cloud-db.mjs';
+const c=config();
+const sources={runtime:'backend/src/data/obrareport-runtime-schema.sql',identity:'backend/src/data/municipal-admin-schema.sql',company:'backend/src/data/stock-full-saas-schema.sql',worksRpc:'backend/src/data/stock-full-runtime-rls.sql'};
+const text=Object.fromEntries(Object.entries(sources).map(([k,v])=>[k,fs.readFileSync(path.join(root,v),'utf8')]));
+const ddl=(s,t)=>{const m=s.match(new RegExp('create table if not exists (?:public\\.)?'+t+' \\([\\s\\S]*?\\n\\);','i'));if(!m)throw Error('Official DDL absent: '+t);return m[0];};
+const functions=text.worksRpc.slice(text.worksRpc.indexOf('create or replace function'),text.worksRpc.indexOf('-- Keep the legacy'));
+const schema=`-- EXCLUSIVELY QA PROJECT ${projectRef}. Fresh schema only.\nbegin;\ndo $$begin if exists(select 1 from information_schema.tables where table_schema='public') then raise exception 'Refusing to install into a nonempty public schema';end if;end$$;\n`+
+ddl(text.identity,'institutions')+'\n'+ddl(text.identity,'units')+'\n'+ddl(text.company,'companies')+'\n'+ddl(text.identity,'profiles')+'\n'+text.runtime+'\n'+functions+`\ncreate table public.qa_environment(id int primary key,label text not null,project_ref text not null);\ninsert into public.qa_environment values(1,'ELO RDO ISOLATED SYNTHETIC QA','${projectRef}');\ndo $$declare t record;begin for t in select tablename from pg_tables where schemaname='public' loop execute format('alter table public.%I enable row level security',t.tablename);execute format('revoke all on public.%I from anon, authenticated',t.tablename);execute format('grant all on public.%I to service_role',t.tablename);end loop;end$$;\ngrant usage on schema public to authenticated,service_role;\ngrant select on public.profiles to authenticated;\ncreate policy qa_profile_self_select on public.profiles for select to authenticated using(auth_user_id=auth.uid());\nnotify pgrst,'reload schema';\ncommit;\nselect label,project_ref from public.qa_environment;\n`;
+fs.writeFileSync(path.join(qaDir,'cloud-init.sql'),schema);
+const provenance={atUtc:new Date().toISOString(),projectRef,productionProjectRefsExcluded:['mplpzyalcxhhinuvjthx','lidueokjpzxdybtongbk'],officialRdoSchemaAppliedUnchanged:true,identityTablesExtractedOnly:true,officialWorksRpcExtractedUnchanged:true,qaOnlyRls:'All public tables RLS enabled, no direct anon/auth writes; own-profile read and official tenant-scoped works RPC; backend service repository performs tenant filtering',sources:Object.fromEntries(Object.entries(sources).map(([k,v])=>[k,{path:v,sha256:createHash('sha256').update(text[k]).digest('hex')}])),scriptSha256:createHash('sha256').update(schema).digest('hex')};
+fs.writeFileSync(path.join(qaDir,'cloud-schema-provenance.json'),JSON.stringify(provenance,null,2));
+// Initial generated database password is masked in the UI. Do not retain that placeholder.
+if(c.sql)delete c.sql.password;
+if(!c.accounts)c.accounts=Object.fromEntries(['A','B'].map(actor=>[actor,{email:'qa-'+actor.toLowerCase()+'@elo-cloud.test',password:randomBytes(27).toString('base64url'),institutionId:randomUUID(),companyId:randomUUID(),profileId:randomUUID(),unitId:randomUUID()}]));
+fs.writeFileSync(path.join(privateDir,'cloud-config.json'),JSON.stringify(c,null,2));
+console.log(JSON.stringify({prepared:true,projectRef,sqlContainsCredentials:false,officialRuntimeSchemaUnchanged:true}));
