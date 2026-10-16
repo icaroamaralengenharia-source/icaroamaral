@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v43-20261016-brain-final-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v43-20261016-elo-brain-final-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./relatorio-qualidade-obras/rdo-canonical-auth.js?v=20261014-rdo-auth-fallback-v1",
