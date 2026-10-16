@@ -1172,6 +1172,15 @@
     return Object.assign({}, source);
   }
 
+  function getEloRdoConversationToken_() {
+    if (!window.ELO_RDO_CONVERSATION_TOKEN) {
+      try { window.ELO_RDO_CONVERSATION_TOKEN = window.sessionStorage.getItem("elo_rdo_conversation_token_v1"); } catch (_) {}
+      if (!window.ELO_RDO_CONVERSATION_TOKEN) window.ELO_RDO_CONVERSATION_TOKEN = window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : String(Date.now()) + ":" + Math.random();
+      try { window.sessionStorage.setItem("elo_rdo_conversation_token_v1", window.ELO_RDO_CONVERSATION_TOKEN); } catch (_) {}
+    }
+    return window.ELO_RDO_CONVERSATION_TOKEN;
+  }
+
   function buildEloCommandBridgeResponse_(message, options) {
     const bridge = window.EloCommandBridge;
     if (!bridge || typeof bridge.execute !== "function") return null;
@@ -1184,6 +1193,7 @@
       identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
       municipal: getEloMunicipalContext_()
     }, options && options.context || {});
+    if (request.module === "obrareport_rdo") bridgeContext.rdoConversationToken = getEloRdoConversationToken_();
     if (ELO_SESSION_MEMORY.lastStockItems && ELO_SESSION_MEMORY.lastStockItems.length) bridgeContext.stockItems = ELO_SESSION_MEMORY.lastStockItems.slice(-8);
     const result = bridge.execute(Object.assign({}, request, {
       context: bridgeContext,
@@ -3996,6 +4006,7 @@
         recordEloCoreReliabilityEvent_("conversation_restore_skipped", { reason: "stale_bootstrap", conversationId: conversationId });
         return false;
       }
+      if (snapshot.userInitiated && sanitizeUserText(ELO_UI.coreConversationId || "") !== conversationId) clearEloRdoConversationState_();
       setEloCoreCurrentConversationId_(conversationId);
       replayEloCoreMessages_(data.messages || []);
       return true;
@@ -4536,10 +4547,12 @@
   }
   function clearEloRdoConversationState_() {
     if (window.EloActionBusRdo && typeof window.EloActionBusRdo.clearPending === "function") window.EloActionBusRdo.clearPending();
+    window.ELO_RDO_CONVERSATION_TOKEN = "";
+    try { window.sessionStorage.removeItem("elo_rdo_conversation_token_v1"); } catch (_) {}
     try { window.localStorage.removeItem("elo_action_bus_rdo_context_v1"); window.localStorage.removeItem("elo_action_bus_rdo_list_context_v1"); } catch (_) {}
   }
   function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } clearEloRdoConversationState_(); stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
-  function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
+  function clearEloCoreCurrentConversation_(options) { clearEloRdoConversationState_(); const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
   function confirmClearEloCoreCurrentConversation_() { if (typeof window.confirm === "function" && !window.confirm("Limpar a conversa atual?")) return false; return clearEloCoreCurrentConversation_(); }
   function ensureEloCoreUtilityPanel_() {
     if (ELO_UI.coreUtilityPanel && ELO_UI.coreUtilityPanel.parentNode) return ELO_UI.coreUtilityPanel;

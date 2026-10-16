@@ -242,3 +242,20 @@ test("cancellation during already-sending confirmation never claims an undo",asy
 });
 
 test("missing pending confirmation keeps established error contract and performs no write",async()=>{const env=runtime();const r=await env.window.EloActionBusRdo.execute({action:"rdo_confirm",payload:{message:"sim"}});assert.equal(r.error,"rdo_pending_missing");noWrites(env);});
+
+test("different conversation cannot cancel, confirm or display current operation",async()=>{
+ const env=runtime();await env.ask(PREVIEW);const before=copy(env.pending());
+ for(const [action,message]of [["rdo_cancel",CANCEL_PUBLIC],["rdo_confirm","sim"],["rdo.hold","Não salve ainda"]]){
+ const r=await env.window.EloActionBusRdo.execute({action,context:{rdoConversationToken:"other-conversation"},payload:{message}});
+ assert.deepEqual(copy(env.pending()),before);assert.doesNotMatch(r.humanAnswer,/EQUIPE:|24 sacos/);noWrites(env);
+ }
+});
+test("shared storage: older tab cancellation and new chat preserve other conversation pending",async()=>{
+ const a=runtime(),b=runtime();b.window.localStorage=a.localStorage;a.window.ELO_RDO_CONVERSATION_TOKEN="conversation-a";b.window.ELO_RDO_CONVERSATION_TOKEN="conversation-b";
+ await a.ask(PREVIEW);await b.ask(PREVIEW);const operationB=copy(b.pending());assert.equal(operationB.conversationToken,"conversation-b");
+ await a.ask(CANCEL_PUBLIC);assert.deepEqual(copy(b.pending()),operationB);a.api.startNewConversationForLayoutTest();assert.deepEqual(copy(b.pending()),operationB);await b.ask(CANCEL_PUBLIC);assert.equal(b.pending(),null);noWrites(a);noWrites(b);
+});
+test("restoring tab conversation token from session storage keeps own cancellation valid",async()=>{
+ const env=runtime();await env.ask(PREVIEW);const token=env.pending().conversationToken;assert.ok(token);env.window.ELO_RDO_CONVERSATION_TOKEN="";
+ await env.ask(CANCEL_PUBLIC);assert.equal(env.window.ELO_RDO_CONVERSATION_TOKEN,token);assert.equal(env.pending(),null);noWrites(env);
+});

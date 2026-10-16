@@ -1714,7 +1714,8 @@
 
   function sameTenantBinding(input, pending) {
     const identity = getRdoIdentity(input);
-    return pending && pending.tenantBinding && pending.tenantBinding === tenantBinding(identity);
+    const conversation = clean(input && input.context && input.context.rdoConversationToken || window.ELO_RDO_CONVERSATION_TOKEN);
+    return pending && pending.tenantBinding && pending.tenantBinding === tenantBinding(identity) && (!pending.conversationToken || pending.conversationToken === conversation);
   }
 
   function matchesRdoPreviewContinuation_(input, intent, pending) {
@@ -1764,6 +1765,7 @@
       status: work && work.id ? "pending" : "awaiting_work",
       createdAt: previous ? previous.createdAt : Date.now(),
       operationToken: previous ? previous.operationToken : newRdoPendingToken_(),
+      conversationToken: clean(previous && previous.conversationToken || input.context && input.context.rdoConversationToken || window.ELO_RDO_CONVERSATION_TOKEN),
       operationId,
       tenantBinding: tenantBinding(identity),
       identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: identity.projectId, clientId: identity.clientId },
@@ -2024,7 +2026,7 @@
     const update = buildRdoUpdateData_(rdo, intent, operationId);
     draft.rdoData = update.data;
     draft.descriptions = update.descriptions;
-    return { action: "rdo.update.execute", status: "pending", createdAt: Date.now(), operationToken: newRdoPendingToken_(), operationId, tenantBinding: tenantBinding(identity), identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: draft.projectId }, raw: intent.raw || "", draft };
+    return { action: "rdo.update.execute", status: "pending", createdAt: Date.now(), operationToken: newRdoPendingToken_(), conversationToken: clean(input.context && input.context.rdoConversationToken || window.ELO_RDO_CONVERSATION_TOKEN), operationId, tenantBinding: tenantBinding(identity), identity: { institutionId: identity.institutionId, companyId: identity.companyId, userId: identity.userId, projectId: draft.projectId }, raw: intent.raw || "", draft };
   }
 
   function executeRdoUpdatePreview(input, intent) {
@@ -2199,6 +2201,8 @@
       const intent = parseRdoIntent(input);
       const auth = requireRdoAccess(input, { requireTenant: intent.action !== "rdo.create.preview" && intent.action !== "rdo.update.preview" });
       if (!auth.ok) return rdoAuthBlocked(input, auth);
+      const activePending = readRdoPending();
+      if (/^rdo\.(?:cancel|confirm|create\.revise)$/.test(intent.action) && activePending && activePending.conversationToken && activePending.conversationToken !== clean(input.context.rdoConversationToken || window.ELO_RDO_CONVERSATION_TOKEN)) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.cancel") return executeRdoCancel(input, dispatchTarget);
       if (intent.action === "rdo.cancel.question" || intent.action === "rdo.hold") return executeRdoCancellationInfo_(input, intent.action);
       const currentConfirmation = intent.action === "rdo.confirm" ? readRdoPending() : null;
@@ -2469,7 +2473,11 @@
     parseIntent: parseRdoIntent,
     classifyCancellation: classifyRdoCancellation_,
     readPending: readRdoPending,
-    clearPending: clearRdoPending,
+    clearPending: function () {
+      const pending = readRdoPending();
+      if (pending && pending.conversationToken && pending.conversationToken !== clean(window.ELO_RDO_CONVERSATION_TOKEN)) { rdoPendingEpoch += 1; return false; }
+      clearRdoPending(); return true;
+    },
     resolveExistingWorks: listCanonicalRdoWorks_,
     resolveCanonicalAuthContext: resolveCanonicalRdoAuthContext_,
     aggregateRecurringProblems,

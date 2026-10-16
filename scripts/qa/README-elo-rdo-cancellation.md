@@ -28,7 +28,7 @@ node scripts/qa/elo-rdo-cancellation-cloud.mjs
 - Allowlist fixa: wbweoizkecjjqcfkfokg.supabase.co, projeto QA independente. Verifica o marcador no banco e os claims das chaves antes de usar o backend.
 - UI oficial local em 15505 e backend oficial local em 15504, com Auth/REST Supabase reais.
 - Reutiliza usuários e RDOs 100% sintéticos de QA. Não provisiona recursos, altera schema, credenciais, RLS ou produção.
-- 29 cenários focados: 21 variações de cancelamento na UI, espera/perguntas, correção, assunto, repetição concorrente, resposta atrasada, operação substituída, duas contas e cancelamento de edição de registro persistido.
+- 31 cenários focados: 21 variações de cancelamento na UI, espera/perguntas, correção, assunto, repetição concorrente, resposta atrasada, operação substituída, duas contas cancelamento de edição de registro persistido, abas da mesma conta com conversas distintas e reload da própria conversa.
 - Os testes de concorrência também exercitam diretamente o bridge no navegador autenticado; não são todos interações manuais de UI.
 - A API de QA conta e rejeita qualquer método mutante nas rotas RDO. A suíte exige zero tentativas; o bloqueio não transforma tentativa em PASS.
 - Compara os JSONs integrais de todos os RDOs antes/depois por PostgREST e consulta registros pelo backend oficial. Exige CREATE_COUNT=0 e WRITE_COUNT=0.
@@ -36,3 +36,5 @@ node scripts/qa/elo-rdo-cancellation-cloud.mjs
 - Capturas e logs não incluem senhas, JWTs ou chaves.
 
 A validação cloud aqui se refere à infraestrutura QA real com aplicação em loopback. Não substitui o smoke autenticado do serviço público após uma publicação autorizada e não certifica as políticas do ambiente publicado.
+
+O pending novo também recebe um token de conversa por aba, conservado em sessionStorage no reload. Cancelar/confirmar em outra conversa é bloqueado; Novo chat da aba antiga não apaga a operação da outra. Abrir outra conversa pelo histórico e limpar a conversa invalidam a operação própria.
