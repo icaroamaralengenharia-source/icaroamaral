@@ -28,3 +28,26 @@ test('chat config follows native QA binding after initial page load',()=>{
  window.ELO_INFERENCE_API_BASE_URL='https://untrusted.example';
  assert.equal(endpoint(),'https://obrareport-backend.onrender.com/api/elo/chat');
 });
+for(const failure of ['network','503'])test(`QA ${failure} does not retry inference against production`,async()=>{
+ const calls=[];let failureObserved=false;
+ const configStart=source.indexOf('const ELO_CONFIG = {');
+ const configEnd=source.indexOf('const ELO_ONLINE_HISTORY_MESSAGE_LIMIT',configStart);
+ const chatStart=source.indexOf('function requestEloOnlineAnswer(');
+ const chatEnd=source.indexOf('\n  function ',chatStart+1);
+ assert.ok(chatStart>0&&chatEnd>chatStart);
+ const noop=()=>{};
+ const context=vm.createContext({
+  window:{ELO_INFERENCE_API_BASE_URL:qa,fetch:()=>{throw Error('unexpected raw fetch')},EloRuntimeConfig:{apiUrl:p=>'https://obrareport-backend.onrender.com'+p}},
+  ELO_UI:{},ELO_USER_MESSAGE_MAX_LENGTH:36000,
+  isEloOnline_:()=>true,getEloContext:()=> 'geral',getEloStandaloneConversationHistory_:()=>[],
+  activateEloConversationOnlyMemoryScope_:()=>true,sanitizeEloUserMessage_:v=>v,
+  getEloCoreAnonymousId_:()=> 'fixture',getEloCoreCurrentConversationId_:()=> 'fixture',
+  getEloConversationArchive_:()=>null,getEloOnlineMemoryDeviceId_:()=> 'fixture',isStandaloneMode:()=>true,
+  logEloMemorySummaryEvent_:noop,applyEloAttachmentContextToPayload_:noop,isEloVoiceRequestScopeCurrent_:()=>true,
+  fetchEloAuthenticated_:async url=>{calls.push(url);if(failure==='network')throw Error('network unavailable');return{ok:false,status:503,json:async()=>({ok:false,error:'qa_unavailable'})}},
+  noteEloChatTransportError_:()=>{failureObserved=true},noteEloChatTransportResponse_:()=>{failureObserved=true}
+ });
+ vm.runInContext(source.slice(start,end)+source.slice(configStart,configEnd)+source.slice(chatStart,chatEnd),context);
+ const result=await vm.runInContext('requestEloOnlineAnswer("Pergunta fictícia",[])',context);
+ assert.equal(result,null);assert.equal(failureObserved,true);assert.deepEqual(calls,[qa+'/api/elo/chat']);
+});
