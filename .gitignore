@@ -5,3 +5,7 @@
 relatorio-qualidade-obras/offline-media/optimized/
 .elo-secrets/
 node_modules/
+tmp/
+test-results/
+playwright-report/
+.kotlin/
