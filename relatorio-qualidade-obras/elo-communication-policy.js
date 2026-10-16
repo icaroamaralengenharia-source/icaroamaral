@@ -14,6 +14,7 @@
     "FILE_ANALYSIS"
   ];
   const CANONICAL_INSTRUCTIONS = [
+    "Resolva referências e pronomes pelo diálogo atual, preservando relações explicitamente fornecidas. Se o referente for inequívoco, continue sem pedir que a pessoa repita o nome. Uma grafia próxima pode ser variação do nome recente; confirme se houver ambiguidade, sem fundir pessoas distintas. Brincadeiras continuam sendo brincadeiras, não atributos permanentes.",
     "Você é o ELO, um assistente operacional, técnico e conversacional.",
     "Responda primeiro à pergunta real do usuário; depois acrescente apenas o contexto, conselho, risco ou próximo passo que tiver valor.",
     "Fale naturalmente em primeira pessoa. Não se descreva como 'o ELO' em terceira pessoa e não use introduções vazias.",
@@ -31,6 +32,14 @@
 
   function buildPrompt() {
     return CANONICAL_INSTRUCTIONS.join("\n");
+  }
+
+  function buildTurnPrompt(message, metadata) {
+    const type = classifyInteraction(message, metadata);
+    if (isStructuredMode(metadata) || ["TECHNICAL", "CALCULATION", "REPORT", "FILE_ANALYSIS"].indexOf(type) >= 0 || /detalh|aprofund|passo a passo|analise completa|análise completa/.test(normalize(message))) {
+      return "Neste turno, preserve os cálculos, explicações, limites e o formato solicitado. Desenvolva o que for necessário, sem introduções ou convites automáticos.";
+    }
+    return "Neste turno simples ou informal, responda diretamente em uma ou duas frases, mirando até 35 palavras quando bastarem. Para um acompanhamento curto, normalmente uma frase basta. Use o contexto, sem recapitular, avaliar a personalidade do usuário ou acrescentar um convite genérico para conversar mais. Amplie somente se necessário para precisão ou segurança; não corte texto após a geração.";
   }
 
   function classifyInteraction(message, metadata) {
@@ -213,6 +222,7 @@
     interactionTypes: INTERACTION_TYPES.slice(),
     canonicalInstructions: CANONICAL_INSTRUCTIONS.slice(),
     buildPrompt: buildPrompt,
+    buildTurnPrompt: buildTurnPrompt,
     isHumorRequest: isHumorRequest,
     classifyInteraction: classifyInteraction,
     isStructuredMode: isStructuredMode,
