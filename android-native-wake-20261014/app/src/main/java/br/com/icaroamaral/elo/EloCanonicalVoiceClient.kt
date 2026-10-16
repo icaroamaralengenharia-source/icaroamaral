@@ -103,7 +103,7 @@ class EloCanonicalVoiceClient(private val testTransport: JsonTransport? = null) 
             check(context, expected, expectedSession)
             return result
         }
-        val connection = URL(BACKEND + path).openConnection() as HttpURLConnection
+        val connection = URL(backendForPath(path, BuildConfig.ELO_INFERENCE_BASE_URL) + path).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = false
         connection.connectTimeout = 12_000; connection.readTimeout = 40_000
         connection.requestMethod = if (body == null) "GET" else "POST"
@@ -197,5 +197,10 @@ class EloCanonicalVoiceClient(private val testTransport: JsonTransport? = null) 
         persist(context, expected, "assistant", answer)
         return answer
     }
-    companion object { const val BACKEND = "https://obrareport-backend.onrender.com" }
+    companion object {
+        const val BACKEND = "https://obrareport-backend.onrender.com"
+        const val QA_INFERENCE = "https://elo-brain-qa-v11-20261016.onrender.com"
+        fun backendForPath(path: String, qaBase: String): String =
+            if (path == "/api/elo/chat" && qaBase == QA_INFERENCE) qaBase else BACKEND
+    }
 }

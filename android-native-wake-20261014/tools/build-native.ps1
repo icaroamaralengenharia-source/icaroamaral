@@ -1,4 +1,4 @@
-param([string]$WorkRoot, [switch]$TestOnly)
+param([string]$WorkRoot, [switch]$TestOnly, [string]$QaInferenceBaseUrl='')
 $ErrorActionPreference='Stop'
 $taskProject=Split-Path $PSScriptRoot -Parent
 $taskWorkspace=Split-Path $taskProject -Parent
@@ -51,6 +51,7 @@ $taskArgs=@('--no-daemon','--max-workers=1','--offline','--console=plain','--pro
  '--tests','br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest',
  '--tests','br.com.icaroamaral.elo.EloSpeechInterruptDecisionTest')
 if(-not $TestOnly) { $taskArgs += 'assembleDebug' }
+if($QaInferenceBaseUrl) { $taskArgs += ('-PeloQaInferenceBaseUrl='+$QaInferenceBaseUrl) }
 $taskLauncher=Join-Path (Split-Path (Split-Path $taskGradle -Parent) -Parent) 'lib\gradle-launcher-8.10.2.jar'
 $taskPreviousJavaOptions=$env:JDK_JAVA_OPTIONS
 try {

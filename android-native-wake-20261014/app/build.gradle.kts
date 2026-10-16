@@ -24,11 +24,14 @@ android {
         targetSdk = 35
         versionCode = 11
         versionName = "0.4.5-brain-final-v11"
+        val qaInference = providers.gradleProperty("eloQaInferenceBaseUrl").orElse("").get()
+        require(qaInference in setOf("", "https://elo-brain-qa-v11-20261016.onrender.com")) { "UNTRUSTED_QA_INFERENCE_URL" }
+        buildConfigField("String", "ELO_INFERENCE_BASE_URL", "\"$qaInference\"")
         buildConfigField("String", "FLAVOR", "\"\"")
 
         buildConfigField("String", "ELO_BUILD_GIT_SHA", "\"${gitSha()}\"")
         buildConfigField("String", "ELO_BUILD_TIMESTAMP", "\"${Instant.now()}\"")
-        buildConfigField("String", "ELO_BUILD_CHANNEL", "\"local-brain-candidate\"")
+        buildConfigField("String", "ELO_BUILD_CHANNEL", "\"${if (qaInference.isBlank()) "local-brain-candidate" else "qa-inference-v11"}\"")
         buildConfigField("String", "ELO_SHELL_SCHEMA_VERSION", "\"2\"")
         buildConfigField("String", "ELO_WEB_ENTRYPOINT", "\"https://www.icaroamaral.com.br/elo.html\"")
         buildConfigField("String", "ELO_OFFLINE_CATALOG_VERSION", "\"full-offline-v2\"")
@@ -64,7 +67,7 @@ val bundleCanonicalEloWeb by tasks.registering(Copy::class) {
             val bytes = rootProject.projectDir.parentFile.resolve(path).readBytes()
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
-        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v2", "sha256" to hashes)))
+        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v3", "sha256" to hashes)))
     }
 }
 tasks.named("preBuild").configure { dependsOn(bundleCanonicalEloWeb) }

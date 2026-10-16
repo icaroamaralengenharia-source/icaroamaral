@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v2";
+  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v3";
   window.ELO_ASSISTENTE_BUILD_VERSION = ELO_ASSISTENTE_BUILD_VERSION;
 
   // ELO_CONFIG
@@ -78,6 +78,9 @@
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
+    if (path === "/api/elo/chat" && window.ELO_INFERENCE_API_BASE_URL === "https://elo-brain-qa-v11-20261016.onrender.com") {
+      return window.ELO_INFERENCE_API_BASE_URL + path;
+    }
     if (window.EloRuntimeConfig && typeof window.EloRuntimeConfig.apiUrl === "function") {
       return window.EloRuntimeConfig.apiUrl(path);
     }

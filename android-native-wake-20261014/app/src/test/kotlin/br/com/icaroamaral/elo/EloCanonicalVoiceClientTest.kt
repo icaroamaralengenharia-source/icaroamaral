@@ -8,6 +8,14 @@ import org.junit.Test
 import java.util.Base64
 
 class EloCanonicalVoiceClientTest {
+    @Test fun qaRoutesOnlyInferenceAndKeepsHistoryAndAuthenticationCanonical() {
+        val qa=EloCanonicalVoiceClient.QA_INFERENCE
+        assertEquals(qa,EloCanonicalVoiceClient.backendForPath("/api/elo/chat",qa))
+        for(path in listOf("/api/elo/me","/api/elo/conversations/one","/api/elo/conversations/one/messages","/api/elo/memories","/api/elo/chat?other"))
+            assertEquals(EloCanonicalVoiceClient.BACKEND,EloCanonicalVoiceClient.backendForPath(path,qa))
+        assertEquals(EloCanonicalVoiceClient.BACKEND,EloCanonicalVoiceClient.backendForPath("/api/elo/chat","https://untrusted.example"))
+        assertEquals(EloCanonicalVoiceClient.BACKEND,EloCanonicalVoiceClient.backendForPath("/api/elo/chat",""))
+    }
     private fun raw(user:String="user-qa", claim:String=user, conversation:String="conv_qa", expires:Long=System.currentTimeMillis()/1000+3600):String {
         fun encode(s:String)=Base64.getUrlEncoder().withoutPadding().encodeToString(s.toByteArray())
         val token=encode("""{"alg":"test-only"}""")+"."+encode(JSONObject().put("sub",claim).put("exp",expires).toString())+".test_signature"

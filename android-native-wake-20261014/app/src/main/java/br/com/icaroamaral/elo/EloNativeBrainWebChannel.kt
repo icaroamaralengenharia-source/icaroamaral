@@ -53,8 +53,9 @@ class EloNativeBrainWebChannel(
         close()
         if (!trusted()) return
         val nonce = java.util.UUID.randomUUID().toString()
-        val script = webView.context.assets.open("elo-native-brain.js").bufferedReader().use { it.readText() }
-            .replace("ELO_NATIVE_CHANNEL_TOKEN_V1", nonce)
+        val script = "window.ELO_INFERENCE_API_BASE_URL=" + JSONObject.quote(BuildConfig.ELO_INFERENCE_BASE_URL) + ";\n" +
+            webView.context.assets.open("elo-native-brain.js").bufferedReader().use { it.readText() }
+                .replace("ELO_NATIVE_CHANNEL_TOKEN_V1", nonce)
         webView.evaluateJavascript(script) {
             if (!trusted()) return@evaluateJavascript
             val pair = webView.createWebMessageChannel()

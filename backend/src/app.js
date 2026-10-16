@@ -4893,6 +4893,7 @@ export function createApp(options = {}) {
       return;
     }
 
+    if (options.conversationOnlyChat === true) validation.payload.context.memoryScope = "CONVERSATION_ONLY";
     const proactivePolicy = getEloProactiveReasoningPolicy_();
     if (proactivePolicy && typeof proactivePolicy.getObservability === "function") {
       const observability = proactivePolicy.getObservability(validation.payload.context.proactiveReasoningPlan);
