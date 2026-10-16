@@ -118,6 +118,12 @@ function createStockBridgeHarness(options = {}) {
     fetch(url, config = {}) {
       const method = config.method || "GET";
       requests.push({ url, method, body: config.body ? JSON.parse(config.body) : null, cache: config.cache || null });
+      const parsedUrl = new URL(url);
+      if (parsedUrl.pathname === "/api/stock-full/items/lookup" && method === "GET") {
+        const query = parsedUrl.searchParams.get("id") || parsedUrl.searchParams.get("query") || "";
+        const matches = items.filter((entry) => entry.id === query || entry.name.toLowerCase().includes(query.toLowerCase()));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, item: matches.length === 1 ? matches[0] : undefined, items: matches }) });
+      }
       if (url.endsWith("/api/stock-full/items") && method === "GET") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, items: items.slice() }) });
       }
@@ -159,9 +165,9 @@ test("EloActionBusStockFull usa o backend Stock Full E2E configurado por padrao"
 
 test("EloActionBusStockFull resolve follow-up contextual pelo ultimo item consultado", async () => {
   const harness = createStockBridgeHarness({
-    items: [{ id: "ctx_item", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }]
+    items: [{ id: "74ec9185-112a-43aa-a419-793b7d7ca7ac", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }]
   });
-  harness.context.stockItems = [{ id: "ctx_item", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }];
+  harness.context.stockItems = [{ id: "74ec9185-112a-43aa-a419-793b7d7ca7ac", name: "E2E CONTEXT ITEM", unit: "un", currentQuantity: 7 }];
   const response = await harness.window.EloCommandBridge.execute({
     module: "stock_full",
     action: "get_balance",

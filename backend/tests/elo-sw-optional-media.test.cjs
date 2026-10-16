@@ -6,6 +6,7 @@ const vm = require("node:vm");
 
 const repo = path.resolve(__dirname, "..", "..");
 const swSource = fs.readFileSync(path.join(repo, "elo-sw.js"), "utf8");
+const currentCacheName = swSource.match(/const ELO_CACHE_NAME = "([^"]+)"/)[1];
 
 function loadServiceWorker({ criticalFails = false, cacheNames = [] } = {}) {
   const handlers = {};
@@ -14,6 +15,8 @@ function loadServiceWorker({ criticalFails = false, cacheNames = [] } = {}) {
   const deleted = [];
   const matched = [];
   const cache = {
+    keys: async () => [],
+    delete: async () => true,
     addAll(assets) {
       assert.ok(assets.length > 0);
       assert.ok(assets.every((asset) => !asset.includes("wm-brahms")));
@@ -86,7 +89,7 @@ test("Service Worker v2 remove somente caches antigos do ELO na ativação", asy
   const state = loadServiceWorker({
     cacheNames: [
       "elo-web-offline-v13-20260920-observability-final-v1",
-      "elo-web-offline-v14-20260922-routing-v2",
+      currentCacheName,
       "outro-cache-da-aplicacao"
     ]
   });
