@@ -1,0 +1,28 @@
+{
+  "installed": {
+    "versionCode": 10,
+    "versionName": "0.4.4-brain-final-v10",
+    "sha256": "c43d4c5e9129d67ad6358c5c434ce59089413def7cf7be70bbe820749ad781ee",
+    "signerSha256": "8442425d1b3d0c5d5f241276d5efc570b01bcfbd2387103d46c04909f87fba52",
+    "installUpdate": "PASS",
+    "dataInode": 601715,
+    "postInstallSessionPreserved": true,
+    "historyBefore": 212,
+    "historyAfter": 212,
+    "prefix135Hash": "25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431"
+  },
+  "nextCandidate": {
+    "versionCode": 11,
+    "versionName": "0.4.5-brain-final-v11",
+    "sourceHead": "6731b1b3bfee2086781f0119f692901e55614326",
+    "webVersion": "20261016-brain-final-v2",
+    "adapter": "20261016-native-brain-v7",
+    "nativeCompilationAndTests": "PASS 91/91",
+    "apkBuild": "NOT_BUILT_SPACE_GUARD",
+    "installed": false,
+    "requiredPackagingFreeBytes": 1610612736,
+    "freeBytesAtLastNativeRun": 658808832,
+    "embeddedAssetHashes": "NOT_VERIFIED_IN_APK_V11"
+  },
+  "authOrHistoryDeleted": false
+}

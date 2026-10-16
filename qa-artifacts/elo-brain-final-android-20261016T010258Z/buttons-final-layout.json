@@ -1,0 +1,149 @@
+{
+  "atUtc": "2026-10-16T01:54:51.031Z",
+  "rotationBefore": {
+    "accelerometer": "1",
+    "user": "0"
+  },
+  "layouts": [
+    {
+      "file": "08-buttons-after-portrait.png",
+      "viewport": {
+        "width": 384,
+        "height": 779
+      },
+      "state": {
+        "state": "SUSPENDED",
+        "enabled": true,
+        "owner": "NONE",
+        "generation": 2,
+        "captureLease": 4,
+        "turn": 0,
+        "reason": "MANUAL_WEB_OUTPUT",
+        "modelReady": true,
+        "peakCaptureWorkers": 1
+      },
+      "controls": [
+        {
+          "label": "Retomar chamado",
+          "busy": "false",
+          "disabled": false,
+          "iconHidden": "true",
+          "rect": {
+            "x": 20.533334732055664,
+            "y": 657.2000122070312,
+            "width": 166.4666748046875,
+            "height": 57.466670989990234,
+            "top": 657.2000122070312,
+            "right": 187.00000953674316,
+            "bottom": 714.6666831970215,
+            "left": 20.533334732055664
+          }
+        },
+        {
+          "label": "Encerrar conversa",
+          "busy": "false",
+          "disabled": false,
+          "iconHidden": "true",
+          "rect": {
+            "x": 197.00001525878906,
+            "y": 657.2000122070312,
+            "width": 166.4666748046875,
+            "height": 57.466670989990234,
+            "top": 657.2000122070312,
+            "right": 363.46669006347656,
+            "bottom": 714.6666831970215,
+            "left": 197.00001525878906
+          }
+        }
+      ],
+      "clip": {
+        "x": 10.000000953674316,
+        "y": 646.6666870117188,
+        "width": 364.0000305175781,
+        "height": 78.53334045410156,
+        "scale": 1
+      },
+      "groupRect": {
+        "x": 10.000000953674316,
+        "y": 646.6666870117188,
+        "width": 364.0000305175781,
+        "height": 78.53334045410156,
+        "top": 646.6666870117188,
+        "right": 374.00003147125244,
+        "bottom": 725.2000274658203,
+        "left": 10.000000953674316
+      }
+    },
+    {
+      "file": "09-buttons-after-landscape.png",
+      "viewport": {
+        "width": 781,
+        "height": 360
+      },
+      "state": {
+        "state": "SUSPENDED",
+        "enabled": true,
+        "owner": "NONE",
+        "generation": 2,
+        "captureLease": 4,
+        "turn": 0,
+        "reason": "MANUAL_WEB_OUTPUT",
+        "modelReady": true,
+        "peakCaptureWorkers": 1
+      },
+      "controls": [
+        {
+          "label": "Retomar chamado",
+          "busy": "false",
+          "disabled": false,
+          "iconHidden": "true",
+          "rect": {
+            "x": 276.5333557128906,
+            "y": 330.5333557128906,
+            "width": 234.1333465576172,
+            "height": 50.000003814697266,
+            "top": 330.5333557128906,
+            "right": 510.6667022705078,
+            "bottom": 380.5333595275879,
+            "left": 276.5333557128906
+          }
+        },
+        {
+          "label": "Encerrar conversa",
+          "busy": "false",
+          "disabled": false,
+          "iconHidden": "true",
+          "rect": {
+            "x": 520.6666870117188,
+            "y": 330.5333557128906,
+            "width": 234.1333465576172,
+            "height": 50.000003814697266,
+            "top": 330.5333557128906,
+            "right": 754.8000335693359,
+            "bottom": 380.5333595275879,
+            "left": 520.6666870117188
+          }
+        }
+      ],
+      "clip": {
+        "x": 266,
+        "y": 320.0000305175781,
+        "width": 499.3333740234375,
+        "height": 39.999969482421875,
+        "scale": 1
+      },
+      "groupRect": {
+        "x": 266,
+        "y": 320.0000305175781,
+        "width": 499.3333740234375,
+        "height": 71.0666732788086,
+        "top": 320.0000305175781,
+        "right": 765.3333740234375,
+        "bottom": 391.0667037963867,
+        "left": 266
+      }
+    }
+  ],
+  "rotationRestored": true,
+  "microphoneDisabled": true
+}

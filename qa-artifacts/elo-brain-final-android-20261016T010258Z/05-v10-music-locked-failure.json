@@ -1,0 +1,103 @@
+{
+  "humanReport": {
+    "track": "Galinha Pintadinha",
+    "audioHeard": false,
+    "error": "O player não respondeu, abra o ELO e tente novamente."
+  },
+  "first": {
+    "atUtc": "2026-10-16T02:02:38.697Z",
+    "visibility": "hidden",
+    "authenticated": true,
+    "native": {
+      "state": "PROCESSING",
+      "enabled": true,
+      "owner": "NONE",
+      "generation": 1,
+      "captureLease": 10,
+      "turn": 2,
+      "reason": "MUSIC_RESOLVING",
+      "modelReady": true,
+      "peakCaptureWorkers": 1
+    },
+    "adapter": "20261016-native-brain-v6",
+    "player": {
+      "state": "BUFFERING",
+      "position": 0,
+      "duration": 1776,
+      "mediaIdPresent": true,
+      "lastError": "",
+      "userActionRequired": false
+    },
+    "iframes": [
+      {
+        "host": "www.youtube.com",
+        "path": "/embed/5P8GcCpmGYQ",
+        "display": "inline",
+        "rect": {
+          "width": 359,
+          "height": 202
+        },
+        "allow": "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      }
+    ],
+    "resourceHosts": [
+      "fonts.googleapis.com",
+      "www.icaroamaral.com.br",
+      "script.google.com",
+      "mplpzyalcxhhinuvjthx.supabase.co",
+      "obrareport-backend.onrender.com",
+      "www.youtube.com"
+    ],
+    "canonicalHistorySyncExport": "undefined",
+    "contentsExported": false,
+    "credentialsExported": false
+  },
+  "second": {
+    "atUtc": "2026-10-16T02:02:40.236Z",
+    "visibility": "hidden",
+    "authenticated": true,
+    "native": {
+      "state": "PROCESSING",
+      "enabled": true,
+      "owner": "NONE",
+      "generation": 1,
+      "captureLease": 10,
+      "turn": 2,
+      "reason": "MUSIC_RESOLVING",
+      "modelReady": true,
+      "peakCaptureWorkers": 1
+    },
+    "adapter": "20261016-native-brain-v6",
+    "player": {
+      "state": "BUFFERING",
+      "position": 0,
+      "duration": 1776,
+      "mediaIdPresent": true,
+      "lastError": "",
+      "userActionRequired": false
+    },
+    "iframes": [
+      {
+        "host": "www.youtube.com",
+        "path": "/embed/5P8GcCpmGYQ",
+        "display": "inline",
+        "rect": {
+          "width": 359,
+          "height": 202
+        },
+        "allow": "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      }
+    ],
+    "resourceHosts": [
+      "fonts.googleapis.com",
+      "www.icaroamaral.com.br",
+      "script.google.com",
+      "mplpzyalcxhhinuvjthx.supabase.co",
+      "obrareport-backend.onrender.com",
+      "www.youtube.com"
+    ],
+    "canonicalHistorySyncExport": "undefined",
+    "contentsExported": false,
+    "credentialsExported": false
+  }
+}

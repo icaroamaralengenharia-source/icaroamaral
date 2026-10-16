@@ -1,0 +1,18 @@
+{
+  "atUtc": "2026-10-16T02:44:04.394Z",
+  "pageVisibility": "hidden",
+  "authenticatedUi": true,
+  "validatedUi": true,
+  "conversationHash": "2d03027289f9110e9de0090096ccc971acb08da820851af761d3e60e706254b8",
+  "uiMessageCount": 212,
+  "original135PrefixHash": "25a51a9f39549834cd7ddd5c619dadaee7a8dc0422a646063287bd628948f431",
+  "nativeWakeEnabled": false,
+  "localResourceRequests": 0,
+  "previewHooksPresent": false,
+  "draftLength": 0,
+  "credentialsRead": false,
+  "contentsExported": false,
+  "networkRequestsMadeBySnapshot": false,
+  "sameConversation": true,
+  "original135Preserved": true
+}

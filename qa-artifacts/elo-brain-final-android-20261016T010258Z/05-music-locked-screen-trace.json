@@ -1,0 +1,135 @@
+{
+  "baseline": true,
+  "sourceCodeChanged": false,
+  "humanReport": {
+    "requestedTrack": "Galinha Pintadinha",
+    "musicStartedAudibly": true,
+    "thenPlayerTimeoutSpoken": true,
+    "videoPausedAfterError": true,
+    "requestedBehavior": "During playback return to ELO wake waiting; do not retain conversational microphone."
+  },
+  "first": {
+    "atUtc": "2026-10-16T01:09:46.298Z",
+    "visible": true,
+    "authenticated": true,
+    "adapter": "20261015-native-brain-v5",
+    "native": {
+      "state": "WAKE_DISABLED",
+      "enabled": false,
+      "owner": "NONE",
+      "generation": 4,
+      "captureLease": 10,
+      "turn": 1,
+      "reason": "SERVICE_DESTROYED",
+      "modelReady": true,
+      "peakCaptureWorkers": 1
+    },
+    "player": {
+      "mediaIdPresent": false,
+      "error": false
+    },
+    "audit": {
+      "startedAt": "2026-10-16T01:04:18.037Z",
+      "events": [
+        {
+          "atUtc": "2026-10-16T01:05:10.155Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:05:18.303Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        },
+        {
+          "atUtc": "2026-10-16T01:05:47.743Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:06:21.639Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        },
+        {
+          "atUtc": "2026-10-16T01:08:00.588Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:08:29.480Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        }
+      ]
+    }
+  },
+  "second": {
+    "atUtc": "2026-10-16T01:10:00.807Z",
+    "visible": true,
+    "authenticated": true,
+    "adapter": "20261015-native-brain-v5",
+    "native": {
+      "state": "WAKE_DISABLED",
+      "enabled": false,
+      "owner": "NONE",
+      "generation": 4,
+      "captureLease": 10,
+      "turn": 1,
+      "reason": "SERVICE_DESTROYED",
+      "modelReady": true,
+      "peakCaptureWorkers": 1
+    },
+    "player": {
+      "mediaIdPresent": false,
+      "error": false
+    },
+    "audit": {
+      "startedAt": "2026-10-16T01:04:18.037Z",
+      "events": [
+        {
+          "atUtc": "2026-10-16T01:05:10.155Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:05:18.303Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        },
+        {
+          "atUtc": "2026-10-16T01:05:47.743Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:06:21.639Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        },
+        {
+          "atUtc": "2026-10-16T01:08:00.588Z",
+          "event": "handleMusicQueryForTest",
+          "visible": true,
+          "fixtureMatchesSultans": false
+        },
+        {
+          "atUtc": "2026-10-16T01:08:29.480Z",
+          "event": "handleMusicQueryForTest_result",
+          "handled": true,
+          "decision": "NO_HANDLER"
+        }
+      ]
+    }
+  }
+}

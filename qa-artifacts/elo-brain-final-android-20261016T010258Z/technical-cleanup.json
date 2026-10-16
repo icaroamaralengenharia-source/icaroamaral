@@ -1,0 +1,9 @@
+{
+  "atUtc": "2026-10-16T02:46:30.9656691Z",
+  "technicalLogMonitorStopped": true,
+  "diagnosticForward9224Removed": true,
+  "localPort5579Listeners": 0,
+  "localPort5583Listeners": 0,
+  "physicalUsbDisconnected": false,
+  "appOrDataModified": false
+}

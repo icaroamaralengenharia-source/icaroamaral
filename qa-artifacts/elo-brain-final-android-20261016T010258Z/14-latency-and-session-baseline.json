@@ -1,0 +1,96 @@
+{
+  "audioOrTranscriptsRecorded": false,
+  "contentsExported": false,
+  "scope": "v10 technical trace; uncontrolled human conversation, not the 15-turn certification",
+  "timings": [
+    {
+      "turn": 1,
+      "processingToTtsMs": 6028,
+      "ttsToAudioMs": 5077,
+      "processingToAudioMs": 11105
+    },
+    {
+      "turn": 3,
+      "processingToTtsMs": 5996,
+      "ttsToAudioMs": 3629,
+      "processingToAudioMs": 9625
+    },
+    {
+      "turn": 4,
+      "processingToTtsMs": 6511,
+      "ttsToAudioMs": 3171,
+      "processingToAudioMs": 9682
+    },
+    {
+      "turn": 5,
+      "processingToTtsMs": 6856,
+      "ttsToAudioMs": 2685,
+      "processingToAudioMs": 9541
+    },
+    {
+      "turn": 6,
+      "processingToTtsMs": 5193,
+      "ttsToAudioMs": 3145,
+      "processingToAudioMs": 8338
+    },
+    {
+      "turn": 7,
+      "processingToTtsMs": 8982,
+      "ttsToAudioMs": 3405,
+      "processingToAudioMs": 12387
+    },
+    {
+      "turn": 8,
+      "processingToTtsMs": 5958,
+      "ttsToAudioMs": 9217,
+      "processingToAudioMs": 15175
+    },
+    {
+      "turn": 9,
+      "processingToTtsMs": 5853,
+      "ttsToAudioMs": 4578,
+      "processingToAudioMs": 10431
+    },
+    {
+      "turn": 10,
+      "processingToTtsMs": 4806,
+      "ttsToAudioMs": 1721,
+      "processingToAudioMs": 6527
+    },
+    {
+      "turn": 11,
+      "processingToTtsMs": 4929,
+      "ttsToAudioMs": 8477,
+      "processingToAudioMs": 13406
+    },
+    {
+      "turn": 12,
+      "processingToTtsMs": 4815,
+      "ttsToAudioMs": 2555,
+      "processingToAudioMs": 7370
+    }
+  ],
+  "processingToAudio": {
+    "samples": 11,
+    "min": 6527,
+    "median": 9682,
+    "max": 15175
+  },
+  "processingToTts": {
+    "samples": 11,
+    "min": 4806,
+    "median": 5958,
+    "max": 8982
+  },
+  "ttsToAudio": {
+    "samples": 11,
+    "min": 1721,
+    "median": 3405,
+    "max": 9217
+  },
+  "stop": {
+    "utc": "2026-10-16T02:07:56.156Z",
+    "turn": 12,
+    "reason": "SESSION_EXPIRED"
+  }
+}

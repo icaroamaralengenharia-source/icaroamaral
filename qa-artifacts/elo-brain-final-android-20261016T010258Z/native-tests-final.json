@@ -1,0 +1,63 @@
+{
+  "tests": 91,
+  "failures": 0,
+  "errors": 0,
+  "suites": [
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.632Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloCanonicalVoiceClientTest.xml",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.617Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloConversationTranscriptTest.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.613Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloMusicPlayerCoordinatorTest.xml",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.610Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloNativeMusicIntentTest.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.635Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloSpeechInterruptDecisionTest.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.626Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloVoiceCoordinatorTest.xml",
+      "tests": 47,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.624Z"
+    },
+    {
+      "name": "TEST-br.com.icaroamaral.elo.EloVoiceUtteranceBufferTest.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "modifiedUtc": "2026-10-16T02:39:08.629Z"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "authenticated": true,
+  "validated": true,
+  "messages": 212,
+  "native": {
+    "state": "WAKE_DISABLED",
+    "enabled": false,
+    "owner": "NONE",
+    "generation": 4,
+    "captureLease": 10,
+    "turn": 1,
+    "reason": "SERVICE_DESTROYED",
+    "modelReady": true,
+    "peakCaptureWorkers": 1
+  },
+  "adapter": "20261015-native-brain-v5",
+  "conversationHash": "2d03027289f9110e9de0090096ccc971acb08da820851af761d3e60e706254b8",
+  "package": "br.com.icaroamaral.elo",
+  "versionCode": 9,
+  "versionName": "0.4.3-brain-native-v9",
+  "knownCandidateSHA256": "292e7318f2e7975b76ea06ed898776d2489b45122ba7040498a18c9f98bbacd7",
+  "credentialsRead": false
+}

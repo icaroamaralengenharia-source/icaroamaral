@@ -1,0 +1,9 @@
+{
+  "atUtc": "2026-10-16T02:54:04.033Z",
+  "qaBackendExists": false,
+  "qaStatusConfirmedByUser": true,
+  "diskCanBeFreedNow": false,
+  "diskStatusConfirmedByUser": true,
+  "newApkInstalled": false,
+  "productionDeployed": false
+}

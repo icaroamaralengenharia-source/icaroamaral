@@ -1,0 +1,147 @@
+{
+  "atUtc": "2026-10-16T01:46:05.6902444Z",
+  "apk": {
+    "path": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-brain-final-20261015\\tmp\\elo-brain-native-20261014\\android-audio-focus-fix-20261015\\app-build\\outputs\\apk\\debug\\app-debug.apk",
+    "bytes": 321221838,
+    "sha256": "c43d4c5e9129d67ad6358c5c434ce59089413def7cf7be70bbe820749ad781ee",
+    "certificateSha256": "8442425d1b3d0c5d5f241276d5efc570b01bcfbd2387103d46c04909f87fba52",
+    "package": "br.com.icaroamaral.elo",
+    "versionCode": 10,
+    "versionName": "0.4.4-brain-final-v10",
+    "minSdk": 26,
+    "permissions": [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.INTERNET",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.WAKE_LOCK",
+      "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "br.com.icaroamaral.elo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+    ]
+  },
+  "deliveryPath": "C:\\Users\\Wia Engenharia\\Documents\\ChatGPT\\SaaS Inspeção Técnica\\ELO-brain-final-20261015\\tmp\\elo-brain-native-20261014\\elo-brain-final-v10-20261015.apk",
+  "bundle": [
+    {
+      "path": "elo.html",
+      "sha256": "bdba596a33891c2e005c11a349451f68b17e0500d94cd09d58911a903db3c785",
+      "matchesSource": true
+    },
+    {
+      "path": "elo.css",
+      "sha256": "131cb69fc6c1ea61a2048394a07e6b5326079c1e7f077b7120786ec0c97fbf9f",
+      "matchesSource": true
+    },
+    {
+      "path": "elo-sw.js",
+      "sha256": "4df7622d507b2f9900b9a42492ebd10a898a86e7dbc8c365fa40e21e9eaacc90",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-viewport.js",
+      "sha256": "67940c5b892cca98a1a09da3ed24e5dea5b4c04e8932b13751a4d20804875cda",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-voice-session.js",
+      "sha256": "f0aa4618988ff39feae8c1edec43f5a981e5f11d282a0e3479dec66dde4baba7",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-assistente.js",
+      "sha256": "590bad3db5d16450d6e61d5cb5a91ba539399e258880b8ffb9027c0d2c3ad4d0",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-media-player.js",
+      "sha256": "a4f921b19e971486b4e9623ea5e5ea9eacb32ccb47a08487091134794daaa35d",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-music-resolver.js",
+      "sha256": "3945bc27ce36aa61995bcce2c95d6cdddc42f8f322d6e1cea4ed6c7fcb0e4668",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-offline-media-library.js",
+      "sha256": "cea0de7dabe0992ed55cb9cd313ee9cf5f10b8022aaa371fcbdf45938bbfe3d6",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-communication-policy.js",
+      "sha256": "745454858b845bc458ea25a15f945793ed656da5b9801d035a7b6eee08e04db4",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-proactive-reasoning-policy.js",
+      "sha256": "7e6a05a4ba1f5551463002f33feaf9370f61155d568b200c86131f8a93388be4",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-technical-validator.js",
+      "sha256": "591590f9392fa3ece36f899bf158ed4925a38782380c6dea4b4b775cb69f3df2",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-brain-router.js",
+      "sha256": "474ced47834dcf29a629bff1c5e9bc1da6f4b1c8995626bd61666a35213505b4",
+      "matchesSource": true
+    },
+    {
+      "path": "relatorio-qualidade-obras/elo-offline-core-v2.js",
+      "sha256": "00986bf6aff39838a9d70b5427ea50fb5ac2d902f88c98bc12e24fdd6aa7b72f",
+      "matchesSource": true
+    }
+  ],
+  "originalMediaAssetsPreserved": 65,
+  "wakeModelFilesPreserved": 15,
+  "nativeTests": [
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloBundledWebResourcePolicyTest",
+      "tests": 2
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloCanonicalVoiceClientTest",
+      "tests": 13
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloConversationTranscriptTest",
+      "tests": 3
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloMusicPlayerCoordinatorTest",
+      "tests": 7
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloNativeMusicIntentTest",
+      "tests": 4
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloVoiceCoordinatorTest",
+      "tests": 37
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "name": "br.com.icaroamaral.elo.EloVoiceUtteranceBufferTest",
+      "tests": 6
+    }
+  ],
+  "signerMatchesInstalled": true,
+  "sourceCommit": "a7b72b6",
+  "runtimeComputerDependency": false,
+  "backendUpdateDeployed": false
+}

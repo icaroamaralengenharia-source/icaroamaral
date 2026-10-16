@@ -1,0 +1,381 @@
+{
+  "atUtc": "2026-10-16T01:15:04.542Z",
+  "baseline": true,
+  "fixtures": [
+    {
+      "question": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente.",
+      "answer": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão.",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando.",
+      "answer": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui.",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "Quem é Likelle?",
+      "answer": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "O que eu falei sobre ela?",
+      "answer": "Você falou que sua esposa se chama Likelle e brincou dizendo que ela é uma “peste”, mas deixou claro que estava só brincando. Isso mostra uma relação leve e bem-humorada entre vocês.",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "Como se chama minha esposa?",
+      "answer": "Sua esposa se chama Likelle.",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "Likelle é quem mesmo?",
+      "answer": "Likelle é sua esposa, com quem você tem uma relação descontraída e brincalhona.",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "E ela?",
+      "answer": "Parece que você quer saber sobre “ela” em algum contexto específico, mas preciso de mais detalhes para responder com precisão. Pode me dizer a quem exatamente você se refere?",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "E a Likele?",
+      "answer": "A Likelle é sua esposa, certo? Se quiser, posso ajudar a lembrar detalhes ou informações que você costuma associar a ela, como gostos, preferências ou algum contexto específico. Quer que eu faça isso?",
+      "scope": true,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "question": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente.",
+      "answer": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão.",
+      "scope": true,
+      "conversationHash": "e8a949b5fcf9e0c26421579b09c0e29bb11b8a2147f45ae64c96c55a92513039"
+    },
+    {
+      "question": "Quem é Likelle?",
+      "answer": "Não tenho informações específicas sobre alguém chamado Likelle neste contexto. Se for uma pessoa, marca ou personagem, pode me dar mais detalhes para eu ajudar melhor?",
+      "scope": true,
+      "conversationHash": "e8a949b5fcf9e0c26421579b09c0e29bb11b8a2147f45ae64c96c55a92513039"
+    }
+  ],
+  "requests": [
+    {
+      "atUtc": "2026-10-16T01:15:07.927Z",
+      "message": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando.",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:12.325Z",
+      "message": "Quem é Likelle?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:16.761Z",
+      "message": "O que eu falei sobre ela?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        },
+        {
+          "role": "user",
+          "content": "Quem é Likelle?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?"
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:21.105Z",
+      "message": "Como se chama minha esposa?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        },
+        {
+          "role": "user",
+          "content": "Quem é Likelle?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?"
+        },
+        {
+          "role": "user",
+          "content": "O que eu falei sobre ela?"
+        },
+        {
+          "role": "assistant",
+          "content": "Você falou que sua esposa se chama Likelle e brincou dizendo que ela é uma “peste”, mas deixou claro que estava só brincando. Isso mostra uma relação leve e bem-humorada entre vocês."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:23.355Z",
+      "message": "Likelle é quem mesmo?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        },
+        {
+          "role": "user",
+          "content": "Quem é Likelle?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?"
+        },
+        {
+          "role": "user",
+          "content": "O que eu falei sobre ela?"
+        },
+        {
+          "role": "assistant",
+          "content": "Você falou que sua esposa se chama Likelle e brincou dizendo que ela é uma “peste”, mas deixou claro que estava só brincando. Isso mostra uma relação leve e bem-humorada entre vocês."
+        },
+        {
+          "role": "user",
+          "content": "Como se chama minha esposa?"
+        },
+        {
+          "role": "assistant",
+          "content": "Sua esposa se chama Likelle."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:25.594Z",
+      "message": "E ela?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        },
+        {
+          "role": "user",
+          "content": "Quem é Likelle?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?"
+        },
+        {
+          "role": "user",
+          "content": "O que eu falei sobre ela?"
+        },
+        {
+          "role": "assistant",
+          "content": "Você falou que sua esposa se chama Likelle e brincou dizendo que ela é uma “peste”, mas deixou claro que estava só brincando. Isso mostra uma relação leve e bem-humorada entre vocês."
+        },
+        {
+          "role": "user",
+          "content": "Como se chama minha esposa?"
+        },
+        {
+          "role": "assistant",
+          "content": "Sua esposa se chama Likelle."
+        },
+        {
+          "role": "user",
+          "content": "Likelle é quem mesmo?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, com quem você tem uma relação descontraída e brincalhona."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:27.964Z",
+      "message": "E a Likele?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        },
+        {
+          "role": "user",
+          "content": "Minha esposa se chama Likelle. Ela é uma peste kkk, estou brincando."
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle deve ser mesmo uma figura para render boas brincadeiras! Essas “pestes” acabam deixando a vida mais divertida, né? Se quiser contar alguma história engraçada dela, estou aqui."
+        },
+        {
+          "role": "user",
+          "content": "Quem é Likelle?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, alguém com quem você tem uma relação bem descontraída, até brinca chamando ela de \"peste\". Parece que ela tem uma personalidade marcante que rende boas histórias e risadas. Quer falar mais sobre ela ou alguma situação engraçada?"
+        },
+        {
+          "role": "user",
+          "content": "O que eu falei sobre ela?"
+        },
+        {
+          "role": "assistant",
+          "content": "Você falou que sua esposa se chama Likelle e brincou dizendo que ela é uma “peste”, mas deixou claro que estava só brincando. Isso mostra uma relação leve e bem-humorada entre vocês."
+        },
+        {
+          "role": "user",
+          "content": "Como se chama minha esposa?"
+        },
+        {
+          "role": "assistant",
+          "content": "Sua esposa se chama Likelle."
+        },
+        {
+          "role": "user",
+          "content": "Likelle é quem mesmo?"
+        },
+        {
+          "role": "assistant",
+          "content": "Likelle é sua esposa, com quem você tem uma relação descontraída e brincalhona."
+        },
+        {
+          "role": "user",
+          "content": "E ela?"
+        },
+        {
+          "role": "assistant",
+          "content": "Parece que você quer saber sobre “ela” em algum contexto específico, mas preciso de mais detalhes para responder com precisão. Pode me dizer a quem exatamente você se refere?"
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "0c0b162df2f3aee898b25591f671951d3c36ce29f5da33685487ab00cce7e8d8"
+    },
+    {
+      "atUtc": "2026-10-16T01:15:32.596Z",
+      "message": "Quem é Likelle?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Use apenas o contexto desta conversa. Não salve memórias permanentes e não use memória persistente."
+        },
+        {
+          "role": "assistant",
+          "content": "Consigo consultar memórias, contexto técnico ativo e dados de conversa disponíveis para esta sessão."
+        }
+      ],
+      "archive": null,
+      "memoryScope": "CONVERSATION_ONLY",
+      "hasWorkingSummary": false,
+      "conversationHash": "e8a949b5fcf9e0c26421579b09c0e29bb11b8a2147f45ae64c96c55a92513039"
+    }
+  ],
+  "permanentMemoryWrites": 0
+}

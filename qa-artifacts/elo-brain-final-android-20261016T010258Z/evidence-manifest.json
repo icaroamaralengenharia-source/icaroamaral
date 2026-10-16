@@ -1,0 +1,147 @@
+{
+  "atUtc": "2026-10-16T02:49:11.467Z",
+  "sourceHead": "6731b1b3bfee2086781f0119f692901e55614326",
+  "files": [
+    {
+      "file": ".gitattributes",
+      "bytes": 67,
+      "sha256": "2e129cf6d8a6c499281e671a1d0c7d15096c78a98a16109810632638d06a70c8"
+    },
+    {
+      "file": "01-device-before.json",
+      "bytes": 661,
+      "sha256": "944f88536220fc08f20ee88a6588b0b13d77bde428f42b821ac3b29e28cb046c"
+    },
+    {
+      "file": "02-git-state.txt",
+      "bytes": 264,
+      "sha256": "63786417fa5c71948ded15c891c1b53e62af99f79243845fb529fc2d531045b8"
+    },
+    {
+      "file": "03-context-trace.json",
+      "bytes": 16607,
+      "sha256": "704f588a25d937d5665b0c2bbb5fa238a9342ed0175d453ed507c2069ab42118"
+    },
+    {
+      "file": "04-listening-trace.json",
+      "bytes": 288865,
+      "sha256": "b42727d43bb45ff152750f6483f3d462149c1d690cd457912eb9d35356f9fb0a"
+    },
+    {
+      "file": "05-music-locked-screen-trace.json",
+      "bytes": 3687,
+      "sha256": "e9abf945fc53fb9466b0664df040d0ed421284438cf2b8bb9f9640ff6cb73202"
+    },
+    {
+      "file": "05-v10-music-locked-failure.json",
+      "bytes": 2698,
+      "sha256": "464097ec359c2406d4898ca932bc882e7f212d42b55c296fe8f120c4b7985e3e"
+    },
+    {
+      "file": "06-logcat-sanitized.txt",
+      "bytes": 215308,
+      "sha256": "1f60f265042a73e1a5352d1d6962a6d36d6fef06e6f5bf59360b4021a3f62c77"
+    },
+    {
+      "file": "06-logcat-v10-session.txt",
+      "bytes": 314078,
+      "sha256": "e2fb68f66f695ea8dca091083240ed09bb7cbb14f6eec8526500df59c8a1b1e2"
+    },
+    {
+      "file": "07-buttons-before.png",
+      "bytes": 22270,
+      "sha256": "4ccf459581de416db0ef522fe9d5af3a8588f077ad9329d4b357c55b5c705c7f"
+    },
+    {
+      "file": "08-buttons-after-portrait.png",
+      "bytes": 19218,
+      "sha256": "5988eb72ea36d3b80f0cf2239574d488cd54b2b551132a066f12efd1c21bb030"
+    },
+    {
+      "file": "09-buttons-after-landscape.png",
+      "bytes": 17966,
+      "sha256": "94204b5ce9194639c0eb7e4e8961b65b43575993fc300bf47cb46e55b10b8ce8"
+    },
+    {
+      "file": "10-standalone-without-computer.md",
+      "bytes": 601,
+      "sha256": "d4fd29f35cbefc9cded812ae87619e807198126db14d68c70b386abb0ea64f7b"
+    },
+    {
+      "file": "11-apk-metadata.json",
+      "bytes": 1026,
+      "sha256": "3476612cea8e3d67969fcbb04f7f08484a83182303595e9db2146a45fb67030e"
+    },
+    {
+      "file": "11-v10-apk-metadata.json",
+      "bytes": 5040,
+      "sha256": "7e31a29a8b257d8fc47fe41fc5ab1e9be32f2051945a4e51fd77f8dbd5cd55a3"
+    },
+    {
+      "file": "12-final-physical-test.md",
+      "bytes": 1771,
+      "sha256": "9c46e9c419a9e2ce0a43b6559b676f46bf049d3c6f388a247cd32fed483aa737"
+    },
+    {
+      "file": "13-final-report.md",
+      "bytes": 4699,
+      "sha256": "cbd32d92b48a93642210f9f83a865318eb34aef6fa5a2e481784e093ab2768dd"
+    },
+    {
+      "file": "14-latency-and-session-baseline.json",
+      "bytes": 1973,
+      "sha256": "9bb086c979d20a73921878fa7a02062288366f6148e6db33fe59208a4e6c84bf"
+    },
+    {
+      "file": "blocking-inputs.json",
+      "bytes": 231,
+      "sha256": "ed6bb6e81ee38f32e4d805cb3521fe5a4369c97147fbffaf17a5f5b9e514efc4"
+    },
+    {
+      "file": "buttons-final-layout.json",
+      "bytes": 3971,
+      "sha256": "776a70ba851b72311ec2a7e3ce108dfe3b84497d5282c3e3d8e9003364dd34f7"
+    },
+    {
+      "file": "final-session-preservation-v10.json",
+      "bytes": 603,
+      "sha256": "18792bc04a10948d6324f76f3c2a5a29bd6469c70f92af515a3c90d04d5bc7f1"
+    },
+    {
+      "file": "install-session-after.json",
+      "bytes": 781,
+      "sha256": "e1d9e116865891f401d8c338b51b114d44071ab3c56568c5242b88b7e1f04a9f"
+    },
+    {
+      "file": "install-session-before.json",
+      "bytes": 508,
+      "sha256": "0f26115597e33992ba6beeda13cfae4e76c008ecd81ad2115f3fc06d2a1045a4"
+    },
+    {
+      "file": "native-tests-final.json",
+      "bytes": 1642,
+      "sha256": "fac85bb18bbcec9752d184799f04b6982f7d715346b02f29f62d73a0dbdcf216"
+    },
+    {
+      "file": "sanitization.json",
+      "bytes": 174,
+      "sha256": "5ce28248963c82cf5a546d51935ab124b69b403a3673720b314dc692ab986577"
+    },
+    {
+      "file": "stock-mock-comparison.json",
+      "bytes": 727,
+      "sha256": "736942d77893e4da4225ed7f34a9c53519315fb5c58b757cb5ca5ad0012a1b61"
+    },
+    {
+      "file": "technical-cleanup.json",
+      "bytes": 252,
+      "sha256": "ef5404c4b137dcd4f554fc28c458a5ef672e259172e4f99d45f28c75f096fb1f"
+    },
+    {
+      "file": "web-tests-final.json",
+      "bytes": 4531,
+      "sha256": "f2919ec80a7429233d76b2134e2bc37cd2cfc76d732d0924872d46855b5e7978"
+    }
+  ],
+  "hashScope": "Committed evidence bytes; text uses LF via directory .gitattributes."
+}

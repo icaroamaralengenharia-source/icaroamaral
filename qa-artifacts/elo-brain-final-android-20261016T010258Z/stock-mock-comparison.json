@@ -1,0 +1,28 @@
+{
+  "configuration": "same node --test, isolated copies, no network",
+  "sameProductionBridge": true,
+  "sameOriginalTest": true,
+  "runs": [
+    {
+      "label": "main",
+      "ref": "50452bc086ceb94ae51ac455304069dfcb5521db",
+      "exitCode": 1,
+      "failed": "1",
+      "passed": "15",
+      "failures": [
+        "EloActionBusStockFull resolve follow-up contextual pelo ultimo item consultado"
+      ]
+    },
+    {
+      "label": "candidate-before-fixture-fix",
+      "ref": "HEAD",
+      "exitCode": 1,
+      "failed": "1",
+      "passed": "15",
+      "failures": [
+        "EloActionBusStockFull resolve follow-up contextual pelo ultimo item consultado"
+      ]
+    }
+  ],
+  "classification": "PREEXISTING_VERIFIED"
+}
