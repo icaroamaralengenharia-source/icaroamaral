@@ -2059,6 +2059,7 @@ test('ELO Action Bus RDO: confirmacao executa create uma vez e bloqueia duplicat
         createdRdos.push(rdo);
         return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ ok: true, rdo }) });
       }
+      if (href.endsWith('/api/obrareport/rdos/rdo-created-1') && method === 'GET') return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdo: createdRdos[0] }) });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, rdos: createdRdos }) });
     }
   });

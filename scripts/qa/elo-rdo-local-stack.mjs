@@ -141,4 +141,3 @@ export async function start(){
  return {stop:async()=>{for(const s of servers)await new Promise(r=>s.close(r));},config:c,context};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))start().catch(e=>{console.error(String(e.message));process.exitCode=1;});
-

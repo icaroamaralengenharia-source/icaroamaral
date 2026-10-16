@@ -19,6 +19,7 @@
   const STOCK_PENDING_KEY = "elo_action_bus_stock_full_pending_v1";
   const RDO_PENDING_KEY = "elo_action_bus_rdo_pending_v1";
   const RDO_CONTEXT_KEY = "elo_action_bus_rdo_context_v1";
+  const RDO_LIST_CONTEXT_KEY = "elo_action_bus_rdo_list_context_v1";
   const RDO_CANONICAL_SESSION_KEY = "obrareport-rdo-stock-canonical-session-v1";
   const rdoCanonicalWorkCatalogs = new WeakMap();
   const STOCK_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
@@ -1197,7 +1198,8 @@
   }
 
   function extractRdoWorkName_(raw) {
-    const text = clean(raw).replace(/[,;]\s*mas\s+n[aã]o\s+salve[.!?]*\s*$/i, "");
+    const text = clean(raw).replace(/[,;]\s*mas\s+n[aã]o\s+salve[.!?]*\s*$/i, "")
+      .replace(/\s+(?:no\s+per[ií]odo\s+de|na\s+data\s+de|com\s+\d+\s+registros?|(?:\d+|cinco|dez|vinte)\s+registros?)\b[\s\S]*$/i, "").replace(/[,;]+$/, "");
     if (!text) return "";
     const explicitObra = text.match(/\b(?:para\s+a|da|na|no|em)\s+(obra\s+.+?)(?:\s+(?:para|em)\s+(?:hoje|ontem)\b|\s+de\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b|[.!?](?:\s|$)|$)/i);
     if (explicitObra) return clean(explicitObra[1]).replace(/^\s*["“']|["”']\s*$/g, "");
@@ -1230,7 +1232,8 @@
   function parseRdoOperationalData_(raw) {
     const data = {};
     const text = clean(raw);
-    const team = rdoOperationalSection_(text, "equipe(?: presente)?");
+    const naturalTeam = (text.match(/\b(?:trabalharam|presentes|compareceram)\s+(.+?)(?=\s*,?\s*das?\s+\d|[.;]|$)/i) || [])[1];
+    const team = rdoOperationalSection_(text, "equipe(?: presente)?") || clean(naturalTeam).replace(/,\s*com\s+/gi, ", ").replace(/[,;]+$/, "");
     if (team) {
       const roles = team.split(/\s*[,;]\s*|\s+e\s+(?=\d+\s+)/i).map(function (entry) { return entry.match(/^(\d+)\s+([a-zÀ-ÿ][^.;]*)$/i); });
       if (roles.every(function (role) { return role && Number.isSafeInteger(Number(role[1])) && Number(role[1]) > 0; })) {
@@ -1239,18 +1242,20 @@
       }
       data.teamPresent = team;
     }
-    const schedule = rdoOperationalSection_(text, "hor[aá]rios?|jornada");
+    const schedule = rdoOperationalSection_(text, "hor[aá]rios?|jornada") || text;
     const range = schedule.match(/(?:^|\b(?:das?|de)\s+)(\d{1,2}(?:h|:)(?:\d{2})?)\s*(?:[àa]s?|at[eé]|[-–])\s*(\d{1,2}(?:h|:)(?:\d{2})?)/i);
     if (range) {
       const start = rdoOperationalTime_(range[1]);
       const end = rdoOperationalTime_(range[2]);
       if (start && end) { data.startTime = start; data.endTime = end; }
     }
-    const weather = rdoOperationalSection_(text, "clima|tempo");
+    const exit = text.match(/\b(?:hor[aá]rio\s+de\s+)?sa[ií]da\s+[àa]s?\s+(\d{1,2}(?:h|:)(?:\d{2})?)/i);
+    if (exit && rdoOperationalTime_(exit[1])) data.endTime = rdoOperationalTime_(exit[1]);
+    const weather = rdoOperationalSection_(text, "clima|tempo") || clean((text.match(/\b(?:fez|tempo\s+ficou)\s+(sol|chuva|nublado|ensolarado|chuvoso|seco|frio|calor)\b/i) || [])[1]);
     if (weather) data.weather = weather;
     const responsible = rdoOperationalSection_(text, "respons[aá]vel");
     if (responsible) data.responsible = responsible;
-    const service = rdoOperationalSection_(text, "servi[cç]os?(?: executados?)?|produ[cç][aã]o");
+    const service = rdoOperationalSection_(text, "servi[cç]os?(?: executados?)?|produ[cç][aã]o") || clean((text.match(/\b(?:executamos|fizemos|produzimos|realizamos)\s+([^.;]+)/i) || [])[1]);
     if (service) {
       const productions = [...service.matchAll(/(?<![-+\d.,])\b(\d+(?:[,.]\d+)?)\s*(m²|m2|m³|m3|kg|unidades?|un|m)\s+(?:de\s+)?([^.;]+?)(?=[.;]|$)/gi)].map(function (match) {
         return { service: clean(match[3]), quantity: rdoQuantity_(match[1]), unit: clean(match[2]).replace(/^m2$/i, "m²").replace(/^m3$/i, "m³") };
@@ -1260,7 +1265,7 @@
         data.services = productions.map(function (item) { return item.service; }).join("; ");
       } else data.services = service;
     }
-    const received = rdoOperationalSection_(text, "materia(?:l|is)(?: recebidos?)?") || (text.match(/\b(?:chegaram|recebemos|recebido)\s+(.+)/i) || [])[1] || "";
+    const received = rdoOperationalSection_(text, "materia(?:l|is)(?: recebidos?)?") || (text.match(/\b(?:chegaram|recebemos|recebido|foram)\s+(.+)/i) || [])[1] || "";
     const materials = [];
     for (const match of received.matchAll(/(?<![-+\d.,])\b(\d+(?:[,.]\d+)?)\s+(sacos?|kg|toneladas?|unidades?|un|m³|m3|litros?)\s+de\s+(.+?)(?=\s+[àa]s?\s+\d|\s*,?\s*n[aã]o\s+\d|[.;]|$)/gi)) {
       const quantity = rdoQuantity_(match[1]);
@@ -1272,10 +1277,10 @@
       materials.push(material);
     }
     if (materials.length) data.materials = materials;
-    const occurrences = rdoOperationalSection_(text, "intercorr[eê]ncias?|ocorr[eê]ncias?");
+    const occurrences = rdoOperationalSection_(text, "intercorr[eê]ncias?|ocorr[eê]ncias?") || clean((text.match(/\b((?:parou|paralisou|paralisa[cç][aã]o|interrompemos)\s+[^.;]+)/i) || [])[1]);
     if (occurrences) data.occurrences = occurrences.replace(/\b\d{1,2}h(?:\d{2})?\b/gi, function (time) { return rdoOperationalTime_(time) || time; });
     const observations = rdoOperationalSection_(text, "observa[cç][aã]o|observa[cç][oõ]es");
-    const marker = text.match(/\bPILOTO_[A-Z0-9_]+\b/i);
+    const marker = text.match(/\bPILOTO_[A-Z0-9_-]+\b/i);
     const notes = [observations, marker && marker[0]].filter(Boolean);
     if (notes.length) data.generalNotes = notes.join("\n");
     return data;
@@ -1327,7 +1332,27 @@
     if (!parsed.rdoId && idMatch) parsed.rdoId = clean(idMatch[1]);
     if (!parsed.targetDate && /\bhoje\b/.test(text)) parsed.targetDate = isoDate(nowDate);
     if (!parsed.targetDate && /\bontem\b/.test(text)) parsed.targetDate = isoDate(addDays(nowDate, -1));
+    if (!parsed.targetDate && /\banteontem\b/.test(text)) parsed.targetDate = isoDate(addDays(nowDate, -2));
+    const weekday = text.match(/\b(?:ultim[oa]|passad[oa])\s+(domingo|segunda|terca|quarta|quinta|sexta|sabado)(?:-feira)?\b/);
+    if (!parsed.targetDate && weekday) {
+      const day = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"].indexOf(weekday[1]);
+      parsed.targetDate = isoDate(addDays(nowDate, -((nowDate.getUTCDay() - day + 7) % 7 || 7)));
+    }
     if (!parsed.targetDate) parsed.targetDate = parseIsoDateOnly(raw);
+    const dates = raw.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})\b/g) || [];
+    if (dates.length === 2 && /\b(?:periodo|entre)\b/.test(text)) {
+      parsed.startDate = parseIsoDateOnly(dates[0]); parsed.endDate = parseIsoDateOnly(dates[1]); parsed.targetDate = "";
+    }
+    if (/\bmes\s+(?:anterior|passado)\b/.test(text)) {
+      const first = new Date(Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), 1, 12));
+      parsed.endDate = isoDate(addDays(first, -1));
+      parsed.startDate = isoDate(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() - 1, 1, 12)));
+      parsed.targetDate = "";
+    }
+    const pageSize = text.match(/\b(\d+|um|dois|tres|quatro|cinco|seis|sete|oito|nove|dez|vinte)\s+registros?\s+por\s+pagina\b/);
+    if (pageSize) parsed.limit = Math.min(100, Number(pageSize[1]) || NUMBER_WORDS[pageSize[1]] || 0);
+    parsed.nextPage = /\b(?:proxima|seguinte)\s+pagina\b/.test(text);
+    parsed.latest = /\b(?:ultimo|mais\s+recente)\b/.test(text);
     if (parsed.action === "rdo.update.preview") {
       const update = parseRdoUpdate_(raw, payload);
       parsed.changes = update.changes;
@@ -1364,9 +1389,18 @@
     return getRdoEndpoint("/api/obrareport/rdos") + (params.length ? "?" + params.join("&") : "");
   }
 
+  function fetchRdoWithTimeout_(url, options) {
+    if (typeof window.setTimeout !== "function") return window.fetch(url, options);
+    const controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
+    let timer;
+    const timeout = new Promise(function (_, reject) { timer = window.setTimeout(function () { if (controller) controller.abort(); reject(new Error("rdo_query_timeout")); }, 12000); });
+    const request = window.fetch(url, Object.assign({}, options, controller ? { signal: controller.signal } : {}));
+    return Promise.race([request, timeout]).finally(function () { window.clearTimeout(timer); });
+  }
+
   function fetchRdos(input, intent) {
     if (typeof window.fetch !== "function") return Promise.reject(new Error("rdo_fetch_unavailable"));
-    return window.fetch(rdoApiPath(input, intent), { method: "GET", headers: rdoHeaders(input) }).then(function (response) {
+    return fetchRdoWithTimeout_(rdoApiPath(input, intent), { method: "GET", headers: rdoHeaders(input) }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false) {
           const error = new Error(clean(data.error) || "rdo_api_error");
@@ -1374,13 +1408,14 @@
           error.data = data;
           throw error;
         }
-        return Array.isArray(data.rdos) ? data.rdos : [];
+        if (!Array.isArray(data.rdos)) throw new Error("rdo_invalid_list_response");
+        return data.rdos;
       });
     });
   }
 
   function fetchRdoById_(input, id) {
-    return window.fetch(getRdoEndpoint("/api/obrareport/rdos/" + encodeURIComponent(id)), { method: "GET", headers: rdoHeaders(input) }).then(function (response) {
+    return fetchRdoWithTimeout_(getRdoEndpoint("/api/obrareport/rdos/" + encodeURIComponent(id)), { method: "GET", headers: rdoHeaders(input) }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok || data.ok === false || !data.rdo || clean(data.rdo.id) !== clean(id)) throw new Error(clean(data.error) || "rdo_not_found");
         return data.rdo;
@@ -1438,7 +1473,7 @@
       if (byDate.length > 1) throw Object.assign(new Error("rdo_ambiguous"), { status: 409, rdos: byDate });
       return byDate[0];
     }
-    if (candidates.length > 1 && !/\bultimo\b/.test(normalize(intent.raw))) throw Object.assign(new Error("rdo_ambiguous"), { status: 409, rdos: candidates.slice(0, 5) });
+    if (candidates.length > 1 && !intent.latest && !/\bultimo\b/.test(normalize(intent.raw))) throw Object.assign(new Error("rdo_ambiguous"), { status: 409, rdos: candidates.slice(0, 5) });
     if (!candidates.length) throw Object.assign(new Error("rdo_not_found"), { status: 404 });
     return candidates[0];
   }
@@ -1504,8 +1539,11 @@
   function executeRdoList(input, intent) {
     return fetchRdos(input, intent).then(function (rdos) {
       const filtered = sortRdosByDateDesc(filterRdosByPeriod(rdos, intent));
-      const limited = intent.limit > 0 ? filtered.slice(0, intent.limit) : filtered;
-      return rdoResult(input, { action: "rdo.list", mode: "read", humanAnswer: formatRdoList(limited), data: { rdos: limited.map(summarizeRdo), total: filtered.length } });
+      const offset = intent.offset || 0;
+      const limited = intent.limit > 0 ? filtered.slice(offset, offset + intent.limit) : filtered;
+      const identity = getRdoIdentity(input);
+      window.localStorage.setItem(RDO_LIST_CONTEXT_KEY, JSON.stringify({ createdAt: Date.now(), tenantBinding: tenantBinding(identity), projectId: intent.projectId || identity.projectId, startDate: intent.startDate, endDate: intent.endDate, limit: intent.limit, offset }));
+      return rdoResult(input, { action: "rdo.list", mode: "read", humanAnswer: formatRdoList(limited), data: { rdos: limited.map(summarizeRdo), total: filtered.length, offset, limit: intent.limit } });
     });
   }
 
@@ -1699,10 +1737,12 @@
     if (!works.length) return { ok: false, reason: "no_works", works };
     const requestedName = clean(intent.workName || input && input.payload && (input.payload.workName || input.payload.work_name));
     if (requestedName) {
-      const normalized = normalize(requestedName);
-      const matches = works.filter(function (work) {
-        const name = normalize(work.name);
-        return name === normalized || name.indexOf(normalized) >= 0 || normalized.indexOf(name) >= 0;
+      const key = function (name) { return normalize(name).replace(/^(?:obra\s+)+/, ""); };
+      const normalized = key(requestedName);
+      const exact = works.filter(function (work) { return key(work.name) === normalized; });
+      const matches = exact.length ? exact : works.filter(function (work) {
+        const name = key(work.name);
+        return normalized && (name.indexOf(normalized) >= 0 || normalized.indexOf(name) >= 0);
       });
       if (matches.length === 1) return { ok: true, source: "stock_full_api", works, work: matches[0] };
       return { ok: false, reason: matches.length > 1 ? "ambiguous_work" : "work_not_found", works, requestedName };
@@ -1787,14 +1827,25 @@
     return Number.isFinite(number) && number > 0 && number <= Number.MAX_SAFE_INTEGER ? number : NaN;
   }
 
-  function executeRdoOperationalRevision_(input, intent) {
+  async function executeRdoOperationalRevision_(input, intent) {
     const pending = readRdoPending();
     if (!intent.previewContinuation || intent.previewContinuation.field !== "operational" || !matchesRdoPreviewContinuation_(input, intent, pending)) return Promise.resolve(blockRdoPreviewContinuation_(input));
     const patch = intent.rdoData;
     const data = pending.draft.rdoData;
     const text = normalize(intent.raw);
-    const editing = /^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar)\b/.test(text);
-    const correctingMaterial = editing && /\b(?:corrija|corrigir|corrige|ajuste|ajustar)\b/.test(text) && /\b(?:material|materiais|sacos?|cimento|recebimento|chegaram)\b/.test(text);
+    const editing = /^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar|troque|trocar|mude|mudar|altere|alterar)\b/.test(text);
+    const materialCorrection = /^(?:foram|recebemos|chegaram)\s+\d/.test(text) && /\bnao\s+\d/.test(text);
+    const workChange = editing && /\bobra\s+para\s+(.+)/i.exec(intent.raw);
+    if (workChange) {
+      await fetchRdoCanonicalWorks_(input);
+      const selection = resolveRdoWorkSelection_(input, { workName: clean(workChange[1]).replace(/[.!?]+$/, "") });
+      if (!selection.ok) return rdoResult(input, { ok: false, action: "rdo.create.revise", mode: "blocked", humanAnswer: "Não identifiquei uma única obra autorizada. A prévia anterior foi preservada.", error: selection.reason });
+      const work = selection.work;
+      Object.assign(pending.draft, { projectId: work.id, workId: work.id, projectName: work.name, clientId: work.clientId || "" });
+      Object.assign(data, { projectId: work.id, workId: work.id, projectName: work.name });
+    }
+    if (editing && /\bdata\b/.test(text) && intent.targetDate) { pending.draft.rdoDate = intent.targetDate; pending.targetDate = intent.targetDate; data.date = intent.targetDate; }
+    const correctingMaterial = materialCorrection || editing && /\b(?:corrija|corrigir|corrige|ajuste|ajustar)\b/.test(text) && /\b(?:material|materiais|sacos?|cimento|recebimento|chegaram)\b/.test(text);
     if (correctingMaterial) {
       const correction = patch.materials && patch.materials.length === 1 ? patch.materials[0] : null;
       const matches = correction && Array.isArray(data.materials) ? data.materials.filter(function (item) {
@@ -1979,6 +2030,9 @@
           error.data = data;
           throw error;
         }
+        if (!data.rdo || !clean(data.rdo.id)) throw new Error("rdo_create_unverified_response");
+        const record = data.rdo;
+        if (record.project_id && clean(record.project_id) !== payload.projectId || record.rdo_date && clean(record.rdo_date) !== payload.rdoDate) throw new Error("rdo_create_scope_mismatch");
         return data;
       });
     });
@@ -1995,6 +2049,17 @@
     pending.status = "saving";
     saveRdoPending(pending);
     return postRdoJson(input, pending).then(function (data) {
+      return fetchRdoById_(input, data.rdo.id).then(function (record) {
+        const comparable = function (value) {
+          if (Array.isArray(value)) return value.map(comparable);
+          if (value && typeof value === "object") return Object.keys(value).sort().reduce(function (result, key) { result[key] = comparable(value[key]); return result; }, {});
+          return value;
+        };
+        const expected = Object.assign({}, pending.draft.rdoData, { date: pending.draft.rdoDate, operationId: pending.operationId });
+        if (clean(record.project_id || record.projectId) !== pending.draft.projectId || rdoDate(record) !== pending.draft.rdoDate || clean(record.institution_id || record.institutionId) !== identity.institutionId || JSON.stringify(comparable(rdoData(record))) !== JSON.stringify(comparable(expected))) throw new Error("rdo_persistence_payload_mismatch");
+        return { rdo: record };
+      });
+    }).then(function (data) {
       pending.status = "saved";
       pending.rdo = data && data.rdo || null;
       pending.savedAt = new Date().toISOString();
@@ -2006,7 +2071,7 @@
       pending.status = "pending";
       pending.error = clean(error && error.message);
       saveRdoPending(pending);
-      return rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "error", humanAnswer: "Não criei o RDO porque o backend retornou: " + (clean(error.message) || "erro ao confirmar") + ".", error: clean(error.message), data: { pending } });
+      return rdoResult(input, { ok: false, action: "rdo.create.execute", mode: "error", humanAnswer: "Não consegui confirmar o resultado do salvamento: " + (clean(error.message) || "erro ao confirmar") + ". Consulte o histórico antes de repetir. A gravação pode ter ocorrido.", error: clean(error.message), data: { pending } });
     });
   }
 
@@ -2098,6 +2163,14 @@
         const work = resolveRdoWorkSelection_(input, intent);
         if (!work.ok) return rdoResult(input, { ok: false, action: intent.action, mode: "blocked", humanAnswer: "Não identifiquei uma única obra cadastrada para esse RDO.", error: work.reason });
         intent.projectId = work.work.id;
+      }
+      if (intent.action === "rdo.list") {
+        let previousList;
+        try { previousList = JSON.parse(window.localStorage.getItem(RDO_LIST_CONTEXT_KEY) || "null"); } catch (_) {}
+        if (!rdoPendingExpired_(previousList) && sameTenantBinding(input, previousList) && (intent.nextPage || /\b(?:nesta|nessa|mesma)\s+obra\b/.test(normalize(intent.raw)))) {
+          if (!intent.projectId) intent.projectId = previousList.projectId;
+          if (intent.nextPage) { intent.startDate = previousList.startDate; intent.endDate = previousList.endDate; intent.limit = previousList.limit || 10; intent.offset = (previousList.offset || 0) + intent.limit; }
+        }
       }
       if (intent.invalidPeriod) return rdoResult(input, { ok: false, action: intent.action || "rdo.blocked", mode: "blocked", humanAnswer: "Período inválido: a data inicial é posterior à data final.", error: "invalid_period" });
       const run = intent.action === "rdo.confirm" ? executeRdoConfirm : intent.action === "rdo.cancel" ? executeRdoCancel : intent.action === "rdo.get" ? executeRdoGet : intent.action === "rdo.generateDocument" ? executeRdoGenerateDocument : intent.action === "rdo.problemsByPeriod" ? executeRdoProblemsByPeriod : intent.action === "rdo.create.preview" ? executeRdoCreatePreview : intent.action === "rdo.update.preview" ? executeRdoUpdatePreview : executeRdoList;

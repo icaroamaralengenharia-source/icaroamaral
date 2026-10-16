@@ -35,4 +35,3 @@ Cada caso salva JSON individual com entrada, saída, timestamps, duração, cham
 Os resultados locais não devem ser apresentados como E2E Supabase cloud. O gate comercial permanece parcial enquanto os requisitos de homologação de fornecedor, os 100 casos e os demais gates não estiverem comprovados.
 
 Não executar o runner contra URLs de produção. Ele usa somente os endereços locais constantes, dados sintéticos e credenciais locais geradas.
-

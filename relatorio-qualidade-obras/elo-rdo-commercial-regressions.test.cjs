@@ -13,8 +13,9 @@ function runtime(options={}){
  const window={location:{hostname:"audit.test",protocol:"https:"},ELO_API_BASE_URL:"https://backend.test",
  localStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,String(v)),removeItem:k=>values.delete(k)},sessionStorage:{getItem:()=>null,removeItem(){}},
  EloCanonicalSession:{getSession:async()=>({ok:true,accessToken:"synthetic-unit-only",authContext:identity}),getValidAccessToken:async()=>"synthetic-unit-only"},
- fetch:async(url,init={})=>{calls.push({url:String(url),method:init.method||"GET"});assert.equal(init.method||"GET","GET");if(String(url).endsWith("/api/stock-full/works"))return{ok:true,status:200,json:async()=>({ok:true,works:[{id:"audit-unit-canonical-work",name:"OBRA QA REGRESSAO",institutionId:identity.institutionId}]})};assert.match(String(url),/\/api\/obrareport\/rdos/);return{ok:true,status:200,json:async()=>({ok:true,rdos:options.rdos||[]})};}};
+ fetch:async(url,init={})=>{calls.push({url:String(url),method:init.method||"GET"});if(options.respond)return options.respond(url,init);assert.equal(init.method||"GET","GET");if(String(url).endsWith("/api/stock-full/works"))return{ok:true,status:200,json:async()=>({ok:true,works:[{id:"audit-unit-canonical-work",name:"OBRA QA REGRESSAO",institutionId:identity.institutionId}]})};assert.match(String(url),/\/api\/obrareport\/rdos/);return{ok:true,status:200,json:async()=>({ok:true,rdos:options.rdos||[]})};}};
  window.window=window;
+ if(options.timers){window.setTimeout=(fn)=>setTimeout(fn,1);window.clearTimeout=clearTimeout;}
  const context=vm.createContext({window,console,URL,URLSearchParams,Blob});
  const file="relatorio-qualidade-obras/elo-command-bridge.js";
  const source=process.env.RDO_AUDIT_BASELINE_REF?execFileSync("git",["show",process.env.RDO_AUDIT_BASELINE_REF+":"+file],{cwd:root,encoding:"utf8"}):fs.readFileSync(path.join(root,file),"utf8");
@@ -68,3 +69,52 @@ test("AUDIT-003 persisted incomplete data has no invented operational values",as
  assert.match(response.humanAnswer,/EQUIPE: Não informado/);assert.match(response.humanAnswer,/MATERIAIS: Não informado/);assert.ok(env.calls.every(c=>c.method==="GET"));
 });
 
+
+for(const [word,expected]of[["anteontem","2026-10-13"],["última segunda-feira","2026-10-12"],["última terça-feira","2026-10-13"],["último domingo","2026-10-11"]])test("AUDIT-006 calendar reference "+word,()=>{assert.equal(runtime().api.parseIntent({payload:{message:"Mostre o RDO de "+word,now:"2026-10-16T01:00:00Z"}}).targetDate,expected);});
+test("AUDIT-006 calendar range and previous month",()=>{
+ let p=runtime().api.parseIntent({payload:{message:"Liste RDOs no período de 01/10/2026 a 03/10/2026",now:"2026-10-16T01:00:00Z"}});assert.equal(p.startDate,"2026-10-01");assert.equal(p.endDate,"2026-10-03");assert.equal(p.targetDate,"");
+ p=runtime().api.parseIntent({payload:{message:"RDOs do mês anterior",now:"2026-01-16T01:00:00Z"}});assert.equal(p.startDate,"2025-12-01");assert.equal(p.endDate,"2025-12-31");
+});
+test("AUDIT-006 page size supports numeric and written values",()=>{for(const value of ["7","sete"])assert.equal(runtime().api.parseIntent({payload:{message:"RDOs, "+value+" registros por página"}}).limit,7);});
+test("AUDIT-006 most recent selects one actual persisted record",async()=>{
+ const env=runtime({rdos:[{id:"rdo_previous",rdo_date:"2026-10-14",rdo_data_json:{}},{id:"rdo_newest",rdo_date:"2026-10-15",rdo_data_json:{}}]});const r=await env.api.execute({context:env.identity,action:"rdo.get",payload:{message:"Abra o RDO mais recente"}});assert.equal(r.data.rdo.id,"rdo_newest");
+});
+for(const name of ["QA REGRESSAO","OBRA QA REGRESSAO"])test("AUDIT-004 partial and exact authorized work "+name,async()=>{const env=runtime();await env.api.execute({context:env.identity,action:"preview_new_rdo",payload:{message:"Prepare um RDO de 15/10/2026 para a obra "+name+", mas não salve."}});assert.equal(env.api.readPending().draft.projectId,"audit-unit-canonical-work");});
+test("AUDIT-005 bound date revision changes no other field",async()=>{
+ const env=runtime();await env.api.execute({context:env.identity,action:"preview_new_rdo",payload:{message:"RDO de 15/10/2026 para a OBRA QA REGRESSAO. Equipe: 3 armadores. Clima: chuva."}});
+ const before=plain(env.api.readPending());await env.api.execute({context:env.identity,action:"rdo.create.revise",payload:{message:"Ajuste apenas a data para 13/10/2026.",rdoPreviewContinuation:{field:"operational",operationId:before.operationId,createdAt:before.createdAt}}});
+ const after=plain(env.api.readPending()),expected=plain(before);expected.draft.rdoDate="2026-10-13";expected.targetDate="2026-10-13";expected.draft.rdoData.date="2026-10-13";assert.deepEqual(after,expected);
+});
+test("AUDIT-005 declarative receipt correction preserves arrival time and team",async()=>{
+ const env=runtime();await env.api.execute({context:env.identity,action:"preview_new_rdo",payload:{message:"RDO de 15/10/2026 para a OBRA QA REGRESSAO. Equipe: 3 armadores. Material recebido: 19 sacos de argamassa às 9h."}});
+ const before=plain(env.api.readPending());await env.api.execute({context:env.identity,action:"rdo.create.revise",payload:{message:"Foram 16 sacos de argamassa, não 19.",rdoPreviewContinuation:{field:"operational",operationId:before.operationId,createdAt:before.createdAt}}});
+ const after=plain(env.api.readPending()),expected=plain(before);expected.draft.rdoData.materials[0].quantity=16;assert.deepEqual(after,expected);
+});
+test("AUDIT-005 explicit exit time extraction",()=>{assert.equal(runtime().api.parseIntent({payload:{message:"Inclua o horário de saída às 18h15."}}).rdoData.endTime,"18:15");});
+test("AUDIT-009 informal fields preserve facts and marker",()=>{
+ const d=runtime().api.parseIntent({payload:{message:"Trabalharam 3 pintores e 2 ajudantes, com 1 encarregado, das 7h30 às 16h45. Fez chuva. Fizemos 25 m² de pintura. Chegaram 12 kg de argamassa às 9h. Parou das 13h às 13h15 por chuva. PILOTO_QA_variant-007"}}).rdoData;
+ assert.equal(d.employeeCount,"6");assert.equal(d.startTime,"07:30");assert.equal(d.endTime,"16:45");assert.equal(d.weather,"chuva");assert.equal(d.productions[0].quantity,25);assert.equal(d.materials[0].quantity,12);assert.match(d.occurrences,/13:15/);assert.equal(d.generalNotes,"PILOTO_QA_variant-007");
+});
+test("AUDIT-008 invalid list response is an explicit error",async()=>{const env=runtime({respond:async()=>({ok:true,status:200,json:async()=>({ok:true})})});const r=await env.api.execute({context:env.identity,action:"rdo.list",payload:{message:"Liste RDOs"}});assert.equal(r.ok,false);assert.equal(r.error,"rdo_invalid_list_response");});
+test("AUDIT-008 stalled list has a bounded query timeout",async()=>{const env=runtime({timers:true,respond:()=>new Promise(()=>{})});const r=await env.api.execute({context:env.identity,action:"rdo.list",payload:{message:"Liste RDOs"}});assert.equal(r.ok,false);assert.equal(r.error,"rdo_query_timeout");});
+test("AUDIT-007 HTTP 201 without record never claims creation",async()=>{
+ const env=runtime({respond:async(url,init)=>({ok:true,status:init.method==="POST"?201:200,json:async()=>String(url).includes("stock-full/works")?{ok:true,works:[{id:"audit-unit-canonical-work",name:"OBRA QA REGRESSAO",institutionId:"audit-unit-tenant"}]}:{ok:true}})});
+ await env.api.execute({context:env.identity,action:"preview_new_rdo",payload:{message:"RDO de 15/10/2026 para a OBRA QA REGRESSAO."}});
+ const r=await env.api.execute({context:env.identity,action:"rdo_confirm",payload:{message:"sim"}});assert.equal(r.ok,false);assert.doesNotMatch(r.humanAnswer,/RDO criado pelo ELO/);assert.match(r.humanAnswer,/pode ter ocorrido/);assert.equal(env.api.readPending().status,"pending");
+});
+
+for(const mode of ["valid","missing","mismatch"])test("AUDIT-007 authenticated persistence readback "+mode,async()=>{
+ let saved;
+ const env=runtime({respond:async(url,init)=>{
+  if(String(url).endsWith("stock-full/works"))return{ok:true,status:200,json:async()=>({ok:true,works:[{id:"audit-unit-canonical-work",name:"OBRA QA REGRESSAO",institutionId:"audit-unit-tenant"}]})};
+  if(init.method==="POST"){const body=JSON.parse(init.body);saved={id:"rdo_persistence",institution_id:"audit-unit-tenant",project_id:body.projectId,rdo_date:body.rdoDate,rdo_data_json:body.rdoData};return{ok:true,status:201,json:async()=>({ok:true,rdo:saved})};}
+  if(mode==="missing")return{ok:false,status:404,json:async()=>({ok:false,error:"rdo_not_found"})};
+  const record=plain(saved);if(mode==="mismatch")record.rdo_data_json.employeeCount="99";
+  return{ok:true,status:200,json:async()=>({ok:true,rdo:record})};
+ }});
+ await env.api.execute({context:env.identity,action:"preview_new_rdo",payload:{message:"RDO de 15/10/2026 para a OBRA QA REGRESSAO. Equipe: 2 armadores."}});
+ const answer=await env.api.execute({context:env.identity,action:"rdo_confirm",payload:{message:"sim"}});
+ assert.equal(answer.ok,mode==="valid");assert.equal(env.api.readPending().status,mode==="valid"?"saved":"pending");
+ assert.ok(env.calls.some(c=>c.method==="GET"&&c.url.endsWith("/rdo_persistence")));
+ if(mode!=="valid")assert.doesNotMatch(answer.humanAnswer,/RDO criado pelo ELO/);
+});

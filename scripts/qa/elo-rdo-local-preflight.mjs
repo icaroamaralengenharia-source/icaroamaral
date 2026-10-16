@@ -36,4 +36,3 @@ try{
  const result={classification:"LOCAL_INTEGRATION_NOT_SUPABASE_CLOUD",checks,authenticatedUi:true,preview,rdosAfter:query("select id from obrareport_rdos").length,externalNetworkBlocked:true,productionWrites:0};
  fs.writeFileSync(path.join(qaDir,"local-preflight.json"),JSON.stringify(result,null,2));console.log(JSON.stringify({preflight:"PASS",checks,authenticatedUi:true,rdos:result.rdosAfter,productionWrites:0}));
 }catch(e){console.error(sanitize(e.stack||e.message));process.exitCode=1;}finally{await browser?.close();}
-

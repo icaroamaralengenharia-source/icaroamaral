@@ -921,9 +921,10 @@
     if (explicitOnly && !hasRdoTerm) return null;
     const wantsUpdate = hasRdoTerm && /\b(?:atualize|atualizar|adicione|adicionar|inclua|incluir|registre|registrar|acrescente|acrescentar|corrija|corrigir|ajuste|ajustar)\b/.test(text);
     const wantsPdf = hasRdoTerm && !wantsUpdate && /\b(?:pdf|documento|arquivo|baixar|baixe|exporte|exportar)\b/.test(text);
-    const wantsCreate = hasRdoTerm && !wantsPdf && !wantsUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|fazer|prepare|preparar|monte|montar)\b/.test(text);
-    const wantsList = hasRdoTerm && !wantsUpdate && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|recentes|existem|cadastrados|registrados)\b/.test(text));
-    const wantsGet = hasRdoTerm && !wantsUpdate && !wantsList && !wantsCreate && !wantsPdf && /\b(?:abra|abrir|mostre|mostrar|ultimo|ontem|hoje|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text);
+    const wantsCreate = hasRdoTerm && !wantsPdf && !wantsUpdate && /\b(?:crie|criar|cadastre|cadastrar|novo|nova|faca|fazer|prepare|preparar|monte|montar|monta)\b/.test(text);
+    const wantsList = hasRdoTerm && !wantsUpdate && (/\b(?:quais|liste|listar|lista|mostre|mostrar|consulte|consultar|ver|veja)\b/.test(text) || /\b(?:ultimos|recentes|existem|cadastrados|registrados|proxima\s+pagina|pagina\s+seguinte)\b/.test(text));
+    const singularRead = hasRdoTerm && /\brdo\b/.test(text) && /\b(?:abra|abrir|mostre|mostrar|ultimo|mais\s+recente|ontem|anteontem|hoje|ultima\s+(?:segunda|terca|quarta|quinta|sexta|sabado|domingo)|dia\s+\d{1,2}|\d{1,2}\/\d{1,2})\b/.test(text);
+    const wantsGet = singularRead && !wantsUpdate && !wantsCreate && !wantsPdf;
     const wantsProblems = /\b(?:problemas?|ocorrencias?|pendencias?)\b/.test(text) && /\b(?:repet\w*|recorrent\w*|frequenc\w*|frequentes?)\b/.test(text);
     const wantsClose = hasRdoTerm && !wantsUpdate && !wantsPdf && /\b(?:feche|fechar)\b/.test(text);
     if (!(wantsProblems || wantsUpdate || wantsPdf || wantsCreate || wantsList || wantsGet || wantsClose)) return null;
@@ -945,15 +946,16 @@
     if (isEloExplicitMemoryCommand_(raw)) {
       return { module: "memory", action: "save_explicit_memory", payload: payload };
     }
-    const explicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, payload, true);
+    const rdoPayload = { message: sanitizeEloUserMessage_(message || "") };
+    const explicitRdoRequest = detectEloRdoCommandBridgeRequest_(text, rdoPayload, true);
     // A new explicit create starts with its own data. Revision language belongs
     // to the bound unsaved draft, before generic RDO list/update/report routing.
     if (explicitRdoRequest && explicitRdoRequest.action === "preview_new_rdo") return explicitRdoRequest;
     const pendingCreatePreview = pendingRdo && (pendingRdo.action === "rdo.create.execute" && pendingRdo.status === "pending" || pendingRdo.action === "rdo.create.preview" && pendingRdo.status === "awaiting_work");
-    const previewReview = /^(?:(?:mostre|mostrar|exiba|ver|veja)\s+(?:a\s+)?previa\b|quais\s+(?:os\s+)?campos\b|faltou\s+(?:mostrar|incluir)\b|nao\s+salve\s+ainda\b)/.test(text);
-    const operationalChange = /^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar)\b/.test(text) && /\b(?:equipe|horarios?|jornada|clima|servicos?|producao|materia(?:l|is)|sacos?|cimento|intercorrencias?|ocorrencias?|observacoes|recebimento|chegaram)\b/.test(text);
+    const previewReview = /^(?:(?:mostre|mostrar|exiba|ver|veja)\s+(?:novamente\s+)?(?:a\s+)?previa\b|quais\s+(?:os\s+)?campos\b|faltou\s+(?:mostrar|incluir)\b|nao\s+salve\s+ainda\b)/.test(text);
+    const operationalChange = (/^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar|troque|trocar|mude|mudar|altere|alterar)\b/.test(text) && /\b(?:obra|data|equipe|horarios?|saida|jornada|clima|servicos?|producao|materia(?:l|is)|sacos?|cimento|intercorrencias?|ocorrencias?|observacoes|recebimento|chegaram)\b/.test(text)) || /^(?:foram|chegaram|recebemos)\s+\d[\s\S]*\bnao\s+\d/.test(text);
     if (pendingCreatePreview && (previewReview || operationalChange && !isEloExplicitStockProductCreateRequest_(text))) {
-      return { module: "obrareport_rdo", action: "rdo.create.revise", payload: Object.assign({}, payload, {
+      return { module: "obrareport_rdo", action: "rdo.create.revise", payload: Object.assign({}, rdoPayload, {
         rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
       }) };
     }
@@ -1135,6 +1137,7 @@
       sessionIntent: "elo_command_bridge",
       route: "elo_command_bridge",
       pdfAction: officialRdoPdf ? { type: "rdo_official_pdf", label: "Abrir PDF oficial", documentId: document.id, rdoId: rdo.id } : null,
+      rdoActions: bridgeResult.ok === true && bridgeResult.action === "rdo.list" && bridgeResult.data && Array.isArray(bridgeResult.data.rdos) ? bridgeResult.data.rdos.filter(function (entry) { return entry && /^[A-Za-z0-9_-]{1,200}$/.test(entry.id); }).map(function (entry) { return { id: entry.id, label: "Abrir RDO " + (entry.date || "") }; }) : [],
       commandBridge: bridgeResult
     };
   }
@@ -3510,7 +3513,7 @@
     window.ELO_SURFACE_CONTEXT = context;
     return context;
   }
-  function applyEloCoreAuthContext_(context) { if (!context || typeof context !== "object") return {}; const previousIdentity = getEloCoreAuthContextIdentity_(getEloCoreAuthContext_()); const safe = normalizeEloCoreAuthContext_(context); const nextIdentity = getEloCoreAuthContextIdentity_(safe); if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity && shouldEloCoreClearConversationOnIdentityChange_()) clearEloCoreLocalConversationState_(); window.ELO_AUTH_CONTEXT = safe; if (safe.userId) window.ELO_AUTH_USER_ID = safe.userId; try { window.sessionStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} return safe; }
+  function applyEloCoreAuthContext_(context) { if (!context || typeof context !== "object") return {}; const previousScope = normalizeEloCoreAuthContext_(getEloCoreAuthContext_()); const previousIdentity = getEloCoreAuthContextIdentity_(previousScope); const safe = normalizeEloCoreAuthContext_(context); const nextIdentity = getEloCoreAuthContextIdentity_(safe); if (previousScope.userId && safe.userId && ["userId", "institutionId", "companyId"].some(function (key) { return previousScope[key] !== safe[key]; })) clearEloRdoConversationState_(); if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity && shouldEloCoreClearConversationOnIdentityChange_()) clearEloCoreLocalConversationState_(); window.ELO_AUTH_CONTEXT = safe; if (safe.userId) window.ELO_AUTH_USER_ID = safe.userId; try { window.sessionStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} return safe; }
   function applyEloCoreAuthContextFromResponse_(data) { if (data && data.authContext) applyEloCoreAuthContext_(data.authContext); }
   function applyEloCoreSupabaseUserContext_(user) {
     if (!user || typeof user !== "object") return {};
@@ -4234,6 +4237,7 @@
     });
   }
   function clearEloCoreSupabaseSessionTokens_() {
+    clearEloRdoConversationState_();
     eloCoreAuthSessionGeneration += 1;
     window.ELO_AUTH_TOKEN = "";
     window.ELO_AUTH_SESSION_VALIDATED = false;
@@ -4258,6 +4262,7 @@
     try { storage.removeItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY); } catch (error) {}
   }
   function clearEloCoreSupabaseSession_() {
+    clearEloRdoConversationState_();
     eloCoreAuthSessionGeneration += 1;
     clearEloCoreLocalConversationState_();
     [window.localStorage, window.sessionStorage].filter(Boolean).forEach(clearEloCoreSupabaseStorageTokens_);
@@ -4527,7 +4532,11 @@
         return false;
       });
   }
-  function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
+  function clearEloRdoConversationState_() {
+    if (window.EloActionBusRdo && typeof window.EloActionBusRdo.clearPending === "function") window.EloActionBusRdo.clearPending();
+    try { window.localStorage.removeItem("elo_action_bus_rdo_context_v1"); window.localStorage.removeItem("elo_action_bus_rdo_list_context_v1"); } catch (_) {}
+  }
+  function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } clearEloRdoConversationState_(); stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
   function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
   function confirmClearEloCoreCurrentConversation_() { if (typeof window.confirm === "function" && !window.confirm("Limpar a conversa atual?")) return false; return clearEloCoreCurrentConversation_(); }
   function ensureEloCoreUtilityPanel_() {
@@ -30836,12 +30845,15 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function stripEloWakePrefixForRouting_(message) {
-    const clean = sanitizeUserText(message || "").replace(/\s+/g, " ").trim();
+    const pending = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
+    const rdoRevision = pending && pending.status === "pending" && /^(?:corrija|corrigir|ajuste|inclua|adicione|acrescente|troque|mude|altere|foram|recebemos|chegaram)\b/.test(normalizeText(message));
+    const preserveRdo = rdoRevision || /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(message));
+    const clean = (preserveRdo ? sanitizeEloUserMessage_(message || "") : sanitizeUserText(message || "")).replace(/\s+/g, " ").trim();
     const wake = readEloWakeAliasForRouting_(clean);
     const match = wake.matched && clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);
     const question = wake.matched ? match ? match[1] : wake.rest : clean;
     // RDO quantities and separate field clauses require their original punctuation.
-    if (/\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(question))) return question;
+    if (preserveRdo) return question;
     return normalizeEloRouteQuestionText_(question);
   }
 
@@ -34496,6 +34508,18 @@ function isEloResidentialNewPipelineEnabled_() {
       actions.appendChild(copyDiagnosticButton);
     }
 
+    (response && response.rdoActions || []).forEach(function (entry) {
+      if (!entry || !/^[A-Za-z0-9_-]{1,200}$/.test(entry.id)) return;
+      const button = createElement("button", "elo-inline-button", entry.label || "Abrir RDO");
+      button.type = "button";
+      button.setAttribute("data-elo-rdo-id", entry.id);
+      button.addEventListener("click", function () {
+        if (!ELO_UI.form || !ELO_UI.input) return;
+        ELO_UI.input.value = "Abra o RDO ID " + entry.id + ".";
+        ELO_UI.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+      actions.appendChild(button);
+    });
     const pdfAction = response && response.pdfAction;
     if (pdfAction && pdfAction.type !== "budget_v2_professional_pdf") {
       const pdfButton = createElement("button", "elo-inline-button", pdfAction.label || "Gerar PDF");

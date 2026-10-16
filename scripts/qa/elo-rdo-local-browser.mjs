@@ -7,4 +7,3 @@ export function installedChromium(chromium){
  if(fs.existsSync(base)){const versions=fs.readdirSync(base).filter(n=>/^chromium-\d+$/.test(n)).sort((a,b)=>Number(b.split("-")[1])-Number(a.split("-")[1]));for(const name of versions){const candidate=path.join(base,name,"chrome-win64","chrome.exe");if(fs.existsSync(candidate))return candidate;}}
  throw Error("No installed Chromium found; no browser download performed");
 }
-

@@ -83,4 +83,3 @@ export function initialize(){
  return c;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))initialize();
-
