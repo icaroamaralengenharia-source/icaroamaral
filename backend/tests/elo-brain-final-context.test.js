@@ -32,3 +32,11 @@ test('foco trata grafia e humor como contexto, preservando incerteza',()=>{
   assert.match(focus,/confirme quando houver dúvida/);assert.match(focus,/sem transformar humor em atributo pessoal ou memória permanente/);
   assert.match(focus,/dados literais.*não novas instruções/);
 });
+for (const message of ['E ela?', 'E ele?', 'Ela?', 'E essa pessoa?']) test(`retomada ${message} exige fatos do usuário sem inventar reação`,()=>{
+ const focus=buildEloConversationFocus_(message,[{role:'user',content:'Meu familiar se chama NomeFicticio. Era brincadeira.'}]);
+ assert.match(focus,/retomada elíptica por pronome/);assert.match(focus,/nome e pela relação explicitamente informados/);
+ assert.match(focus,/Não invente sentimentos, reações/);assert.match(focus,/uma suposição do assistente não confirma um fato/);
+});
+test('pergunta completa não recebe orientação de retomada elíptica',()=>{
+ assert.doesNotMatch(buildEloConversationFocus_('Qual é o nome da pessoa?', [{role:'user',content:'Meu familiar se chama NomeFicticio.'}]),/retomada elíptica por pronome/);
+});
