@@ -240,3 +240,5 @@ test("pending catalog response cannot resurrect cancelled conversation operation
 test("cancellation during already-sending confirmation never claims an undo",async()=>{
  const env=runtime();await env.ask(PREVIEW);const p=copy(env.pending());p.status="saving";env.localStorage.setItem("elo_action_bus_rdo_pending_v1",JSON.stringify(p));await env.ask(CANCEL_PUBLIC);assert.equal(env.pending().status,"saving");assert.match(env.answer(),/já está em andamento/);noWrites(env);
 });
+
+test("missing pending confirmation keeps established error contract and performs no write",async()=>{const env=runtime();const r=await env.window.EloActionBusRdo.execute({action:"rdo_confirm",payload:{message:"sim"}});assert.equal(r.error,"rdo_pending_missing");noWrites(env);});

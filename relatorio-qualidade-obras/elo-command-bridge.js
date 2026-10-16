@@ -2201,7 +2201,8 @@
       if (!auth.ok) return rdoAuthBlocked(input, auth);
       if (intent.action === "rdo.cancel") return executeRdoCancel(input, dispatchTarget);
       if (intent.action === "rdo.cancel.question" || intent.action === "rdo.hold") return executeRdoCancellationInfo_(input, intent.action);
-      if (intent.action === "rdo.confirm" && !sameRdoPendingTarget_(readRdoPending(), dispatchTarget)) return blockRdoPreviewContinuation_(input);
+      const currentConfirmation = intent.action === "rdo.confirm" ? readRdoPending() : null;
+      if (currentConfirmation && !sameRdoPendingTarget_(currentConfirmation, dispatchTarget)) return blockRdoPreviewContinuation_(input);
       if (/^rdo\.(?:create|update)\.(?:preview|revise)$/.test(intent.action) && dispatchEpoch !== rdoPendingEpoch) return blockRdoPreviewContinuation_(input);
       if (intent.action === "rdo.create.revise") return executeRdoOperationalRevision_(input, intent);
       if (intent.action === "rdo.create.preview" && intent.previewContinuation && !matchesRdoPreviewContinuation_(input, intent, readRdoPending())) return blockRdoPreviewContinuation_(input);
