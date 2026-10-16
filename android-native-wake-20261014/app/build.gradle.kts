@@ -67,7 +67,7 @@ val bundleCanonicalEloWeb by tasks.registering(Copy::class) {
             val bytes = rootProject.projectDir.parentFile.resolve(path).readBytes()
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
-        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v3", "sha256" to hashes)))
+        destinationDir.resolve("manifest.json").writeText(JsonOutput.toJson(mapOf("version" to "20261016-brain-final-v4", "sha256" to hashes)))
     }
 }
 tasks.named("preBuild").configure { dependsOn(bundleCanonicalEloWeb) }

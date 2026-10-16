@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v3";
+  const ELO_ASSISTENTE_BUILD_VERSION = "20261016-brain-final-v4";
   window.ELO_ASSISTENTE_BUILD_VERSION = ELO_ASSISTENTE_BUILD_VERSION;
 
   // ELO_CONFIG
@@ -22,7 +22,8 @@
     webSearchEnabled: false,
     webSearchEndpoint: "",
     webSearchRequiresConfirmation: true,
-    chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
+    // Native QA configuration is bound after page load; resolve at request time.
+    get chatEndpoint() { return getEloBackendEndpoint_("/api/elo/chat"); },
     criticalHealthEndpoint: getEloBackendEndpoint_("/api/health"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory"),
     budgetRecordsStorageKey: "elo_budget_records_v1",

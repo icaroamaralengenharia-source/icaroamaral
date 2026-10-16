@@ -14,3 +14,17 @@ test('Web QA sends only chat to exact configured inference service',()=>{
 test('Web does not trust arbitrary inference host or absent configuration',()=>{
  for(const value of ['',undefined,'https://untrusted.example','http://elo-brain-qa-v11-20261016.onrender.com'])assert.equal(resolve('/api/elo/chat',value),'https://obrareport-backend.onrender.com/api/elo/chat');
 });
+test('chat config follows native QA binding after initial page load',()=>{
+ const window={EloRuntimeConfig:{apiUrl:p=>'https://obrareport-backend.onrender.com'+p}};
+ const configStart=source.indexOf('const ELO_CONFIG = {');
+ const configEnd=source.indexOf('const ELO_ONLINE_HISTORY_MESSAGE_LIMIT',configStart);
+ const context=vm.createContext({window});
+ vm.runInContext(source.slice(start,end)+source.slice(configStart,configEnd),context);
+ const endpoint=()=>vm.runInContext('ELO_CONFIG.chatEndpoint',context);
+ assert.equal(endpoint(),'https://obrareport-backend.onrender.com/api/elo/chat');
+ window.ELO_INFERENCE_API_BASE_URL=qa;
+ assert.equal(endpoint(),qa+'/api/elo/chat');
+ assert.equal(vm.runInContext('ELO_CONFIG.vectorMemoryEndpoint',context),'https://obrareport-backend.onrender.com/api/elo/vector-memory');
+ window.ELO_INFERENCE_API_BASE_URL='https://untrusted.example';
+ assert.equal(endpoint(),'https://obrareport-backend.onrender.com/api/elo/chat');
+});
