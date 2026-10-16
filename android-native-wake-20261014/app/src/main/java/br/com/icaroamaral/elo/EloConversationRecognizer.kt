@@ -11,11 +11,11 @@ import android.speech.SpeechRecognizer
 import java.text.Normalizer
 
 /**
- * Keep a leading interrogative only when another hypothesis from the same utterance
+ * Keep a question/control opening only when another hypothesis from the same utterance
  * contains it and the final result is an exact suffix. This repairs dropped openings
  * without inventing words or retaining a different partial hypothesis.
  */
-internal fun preserveQuestionOpening(finalText: String, hypotheses: List<String>): String {
+internal fun preserveObservedUtteranceOpening(finalText: String, hypotheses: List<String>): String {
     fun normalized(value: String) = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
         .replace("\\p{Mn}+".toRegex(), "")
         .replace("[^a-z0-9 ]".toRegex(), " ")
@@ -27,14 +27,28 @@ internal fun preserveQuestionOpening(finalText: String, hypotheses: List<String>
         "qual", "qual e", "qual eh", "qual a", "qual o", "qual os", "qual as", "qual e a", "qual e o",
         "quais", "quais sao", "quais sao as", "quais sao os", "quem", "como", "onde", "aonde", "quando",
         "quanto", "quanto e", "quanto custa", "qual seria", "qual seria a", "o que", "o que e", "o que eh",
-        "que", "por que", "para que", "pra que", "de onde", "com quem"
+        "que", "por que", "para que", "pra que", "de onde", "com quem",
+        "pare", "pare de", "parar", "parar de", "desative", "desative o", "desligue", "desligue o",
+        "encerre", "encerre a", "encerrar", "encerrar a", "finalize", "finalize a"
     )
-    return hypotheses.asReversed().firstOrNull { candidate ->
+    val latestCompatible = hypotheses.asReversed().firstOrNull { candidate ->
         val complete = normalized(candidate)
-        if (complete.length <= final.length + 2 || !complete.endsWith(" $final")) return@firstOrNull false
-        val opening = complete.dropLast(final.length).trim()
-        opening.length <= 32 && opening in openers
-    }?.trim()?.take(36_000) ?: finalText
+        complete.length > final.length + 2 && complete.endsWith(" $final")
+    } ?: return finalText
+    // A newer correction/negation must block an older positive command. Never
+    // search past that revision merely to find an opener we would accept.
+    val opening = normalized(latestCompatible).dropLast(final.length).trim()
+    return if (opening.length <= 32 && opening in openers) latestCompatible.trim().take(36_000) else finalText
+}
+
+/** Bounded, utterance-local alternatives. Duplicate suffix callbacks must not
+ * evict an already observed complete opening; the primary is newest in a batch. */
+internal fun rememberUtteranceHypotheses(history: MutableList<String>, candidates: List<String>) {
+    candidates.asReversed().forEach { candidate ->
+        history.remove(candidate)
+        history.add(candidate)
+    }
+    while (history.size > 40) history.removeAt(0)
 }
 
 /** One explicit conversational turn, never wake waiting. No audio files or transcript logs.
@@ -96,8 +110,7 @@ class EloConversationRecognizer(
                     trace("partial_callback", nextLease)
                     if (current() && !stopping) {
                         val candidates = candidates(results)
-                        partialHypotheses.addAll(candidates)
-                        while (partialHypotheses.size > 10) partialHypotheses.removeAt(0)
+                        rememberUtteranceHypotheses(partialHypotheses, candidates)
                         listener.partial(nextLease, candidates.firstOrNull().orEmpty())
                     }
                 }
@@ -107,8 +120,8 @@ class EloConversationRecognizer(
                     val cancelled = stopping
                     val options = candidates(results)
                     val primary = options.firstOrNull().orEmpty()
-                    val transcript = if (cancelled) "" else preserveQuestionOpening(primary, options.drop(1) + partialHypotheses)
-                    if (!cancelled && transcript != primary) trace("final_question_opening_recovered", nextLease)
+                    val transcript = if (cancelled) "" else preserveObservedUtteranceOpening(primary, options.drop(1).asReversed() + partialHypotheses)
+                    if (!cancelled && transcript != primary) trace("final_utterance_opening_recovered", nextLease)
                     terminal()
                     if (!cancelled) {
                         if (transcript.isBlank()) listener.empty(nextLease)
