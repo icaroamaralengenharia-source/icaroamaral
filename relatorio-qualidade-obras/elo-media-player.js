@@ -9,7 +9,8 @@
   const PLAYER_ID = "elo-real-media-player";
   const PLAYER_HOST_ID = "elo-real-media-host";
   const CONTROLS_ID = "elo-real-media-controls";
-  const CONFIRM_TIMEOUT_MS = 9000;
+  const CONFIRM_TIMEOUT_MS = 15000;
+  const PLAYER_LOAD_TIMEOUT_MS = 30000;
   const PLAYER_LAYOUT_STORAGE_KEY = "elo_real_media_player_layout_v1";
   const PLAYER_MARGIN = 12;
 
@@ -21,6 +22,10 @@
   let localQueueIndex = 0;
   let apiPromise = null;
   let playRunId = 0;
+  let playGuard = null;
+  function currentPlayRun(runId) { return runId === playRunId && (!playGuard || playGuard()); }
+  let lastPlaybackError = "";
+  let userActionRequired = false;
   const playerLayoutState = { x: null, y: null, minimized: false, dragging: false, pointerId: null, offsetX: 0, offsetY: 0 };
 
   function log(name, payload) {
@@ -43,6 +48,9 @@
     try {
       if (document && document.body) document.body.dataset.eloMediaState = state;
     } catch (error) {}
+    if (typeof window.dispatchEvent === "function" && typeof window.CustomEvent === "function") {
+      window.dispatchEvent(new window.CustomEvent("elo:media-state", { detail: { state: state } }));
+    }
     syncPlayPauseControl_();
     log("MEDIA_PLAYER_STATE", {
       state: state,
@@ -122,18 +130,33 @@
   function applyPlayerPosition_(root) {
     if (!root) return;
     const viewport = getViewportBox_();
+    const composer = document.querySelector && document.querySelector(".elo-input-row");
+    const composerBox = composer && composer.getBoundingClientRect ? composer.getBoundingClientRect() : null;
+    const header = document.querySelector && document.querySelector(".elo-product-top");
+    const headerBox = header && header.getBoundingClientRect ? header.getBoundingClientRect() : null;
+    const scrollControl = document.querySelector && document.querySelector("[data-elo-scroll-bottom]");
+    const scrollBox = scrollControl && !scrollControl.hidden && scrollControl.getBoundingClientRect ? scrollControl.getBoundingClientRect() : null;
+    const topBoundary = Math.max(viewport.top + PLAYER_MARGIN, headerBox && headerBox.height > 0 ? headerBox.bottom + PLAYER_MARGIN : 0);
+    const bottomBoundary = Math.min(viewport.top + viewport.height - PLAYER_MARGIN,
+      composerBox && composerBox.height > 0 ? composerBox.top - PLAYER_MARGIN : Infinity,
+      scrollBox && scrollBox.height > 0 ? scrollBox.top - PLAYER_MARGIN : Infinity);
+    const availableHeight = Math.max(0, bottomBoundary - topBoundary);
+    root.style.maxHeight = availableHeight + "px";
+    root.style.minHeight = "0px";
+    root.style.visibility = availableHeight >= 2 ? "visible" : "hidden";
+    root.style.overflowY = "auto";
+    root.style.overflowX = "hidden";
     const size = measurePlayer_(root);
     const minX = viewport.left + PLAYER_MARGIN;
-    const minY = viewport.top + PLAYER_MARGIN;
+    const minY = topBoundary;
     const maxX = viewport.left + viewport.width - size.width - PLAYER_MARGIN;
     let maxY = viewport.top + viewport.height - size.height - PLAYER_MARGIN;
-    const composer = document.querySelector && document.querySelector(".elo-input-row");
     if (composer && composer.getBoundingClientRect) {
-      const composerBox = composer.getBoundingClientRect();
       if (composerBox && composerBox.height > 0 && composerBox.top < viewport.top + viewport.height) {
         maxY = Math.min(maxY, composerBox.top - size.height - PLAYER_MARGIN);
       }
     }
+    maxY = Math.min(maxY, bottomBoundary - size.height);
     if (!Number.isFinite(Number(playerLayoutState.x)) || !Number.isFinite(Number(playerLayoutState.y))) {
       playerLayoutState.x = maxX;
       playerLayoutState.y = maxY;
@@ -234,6 +257,12 @@
         persistPlayerLayout_();
       });
     }
+    // The chat frame settles one animation frame after the IME event. Re-clamp
+    // against the final composer geometry rather than its previous position.
+    window.addEventListener("elo:viewport-change", function () {
+      if (window.requestAnimationFrame) window.requestAnimationFrame(function () { applyPlayerPosition_(root); });
+      else applyPlayerPosition_(root);
+    });
   }
 
   function togglePlayerMinimized_() {
@@ -280,6 +309,9 @@
     header.style.padding = "7px 10px";
     header.style.background = "rgba(255,255,255,.08)";
     header.style.userSelect = "none";
+    header.style.position = "sticky";
+    header.style.top = "0";
+    header.style.zIndex = "1";
 
     const headerTitle = document.createElement("strong");
     headerTitle.textContent = "ELO Player";
@@ -319,6 +351,10 @@
     controls.style.display = "flex";
     controls.style.gap = "5px";
     controls.style.padding = "7px 8px 8px";
+    controls.style.position = "sticky";
+    controls.style.bottom = "0";
+    controls.style.zIndex = "1";
+    controls.style.background = "#101820";
 
     [["previous", "◀"], ["play-pause", "▶"], ["next", "▶|"], ["stop", "■"]].forEach(function (item) {
       const button = document.createElement("button");
@@ -447,7 +483,7 @@
   }
 
   function playLocalQueueItem(runId) {
-    if (runId !== playRunId) return Promise.resolve(false);
+    if (!currentPlayRun(runId)) return Promise.resolve(false);
     const file = localQueue[localQueueIndex];
     if (!file || !file.url) {
       setState(STATE_IDLE);
@@ -458,7 +494,7 @@
     localAudio.controls = true;
     localAudio.setAttribute && localAudio.setAttribute("data-elo-local-audio", "true");
     localAudio.onended = function () {
-      if (runId !== playRunId) return;
+      if (!currentPlayRun(runId)) return;
       localQueueIndex += 1;
       if (localQueueIndex < localQueue.length) {
         playLocalQueueItem(runId);
@@ -477,12 +513,16 @@
     }
     setState(STATE_BUFFERING);
     log("MEDIA_PLAY_ATTEMPT", { source: "LOCAL_CLASSICAL", title: currentMedia && currentMedia.title, file: file.path || file.url, index: localQueueIndex + 1 });
-    return Promise.resolve(localAudio.play()).then(function () {
+    const startingAudio = localAudio;
+    return Promise.resolve(startingAudio.play()).then(function () {
+      if (!currentPlayRun(runId)) { startingAudio.pause(); return false; }
       setState(STATE_PLAYING);
       log("MEDIA_PLAY_CONFIRMED", { source: "LOCAL_CLASSICAL", title: currentMedia && currentMedia.title, file: file.path || file.url, index: localQueueIndex + 1 });
       return true;
     }).catch(function (error) {
       log("MEDIA_PLAYER_ERROR", { source: "LOCAL_CLASSICAL", path: file.path || file.url, reason: sanitize(error && error.message) || "local_audio_play_failed" });
+      lastPlaybackError = error && error.name || "local_audio_play_failed";
+      userActionRequired = lastPlaybackError === "NotAllowedError";
       setState(STATE_ERROR);
       return false;
     });
@@ -512,7 +552,7 @@
     log("MEDIA_PLAY_ATTEMPT", { videoId: candidate.videoId, title: candidate.title, index: index + 1 });
 
     return ensureYoutubeApi_().then(function (YT) {
-      if (runId !== playRunId) return false;
+      if (!currentPlayRun(runId)) return false;
       const root = ensureRoot();
       const title = root.querySelector("[data-elo-media-title]");
       const host = document.getElementById(PLAYER_HOST_ID);
@@ -529,23 +569,29 @@
 
       return new Promise(function (resolve) {
         let settled = false;
-        const timer = window.setTimeout(function () {
+        let timer = window.setTimeout(function () {
           if (settled || runId !== playRunId) return;
           settled = true;
           log("MEDIA_PLAYER_ERROR", { videoId: candidate.videoId, reason: "play_confirm_timeout" });
+          lastPlaybackError = "player_load_timeout";
           setState(STATE_ERROR);
           resolve(false);
-        }, CONFIRM_TIMEOUT_MS);
+        }, PLAYER_LOAD_TIMEOUT_MS);
 
         function finish(ok, reason) {
           if (settled || runId !== playRunId) return;
+          if (!currentPlayRun(runId)) { window.clearTimeout(timer); settled = true; resolve(false); return; }
           settled = true;
           window.clearTimeout(timer);
           if (ok) {
+            lastPlaybackError = "";
+            userActionRequired = false;
             setState(STATE_PLAYING);
             log("MEDIA_PLAY_CONFIRMED", { videoId: candidate.videoId, title: candidate.title });
             resolve(true);
           } else {
+            lastPlaybackError = reason || "youtube_error";
+            userActionRequired = reason === "autoplay_blocked";
             log("MEDIA_PLAYER_ERROR", { videoId: candidate.videoId, reason: reason || "youtube_error" });
             setState(STATE_ERROR);
             resolve(false);
@@ -557,22 +603,34 @@
           height: "100%",
           videoId: candidate.videoId,
           playerVars: {
-            autoplay: 1,
+            autoplay: playGuard ? 0 : 1,
             playsinline: 1,
             rel: 0,
             origin: window.location && window.location.origin ? window.location.origin : undefined
           },
           events: {
             onReady: function (event) {
+              if (!currentPlayRun(runId)) { try { event.target.stopVideo(); } catch (_) {} finish(false, "cancelled"); return; }
+              window.clearTimeout(timer);
+              timer = window.setTimeout(function () { finish(false, "play_confirm_timeout"); }, CONFIRM_TIMEOUT_MS);
               try { event.target.playVideo(); } catch (error) {}
             },
             onStateChange: function (event) {
+              if (!currentPlayRun(runId)) { try { event.target.stopVideo(); } catch (_) {} finish(false, "cancelled"); return; }
+              if (event && event.data === YT.PlayerState.PLAYING && settled) {
+                lastPlaybackError = "";
+                userActionRequired = false;
+                setState(STATE_PLAYING);
+              }
               if (event && event.data === YT.PlayerState.PLAYING) finish(true);
               if (event && event.data === YT.PlayerState.PAUSED && state !== STATE_ERROR) setState(STATE_PAUSED);
               if (event && event.data === YT.PlayerState.ENDED) setState(STATE_IDLE);
             },
             onError: function (event) {
               finish(false, "youtube_error_" + (event && event.data));
+            },
+            onAutoplayBlocked: function () {
+              finish(false, "autoplay_blocked");
             }
           }
         });
@@ -584,7 +642,17 @@
     });
   }
 
-  function play(media) {
+  function play(media, options) {
+    const guard = options && typeof options.isCurrent === "function" ? options.isCurrent : null;
+    if (guard && !guard()) return Promise.resolve(false);
+    playGuard = guard;
+    lastPlaybackError = "";
+    userActionRequired = false;
+    // Coordinate Web audio with the existing native slot without accepting a
+    // native command acknowledgement as proof that audio has started.
+    if (window.EloNativeBridge && typeof window.EloNativeBridge.activateOnlinePlayer === "function") {
+      try { window.EloNativeBridge.activateOnlinePlayer(); } catch (error) { log("MEDIA_NATIVE_SLOT_ERROR", { reason: "activation_failed" }); }
+    }
     if (isLocalClassicalMedia(media)) return playLocalMedia(media);
     const candidates = buildCandidateList(media || {});
     playRunId += 1;
@@ -599,11 +667,12 @@
     return candidates.reduce(function (chain, candidate, index) {
       return chain.then(function (played) {
         if (played) return true;
+        if (!currentPlayRun(runId)) return false;
         if (index > 0) log("MEDIA_FALLBACK_NEXT", { index: index + 1, videoId: candidate.videoId });
         return attemptCandidate(candidate, runId, index);
       });
     }, Promise.resolve(false)).then(function (played) {
-      if (!played) setState(STATE_ERROR);
+      if (!played && currentPlayRun(runId)) setState(STATE_ERROR);
       return played;
     });
   }
@@ -638,6 +707,7 @@
   }
 
   function stop() {
+    playRunId += 1; playGuard = null;
     if (!currentMedia) return false;
     if (ytPlayer && typeof ytPlayer.stopVideo === "function") {
       try { ytPlayer.stopVideo(); } catch (error) {}
@@ -698,6 +768,7 @@
   window.EloMediaPlayer = {
     provider: "youtube_iframe_api",
     play: play,
+    playConfirmed: play,
     pause: pause,
     resume: resume,
     stop: stop,
@@ -705,6 +776,15 @@
     previous: previous,
     getState: function () { return state; },
     getCurrentMedia: function () { return currentMedia ? Object.assign({}, currentMedia) : null; },
+    getPlaybackStatus: function () {
+      let position = 0;
+      let duration = 0;
+      try {
+        position = localAudio ? localAudio.currentTime : ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0;
+        duration = localAudio ? localAudio.duration : ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
+      } catch (error) {}
+      return { state: state, position: Number(position) || 0, duration: Number(duration) || 0, mediaId: currentMedia && (currentMedia.id || currentMedia.videoId), lastError: lastPlaybackError, userActionRequired: userActionRequired };
+    },
     getLayoutStateForTest: function () { return Object.assign({}, playerLayoutState); },
     toggleMinimizedForTest: togglePlayerMinimized_
   };

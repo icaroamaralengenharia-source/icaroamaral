@@ -103,15 +103,37 @@
   }
   function conversion(value, from, to) { var f = { m: 1, cm: .01, mm: .001, kg: 1, g: .001, l: 1, litros: 1, m2: 1, "m²": 1, m3: 1 }; var units = { m: ["m"], cm: ["cm"], mm: ["mm"], kg: ["kg"], g: ["g"], l: ["l", "litros"], litros: ["l", "litros"], m2: ["m2", "m²"], "m²": ["m2", "m²"], m3: ["m3"] }; if (!f[from] || !f[to] || (from.startsWith("m") !== to.startsWith("m") && from !== to)) return null; return value * f[from] / f[to]; }
   function calculation(text) { var result = evaluate(text); if (result == null) return null; state.lastResult = result; return "Resultado: " + fmt(result) + "."; }
-  function music(text) { var lib = root.EloOfflineMediaLibrary; var player = root.EloMediaPlayer; if (!lib || !player) return "O player offline ainda não foi carregado."; var item = lib.find(text); if (!item || !item.files || !item.files.length || item.offlineAvailable === false) return "Essa música ainda não está disponível offline."; player.play(item); state.topic = "music"; return "Tocando " + item.title + " offline."; }
-  function musicQueue(text) { var lib = root.EloOfflineMediaLibrary; var player = root.EloMediaPlayer; if (!lib || !player || typeof lib.next !== "function") return "A fila offline ainda não foi carregada."; var t = norm(text); if (/embaralh/.test(t)) { lib.setShuffle(true); return "Embaralhamento ativado para a biblioteca offline."; } var item = lib.next(null, /voltar|anterior/.test(t) ? "back" : "next"); if (!item) return "Essa música ainda não está disponível offline."; if (typeof player.next === "function") player.next(item); else player.play(item); state.topic = "music"; return "Tocando " + item.title + " offline."; }
+  function startOfflineMusic(item, player) {
+    var source = player.getSource ? player.getSource() : player;
+    var start = source && (source.playConfirmed || source.play);
+    if (typeof start !== "function") return "O player offline ainda não foi carregado.";
+    try {
+      var result = start.call(source, item);
+      if (result && typeof result.catch === "function") result.catch(function () {});
+      var current = source.getCurrentMedia && source.getCurrentMedia();
+      if (result === true && source.getState && source.getState() === "PLAYING" && current && current.id === item.id) return "Tocando " + item.title + " offline.";
+      return "Solicitei " + item.title + " offline. Confira o início da reprodução no player.";
+    } catch (error) { return "A reprodução offline não começou. Tente novamente no player."; }
+  }
+  function music(text) { var lib = root.EloOfflineMediaLibrary; var player = root.EloMediaPlayer; if (!lib || !player) return "O player offline ainda não foi carregado."; var item = lib.find(text); if (!item || !item.files || !item.files.length || item.offlineAvailable === false) return "Essa música ainda não está disponível offline."; state.topic = "music"; return startOfflineMusic(item, player); }
+  function musicQueue(text) { var lib = root.EloOfflineMediaLibrary; var player = root.EloMediaPlayer; if (!lib || !player || typeof lib.next !== "function") return "A fila offline ainda não foi carregada."; var t = norm(text); if (/embaralh/.test(t)) { lib.setShuffle(true); return "Embaralhamento ativado para a biblioteca offline."; } var item = lib.next(null, /voltar|anterior/.test(t) ? "back" : "next"); if (!item) return "Essa música ainda não está disponível offline."; state.topic = "music"; return startOfflineMusic(item, player); }
   function engineering(text) { var t = norm(text); var keys = Object.keys(technical); for (var i = 0; i < keys.length; i += 1) if (t.indexOf(norm(keys[i])) >= 0) return technical[keys[i]]; if (/sequencia.*alvenaria|execucao.*alvenaria/.test(t)) return technical.alvenaria; return "Posso orientar esse tema localmente. Diga o serviço, material ou etapa da obra que você quer analisar."; }
   function resolve(text) {
     var raw = clean(text); var t = norm(raw); if (!t) return null;
     var date = localDate(raw); if (date) { state.topic = "date"; state.lastAnswer = date; return response(date, "offline_date"); }
     if (/(?:próxima|proxima)\s+(?:musica|música)|pular musica|pular música|outra musica|outra música|(?:musica|música)\s+anterior|\bvoltar\b|embaralhe|embaralhar/.test(t)) return response(musicQueue(raw), "offline_music_queue");
     if (/toque|toca|reproduza|play|fur elise|für elise|musica/.test(t) && !/pause|parar|pare|continue/.test(t)) return response(music(raw), "offline_music");
-    if (/pause|pausar|parar musica|parar música|continue|continuar musica|continuar música/.test(t) && root.EloMediaPlayer) { if (/pause|pausar/.test(t)) root.EloMediaPlayer.pause(); else if (/parar/.test(t)) root.EloMediaPlayer.stop(); else root.EloMediaPlayer.resume(); return response(/parar/.test(t) ? "Música parada." : /pause|pausar/.test(t) ? "Música pausada." : "Música retomada.", "offline_music_control"); }
+    if (/pause|pausar|parar musica|parar música|continue|continuar musica|continuar música/.test(t) && root.EloMediaPlayer) {
+      var controller = root.EloMediaPlayer.getSource ? root.EloMediaPlayer.getSource() : root.EloMediaPlayer;
+      var action = /parar/.test(t) ? "stop" : /pause|pausar/.test(t) ? "pause" : "resume";
+      var expected = action === "stop" ? "IDLE" : action === "pause" ? "PAUSED" : "PLAYING";
+      try {
+        var controlResult = controller[action]();
+        if (controlResult && typeof controlResult.catch === "function") controlResult.catch(function () {});
+        var verified = controlResult === true && controller.getState && controller.getState() === expected;
+        return response(verified ? action === "stop" ? "Música parada." : action === "pause" ? "Música pausada." : "Música retomada." : "Comando enviado ao player. Confira o estado da reprodução nos controles.", "offline_music_control");
+      } catch (error) { return response("O player não executou esse comando. Tente pelos controles.", "offline_music_control"); }
+    }
     if (/pesquise|preco atual|preço atual|cotacao|cotação|noticias|notícias|clima|tempo agora/.test(t)) return response("Chefe, esse pedido depende da internet. Assim que a conexão voltar eu consigo pesquisar.", "online_required");
     var calc = calculation(raw); if (calc) { state.topic = "calculation"; return response(calc, "offline_calculation"); }
     var rule = matchRule(raw); if (rule) { if (rule[0] === "date_today") return response(dateAnswer(0), "offline_date"); if (rule[0] === "date_tomorrow") return response(dateAnswer(1), "offline_date"); if (rule[0] === "date_yesterday") return response(dateAnswer(-1), "offline_date"); if (rule[0] === "date_after_tomorrow") return response(dateAnswer(2), "offline_date"); if (rule[0] === "date_before_yesterday") return response(dateAnswer(-2), "offline_date"); if (rule[0] === "engineering") return response(engineering(raw), "offline_engineering"); if (rule[0] === "continuity" && state.topic === "calculation") { var c = calculation(state.lastResult + " " + raw); if (c) return response(c, "offline_calculation"); } state.topic = rule[0]; return response(rule[2], "offline_conversation"); }

@@ -211,6 +211,27 @@
     if (ownsMusicConfirmation) api()?.clearPendingMusicCandidateForTest?.();
     ownsMusicConfirmation = false;
   }
+  async function routeMusicUntilPlayback(op, query) {
+    const routed = Promise.resolve(api().handleMusicQueryForTest(query, {
+      append: false, isCurrent: () => op.confirmed === true || musicCurrent(op)
+    })).then(value => ({ done: true, value }));
+    let previous = null;
+    const until = Date.now() + 70000;
+    while (musicCurrent(op) && Date.now() < until) {
+      const s = musicStatus();
+      if (s.state === "PLAYING" && s.mediaId && !s.lastError && !s.userActionRequired) {
+        op.startedMedia = s.mediaId;
+        if (previous?.mediaId === s.mediaId && Number(s.position) > Number(previous.position) + 0.15) {
+          op.confirmed = true;
+          return { handled: true, decision: "PLAYBACK_CONFIRMED", candidate: musicPlayer()?.getCurrentMedia?.() };
+        }
+        previous = s;
+      }
+      const step = await Promise.race([routed, new Promise(resolve => setTimeout(() => resolve({ done: false }), 500))]);
+      if (step.done) return step.value;
+    }
+    return { handled: true, decision: "CANCELLED" };
+  }
   async function runMusic(command) {
     const op = { ...command, startedMedia: null };
     activeMusic = op;
@@ -234,7 +255,7 @@
       } else {
         const confirmation = ownsMusicConfirmation && /^(sim|isso|correto|pode|não|nao)\b/i.test(text);
         const query = op.pending && !confirmation && !api().detectMusicPlayIntentForTest?.(text) ? "Toque " + text : text;
-        routed = await api().handleMusicQueryForTest(query, { append: false, isCurrent: () => op.confirmed === true || musicCurrent(op) });
+        routed = await routeMusicUntilPlayback(op, query);
         if (!musicCurrent(op)) return;
         result.decision = routed?.decision || "NO_MATCH";
         const candidate = routed?.candidate;
@@ -250,6 +271,7 @@
         ownsMusicConfirmation = false;
         result.answer = "Tocando " + (label || "a música solicitada") + ".";
       }
+        if (op.confirmed) { result.played = true; result.positionAdvanced = true; return; }
       // Intent/resolver success is insufficient. Observe the existing real player.
       const end = Date.now() + 10000;
       let previous = null;

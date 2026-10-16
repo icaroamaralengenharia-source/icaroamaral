@@ -13,6 +13,17 @@ function createLocalStorage(initial = {}) {
     dump() { return Object.assign({}, store); }
   };
 }
+test('ELO resolver: cancelled native turn cannot dispatch playback', async () => {
+  let plays=0;const {resolver}=loadResolver({player:{playConfirmed(){plays++;return true;}}});
+  assert.equal(await resolver.play({title:'Qualquer faixa',videoId:'abcdef12345'},{isCurrent:()=>false}),false);
+  assert.equal(plays,0);
+});
+test('ELO resolver: forwards the same cancellation guard to the existing player', async () => {
+  let received;const guard=()=>true;
+  const {resolver}=loadResolver({player:{playConfirmed(_media,options){received=options.isCurrent;return true;}}});
+  await resolver.play({title:'Qualquer faixa',videoId:'abcdef12345'},{isCurrent:guard});
+  assert.equal(received,guard);
+});
 
 function loadResolver(options = {}) {
   const events = [];
@@ -206,7 +217,7 @@ test('ELO music resolver unit: musica fora do catalogo continua usando provider 
   assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=toque uma musica qualquer fora das 100');
 });
 
-test('ELO music resolver unit: MEDIA_ERROR invalida cache de catalogo', async () => {
+test('ELO music resolver unit: erro de embedding confirmado invalida cache de catalogo', async () => {
   const { resolver, context } = loadResolver({
     localStorage: {
       elo_music_catalog_cache_v1: JSON.stringify({
@@ -221,7 +232,8 @@ test('ELO music resolver unit: MEDIA_ERROR invalida cache de catalogo', async ()
       })
     },
     player: {
-      play() { return Promise.resolve(false); }
+      play() { return Promise.resolve(false); },
+      getPlaybackStatus() { return { lastError: 'youtube_error_150' }; }
     }
   });
 
@@ -230,7 +242,21 @@ test('ELO music resolver unit: MEDIA_ERROR invalida cache de catalogo', async ()
 
   assert.equal(cache['aerosmith-dream-on'].playable, false);
   assert.equal(cache['aerosmith-dream-on'].embeddable, false);
-  assert.equal(cache['aerosmith-dream-on'].invalidationReason, 'MEDIA_ERROR');
+  assert.equal(cache['aerosmith-dream-on'].invalidationReason, 'youtube_error_150');
+});
+
+test('ELO music resolver unit: timeout e gesto nao removem faixa; usa confirmacao real', async () => {
+  for (const lastError of ['play_confirm_timeout', 'autoplay_blocked']) {
+    let acknowledged = 0, confirmed = 0;
+    const initial = { 'dire-straits-sultans-of-swing': { videoId: 'eqxpQA5etd4', playable: true, embeddable: true } };
+    const {resolver,context} = loadResolver({
+      localStorage: { elo_music_catalog_cache_v1: JSON.stringify(initial) },
+      player: { play() { acknowledged++; return true; }, playConfirmed() { confirmed++; return Promise.resolve(false); }, getPlaybackStatus() { return {lastError}; } }
+    });
+    assert.equal(await resolver.play({catalogId:'dire-straits-sultans-of-swing',videoId:'eqxpQA5etd4'}),false);
+    assert.equal(acknowledged,0);assert.equal(confirmed,1);
+    assert.deepEqual(JSON.parse(context.window.localStorage.getItem('elo_music_catalog_cache_v1')),initial);
+  }
 });
 
 
@@ -404,6 +430,13 @@ test('ELO offline classical: miss preserva catalogo online para Take on Me', asy
   assert.equal(requestedUrls.length, 0);
 });
 
+test('ELO offline library: metadados formatados ficam legiveis sem reduzir catalogo', () => {
+  const {context} = loadResolver({offlineLibrary:true});
+  const library = context.window.EloOfflineMediaLibrary;
+  library.loadFromJsonForTest([{id:'qa-track',title:'<b>Faixa</b>',composer:'<bdi><a href="https://example.com"><span>Compositor</span></a></bdi>',files:[{path:'offline-media/qa.ogg'}]}]);
+  const item=library.list()[0];assert.equal(item.title,'Faixa');assert.equal(item.artist,'Compositor');assert.equal(item.files.length,1);
+});
+
 test('ELO offline classical: miss offline nao inventa musica online', async () => {
   const requestedUrls = [];
   const playCalls = [];
@@ -437,7 +470,12 @@ test('ELO service worker: cache v5 inclui router, adapter, library.json e 7 audi
     'chopin/nocturne-op-9-no-2.ogg'
   ];
 
-  assert.match(sw, /elo-web-offline-v21-20261004-audio-v1/);
+  assert.match(sw, /elo-web-offline-v\d+-/);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'elo.html'), 'utf8');
+  for (const name of ['elo.css','elo-assistente.js','elo-media-player.js','elo-music-resolver.js','elo-viewport.js']) {
+    const version = html.match(new RegExp(name.replaceAll('.', '\\.') + '\\?v=([^"\\s]+)'))?.[1];
+    assert.ok(version,name);assert.ok(sw.includes(name+'?v='+version),name);
+  }
   assert.match(sw, /elo-offline-media-library\.js/);
   assert.match(sw, /elo-offline-memory-adapter\.js/);
   assert.match(sw, /elo-offline-router\.js/);

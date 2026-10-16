@@ -34,7 +34,9 @@ class EloNativeMusicGateway(private val yieldFocus: (Long, Long) -> Boolean) {
                 .put("answer", "Abra o ELO para acionar o player de música."))
         }
         try {
-            val result = operation.result.get(25, TimeUnit.SECONDS)
+            // The official player has a 30 s load budget, followed by confirmation.
+            // Observe playback in parallel with resolution; never cancel it after 25 s.
+            val result = operation.result.get(75, TimeUnit.SECONDS)
             if (active !== operation) throw EloNativeVoiceFailure("CANCELLED")
             pending = result.optBoolean("pending")
             decision = result.optString("decision", "PLAYER_UNAVAILABLE").take(80)

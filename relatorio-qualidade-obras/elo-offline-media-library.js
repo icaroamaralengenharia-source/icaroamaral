@@ -22,7 +22,7 @@
   }
 
   function clean(value) {
-    return String(value || "").replace(/[\u0000-\u001f<>]/g, "").trim();
+    return String(value || "").replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f<>]/g, "").trim();
   }
 
   function normalize(value) {

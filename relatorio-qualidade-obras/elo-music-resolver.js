@@ -422,28 +422,31 @@
     return player || null;
   }
 
-  function play(media) {
+  function play(media, options) {
+    if (options && typeof options.isCurrent === "function" && !options.isCurrent()) return Promise.resolve(false);
     const player = getPlayer();
+    const start = player && (typeof player.playConfirmed === "function" ? player.playConfirmed : player.play);
     if (media && media.source === "LOCAL_CLASSICAL") {
-      if (!player || typeof player.play !== "function") {
+      if (!player || typeof start !== "function") {
         log("MEDIA_PLAYER_START", { ok: false, reason: "player_unavailable", source: "LOCAL_CLASSICAL" });
         return false;
       }
-      return Promise.resolve(player.play(media));
+      return Promise.resolve(start.call(player, media, options));
     }
     if (!isOnline()) {
       log("MEDIA_PLAY_OFFLINE_BLOCKED", { catalogId: media && media.catalogId || null, videoId: media && media.videoId || null });
       return Promise.resolve(false);
     }
-    if (!player || typeof player.play !== "function") {
+    if (!player || typeof start !== "function") {
       log("MEDIA_PLAYER_START", { ok: false, reason: "player_unavailable" });
       return false;
     }
-    return Promise.resolve(player.play(media)).then(function (played) {
-      if (played === false) invalidateCatalogResolution(media, "MEDIA_ERROR");
+    return Promise.resolve(start.call(player, media, options)).then(function (played) {
+      const status = player.getPlaybackStatus && player.getPlaybackStatus();
+      if (played === false && status && /^youtube_error_(100|101|150)$/.test(status.lastError || "")) invalidateCatalogResolution(media, status.lastError);
       return played;
     }).catch(function (error) {
-      invalidateCatalogResolution(media, clean(error && error.message) || "MEDIA_ERROR");
+      // A transport/gesture exception does not make a catalog track unavailable.
       throw error;
     });
   }
