@@ -15,8 +15,8 @@ const authSource = fs.readFileSync(path.join(__dirname, "rdo-canonical-auth.js")
 const WORK_ID = "work_elo_e2e_test_0e90b6f4-7997-4dd1-a100-fb6f2ae773c2";
 const WORK_NAME = "OBRA TESTE ELO E2E";
 const NATURAL_CREATE = "Crie um RDO na OBRA TESTE ELO E2E de 15/10/2026.";
-const CATALOG_TAG = "20261016-rdo-cancel-hotfix-v1";
-const ROUTING_TAG = "20261016-rdo-cancel-hotfix-v1";
+const CATALOG_TAG = "20261016-rdo-session-binding-v1";
+const ROUTING_TAG = "20261016-rdo-session-binding-v1";
 const CACHE_KEY = "obrareport-saas-v1";
 const PENDING_KEY = "elo_action_bus_rdo_pending_v1";
 const clone = (value) => JSON.parse(JSON.stringify(value));

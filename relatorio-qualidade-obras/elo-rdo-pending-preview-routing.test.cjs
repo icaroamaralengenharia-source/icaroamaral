@@ -300,7 +300,7 @@ for (const providerOnly of [false, true]) {
     const reads = env.calls.length;
     env.switchActor({ ...IDENTITY, userId: "canonical_session_user_changed", institutionId: "changed_fixture_tenant", companyId: "changed_fixture_company" }, false);
     await env.ask("hoje");
-    assert.match(env.answer(), /outra sessão/);
+    assert.match(env.answer(), /autenticação/);
     assert.equal(env.calls.length, reads, "binding rejects before another catalog read");
     assert.equal(env.localStorage.getItem("elo_action_bus_rdo_pending_v1"), before);
     assertNoWrites(env);

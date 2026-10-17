@@ -2685,7 +2685,7 @@ test('ELO login novo valida em auth/v1/user antes de persistir nas tres fontes',
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
       if (String(url) === 'https://mplpzyalcxhhinuvjthx.supabase.co/auth/v1/user') {
-        assert.equal(localStorage.getItem('sb-elo-core-auth-token'), oldPayload);
+        assert.equal(localStorage.getItem('sb-elo-core-auth-token'), null);
         assert.equal(options.method, 'GET');
         assert.equal(options.headers.apikey, 'anon-key');
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
@@ -2771,8 +2771,8 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
         assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
         assert.equal(context.window.ELO_AUTH_CONTEXT.userId, 'user-a');
         assert.equal(context.window.ELO_AUTH_CONTEXT.profile.email, 'a@b.com');
-        assert.equal(context.window.ELO_AUTH_CONTEXT.institutionId, 'inst-old');
-        assert.equal(context.window.ELO_AUTH_CONTEXT.projectId, 'proj-old');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.institutionId, '');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.projectId, '');
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'unauthorized' }) });
       }

@@ -2,6 +2,14 @@
   "use strict";
 
   const STORAGE_KEY = "obrareport-rdo-stock-canonical-session-v1";
+  let sessionRevision = 0;
+
+  function clearSession(storage) {
+    sessionRevision += 1;
+    const target = storage || root.localStorage;
+    try { if (target && typeof target.removeItem === "function") target.removeItem(STORAGE_KEY); } catch (_) {}
+    return sessionRevision;
+  }
 
   function clean(value) {
     return String(value == null ? "" : value).trim();
@@ -36,6 +44,15 @@
       storage.setItem(STORAGE_KEY, JSON.stringify(value));
     }
 
+    function isCurrentSession(stored, revision) {
+      const current = readStored();
+      return revision === sessionRevision && Boolean(current && stored &&
+        clean(current.user && current.user.id) === clean(stored.user && stored.user.id) &&
+        clean(current.profile && current.profile.institution_id) === clean(stored.profile && stored.profile.institution_id) &&
+        clean(current.session.access_token) === clean(stored.session.access_token) &&
+        clean(current.session.refresh_token) === clean(stored.session.refresh_token));
+    }
+
     async function parseResponse(response) {
       let data = {};
       try { data = await response.json(); } catch (_) { data = {}; }
@@ -63,6 +80,7 @@
       const normalizedEmail = clean(email).toLowerCase();
       const secret = String(password || "");
       if (!normalizedEmail || !secret) throw new Error("rdo_canonical_credentials_required");
+      const revision = clearSession(storage);
 
       const response = await fetchImpl(baseUrl + "/api/stock-full/login", {
         method: "POST",
@@ -70,6 +88,7 @@
         body: JSON.stringify({ email: normalizedEmail, password: secret })
       });
       const data = await parseResponse(response);
+      if (revision !== sessionRevision) throw new Error("rdo_canonical_session_changed");
       const session = normalizeSession(data.session);
       const user = data.user && typeof data.user === "object" ? data.user : {};
       const profile = data.profile && typeof data.profile === "object" ? data.profile : {};
@@ -90,7 +109,7 @@
       return { user: stored.user, profile: stored.profile };
     }
 
-    async function refresh(stored) {
+    async function refresh(stored, revision) {
       if (!supabaseUrl || !anonKey || !clean(stored.session.refresh_token)) return null;
       const response = await fetchImpl(supabaseUrl + "/auth/v1/token?grant_type=refresh_token", {
         method: "POST",
@@ -98,6 +117,7 @@
         body: JSON.stringify({ refresh_token: stored.session.refresh_token })
       });
       const data = await parseResponse(response);
+      if (!isCurrentSession(stored, revision)) return "";
       const nextSession = normalizeSession(data);
       if (!nextSession.access_token || !nextSession.refresh_token) return null;
       const nextStored = Object.assign({}, stored, { session: nextSession, saved_at: new Date(now()).toISOString() });
@@ -108,31 +128,31 @@
     async function getValidAccessToken() {
       const stored = readStored();
       if (!stored) return "";
+      const revision = sessionRevision;
       const expiry = Number(stored.session.expires_at || 0) * 1000;
       if (expiry && expiry <= now() + 60000) {
         try {
-          const refreshed = await refresh(stored);
+          const refreshed = await refresh(stored, revision);
           if (refreshed) return refreshed;
         } catch (_) {
           if (expiry <= now()) return "";
         }
         if (expiry <= now()) return "";
       }
-      return clean(stored.session.access_token);
+      return isCurrentSession(stored, revision) ? clean(stored.session.access_token) : "";
     }
 
     return {
       login: login,
       getValidAccessToken: getValidAccessToken,
       hasSession: function () { return Boolean(readStored()); },
-      clear: function () {
-        if (typeof storage.removeItem === "function") storage.removeItem(STORAGE_KEY);
-      }
+      clear: function () { clearSession(storage); }
     };
   }
 
   root.ObraReportRdoCanonicalAuth = {
     STORAGE_KEY: STORAGE_KEY,
+    clearSession: clearSession,
     create: createRdoCanonicalAuth
   };
 })(typeof window !== "undefined" ? window : globalThis);

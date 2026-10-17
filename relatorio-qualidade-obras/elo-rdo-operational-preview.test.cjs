@@ -423,7 +423,7 @@ for (const providerOnly of [false, true]) {
     const reads = env.calls.length;
     env.switchActor({ ...IDENTITY, userId: "other_user", institutionId: "other_tenant", companyId: "other_company" }, false);
     await env.ask("mostre a prévia completa");
-    assert.match(env.answer(), /outra sessão/);
+    assert.match(env.answer(), /autenticação/);
     assert.doesNotMatch(env.answer(), /PILOTO_ELO_RDO_PREVIEW_TEST|24 sacos|17 m²|OBRA TESTE/);
     assert.equal(env.calls.length, reads);
     assert.deepEqual(plain(env.pending()), before);

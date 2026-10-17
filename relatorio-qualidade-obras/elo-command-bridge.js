@@ -124,10 +124,60 @@
     catch (error) { return null; }
   }
 
+  function isEloRdoSessionAuthority_() {
+    return Boolean(window.ELO_STANDALONE_MODE) || /(^|\/)elo\.html$/i.test(window.location && window.location.pathname || "");
+  }
+
+  function activeRdoSessionContext_() {
+    if (!isEloRdoSessionAuthority_()) {
+      try {
+        const surface = window.ObraReportEloSurface;
+        if (surface && typeof surface.getContext === "function") return normalizeAuthContext_((surface.getContext() || {}).auth || {});
+      } catch (_) {}
+      return normalizeAuthContext_({});
+    }
+    const provider = window.EloCanonicalSession;
+    try {
+      if (provider && typeof provider.getContext === "function") return normalizeAuthContext_(provider.getContext() || {});
+    } catch (_) {}
+    return normalizeAuthContext_(window.ELO_AUTH_CONTEXT || {});
+  }
+
+  function matchesActiveRdoSession_(context) {
+    const active = activeRdoSessionContext_();
+    return ["userId", "institutionId"].every(function (key) { return !active[key] || active[key] === context[key]; });
+  }
+
+  function discardOwnRdoSession_() {
+    const factory = window.ObraReportRdoCanonicalAuth;
+    if (factory && typeof factory.clearSession === "function") factory.clearSession();
+    [window.localStorage, window.sessionStorage].filter(Boolean).forEach(function (storage) {
+      try { storage.removeItem(RDO_CANONICAL_SESSION_KEY); } catch (_) {}
+    });
+  }
+
   function getCanonicalRdoSession_() {
-    const ownSession = readOwnRdoSession_();
+    let ownSession = readOwnRdoSession_();
+    if (ownSession && !matchesActiveRdoSession_({ userId: clean(ownSession.user && ownSession.user.id), institutionId: clean(ownSession.profile && ownSession.profile.institution_id) })) {
+      discardOwnRdoSession_();
+      ownSession = null;
+    }
     const factory = window.ObraReportRdoCanonicalAuth;
     const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+    const provider = window.EloCanonicalSession;
+    function fromProvider() {
+      if (!provider || typeof provider.getSession !== "function" || typeof provider.getValidAccessToken !== "function") return Promise.resolve({ ok: false, error: "authentication_required" });
+      return Promise.resolve().then(function () { return provider.getSession(); }).then(function (value) {
+        if (!value || value.ok !== true) return { ok: false, error: "authentication_required" };
+        const authContext = normalizeAuthContext_(value.authContext || {});
+        if (!authContext.userId || !authContext.institutionId) return { ok: false, error: "institution_required" };
+        return Promise.resolve(provider.getValidAccessToken()).then(function (token) {
+          return clean(token) && matchesActiveRdoSession_(authContext) ? { ok: true, accessToken: clean(token), authContext: Object.assign({}, authContext, { companyId: authContext.companyId || authContext.institutionId }) } : { ok: false, error: "authentication_required" };
+        });
+      }).catch(function () { return { ok: false, error: "authentication_required" }; });
+    }
+    // A signed-in ELO shell is authoritative; a standalone RDO session is only a fallback.
+    try { if (isEloRdoSessionAuthority_() && provider && typeof provider.getAccessToken === "function" && clean(provider.getAccessToken())) return fromProvider(); } catch (_) {}
     const own = ownSession && factory && typeof factory.create === "function"
       ? Promise.resolve().then(function () {
         return factory.create({ baseUrl: getRdoEndpoint(""), supabaseUrl: config.eloSupabaseUrl, anonKey: config.eloSupabaseAnonKey }).getValidAccessToken();
@@ -136,21 +186,14 @@
         const profile = stored.profile || {};
         const user = stored.user || {};
         if (!clean(token) || !clean(user.id) || !clean(profile.institution_id)) return null;
-        return { ok: true, accessToken: clean(token), authContext: { userId: clean(user.id), institutionId: clean(profile.institution_id), companyId: clean(profile.company_id || profile.institution_id), profile: profile } };
+        const authContext = { userId: clean(user.id), institutionId: clean(profile.institution_id), companyId: clean(profile.company_id || profile.institution_id), profile: profile };
+        if (clean(ownSession.user && ownSession.user.id) !== authContext.userId || clean(ownSession.profile && ownSession.profile.institution_id) !== authContext.institutionId || !matchesActiveRdoSession_(authContext)) return null;
+        return { ok: true, accessToken: clean(token), authContext: authContext };
       }).catch(function () { return null; })
       : Promise.resolve(null);
     return own.then(function (session) {
       if (session) return session;
-      const provider = window.EloCanonicalSession;
-      if (!provider || typeof provider.getSession !== "function" || typeof provider.getValidAccessToken !== "function") return { ok: false, error: "authentication_required" };
-      return Promise.resolve().then(function () { return provider.getSession(); }).then(function (value) {
-        if (!value || value.ok !== true) return { ok: false, error: "authentication_required" };
-        const authContext = normalizeAuthContext_(value.authContext || {});
-        if (!authContext.userId || !authContext.institutionId) return { ok: false, error: "institution_required" };
-        return Promise.resolve(provider.getValidAccessToken()).then(function (token) {
-          return clean(token) ? { ok: true, accessToken: clean(token), authContext: Object.assign({}, authContext, { companyId: authContext.companyId || authContext.institutionId }) } : { ok: false, error: "authentication_required" };
-        });
-      }).catch(function () { return { ok: false, error: "authentication_required" }; });
+      return fromProvider();
     });
   }
 
@@ -1693,6 +1736,16 @@
   function saveRdoPending(pending) { window.localStorage.setItem(RDO_PENDING_KEY, JSON.stringify(pending)); }
   function clearRdoPending() { rdoPendingEpoch += 1; try { window.localStorage.removeItem(RDO_PENDING_KEY); } catch (error) {} }
 
+  function resetRdoSessionState_() {
+    clearRdoPending();
+    discardOwnRdoSession_();
+    [window.localStorage, window.sessionStorage].filter(Boolean).forEach(function (storage) {
+      [RDO_PENDING_KEY, RDO_CONTEXT_KEY, RDO_LIST_CONTEXT_KEY].forEach(function (key) {
+        try { storage.removeItem(key); } catch (_) {}
+      });
+    });
+  }
+
   function rdoPendingTarget_(pending) {
     return pending ? { operationId: pending.operationId, createdAt: pending.createdAt, operationToken: pending.operationToken || "" } : null;
   }
@@ -2473,6 +2526,7 @@
     parseIntent: parseRdoIntent,
     classifyCancellation: classifyRdoCancellation_,
     readPending: readRdoPending,
+    resetSession: resetRdoSessionState_,
     clearPending: function () {
       const pending = readRdoPending();
       if (pending && pending.conversationToken && pending.conversationToken !== clean(window.ELO_RDO_CONVERSATION_TOKEN)) { rdoPendingEpoch += 1; return false; }
