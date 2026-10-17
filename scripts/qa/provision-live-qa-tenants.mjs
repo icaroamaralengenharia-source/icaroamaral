@@ -40,6 +40,7 @@ export const PUBLIC_MANIFEST_PATH = path.join(PROJECT_ROOT, "qa-artifacts", "pr2
 
 const EXPECTED_CONFIG_KEYS = new Set([
   "SUPABASE_URL",
+  "SUPABASE_PROJECT_REF",
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "LIVE_QA_EXPECTED_PROJECT_REF"
@@ -108,8 +109,9 @@ export function validateConfig(config = {}) {
   const urlValue = clean(config.SUPABASE_URL);
   const anonKey = clean(config.SUPABASE_ANON_KEY);
   const serviceRoleKey = clean(config.SUPABASE_SERVICE_ROLE_KEY);
+  const suppliedProjectRef = clean(config.SUPABASE_PROJECT_REF);
   const statedProjectRef = clean(config.LIVE_QA_EXPECTED_PROJECT_REF);
-  if (!urlValue || !anonKey || !serviceRoleKey || !statedProjectRef) fail("secure_config_incomplete");
+  if (!urlValue || !anonKey || !serviceRoleKey || !suppliedProjectRef || !statedProjectRef) fail("secure_config_incomplete");
 
   let url;
   try {
@@ -130,7 +132,11 @@ export function validateConfig(config = {}) {
   const projectRef = url.hostname.endsWith(".supabase.co")
     ? url.hostname.slice(0, -".supabase.co".length)
     : "";
-  if (projectRef !== EXPECTED_PROJECT_REF || statedProjectRef !== EXPECTED_PROJECT_REF) {
+  if (
+    projectRef !== EXPECTED_PROJECT_REF ||
+    suppliedProjectRef !== EXPECTED_PROJECT_REF ||
+    statedProjectRef !== EXPECTED_PROJECT_REF
+  ) {
     fail("target_project_mismatch");
   }
   return Object.freeze({
@@ -840,8 +846,12 @@ export async function runProvisioner({
   if (state) validatePrivateState(state);
   if (mode === "apply" && !isDryRunReceiptValid(dryRunReceipt)) fail("successful_dry_run_required");
 
+  logger("REMOTE_SCHEMA_PREFLIGHT_STARTED");
   await validateRemoteSchema(client);
+  logger("REMOTE_SCHEMA_PREFLIGHT_PASSED");
+  logger("QA_TARGET_INSPECTION_STARTED");
   const found = await inspectTargets(client, state);
+  logger("QA_TARGET_INSPECTION_PASSED");
   const idempotent = Boolean(state && completeState(state, found));
   if (mode === "dry-run") {
     const receipt = createDryRunReceipt();
@@ -867,11 +877,19 @@ export async function runProvisioner({
   }
   if (mode !== "apply") fail("usage_invalid");
 
+  logger("PRIVATE_ACL_CHECK_STARTED");
   await ensurePrivate();
+  logger("PRIVATE_ACL_CHECK_PASSED");
+  logger("QA_CREDENTIALS_PREPARATION_STARTED");
   const nextCredentials = await generateCredentials(config, credentials);
+  logger("QA_CREDENTIALS_PREPARATION_PASSED");
   const nextState = state || makeInitialState(config.projectRef);
+  logger("PRIVATE_MANIFEST_INITIALIZATION_STARTED");
   await savePrivateState(nextState);
+  logger("PRIVATE_MANIFEST_INITIALIZATION_PASSED");
+  logger("QA_ENTITY_APPLY_STARTED");
   await runApply(client, config, nextState, nextCredentials, found, savePrivateState, saveManifest);
+  logger("QA_ENTITY_APPLY_PASSED");
   logger("PROVISIONING_COMPLETE");
   return { ok: true, mode, idempotent, tenantsDistinct: true, roles: { A: USER_ROLE, B: USER_ROLE } };
 }
@@ -986,7 +1004,6 @@ async function main(argv = process.argv.slice(2)) {
       mode: request.mode,
       confirmed: request.confirmed,
       savePrivateState,
-      saveCredentials,
       saveManifest,
       teardown,
       ensurePrivate: async () => {

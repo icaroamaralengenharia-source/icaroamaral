@@ -102,6 +102,7 @@ function fakeClient(options = {}) {
 function liveConfigText(overrides = {}) {
   return [
     `SUPABASE_URL=${overrides.SUPABASE_URL || config.supabaseUrl}`,
+    `SUPABASE_PROJECT_REF=${overrides.SUPABASE_PROJECT_REF || EXPECTED_PROJECT_REF}`,
     `SUPABASE_ANON_KEY=${overrides.SUPABASE_ANON_KEY || config.anonKey}`,
     `SUPABASE_SERVICE_ROLE_KEY=${overrides.SUPABASE_SERVICE_ROLE_KEY || config.serviceRoleKey}`,
     `LIVE_QA_EXPECTED_PROJECT_REF=${overrides.LIVE_QA_EXPECTED_PROJECT_REF || EXPECTED_PROJECT_REF}`
@@ -148,16 +149,31 @@ test("tenant prefixes and QA email namespace are mandatory", () => {
 test("project ref mismatch and non-HTTPS/custom URLs fail closed", () => {
   assert.throws(() => validateConfig({
     SUPABASE_URL: "https://example.supabase.co",
+    SUPABASE_PROJECT_REF: "example",
     SUPABASE_ANON_KEY: "anon",
     SUPABASE_SERVICE_ROLE_KEY: "service",
     LIVE_QA_EXPECTED_PROJECT_REF: "example"
   }), { code: "target_project_mismatch" });
   assert.throws(() => validateConfig({
     SUPABASE_URL: `http://${EXPECTED_PROJECT_REF}.supabase.co`,
+    SUPABASE_PROJECT_REF: EXPECTED_PROJECT_REF,
     SUPABASE_ANON_KEY: "anon",
     SUPABASE_SERVICE_ROLE_KEY: "service",
     LIVE_QA_EXPECTED_PROJECT_REF: EXPECTED_PROJECT_REF
   }), { code: "supabase_url_invalid" });
+  assert.throws(() => validateConfig({
+    SUPABASE_URL: `https://${EXPECTED_PROJECT_REF}.supabase.co`,
+    SUPABASE_PROJECT_REF: "different-project",
+    SUPABASE_ANON_KEY: "anon",
+    SUPABASE_SERVICE_ROLE_KEY: "service",
+    LIVE_QA_EXPECTED_PROJECT_REF: EXPECTED_PROJECT_REF
+  }), { code: "target_project_mismatch" });
+  assert.throws(() => validateConfig({
+    SUPABASE_URL: `https://${EXPECTED_PROJECT_REF}.supabase.co`,
+    SUPABASE_ANON_KEY: "anon",
+    SUPABASE_SERVICE_ROLE_KEY: "service",
+    LIVE_QA_EXPECTED_PROJECT_REF: EXPECTED_PROJECT_REF
+  }), { code: "secure_config_incomplete" });
 });
 
 test("existing target tenant without the private ownership manifest is never adopted", async () => {

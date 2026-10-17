@@ -16,6 +16,7 @@ O comando cria `~/.elo-secrets/pr231-live-qa` sem herdar permissões de leitura 
 
 ```text
 SUPABASE_URL=
+SUPABASE_PROJECT_REF=mplpzyalcxhhinuvjthx
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 LIVE_QA_EXPECTED_PROJECT_REF=mplpzyalcxhhinuvjthx
