@@ -177,6 +177,7 @@ test("existing profile under the reserved QA email cannot be reused", async () =
 test("repeating apply with a complete manifest is idempotent", async () => {
   const { client, store } = fakeClient();
   const state = makeInitialState();
+  let manifestWrites = 0;
   const result = await runProvisioner({
     mode: "apply",
     confirmed: true,
@@ -186,7 +187,7 @@ test("repeating apply with a complete manifest is idempotent", async () => {
     dryRunReceipt: createDryRunReceipt(),
     credentials: { A: "password-A-never-log", B: "password-B-never-log" },
     savePrivateState: async () => {},
-    saveManifest: async () => {},
+    saveManifest: async () => { manifestWrites += 1; },
     ensurePrivate: async () => {}
   });
   assert.equal(result.tenantsDistinct, true);
@@ -201,7 +202,7 @@ test("repeating apply with a complete manifest is idempotent", async () => {
     dryRunReceipt: createDryRunReceipt(),
     credentials: { A: "password-A-never-log", B: "password-B-never-log" },
     savePrivateState: async () => {},
-    saveManifest: async () => {},
+    saveManifest: async () => { manifestWrites += 1; },
     ensurePrivate: async () => {}
   });
   assert.equal(secondRun.idempotent, true);
@@ -209,6 +210,7 @@ test("repeating apply with a complete manifest is idempotent", async () => {
   assert.equal(store.institutions.length, 2);
   assert.equal(store.profiles.length, 2);
   assert.equal(store.projects.length, 2);
+  assert.equal(manifestWrites, 2);
   assert.equal(store.created.some(([table]) => ["obrareport_rdos", "obrareport_clients", "stock_full_items"].includes(table)), false);
 });
 

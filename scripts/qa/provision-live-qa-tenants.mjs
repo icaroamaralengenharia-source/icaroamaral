@@ -653,7 +653,7 @@ async function saveState(state) {
   await writePrivateJson(PRIVATE_MANIFEST_PATH, state);
 }
 
-async function runApply(client, config, state, credentials, found, persistState = saveState) {
+async function runApply(client, config, state, credentials, found, persistState = saveState, persistManifest = savePublicManifest) {
   const newlyCreatedAuthUsers = [];
   try {
     for (const key of ["A", "B"]) {
@@ -761,7 +761,7 @@ async function runApply(client, config, state, credentials, found, persistState 
   if (state.tenantA.institutionId === state.tenantB.institutionId || state.tenantA.authUserId === state.tenantB.authUserId) {
     fail("tenant_ids_not_distinct");
   }
-  await savePublicManifest(state);
+  await persistManifest(state);
   return verified;
 }
 
@@ -871,8 +871,7 @@ export async function runProvisioner({
   const nextCredentials = await generateCredentials(config, credentials);
   const nextState = state || makeInitialState(config.projectRef);
   await savePrivateState(nextState);
-  await runApply(client, config, nextState, nextCredentials, found, savePrivateState);
-  await saveManifest(nextState);
+  await runApply(client, config, nextState, nextCredentials, found, savePrivateState, saveManifest);
   logger("PROVISIONING_COMPLETE");
   return { ok: true, mode, idempotent, tenantsDistinct: true, roles: { A: USER_ROLE, B: USER_ROLE } };
 }
