@@ -937,6 +937,8 @@
     if (!text) return null;
     const payload = { message: raw };
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
+    const cancellation = window.EloActionBusRdo && typeof window.EloActionBusRdo.classifyCancellation === "function" ? window.EloActionBusRdo.classifyCancellation(raw, Boolean(pendingRdo)) : "";
+    if (cancellation) return { module: "obrareport_rdo", action: cancellation === "cancel" ? "rdo_cancel" : cancellation === "hold" ? "rdo.hold" : "rdo.cancel.question", payload: payload };
     if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
       return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
     }
@@ -956,7 +958,7 @@
     const operationalChange = (/^(?:corrija|corrigir|corrige|ajuste|ajustar|inclua|incluir|adicione|adicionar|acrescente|acrescentar|troque|trocar|mude|mudar|altere|alterar)\b/.test(text) && /\b(?:obra|data|equipe|horarios?|saida|jornada|clima|servicos?|producao|materia(?:l|is)|sacos?|cimento|intercorrencias?|ocorrencias?|observacoes|recebimento|chegaram)\b/.test(text)) || /^(?:foram|chegaram|recebemos)\s+\d[\s\S]*\bnao\s+\d/.test(text);
     if (pendingCreatePreview && (previewReview || operationalChange && !isEloExplicitStockProductCreateRequest_(text))) {
       return { module: "obrareport_rdo", action: "rdo.create.revise", payload: Object.assign({}, rdoPayload, {
-        rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+        rdoPreviewContinuation: { field: "operational", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt, operationToken: pendingRdo.operationToken || "" }
       }) };
     }
     if (explicitRdoRequest) return explicitRdoRequest;
@@ -964,7 +966,7 @@
       const isDateAnswer = /^(?:(?:para|em|na data|data|no dia|dia)\s+)?(?:hoje(?:\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?|ontem|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?:\s+(?:(?:mantenha\s+)?sem\s+salvar|(?:mas\s+)?nao\s+salve))?$/.test(text);
       return { module: "obrareport_rdo", action: "rdo.create.preview", payload: Object.assign({}, payload, {
         workName: isDateAnswer ? "" : raw,
-        rdoPreviewContinuation: { field: isDateAnswer ? "date" : "work", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt }
+        rdoPreviewContinuation: { field: isDateAnswer ? "date" : "work", operationId: pendingRdo.operationId, createdAt: pendingRdo.createdAt, operationToken: pendingRdo.operationToken || "" }
       }) };
     }
     if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
@@ -1062,7 +1064,7 @@
   function isEloCommandBridgePriorityRequest_(request) {
     if (!request || !request.module || !request.action) return false;
     if (["inspection", "obrareport_rdo", "obrareport_report", "stock_full", "municipal", "municipal_sentinel", "memory"].indexOf(request.module) < 0) return false;
-    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|create\.revise|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
+    return /^(?:inspection\.|rdo\.(?:get|list|generateDocument|hold|cancel\.question|create\.revise|(?:create|update)\.preview)$|rdo_confirm$|rdo_cancel$|preview_|close_|create_|stock_|list_products|get_balance|clear_|save_|generate_report_from_context|generate_final_document|update_)/.test(request.action);
   }
   function getEloAndroidStockCommandFromEvent_(event) {
     if (!event) return null;
@@ -1170,6 +1172,15 @@
     return Object.assign({}, source);
   }
 
+  function getEloRdoConversationToken_() {
+    if (!window.ELO_RDO_CONVERSATION_TOKEN) {
+      try { window.ELO_RDO_CONVERSATION_TOKEN = window.sessionStorage.getItem("elo_rdo_conversation_token_v1"); } catch (_) {}
+      if (!window.ELO_RDO_CONVERSATION_TOKEN) window.ELO_RDO_CONVERSATION_TOKEN = window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : String(Date.now()) + ":" + Math.random();
+      try { window.sessionStorage.setItem("elo_rdo_conversation_token_v1", window.ELO_RDO_CONVERSATION_TOKEN); } catch (_) {}
+    }
+    return window.ELO_RDO_CONVERSATION_TOKEN;
+  }
+
   function buildEloCommandBridgeResponse_(message, options) {
     const bridge = window.EloCommandBridge;
     if (!bridge || typeof bridge.execute !== "function") return null;
@@ -1182,6 +1193,7 @@
       identity: Object.assign({}, getEloCoreIdentity_(), getEloMunicipalContext_()),
       municipal: getEloMunicipalContext_()
     }, options && options.context || {});
+    if (request.module === "obrareport_rdo") bridgeContext.rdoConversationToken = getEloRdoConversationToken_();
     if (ELO_SESSION_MEMORY.lastStockItems && ELO_SESSION_MEMORY.lastStockItems.length) bridgeContext.stockItems = ELO_SESSION_MEMORY.lastStockItems.slice(-8);
     const result = bridge.execute(Object.assign({}, request, {
       context: bridgeContext,
@@ -3994,6 +4006,7 @@
         recordEloCoreReliabilityEvent_("conversation_restore_skipped", { reason: "stale_bootstrap", conversationId: conversationId });
         return false;
       }
+      if (snapshot.userInitiated && sanitizeUserText(ELO_UI.coreConversationId || "") !== conversationId) clearEloRdoConversationState_();
       setEloCoreCurrentConversationId_(conversationId);
       replayEloCoreMessages_(data.messages || []);
       return true;
@@ -4534,10 +4547,12 @@
   }
   function clearEloRdoConversationState_() {
     if (window.EloActionBusRdo && typeof window.EloActionBusRdo.clearPending === "function") window.EloActionBusRdo.clearPending();
+    window.ELO_RDO_CONVERSATION_TOKEN = "";
+    try { window.sessionStorage.removeItem("elo_rdo_conversation_token_v1"); } catch (_) {}
     try { window.localStorage.removeItem("elo_action_bus_rdo_context_v1"); window.localStorage.removeItem("elo_action_bus_rdo_list_context_v1"); } catch (_) {}
   }
   function startEloCoreNewConversation_(event) { if (event) { event.preventDefault(); event.stopPropagation(); } clearEloRdoConversationState_(); stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (ELO_UI.input) ELO_UI.input.focus(); }
-  function clearEloCoreCurrentConversation_(options) { const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
+  function clearEloCoreCurrentConversation_(options) { clearEloRdoConversationState_(); const previous = ELO_UI.coreConversationId || getEloCoreCurrentConversationId_(); if (previous) { markEloCoreConversationCleared_(previous); removeEloActiveContextStateForConversation_(previous); } stopAllEloSpeech_({ shutdown: true }); ELO_SESSION_MEMORY.temporaryConversationOnly = false; setEloCoreCurrentConversationId_(""); resetEloCoreConversationSurface_(); if (options && options.focus !== false && ELO_UI.input) ELO_UI.input.focus(); return true; }
   function confirmClearEloCoreCurrentConversation_() { if (typeof window.confirm === "function" && !window.confirm("Limpar a conversa atual?")) return false; return clearEloCoreCurrentConversation_(); }
   function ensureEloCoreUtilityPanel_() {
     if (ELO_UI.coreUtilityPanel && ELO_UI.coreUtilityPanel.parentNode) return ELO_UI.coreUtilityPanel;
@@ -30847,7 +30862,8 @@ function isEloResidentialNewPipelineEnabled_() {
   function stripEloWakePrefixForRouting_(message) {
     const pending = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     const rdoRevision = pending && pending.status === "pending" && /^(?:corrija|corrigir|ajuste|inclua|adicione|acrescente|troque|mude|altere|foram|recebemos|chegaram)\b/.test(normalizeText(message));
-    const preserveRdo = rdoRevision || /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(message));
+    const rdoCancellation = window.EloActionBusRdo && typeof window.EloActionBusRdo.classifyCancellation === "function" && window.EloActionBusRdo.classifyCancellation(message, Boolean(pending));
+    const preserveRdo = Boolean(rdoCancellation) || rdoRevision || /\b(?:rdo|rdos|diario\s+de\s+obra|diarios\s+de\s+obra)\b/.test(normalizeText(message));
     const clean = (preserveRdo ? sanitizeEloUserMessage_(message || "") : sanitizeUserText(message || "")).replace(/\s+/g, " ").trim();
     const wake = readEloWakeAliasForRouting_(clean);
     const match = wake.matched && clean.match(/^\s*(?:elo|ello|ellen|hello|e\s+lo)\s*[,;:.!?-]*\s*(.*)$/i);
