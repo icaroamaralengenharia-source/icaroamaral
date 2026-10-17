@@ -17,6 +17,11 @@ const works = [
   { id: "canonical-b", name: "Synthetic B", institutionId: "tenant-a", canonicalStockWork: true }
 ];
 
+test("the tenant workspace and its page identity integration use fresh asset URLs together", () => {
+  assert.ok(html.includes('src="./rdo-project-workspace.js?v=20261017-tenant-scope-v1"'));
+  assert.ok(html.includes('src="./relatorio-qualidade-obras.js?v=20261017-tenant-scope-v1"'));
+});
+
 function extract(name) {
   const start = source.search(new RegExp("^  (?:async )?function " + name + "\\(", "m"));
   assert.ok(start >= 0, "Missing page function: " + name);
@@ -54,7 +59,7 @@ async function projectRuntime(names, overrides = {}) {
     mapRdoToDailyLog: (row, userId) => ({ ...row, workId: row.project_id || row.workId, userId }),
     ...overrides
   };
-  const workspace = create({ adapter, storage: memoryStorage(), getUserId: () => "user-a" });
+  const workspace = create({ adapter, storage: memoryStorage(), getUserId: () => "user-a", getIdentity: () => ({ userId: "user-a", institutionId: "tenant-a", companyId: "company-a", providerId: "rdo-stock-full" }) });
   await workspace.loadProjects();
   workspace.selectProject("canonical-a");
   const dependencies = names.some((name) => ["loadRdosForWork_", "activateProject_"].includes(name)) ? ["loadActiveProjectHistory_"] : [];

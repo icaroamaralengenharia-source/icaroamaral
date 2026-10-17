@@ -341,7 +341,16 @@
         setItem: function (key, value) { window.localStorage.setItem(key, value); },
         removeItem: function (key) { window.localStorage.removeItem(key); }
       },
-      getUserId: function () { return clean(currentUser && currentUser.id); }
+      getUserId: function () { return clean(currentUser && currentUser.id); },
+      getIdentity: function () {
+        const auth = buildEloSurfaceAuthContext_();
+        return {
+          userId: clean(currentUser && currentUser.id),
+          institutionId: clean(auth.institutionId || auth.tenantId),
+          companyId: clean(auth.companyId),
+          providerId: "rdo-stock-full"
+        };
+      }
     }) : null;
   let canonicalWorkspaceLoadGeneration = 0;
   let projectHistoryLoading = false;

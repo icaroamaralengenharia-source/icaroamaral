@@ -1,0 +1,69 @@
+{
+  "baseRef": "37f66e71eb0de4184be11cf2ba9ae405560c1527",
+  "apiWorksA": [
+    "ELO_QA_LIVE_WORK_A"
+  ],
+  "apiWorksB": [
+    "ELO_QA_LIVE_WORK_B"
+  ],
+  "uiWorksBefore": {
+    "A": [
+      "ELO_QA_LIVE_WORK_A"
+    ],
+    "B": [
+      "ELO_QA_LIVE_WORK_A"
+    ],
+    "AAfterReturn": [
+      "ELO_QA_LIVE_WORK_A"
+    ]
+  },
+  "uiWorksAfter": {
+    "A": [
+      "ELO_QA_LIVE_WORK_A"
+    ],
+    "B": [
+      "ELO_QA_LIVE_WORK_B"
+    ],
+    "AAfterReturn": [
+      "ELO_QA_LIVE_WORK_A"
+    ]
+  },
+  "apiTenantMatches": {
+    "A": true,
+    "B": true
+  },
+  "uiIdentityMatches": {
+    "A": true,
+    "B": true,
+    "AAfterReturn": true
+  },
+  "uiMatchesApiAfter": {
+    "A": true,
+    "B": true,
+    "AAfterReturn": true
+  },
+  "crossTenantApiLeak": false,
+  "crossTenantUiLeakBefore": true,
+  "crossTenantUiLeakAfter": false,
+  "staleWorkFlashAfter": false,
+  "activeProject": {
+    "AOnly": true,
+    "BOnly": true,
+    "AAfterReturn": true,
+    "crossTenantRestore": false,
+    "sameTenantRestore": true,
+    "namesA": [
+      "ELO_QA_LIVE_WORK_A"
+    ],
+    "namesB": [
+      "ELO_QA_LIVE_WORK_B"
+    ],
+    "namesAAfterReturn": [
+      "ELO_QA_LIVE_WORK_A"
+    ]
+  },
+  "staleRequestGuard": "PASS",
+  "serviceWorkerApiBypass": "PASS",
+  "businessWrites": 0,
+  "browserRequestWrites": []
+}

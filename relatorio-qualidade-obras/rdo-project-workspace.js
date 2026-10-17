@@ -20,12 +20,31 @@
     const adapter = settings.adapter;
     const storage = settings.storage;
     const getUserId = settings.getUserId;
+    const getIdentity = typeof settings.getIdentity === "function" ? settings.getIdentity : function () {
+      return {
+        userId: typeof getUserId === "function" ? getUserId() : "",
+        institutionId: typeof settings.getInstitutionId === "function" ? settings.getInstitutionId() : "",
+        companyId: typeof settings.getCompanyId === "function" ? settings.getCompanyId() : "",
+        providerId: typeof settings.getProviderId === "function" ? settings.getProviderId() : "rdo-stock-full"
+      };
+    };
     if (!adapter || typeof adapter.listStockWorks !== "function" || typeof adapter.listRdosByWork !== "function") {
       throw new Error("rdo_workspace_adapter_required");
     }
     if (typeof getUserId !== "function") throw new Error("rdo_workspace_user_provider_required");
 
-    let userId = clean(getUserId());
+    function readIdentity() {
+      const value = getIdentity() || {};
+      return {
+        userId: clean(value.userId || value.user_id || (typeof getUserId === "function" && getUserId())),
+        institutionId: clean(value.institutionId || value.institution_id),
+        companyId: clean(value.companyId || value.company_id),
+        providerId: clean(value.providerId || value.provider_id) || "rdo-stock-full"
+      };
+    }
+
+    let identity = readIdentity();
+    let userId = identity.userId;
     let works = [];
     let activeId = "";
     let records = [];
@@ -45,28 +64,35 @@
     }
 
     function ensureUser() {
-      const currentId = clean(getUserId());
-      if (currentId !== userId) {
+      const current = readIdentity();
+      if (current.userId !== identity.userId || current.institutionId !== identity.institutionId || current.companyId !== identity.companyId || current.providerId !== identity.providerId) {
         invalidate();
-        userId = currentId;
+        identity = current;
+        userId = current.userId;
       }
       return userId;
+    }
+
+    function sameScope(value) {
+      return Boolean(value && value.scopeVersion === 2 && clean(value.userId) === identity.userId &&
+        clean(value.institutionId) === identity.institutionId && clean(value.companyId) === identity.companyId &&
+        clean(value.providerId) === identity.providerId);
     }
 
     function readPreference() {
       try {
         const value = JSON.parse(storage && storage.getItem(STORAGE_KEY) || "null");
-        return value && clean(value.userId) === userId ? clean(value.projectId) : "";
+        return sameScope(value) ? clean(value.projectId) : "";
       } catch (_) {
         return "";
       }
     }
 
     function savePreference(id) {
-      if (!userId || !storage) return;
+      if (!userId || !identity.institutionId || !storage) return;
       try {
         if (id) {
-          storage.setItem(STORAGE_KEY, JSON.stringify({ userId: userId, projectId: id }));
+          storage.setItem(STORAGE_KEY, JSON.stringify({ scopeVersion: 2, userId: userId, institutionId: identity.institutionId, companyId: identity.companyId, providerId: identity.providerId, projectId: id }));
         } else if (readPreference()) {
           storage.removeItem(STORAGE_KEY);
         }
@@ -77,12 +103,13 @@
 
     function context() {
       ensureUser();
-      return { projectId: activeId, revision: revision, userId: userId };
+      return { projectId: activeId, revision: revision, userId: userId, institutionId: identity.institutionId, companyId: identity.companyId, providerId: identity.providerId };
     }
 
     function isCurrent(value) {
       ensureUser();
-      return Boolean(value && value.projectId === activeId && value.revision === revision && value.userId === userId);
+      return Boolean(value && value.projectId === activeId && value.revision === revision && value.userId === userId &&
+        value.institutionId === identity.institutionId && value.companyId === identity.companyId && value.providerId === identity.providerId);
     }
 
     function getWorks() {
@@ -140,6 +167,7 @@
       const generation = projectsGeneration;
       const requestContext = context();
       if (!userId) throw new Error("rdo_workspace_user_required");
+      if (!identity.institutionId) throw new Error("rdo_workspace_tenant_required");
       try {
         const result = await adapter.listStockWorks();
         if (generation !== projectsGeneration || !isCurrent(requestContext)) return getWorks();
@@ -147,7 +175,8 @@
         const ids = new Set();
         works = result.filter(function (work) {
           const id = clean(work && work.id);
-          if (!id || ids.has(id)) return false;
+          const institutionId = clean(work && (work.institutionId || work.institution_id));
+          if (!id || !institutionId || institutionId !== identity.institutionId || ids.has(id)) return false;
           ids.add(id);
           return true;
         }).map(function (work) {
@@ -214,6 +243,7 @@
       getSummary: getSummary,
       context: context,
       isCurrent: isCurrent,
+      getIdentity: function () { ensureUser(); return copy(identity); },
       upsertRecord: upsertRecord,
       clear: clear
     };
