@@ -54,7 +54,7 @@ async function projectRuntime(names, overrides = {}) {
     mapRdoToDailyLog: (row, userId) => ({ ...row, workId: row.project_id || row.workId, userId }),
     ...overrides
   };
-  const workspace = create({ adapter, storage: memoryStorage(), getUserId: () => "user-a" });
+  const workspace = create({ adapter, storage: memoryStorage(), getUserId: () => "user-a", getIdentity: () => ({ userId: "user-a", institutionId: "tenant-a", companyId: "company-a", providerId: "rdo-stock-full" }) });
   await workspace.loadProjects();
   workspace.selectProject("canonical-a");
   const dependencies = names.some((name) => ["loadRdosForWork_", "activateProject_"].includes(name)) ? ["loadActiveProjectHistory_"] : [];

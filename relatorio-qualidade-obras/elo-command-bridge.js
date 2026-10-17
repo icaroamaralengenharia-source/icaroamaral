@@ -124,33 +124,43 @@
     catch (error) { return null; }
   }
 
-  function getCanonicalRdoSession_() {
+  function getEloCanonicalRdoSession_() {
+    const provider = window.EloCanonicalSession;
+    if (!provider || typeof provider.getSession !== "function" || typeof provider.getValidAccessToken !== "function") {
+      return Promise.resolve({ ok: false, error: "authentication_required" });
+    }
+    return Promise.resolve().then(function () { return provider.getSession(); }).then(function (value) {
+      if (!value || value.ok !== true) return { ok: false, error: "authentication_required" };
+      const authContext = normalizeAuthContext_(value.authContext || {});
+      if (!authContext.userId || !authContext.institutionId) return { ok: false, error: "institution_required" };
+      return Promise.resolve(provider.getValidAccessToken()).then(function (token) {
+        return clean(token) ? { ok: true, accessToken: clean(token), authContext: Object.assign({}, authContext, { companyId: authContext.companyId || authContext.institutionId }) } : { ok: false, error: "authentication_required" };
+      });
+    }).catch(function () { return { ok: false, error: "authentication_required" }; });
+  }
+
+  function getStoredCanonicalRdoSession_() {
     const ownSession = readOwnRdoSession_();
     const factory = window.ObraReportRdoCanonicalAuth;
     const config = window.RELATORIO_QUALIDADE_CONFIG || {};
-    const own = ownSession && factory && typeof factory.create === "function"
-      ? Promise.resolve().then(function () {
-        return factory.create({ baseUrl: getRdoEndpoint(""), supabaseUrl: config.eloSupabaseUrl, anonKey: config.eloSupabaseAnonKey }).getValidAccessToken();
-      }).then(function (token) {
-        const stored = readOwnRdoSession_() || {};
-        const profile = stored.profile || {};
-        const user = stored.user || {};
-        if (!clean(token) || !clean(user.id) || !clean(profile.institution_id)) return null;
-        return { ok: true, accessToken: clean(token), authContext: { userId: clean(user.id), institutionId: clean(profile.institution_id), companyId: clean(profile.company_id || profile.institution_id), profile: profile } };
-      }).catch(function () { return null; })
-      : Promise.resolve(null);
-    return own.then(function (session) {
-      if (session) return session;
-      const provider = window.EloCanonicalSession;
-      if (!provider || typeof provider.getSession !== "function" || typeof provider.getValidAccessToken !== "function") return { ok: false, error: "authentication_required" };
-      return Promise.resolve().then(function () { return provider.getSession(); }).then(function (value) {
-        if (!value || value.ok !== true) return { ok: false, error: "authentication_required" };
-        const authContext = normalizeAuthContext_(value.authContext || {});
-        if (!authContext.userId || !authContext.institutionId) return { ok: false, error: "institution_required" };
-        return Promise.resolve(provider.getValidAccessToken()).then(function (token) {
-          return clean(token) ? { ok: true, accessToken: clean(token), authContext: Object.assign({}, authContext, { companyId: authContext.companyId || authContext.institutionId }) } : { ok: false, error: "authentication_required" };
-        });
-      }).catch(function () { return { ok: false, error: "authentication_required" }; });
+    if (!ownSession || !factory || typeof factory.create !== "function") return Promise.resolve(null);
+    return Promise.resolve().then(function () {
+      return factory.create({ baseUrl: getRdoEndpoint(""), supabaseUrl: config.eloSupabaseUrl, anonKey: config.eloSupabaseAnonKey }).getValidAccessToken();
+    }).then(function (token) {
+      const stored = readOwnRdoSession_() || {};
+      const profile = stored.profile || {};
+      const user = stored.user || {};
+      if (!clean(token) || !clean(user.id) || !clean(profile.institution_id)) return null;
+      return { ok: true, accessToken: clean(token), authContext: { userId: clean(user.id), institutionId: clean(profile.institution_id), companyId: clean(profile.company_id || profile.institution_id), profile: profile } };
+    }).catch(function () { return null; });
+  }
+
+  function getCanonicalRdoSession_() {
+    // The ELO surface has its own authenticated identity. A persisted standalone RDO
+    // session shares this origin's localStorage, so it must never override ELO auth.
+    if (window.ELO_CORE_SURFACE === true) return getEloCanonicalRdoSession_();
+    return getStoredCanonicalRdoSession_().then(function (session) {
+      return session || getEloCanonicalRdoSession_();
     });
   }
 
@@ -1635,6 +1645,7 @@
     if (!auth.ok) throw new Error(auth.reason === "tenant" ? "institution_required" : "authentication_required");
     if (typeof window.fetch !== "function") throw new Error("rdo_fetch_unavailable");
     const binding = tenantBinding(auth.identity);
+    const accessToken = clean(input.context && input.context.rdoCanonicalAccessToken);
     const response = await window.fetch(getRdoEndpoint("/api/stock-full/works"), { method: "GET", headers: rdoHeaders(input), cache: "no-store" });
     let data;
     try { data = await response.json(); } catch (_) { throw new Error("rdo_work_catalog_invalid_response"); }
@@ -1657,7 +1668,7 @@
       return { id, projectId: id, workId: id, name, institutionId, clientId: clean(work.clientId || work.client_id), address: clean(work.address), entityType: "work", source: "stock_full_api" };
     });
     const currentSession = await getCanonicalRdoSession_();
-    if (!currentSession.ok || tenantBinding(getRdoIdentity({ context: currentSession.authContext })) !== binding) throw new Error("rdo_tenant_changed");
+    if (!currentSession.ok || tenantBinding(getRdoIdentity({ context: currentSession.authContext })) !== binding || currentSession.accessToken !== accessToken) throw new Error("rdo_tenant_changed");
     // Keep the authorized snapshot within this invocation, never in the shared local SaaS cache.
     rdoCanonicalWorkCatalogs.set(input, works);
     return works;

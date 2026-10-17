@@ -16,8 +16,8 @@ test("browser global and CommonJS entry expose the same controller", () => {
 });
 
 const preferenceKey = "obrareport-active-project-v1";
-const projectA = { id: "project-a", name: "Synthetic A", canonicalStockWork: true };
-const projectB = { id: "project-b", name: "Synthetic B", canonicalStockWork: true };
+const projectA = { id: "project-a", name: "Synthetic A", institutionId: "institution-a", canonicalStockWork: true };
+const projectB = { id: "project-b", name: "Synthetic B", institutionId: "institution-a", canonicalStockWork: true };
 const recordA = { id: "rdo-a", project_id: projectA.id, rdo_date: "2026-10-14", rdo_data_json: { generalNotes: "synthetic A" } };
 const recordB = { id: "rdo-b", projectId: projectB.id, rdoDate: "2026-10-15" };
 
@@ -38,15 +38,15 @@ function deferred() {
 }
 
 function setup(options = {}) {
-  let userId = "user-a";
+  let identity = { userId: "user-a", institutionId: "institution-a", companyId: "company-a", providerId: "rdo-stock-full" };
   const storage = options.storage || memoryStorage();
   const adapter = {
     listStockWorks: async () => [projectA, projectB],
     listRdosByWork: async (id) => id === projectA.id ? [recordA] : [recordB],
     ...options.adapter
   };
-  const workspace = create({ adapter, storage, getUserId: () => userId });
-  return { workspace, storage, adapter, setUser: (id) => { userId = id; } };
+  const workspace = create({ adapter, storage, getUserId: () => identity.userId, getIdentity: () => ({ ...identity }) });
+  return { workspace, storage, adapter, setUser: (id) => { identity.userId = id; }, setTenant: (id) => { identity.institutionId = id; }, setProvider: (id) => { identity.providerId = id; }, setIdentity: (next) => { identity = { ...identity, ...next }; } };
 }
 
 test("canonical project load does not select the first project or trust blank IDs", async () => {
@@ -65,7 +65,7 @@ test("a selected project persists only its ID and user, and reload revalidates a
   const first = setup({ storage }).workspace;
   await first.loadProjects();
   first.selectProject(projectB.id);
-  assert.deepEqual(JSON.parse(storage.getItem(preferenceKey)), { userId: "user-a", projectId: projectB.id });
+  assert.deepEqual(JSON.parse(storage.getItem(preferenceKey)), { scopeVersion: 2, userId: "user-a", institutionId: "institution-a", companyId: "company-a", providerId: "rdo-stock-full", projectId: projectB.id });
   const second = setup({ storage }).workspace;
   assert.equal(second.getActiveId(), "");
   await second.loadProjects();
@@ -74,7 +74,7 @@ test("a selected project persists only its ID and user, and reload revalidates a
 });
 
 test("revoked saved projects clear the context without choosing another project", async () => {
-  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ userId: "user-a", projectId: projectA.id }) });
+  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ scopeVersion: 2, userId: "user-a", institutionId: "institution-a", companyId: "company-a", providerId: "rdo-stock-full", projectId: projectA.id }) });
   const { workspace } = setup({ storage, adapter: { listStockWorks: async () => [projectB] } });
   await workspace.loadProjects();
   assert.equal(workspace.getActiveId(), "");
@@ -83,12 +83,53 @@ test("revoked saved projects clear the context without choosing another project"
 });
 
 test("preferences belonging to another user cannot activate a project", async () => {
-  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ userId: "other-user", projectId: projectA.id }) });
+  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ scopeVersion: 2, userId: "other-user", institutionId: "institution-a", companyId: "company-a", providerId: "rdo-stock-full", projectId: projectA.id }) });
   const { workspace } = setup({ storage });
   await workspace.loadProjects();
   assert.equal(workspace.getActiveId(), "");
   workspace.clear();
   assert.equal(JSON.parse(storage.getItem(preferenceKey)).userId, "other-user");
+});
+
+test("a same-user preference from another tenant is rejected even when the work ID matches", async () => {
+  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ scopeVersion: 2, userId: "user-a", institutionId: "institution-a", companyId: "company-a", providerId: "rdo-stock-full", projectId: projectA.id }) });
+  const { workspace, setTenant } = setup({ storage, adapter: { listStockWorks: async () => [{ ...projectA, institutionId: "institution-b" }] } });
+  setTenant("institution-b");
+  await workspace.loadProjects();
+  assert.deepEqual(workspace.getWorks(), [{ ...projectA, institutionId: "institution-b" }]);
+  assert.equal(workspace.getActiveId(), "");
+});
+
+test("reload in tenant B restores only B's preference after canonical API validation", async () => {
+  const tenantBWork = { id: "project-b-tenant", name: "Synthetic B", institutionId: "institution-b", canonicalStockWork: true };
+  const storage = memoryStorage({ [preferenceKey]: JSON.stringify({ scopeVersion: 2, userId: "user-a", institutionId: "institution-b", companyId: "company-b", providerId: "rdo-stock-full", projectId: tenantBWork.id }) });
+  const { workspace, setIdentity } = setup({ storage, adapter: { listStockWorks: async () => [projectA, tenantBWork] } });
+  setIdentity({ institutionId: "institution-b", companyId: "company-b" });
+  assert.deepEqual(await workspace.loadProjects(), [tenantBWork]);
+  assert.equal(workspace.getActiveId(), tenantBWork.id);
+  assert.deepEqual(workspace.getActiveWork(), tenantBWork);
+});
+
+test("tenant change invalidates active work and all tenant-scoped in-memory state", async () => {
+  const tenantBWork = { id: "project-b-tenant", name: "Synthetic B", institutionId: "institution-b", canonicalStockWork: true };
+  const { workspace, setTenant, adapter } = setup();
+  await workspace.loadProjects();
+  workspace.selectProject(projectA.id);
+  const previous = workspace.context();
+  adapter.listStockWorks = async () => [tenantBWork];
+  setTenant("institution-b");
+  assert.deepEqual(workspace.getWorks(), []);
+  assert.equal(workspace.getActiveWork(), null);
+  assert.equal(workspace.isCurrent(previous), false);
+  await workspace.loadProjects();
+  assert.deepEqual(workspace.getWorks(), [tenantBWork]);
+  assert.equal(workspace.getActiveId(), "");
+});
+
+test("the canonical API response is filtered to the active institution", async () => {
+  const tenantBWork = { id: "project-b", name: "Synthetic B", institutionId: "institution-b", canonicalStockWork: true };
+  const { workspace } = setup({ adapter: { listStockWorks: async () => [projectA, tenantBWork] } });
+  assert.deepEqual(await workspace.loadProjects(), [projectA]);
 });
 
 test("selectProject rejects unknown IDs, increments context, and clears records on each selection", async () => {
@@ -217,6 +258,38 @@ test("a user change invalidates getters and in-flight project and history respon
   assert.deepEqual(await oldHistory, []);
   assert.equal(workspace.getActiveId(), "");
   assert.equal(workspace.context().userId, "user-b");
+});
+
+test("an in-flight project list from A cannot hydrate a new tenant B", async () => {
+  const oldProjects = deferred();
+  const tenantBWork = { id: "project-b-tenant", name: "Synthetic B", institutionId: "institution-b", canonicalStockWork: true };
+  let calls = 0;
+  const { workspace, adapter, setTenant } = setup({ adapter: { listStockWorks: () => ++calls === 1 ? oldProjects.promise : Promise.resolve([tenantBWork]) } });
+  const oldLoad = workspace.loadProjects();
+  setTenant("institution-b");
+  assert.deepEqual(workspace.getWorks(), []);
+  assert.deepEqual(await workspace.loadProjects(), [tenantBWork]);
+  oldProjects.resolve([projectA]);
+  assert.deepEqual(await oldLoad, [tenantBWork]);
+  assert.deepEqual(workspace.getWorks(), [tenantBWork]);
+});
+
+test("the workspace fails closed when it has a user but no authenticated institution", async () => {
+  const { workspace, setTenant } = setup();
+  setTenant("");
+  await assert.rejects(workspace.loadProjects(), /rdo_workspace_tenant_required/);
+  assert.deepEqual(workspace.getWorks(), []);
+});
+
+test("provider changes invalidate active work and old request contexts", async () => {
+  const { workspace, setProvider } = setup();
+  await workspace.loadProjects();
+  workspace.selectProject(projectA.id);
+  const previous = workspace.context();
+  setProvider("another-stock-provider");
+  assert.deepEqual(workspace.getWorks(), []);
+  assert.equal(workspace.getActiveId(), "");
+  assert.equal(workspace.isCurrent(previous), false);
 });
 
 test("upsert requires the captured active context and exact project and keeps the same record ID", async () => {
