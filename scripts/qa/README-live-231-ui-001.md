@@ -33,11 +33,32 @@ Para reproduzir contra uma base anterior, executar a suíte nova com
 
 ## Smoke no preview do PR
 
+### Transporte exclusivo do preview #233
+
+`elo-runtime-config.js` seleciona `https://deploy-preview-233--icaroamaral.netlify.app/__pr233_live_qa`
+somente quando a origem da página corresponde exatamente ao preview #233.
+A Netlify Function `netlify/functions/pr233-live-qa.mjs` aceita somente esse host,
+contexto `deploy-preview` e Origin ausente ou igual ao mesmo preview. Produção,
+outros previews e permalinks são bloqueados. Não há wildcard de origem.
+
+O destino é fixo no backend LIVE existente. A função encaminha o bearer normal
+e os cabeçalhos de escopo ao backend, que continua decidindo usuário/tenant.
+Não usa variáveis secretas, cookies ou service-role; não registra requisições.
+Há allowlist de rotas/métodos para identidade, catálogo, leituras de RDO e
+persistência normal da conversa ELO. Toda mutação de RDO é bloqueada antes
+do backend. Respostas não são armazenadas em cache e redirects não são seguidos.
+
+Isso resolve o bloqueio de CORS da UI pelo transporte na mesma origem do preview.
+A allowlist CORS do backend LIVE não é alterada, nem há restart/deploy no Render.
+A função acompanha somente o Deploy Preview automático do PR. Ela deve ser
+retirada após o QA ou permanecer desativada fora desse host/contexto.
+
+Testes: `node --test backend/tests/pr233-hosted-preview.test.mjs`.
+Referência da integração: https://docs.netlify.com/build/functions/configuration/
+
 1. Conferir os assets/versionamento do HEAD no preview.
-   O preview público Netlify exige uma origem permitida pelo CORS do backend
-   para este smoke. Se indisponível, registrar o bloqueio e validar o mesmo HEAD
-   no preview local em origem já permitida, com a configuração pública do deploy.
-   Registrar separadamente os resultados local e hospedado.
+   Confirmar que o transporte na mesma origem está ativo apenas no preview #233
+   e que produção/outros previews continuam com o backend configurado originalmente.
 2. Usar somente as credenciais normais dos usuários QA LIVE A e B já existentes.
 3. Registrar apenas contagens e hashes das leituras de RDO antes/depois.
 4. Entrar como A, conferir a identidade visível, pedir prévia apenas para
