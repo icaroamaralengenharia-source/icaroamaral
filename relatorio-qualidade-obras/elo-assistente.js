@@ -3525,14 +3525,29 @@
     window.ELO_SURFACE_CONTEXT = context;
     return context;
   }
-  function applyEloCoreAuthContext_(context) { if (!context || typeof context !== "object") return {}; const previousScope = normalizeEloCoreAuthContext_(getEloCoreAuthContext_()); const previousIdentity = getEloCoreAuthContextIdentity_(previousScope); const safe = normalizeEloCoreAuthContext_(context); const nextIdentity = getEloCoreAuthContextIdentity_(safe); if (previousScope.userId && safe.userId && ["userId", "institutionId", "companyId"].some(function (key) { return previousScope[key] !== safe[key]; })) clearEloRdoConversationState_(); if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity && shouldEloCoreClearConversationOnIdentityChange_()) clearEloCoreLocalConversationState_(); window.ELO_AUTH_CONTEXT = safe; if (safe.userId) window.ELO_AUTH_USER_ID = safe.userId; try { window.sessionStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {} return safe; }
+  function applyEloCoreAuthContext_(context) {
+    if (!context || typeof context !== "object") return {};
+    const previousScope = normalizeEloCoreAuthContext_(getEloCoreAuthContext_());
+    const previousIdentity = getEloCoreAuthContextIdentity_(previousScope);
+    const safe = normalizeEloCoreAuthContext_(context);
+    const nextIdentity = getEloCoreAuthContextIdentity_(safe);
+    if (previousScope.userId && safe.userId && ["userId", "institutionId", "companyId"].some(function (key) { return previousScope[key] !== safe[key]; })) clearEloRdoSessionState_();
+    if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity && shouldEloCoreClearConversationOnIdentityChange_()) clearEloCoreLocalConversationState_();
+    window.ELO_AUTH_CONTEXT = safe;
+    window.ELO_CANONICAL_AUTH_CONTEXT = safe;
+    if (safe.userId) window.ELO_AUTH_USER_ID = safe.userId;
+    try { window.sessionStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {}
+    try { window.localStorage.setItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY, JSON.stringify(safe)); } catch (error) {}
+    return safe;
+  }
   function applyEloCoreAuthContextFromResponse_(data) { if (data && data.authContext) applyEloCoreAuthContext_(data.authContext); }
   function applyEloCoreSupabaseUserContext_(user) {
     if (!user || typeof user !== "object") return {};
     const userId = sanitizeUserText(user.id).slice(0, 140);
     const email = sanitizeUserText(user.email).slice(0, 180);
     if (!userId && !email) return getEloCoreAuthContext_();
-    const existing = getEloCoreAuthContext_();
+    const current = getEloCoreAuthContext_();
+    const existing = userId && normalizeEloCoreAuthContext_(current).userId !== userId ? {} : current;
     return applyEloCoreAuthContext_(Object.assign({}, existing, {
       userId: userId || sanitizeUserText(existing.userId).slice(0, 140),
       profile: Object.assign({}, existing.profile || {}, { email: email || sanitizeUserText(existing.profile && existing.profile.email).slice(0, 180) })
@@ -3610,9 +3625,11 @@
   function setEloCoreMemoryDisabled_(disabled) { try { window.localStorage.setItem(ELO_CORE_MEMORY_DISABLED_KEY, disabled ? "true" : "false"); } catch (error) {} }
   function eloCoreFetch_(path, options) {
     const config = options || {};
+    const generation = eloCoreAuthSessionGeneration;
     if (typeof window.fetch !== "function") return Promise.reject(new Error("elo_core_fetch_unavailable"));
     return fetchEloAuthenticated_(getEloBackendEndpoint_(path), Object.assign({}, config, { headers: Object.assign({ "Content-Type": "application/json" }, config.headers || {}) })).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
+        if (generation !== eloCoreAuthSessionGeneration) throw new Error("auth_session_changed");
         applyEloCoreAuthContextFromResponse_(data);
         if (!response.ok || data.ok === false) {
           const error = new Error(data.error || "elo_core_api_error");
@@ -4017,7 +4034,21 @@
     });
   }
   function loadEloCoreMemories_() { return eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { ELO_UI.coreMemories = data.memories || []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = true; recordEloCoreReliabilityEvent_("memory_loaded", { count: ELO_UI.coreMemories.length }); return ELO_UI.coreMemories; }).catch(function (error) { ELO_UI.coreMemories = []; ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "load_failed" }); setEloCoreAuthStatus_("Nao consegui carregar suas memorias agora", true); return []; }); }
-  function ensureEloCoreAuthMerge_() { if (!getEloCoreAuthToken_()) return Promise.resolve(false); if (ELO_UI.coreAuthMergePromise) return ELO_UI.coreAuthMergePromise; ELO_UI.coreAuthMergePromise = eloCoreFetch_("/api/elo/identity/merge", { method: "POST", body: JSON.stringify({ anonymousId: getEloCoreAnonymousId_() }) }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); recordEloCoreReliabilityEvent_("identity_merged", { authenticated: true }); return true; }).catch(function (error) { recordEloCoreReliabilityEvent_("identity_merge_failed", { reason: error && error.message ? error.message : "merge_failed" }); return false; }); return ELO_UI.coreAuthMergePromise; }
+  function ensureEloCoreAuthMerge_() {
+    if (!getEloCoreAuthToken_()) return Promise.resolve(false);
+    if (ELO_UI.coreAuthMergePromise) return ELO_UI.coreAuthMergePromise;
+    const generation = eloCoreAuthSessionGeneration;
+    ELO_UI.coreAuthMergePromise = eloCoreFetch_("/api/elo/identity/merge", { method: "POST", body: JSON.stringify({ anonymousId: getEloCoreAnonymousId_() }) }).then(function (data) {
+      if (generation !== eloCoreAuthSessionGeneration) return false;
+      applyEloCoreAuthContextFromResponse_(data);
+      recordEloCoreReliabilityEvent_("identity_merged", { authenticated: true });
+      return true;
+    }).catch(function (error) {
+      if (generation === eloCoreAuthSessionGeneration) recordEloCoreReliabilityEvent_("identity_merge_failed", { reason: error && error.message ? error.message : "merge_failed" });
+      return false;
+    });
+    return ELO_UI.coreAuthMergePromise;
+  }
   function getEloCoreSupabaseConfig_() {
     const relatorioConfig = window.RELATORIO_QUALIDADE_CONFIG || {};
     const url = sanitizeUserText(window.ELO_SUPABASE_URL || relatorioConfig.eloSupabaseUrl || "").replace(/\/+$/g, "");
@@ -4159,7 +4190,7 @@
     }
     if (eloCoreAuthRefreshPromise) return eloCoreAuthRefreshPromise;
     const generation = eloCoreAuthSessionGeneration;
-    eloCoreAuthRefreshPromise = refreshEloCoreSupabaseSession_(record.refreshToken, generation)
+    const refreshRequest = refreshEloCoreSupabaseSession_(record.refreshToken, generation)
       .then(function (session) {
         if (generation !== eloCoreAuthSessionGeneration) {
           const cleared = new Error("authentication_required");
@@ -4169,11 +4200,12 @@
         return { ok: true, refreshed: true, accessToken: normalizeEloCoreUsableAuthToken_(session.access_token), session: session.currentSession || session };
       })
       .catch(function (error) {
-        if (error && error.authFailure) clearEloCoreSupabaseSessionTokens_();
+        if (error && error.authFailure && generation === eloCoreAuthSessionGeneration) clearEloCoreSupabaseSessionTokens_();
         throw error;
       })
-      .finally(function () { eloCoreAuthRefreshPromise = null; });
-    return eloCoreAuthRefreshPromise;
+      .finally(function () { if (eloCoreAuthRefreshPromise === refreshRequest) eloCoreAuthRefreshPromise = null; });
+    eloCoreAuthRefreshPromise = refreshRequest;
+    return refreshRequest;
   }
 
   function getEloCoreValidAccessToken_() {
@@ -4186,12 +4218,15 @@
 
   function fetchEloAuthenticated_(url, options) {
     const config = options || {};
+    const generation = eloCoreAuthSessionGeneration;
     if (typeof window.fetch !== "function") return Promise.reject(new Error("elo_core_fetch_unavailable"));
     function send(retried) {
       return getEloCoreAuthHeadersAsync_().then(function (authHeaders) {
+        if (generation !== eloCoreAuthSessionGeneration) throw new Error("auth_session_changed");
         const headers = Object.assign({}, config.headers || {}, authHeaders);
         return window.fetch(url, Object.assign({}, config, { headers: headers }));
       }).then(function (response) {
+        if (generation !== eloCoreAuthSessionGeneration) throw new Error("auth_session_changed");
         if (Number(response && response.status) !== 401 || retried) return response;
         return ensureEloCoreValidSession_({ forceRefresh: true }).then(function () { return send(true); });
       });
@@ -4227,11 +4262,16 @@
     });
   }
   function getCanonicalEloSession_() {
+    const generation = eloCoreAuthSessionGeneration;
     return ensureEloCoreValidSession_().then(function (session) {
+      if (generation !== eloCoreAuthSessionGeneration) return { ok: false, error: "authentication_required" };
       const token = session.accessToken;
       return ensureEloCoreAuthMerge_().then(function (merged) {
+        if (generation !== eloCoreAuthSessionGeneration) return { ok: false, error: "authentication_required" };
         if (!merged) return { ok: false, error: "auth_context_unavailable", accessToken: token };
         const context = normalizeEloCoreAuthContext_(getEloCoreAuthContext_());
+        const subject = sanitizeUserText((decodeEloCoreJwtPayload_(token) || {}).sub);
+        if (subject && context.userId !== subject) return { ok: false, error: "authentication_required" };
         window.ELO_CANONICAL_AUTH_CONTEXT = context;
         return {
           ok: true,
@@ -4249,9 +4289,22 @@
       throw error;
     });
   }
-  function clearEloCoreSupabaseSessionTokens_() {
+  function clearEloRdoSessionState_() {
     clearEloRdoConversationState_();
+    if (window.EloActionBusRdo && typeof window.EloActionBusRdo.resetSession === "function") window.EloActionBusRdo.resetSession();
+    else if (window.ObraReportRdoCanonicalAuth && typeof window.ObraReportRdoCanonicalAuth.clearSession === "function") window.ObraReportRdoCanonicalAuth.clearSession();
+    [window.localStorage, window.sessionStorage].filter(Boolean).forEach(function (storage) {
+      ["obrareport-rdo-stock-canonical-session-v1", "elo_action_bus_rdo_pending_v1", "elo_action_bus_rdo_context_v1", "elo_action_bus_rdo_list_context_v1"].forEach(function (key) {
+        try { storage.removeItem(key); } catch (_) {}
+      });
+    });
+    window.ELO_CANONICAL_AUTH_CONTEXT = {};
+  }
+  function clearEloCoreSupabaseSessionTokens_() {
+    clearEloRdoSessionState_();
     eloCoreAuthSessionGeneration += 1;
+    eloCoreAuthRefreshPromise = null;
+    ELO_UI.coreAuthMergePromise = null;
     window.ELO_AUTH_TOKEN = "";
     window.ELO_AUTH_SESSION_VALIDATED = false;
     try { window.localStorage.removeItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY); } catch (error) {}
@@ -4275,8 +4328,9 @@
     try { storage.removeItem(ELO_CORE_SUPABASE_AUTH_STORAGE_KEY); } catch (error) {}
   }
   function clearEloCoreSupabaseSession_() {
-    clearEloRdoConversationState_();
+    clearEloRdoSessionState_();
     eloCoreAuthSessionGeneration += 1;
+    eloCoreAuthRefreshPromise = null;
     clearEloCoreLocalConversationState_();
     [window.localStorage, window.sessionStorage].filter(Boolean).forEach(clearEloCoreSupabaseStorageTokens_);
     try { window.sessionStorage.removeItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY); } catch (error) {}
@@ -4285,6 +4339,8 @@
     window.ELO_AUTH_SESSION_VALIDATED = false;
     window.ELO_AUTH_CONTEXT = {};
     window.ELO_AUTH_USER_ID = "";
+    window.ELO_USER_ID = "";
+    window.ELO_PROJECT_ID = "";
     ELO_UI.coreAuthMergePromise = null;
   }
   function setEloCoreAuthStatus_(message, isError) {
@@ -4426,16 +4482,25 @@
     const safeEmail = sanitizeUserText(email).slice(0, 220);
     if (!config.url || !config.anonKey) return Promise.reject(new Error("supabase_public_config_missing"));
     if (!safeEmail || !password) return Promise.reject(new Error("credentials_required"));
+    clearEloCoreSupabaseSession_();
+    const generation = eloCoreAuthSessionGeneration;
+    function assertCurrentLogin() {
+      if (generation !== eloCoreAuthSessionGeneration) throw new Error("auth_session_changed");
+    }
     clearEloCoreProfileMenuIdentity_();
     window.ELO_AUTH_SESSION_VALIDATED = false;
     renderEloCoreAuthPanel_();
     return window.fetch(config.url + "/auth/v1/token?grant_type=password", { method: "POST", headers: { "Content-Type": "application/json", apikey: config.anonKey, Authorization: "Bearer " + config.anonKey }, body: JSON.stringify({ email: safeEmail, password: String(password) }) }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
+        assertCurrentLogin();
         if (!response.ok) throw new Error(data.error_description || data.msg || data.error || "supabase_login_failed");
         const session = data && (data.session || data.currentSession || data);
         const token = sanitizeEloCoreAuthToken_(session && (session.access_token || data.access_token));
         return validateEloCoreSupabaseToken_(token).then(function (user) {
-          applyEloCoreSupabaseUserContext_(user || data.user || session.user);
+          assertCurrentLogin();
+          const authenticatedUser = user || data.user || session.user;
+          if (authenticatedUser && authenticatedUser.email && String(authenticatedUser.email).toLowerCase() !== safeEmail.toLowerCase()) throw new Error("supabase_identity_mismatch");
+          applyEloCoreSupabaseUserContext_(authenticatedUser);
           writeEloCoreSupabaseSession_(data);
           window.ELO_AUTH_SESSION_VALIDATED = true;
           ELO_UI.coreAuthMergePromise = null;
@@ -4444,8 +4509,13 @@
           return reconcileEloCriticalAvailability_().then(function () { return data; });
         });
       });
-    }).catch(function (error) { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida.", true); throw error; }).then(function (data) {
+    }).catch(function (error) {
+      if (generation === eloCoreAuthSessionGeneration) { clearEloCoreSupabaseSession_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida.", true); }
+      throw error;
+    }).then(function (data) {
+      assertCurrentLogin();
       return ensureEloCoreAuthMerge_().then(function (merged) {
+        assertCurrentLogin();
         if (!merged) {
           ELO_UI.coreAuthMergePromise = null;
           setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true);
@@ -4453,7 +4523,8 @@
           handoffEloSurfaceContext_({ surface: "report" });
         }
         return data;
-      }).catch(function () {
+      }).catch(function (error) {
+        assertCurrentLogin();
         ELO_UI.coreAuthMergePromise = null;
         setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true);
         return data;

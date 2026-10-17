@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "backend/**"
+      - "netlify/functions/pr233-live-qa.mjs"
+      - "relatorio-qualidade-obras/elo-runtime-config.js"
+      - "elo-sw.js"
+      - "elo.html"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
       - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
@@ -14,6 +18,8 @@ on:
       - "relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs"
+      - "relatorio-qualidade-obras/elo-rdo-session-binding.test.cjs"
+      - "relatorio-qualidade-obras/elo-auth-refresh.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -24,6 +30,10 @@ on:
       - main
     paths:
       - "backend/**"
+      - "netlify/functions/pr233-live-qa.mjs"
+      - "relatorio-qualidade-obras/elo-runtime-config.js"
+      - "elo-sw.js"
+      - "elo.html"
       - "relatorio-qualidade-obras/elo-command-bridge.js"
       - "relatorio-qualidade-obras/elo-rdo-cloud-work-resolution.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente-routing.test.cjs"
@@ -32,6 +42,8 @@ on:
       - "relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs"
       - "relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs"
+      - "relatorio-qualidade-obras/elo-rdo-session-binding.test.cjs"
+      - "relatorio-qualidade-obras/elo-auth-refresh.test.cjs"
       - "relatorio-qualidade-obras/elo-assistente.js"
       - "relatorio-qualidade-obras/rdo-canonical-auth.js"
       - "package.json"
@@ -88,12 +100,17 @@ jobs:
           node --check src/services/obrareport-report-orchestrator.js
           node --check ../relatorio-qualidade-obras/elo-command-bridge.js
           node --check ../relatorio-qualidade-obras/elo-assistente.js
+          node --check ../relatorio-qualidade-obras/elo-runtime-config.js
+          node --check ../netlify/functions/pr233-live-qa.mjs
+          node --check tests/pr233-hosted-preview.test.mjs
           node --check ../relatorio-qualidade-obras/elo-assistente-routing.test.cjs
           node --check ../relatorio-qualidade-obras/elo-routing-intent-regression.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-pending-preview-routing.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs
           node --check ../relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs
+          node --check ../relatorio-qualidade-obras/elo-rdo-session-binding.test.cjs
+          node --check ../relatorio-qualidade-obras/elo-auth-refresh.test.cjs
           node --check ../relatorio-qualidade-obras/elo-routing-budget-regression.test.cjs
           node --check tests/obrareport-artifact-broker.test.js
           node --check < ../apps-script-versionado/Code.gs
@@ -132,6 +149,8 @@ jobs:
           node --test relatorio-qualidade-obras/elo-rdo-operational-preview.test.cjs
           node --test relatorio-qualidade-obras/elo-rdo-commercial-regressions.test.cjs
           node --test relatorio-qualidade-obras/elo-rdo-cancellation.test.cjs
+          node --test relatorio-qualidade-obras/elo-rdo-session-binding.test.cjs relatorio-qualidade-obras/elo-auth-refresh.test.cjs
+          node --test backend/tests/pr233-hosted-preview.test.mjs
           node --test relatorio-qualidade-obras/rdo-final-real-test-bugs.test.cjs relatorio-qualidade-obras/rdo-project-workspace.test.cjs relatorio-qualidade-obras/rdo-project-workspace-page.test.cjs
 
       - name: Stock Full atomic movement, offline and UI regression gate

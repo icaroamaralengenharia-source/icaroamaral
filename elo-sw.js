@@ -1,15 +1,15 @@
-const ELO_CACHE_NAME = "elo-web-offline-v39-20261016-rdo-cancel-hotfix-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v39-20261016-pr233-hosted-qa-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css?v=20261012-profile-diagnostics-v1",
-  "./relatorio-qualidade-obras/elo-runtime-config.js?v=20260920-observability-final-v1",
+  "./relatorio-qualidade-obras/elo-runtime-config.js?v=20261016-pr233-hosted-qa-v1",
   "./relatorio-qualidade-obras/elo-telemetry.js?v=20260920-observability-final-v1",
   "./relatorio-qualidade-obras/elo-proactive-reasoning-policy.js?v=20260920-proactive-v1",
   "./relatorio-qualidade-obras/elo-communication-policy.js?v=20261010-safe-humor-v2",
   "./relatorio-qualidade-obras/elo-live-data-router.js?v=20261004-live-data-v1",
-  "./relatorio-qualidade-obras/rdo-canonical-auth.js?v=20261014-rdo-auth-fallback-v1",
-  "./relatorio-qualidade-obras/elo-command-bridge.js?v=20261016-rdo-cancel-hotfix-v1",
-  "./relatorio-qualidade-obras/elo-assistente.js?v=20261016-rdo-cancel-hotfix-v1",
+  "./relatorio-qualidade-obras/rdo-canonical-auth.js?v=20261016-pr233-hosted-qa-v1",
+  "./relatorio-qualidade-obras/elo-command-bridge.js?v=20261016-pr233-hosted-qa-v1",
+  "./relatorio-qualidade-obras/elo-assistente.js?v=20261016-pr233-hosted-qa-v1",
   "./relatorio-qualidade-obras/elo-music-catalog.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-music-resolver.js?v=20261003-player-v2",
   "./relatorio-qualidade-obras/elo-media-player.js?v=20261003-player-v2",
@@ -45,11 +45,20 @@ function isObraReportApiUrl(url) {
   return /^\/api\/obrareport(?:\/|$)/i.test(url.pathname);
 }
 
-function removeCachedObraReportResponses() {
+function isIdentityApiUrl(url) {
+  return /^\/auth\/v1(?:\/|$)/i.test(url.pathname) || /(^|\.)supabase\.co$/i.test(url.hostname);
+}
+
+function hasAuthorization(request) {
+  return Boolean(request.headers && typeof request.headers.get === "function" && request.headers.get("Authorization"));
+}
+
+function removeCachedPrivateResponses() {
   return caches.open(ELO_CACHE_NAME).then(function (cache) {
     return cache.keys().then(function (requests) {
       return Promise.all(requests.filter(function (request) {
-        return isObraReportApiUrl(new URL(request.url));
+        const url = new URL(request.url);
+        return isObraReportApiUrl(url) || isIdentityApiUrl(url) || hasAuthorization(request);
       }).map(function (request) {
         return cache.delete(request);
       }));
@@ -80,7 +89,7 @@ self.addEventListener("activate", function (event) {
         return caches.delete(name);
       }));
     }).then(function () {
-      return removeCachedObraReportResponses();
+      return removeCachedPrivateResponses();
     }).then(function () {
       return self.clients.claim();
     })
@@ -93,6 +102,11 @@ self.addEventListener("fetch", function (event) {
   if (request.method !== "GET") return;
   // RDO reads must reflect the backend after create/update, never an offline snapshot.
   if (isObraReportApiUrl(url)) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
+  // Identity and authenticated reads must never reuse another account's offline response.
+  if (isIdentityApiUrl(url) || hasAuthorization(request)) {
     event.respondWith(fetch(request, { cache: "no-store" }));
     return;
   }

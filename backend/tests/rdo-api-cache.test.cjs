@@ -62,6 +62,7 @@ function loadWorker({ offline = false, seeds = [] } = {}) {
     metrics.network.push(url);
     metrics.networkCacheModes.push(options.cache);
     if (offline) throw new TypeError("fixture_network_offline");
+    if (new URL(url).pathname === "/auth/v1/user") return json({ id: input.headers.get("Authorization") === "Bearer fixture-B" ? "fixture-user-B" : "fixture-user-A" });
     if (new URL(url).pathname.endsWith("/new-4")) return json({ ok: true, rdo: fixtureRows[3] });
     if (new URL(url).pathname.startsWith("/api/obrareport/")) return json({ ok: true, rdos: fixtureRows });
     return new Response("fixture static asset", { headers: { "Content-Type": "text/plain" } });
@@ -90,10 +91,10 @@ function loadWorker({ offline = false, seeds = [] } = {}) {
   vm.runInNewContext(workerSource, context, { filename: "elo-sw.js" });
   return {
     metrics, stores,
-    async fetch(url, { method = "GET", authenticated = true } = {}) {
+    async fetch(url, { method = "GET", authenticated = true, authorization = "Bearer synthetic-test-only" } = {}) {
       const request = new Request(url, {
         method,
-        headers: authenticated ? { Authorization: "Bearer synthetic-test-only" } : {}
+        headers: authenticated ? { Authorization: authorization } : {}
       });
       let handled = false;
       let responsePromise;
@@ -174,6 +175,40 @@ test("public static assets remain cacheable", async () => {
   assert.equal(second.handled, true);
   assert.equal(worker.metrics.network.length, 1);
   assert.deepEqual(worker.metrics.writes, [url]);
+});
+
+test("Supabase identity follows A to B even when the URL cached A", async () => {
+  const url = "https://auth.fixture.supabase.co/auth/v1/user";
+  const worker = loadWorker({ seeds: [{ url, response: json({ id: "fixture-user-A" }) }] });
+  const a = await worker.fetch(url, { authorization: "Bearer fixture-A" });
+  const b = await worker.fetch(url, { authorization: "Bearer fixture-B" });
+  assert.equal((await a.response.json()).id, "fixture-user-A");
+  assert.equal((await b.response.json()).id, "fixture-user-B");
+  assert.deepEqual(worker.metrics.matches, []); assert.deepEqual(worker.metrics.writes, []);
+  assert.deepEqual(worker.metrics.networkCacheModes, ["no-store", "no-store"]);
+});
+
+for (const url of ["https://auth.fixture.supabase.co/auth/v1/user", frontendOrigin + "/private-profile"]) {
+  test(`authenticated identity fails closed offline despite a cached response at ${url}`, async () => {
+    const worker = loadWorker({ offline: true, seeds: [{ url, response: json({ id: "fixture-user-A" }) }] });
+    await assert.rejects(worker.fetch(url, { authorization: "Bearer fixture-B" }), /fixture_network_offline/);
+    assert.deepEqual(worker.metrics.matches, []); assert.deepEqual(worker.metrics.writes, []);
+  });
+}
+
+test("auth endpoints bypass offline cache even without an Authorization header", async () => {
+  const url = frontendOrigin + "/auth/v1/user";
+  const worker = loadWorker(); await worker.fetch(url, { authenticated: false });
+  assert.deepEqual(worker.metrics.matches, []); assert.deepEqual(worker.metrics.writes, []);
+  assert.deepEqual(worker.metrics.networkCacheModes, ["no-store"]);
+});
+
+test("activation removes old ELO identity cache and preserves current static assets", async () => {
+  const url = "https://auth.fixture.supabase.co/auth/v1/user", asset = frontendOrigin + "/elo.css";
+  const oldCache = "elo-web-offline-v39-20261016-rdo-session-binding-v1";
+  const worker = loadWorker({ seeds: [{ cache: oldCache, url, response: json({ id: "fixture-user-A" }) }, { url, response: json({ id: "fixture-user-A" }) }, { url: asset, response: new Response("css") }] });
+  await worker.activate(); assert.equal(worker.stores.has(oldCache), false);
+  assert.equal(worker.stores.get(cacheName).has(url), false); assert.equal(worker.stores.get(cacheName).has(asset), true);
 });
 
 test("activation removes legacy ObraReport API cache entries while preserving current static assets", async () => {
