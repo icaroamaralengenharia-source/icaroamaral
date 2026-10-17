@@ -13,6 +13,13 @@ de login, refresh, identity merge e catálogo não podem restaurar a sessão ant
 Falha na sessão ELO ativa bloqueia a operação sem recorrer à sessão RDO antiga.
 Os scripts e o service worker recebem nova versão de cache.
 
+O smoke identificou também que o service worker armazenava `/auth/v1/user`
+sem distinguir o bearer. O login B podia receber a identidade A já armazenada.
+Endpoints de identidade/Supabase e leituras com Authorization agora usam
+rede com `no-store`; a ativação remove respostas privadas e caches ELO antigos.
+`backend/tests/rdo-api-cache.test.cjs` cobre A→B com identidade A previamente
+em cache, falha offline, ausência de bearer e limpeza na atualização.
+
 ## Regressões locais
 
 `elo-rdo-session-binding.test.cjs` usa identidades sintéticas e proíbe escrita
@@ -27,6 +34,10 @@ Para reproduzir contra uma base anterior, executar a suíte nova com
 ## Smoke no preview do PR
 
 1. Conferir os assets/versionamento do HEAD no preview.
+   O preview público Netlify exige uma origem permitida pelo CORS do backend
+   para este smoke. Se indisponível, registrar o bloqueio e validar o mesmo HEAD
+   no preview local em origem já permitida, com a configuração pública do deploy.
+   Registrar separadamente os resultados local e hospedado.
 2. Usar somente as credenciais normais dos usuários QA LIVE A e B já existentes.
 3. Registrar apenas contagens e hashes das leituras de RDO antes/depois.
 4. Entrar como A, conferir a identidade visível, pedir prévia apenas para
