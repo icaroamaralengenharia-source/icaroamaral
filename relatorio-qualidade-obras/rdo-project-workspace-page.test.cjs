@@ -17,6 +17,11 @@ const works = [
   { id: "canonical-b", name: "Synthetic B", institutionId: "tenant-a", canonicalStockWork: true }
 ];
 
+test("the tenant workspace and its page identity integration use fresh asset URLs together", () => {
+  assert.ok(html.includes('src="./rdo-project-workspace.js?v=20261017-tenant-scope-v1"'));
+  assert.ok(html.includes('src="./relatorio-qualidade-obras.js?v=20261017-tenant-scope-v1"'));
+});
+
 function extract(name) {
   const start = source.search(new RegExp("^  (?:async )?function " + name + "\\(", "m"));
   assert.ok(start >= 0, "Missing page function: " + name);
