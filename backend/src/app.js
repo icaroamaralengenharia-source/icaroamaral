@@ -22,6 +22,7 @@ import { registerMunicipalAssetRoutes } from "./municipal-asset-router.js";
 import { registerMunicipalNotificationRoutes } from "./municipal-notification-router.js";
 import { buildEloMunicipalAnswerIfNeeded } from "./elo-municipal-tools.js";
 import { registerEloTtsRoute } from "./elo-tts.js";
+import { createSupabaseTtsBudgetStore } from "./elo-tts-budget.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
@@ -4616,7 +4617,12 @@ export function createApp(options = {}) {
     }
   });
 
-  registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
+  registerEloTtsRoute(app, {
+    env,
+    fetchImpl: options.ttsFetch || globalThis.fetch,
+    resolveAuthContext: app.locals.resolveCanonicalAuthContext,
+    budgetStore: options.ttsBudgetStore || createSupabaseTtsBudgetStore(getAuthContextDatabase())
+  });
 
   app.get("/api/elo/budgets", (request, response) => {
     try {

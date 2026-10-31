@@ -1,3 +1,5 @@
+import { createTtsBudgetRequest, createTtsCostEstimate } from "./elo-tts-budget.js";
+
 const DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
 const INSTRUCTION_TTS_MODELS = new Set([DEFAULT_TTS_MODEL]);
 const DEFAULT_TTS_VOICE = "alloy";
@@ -120,7 +122,24 @@ export async function synthesizeSpeech({ text, voice = DEFAULT_TTS_VOICE, format
   };
 }
 
-export function registerEloTtsRoute(app, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+export function registerEloTtsRoute(app, { env = process.env, fetchImpl = globalThis.fetch, resolveAuthContext, budgetStore } = {}) {
+  app.post("/api/elo/tts/estimate", async (request, response) => {
+    let authContext;
+    try {
+      authContext = typeof resolveAuthContext === "function" ? await resolveAuthContext(request) : null;
+    } catch (_) { authContext = null; }
+    if (!authContext || authContext.ok !== true || !authContext.userId) {
+      response.status(Number(authContext && authContext.status) || 401).json({ ok: false, error: "authentication_required" });
+      return;
+    }
+    const estimate = createTtsCostEstimate({ characters: request.body && request.body.characters, env });
+    if (!estimate.ok) {
+      response.status(estimate.status).json({ ok: false, error: estimate.error });
+      return;
+    }
+    response.json({ ok: true, estimateUsd: estimate.estimateUsd, estimateOnly: true, characters: estimate.characters });
+  });
+
   app.post("/api/elo/tts", async (request, response) => {
     const contentType = String(request.headers["content-type"] || "");
     if (contentType && !/application\/json/i.test(contentType)) {
@@ -136,6 +155,59 @@ export function registerEloTtsRoute(app, { env = process.env, fetchImpl = global
       });
       return;
     }
+
+    let authContext;
+    try {
+      authContext = typeof resolveAuthContext === "function"
+        ? await resolveAuthContext(request)
+        : { ok: false, status: 503, error: "tts_auth_not_configured" };
+    } catch (_) {
+      authContext = { ok: false, status: 401, error: "invalid_session" };
+    }
+    if (!authContext || authContext.ok !== true || !authContext.userId) {
+      response.status(Number(authContext && authContext.status) || 401).json({ ok: false, error: "authentication_required" });
+      return;
+    }
+
+    const usage = request.body && request.body.usage === "audiobook" ? "audiobook" : "conversation";
+    const budget = createTtsBudgetRequest({
+      userId: authContext.userId,
+      usage,
+      documentId: request.body && request.body.documentId,
+      chunkIndex: request.body && request.body.chunkIndex,
+      text: validation.payload.text,
+      voice: validation.payload.voice,
+      format: validation.payload.format,
+      instructions: validation.payload.instructions,
+      env
+    });
+    if (!budget.ok) {
+      response.status(budget.status).json({ ok: false, error: budget.error });
+      return;
+    }
+    if (!budgetStore || typeof budgetStore.reserve !== "function" || typeof budgetStore.settle !== "function") {
+      response.status(503).json({ ok: false, error: "tts_budget_store_unavailable" });
+      return;
+    }
+
+    let reservation;
+    try {
+      reservation = await budgetStore.reserve(budget.request);
+    } catch (_) {
+      response.status(503).json({ ok: false, error: "tts_budget_unavailable" });
+      return;
+    }
+    if (!reservation || reservation.reserved !== true) {
+      const duplicate = reservation && reservation.reason === "duplicate";
+      response.status(duplicate ? 409 : 429).json({
+        ok: false,
+        error: duplicate ? "tts_chunk_already_requested" : "tts_budget_exceeded",
+        estimateUsd: budget.request.estimateUsd,
+        estimateOnly: true
+      });
+      return;
+    }
+
     try {
       const result = await synthesizeSpeech({
         text: validation.payload.text,
@@ -145,16 +217,27 @@ export function registerEloTtsRoute(app, { env = process.env, fetchImpl = global
         env,
         fetchImpl
       });
+      // If settlement is temporarily unavailable, keep the reservation held.
+      // Returning the audio preserves playback; the held amount fails closed
+      // against duplicate generation until an operator reconciles the row.
+      try { await budgetStore.settle(budget.request, "completed"); } catch (_) {}
       response.set({
         "Content-Type": result.contentType,
         "Cache-Control": "no-store",
         "X-Elo-Tts-Provider": result.provider,
         "X-Elo-Tts-Voice": validation.payload.voice,
         "X-Elo-Tts-Format": result.format,
-        "X-Elo-Tts-Provider-Ms": String(result.providerMs)
+        "X-Elo-Tts-Provider-Ms": String(result.providerMs),
+        "X-Elo-Tts-Estimate-Usd": String(budget.request.estimateUsd),
+        "X-Elo-Tts-Estimate-Only": "true"
       });
       response.send(result.audio);
     } catch (error) {
+      // A network timeout may have reached the provider. Keep its reservation
+      // in that ambiguous case to prevent an automatic paid retry.
+      if (Number(error && error.providerStatus) > 0) {
+        try { await budgetStore.settle(budget.request, "failed"); } catch (_) {}
+      }
       const status = Number(error && error.status) || 502;
       response.status(status).json({ ok: false, error: String(error && error.message || "tts_failed") });
     }
