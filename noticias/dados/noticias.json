@@ -1,11 +1,26 @@
 {
-  "atualizadoEm": "2026-11-06T15:01:05.767Z",
-  "coletadoEm": "2026-11-06T15:01:05.767Z",
+  "atualizadoEm": "2026-11-06T20:52:52.701Z",
+  "coletadoEm": "2026-11-06T20:52:52.701Z",
   "fontes": [
+    "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "90f4c5216fbc0ad7",
+      "titulo": "Eleitores dos EUA derrotam big techs e ações de IA despencam",
+      "resumo": "Os eleitores dos Estados Unidos deram um recado contrário à instalação de data centers em suas comunidades e ao aumento do custo de vida associado a essas megaestruturas.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/internacional/noticia/2026-11/eleitores-dos-eua-derrotam-big-techs-e-acoes-de-ia-despencam",
+      "publicadoEm": "2026-11-06T16:12:00.000Z",
+      "coletadoEm": "2026-11-06T20:52:52.701Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/g9EL2CEID30ld7xm-cJi6YNX86I=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/07/27/image-1200-7b1750e9ddf236b8ed5b32b5197a5316.jpeg?itok=ogpjHs-q",
+      "imagemAlt": "Eleitores dos EUA derrotam big techs e ações de IA despencam",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "73a7d2cc9951f3ed",
       "titulo": "Encontro CBIC reúne lideranças em Belém para debater desafios e oportunidades da construção na Região Norte",
