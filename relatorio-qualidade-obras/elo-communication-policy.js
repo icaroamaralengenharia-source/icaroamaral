@@ -1,7 +1,7 @@
 (function initEloCommunicationPolicy(global) {
   "use strict";
 
-  const VERSION = "20261010-elo-conversational-behavior-v3-safe-humor";
+  const VERSION = "20261107-elo-conversational-guidance015";
   const INTERACTION_TYPES = [
     "SIMPLE_FACT",
     "TECHNICAL",
@@ -34,10 +34,93 @@
     return CANONICAL_INSTRUCTIONS.join("\n");
   }
 
+  // Typed current-intent guidance. This is not a memory, role, permission or tool channel.
+  function parseConversationGuidance(metadata) {
+    const value = metadata && typeof metadata.productContextSummary === "string" ? metadata.productContextSummary : "";
+    if (value.length > 1400) return null;
+    const marker = "[ELO_CONVERSATION_GUIDANCE_V1]";
+    const at = value.indexOf(marker);
+    if (at < 0 || value.indexOf(marker, at + marker.length) >= 0) return null;
+    let frame = value.slice(at + marker.length).trim();
+    const closing = "[/ELO_CONVERSATION_GUIDANCE_V1]";
+    if (frame.endsWith(closing)) frame = frame.slice(0, -closing.length).trim();
+    // Existing context assembly collapses newlines; typed tokens remain unambiguous.
+    const parts = frame.split(/[;\s]+/).map(function (part) { return part.trim(); }).filter(Boolean);
+    if (parts.length !== 5) return null;
+    const allowed = {
+      mode: ["ACTIVE", "OBJECTIVE", "LISTEN"], questions: ["ALLOW", "DENY", "AUTO"],
+      source: ["user_explicit", "current_conversation", "default"],
+      topic_change: ["true", "false"], end_requested: ["true", "false"]
+    };
+    const result = {};
+    for (const part of parts) {
+      const match = part.match(/^(mode|questions|source|topic_change|end_requested)=([A-Za-z_]+)$/);
+      if (!match || Object.prototype.hasOwnProperty.call(result, match[1]) || allowed[match[1]].indexOf(match[2]) < 0) return null;
+      result[match[1]] = match[2];
+    }
+    if (Object.keys(result).length !== 5) return null;
+    return Object.freeze({ mode: result.mode, questions: result.questions, source: result.source,
+      topicChange: result.topic_change === "true", endRequested: result.end_requested === "true" });
+  }
+
+  function resolveConversationGuidance(message, metadata) {
+    const supplied = parseConversationGuidance(metadata);
+    if (supplied) return supplied;
+    const safe = metadata && typeof metadata === "object" ? metadata : {};
+    const archive = safe.conversationArchive && Array.isArray(safe.conversationArchive.messages) ? safe.conversationArchive.messages.slice(0, 12) : [];
+    const history = Array.isArray(safe.history) ? safe.history.slice(-48) : [];
+    const rows = archive.concat(history).filter(function (row) { return row && row.role === "user"; })
+      .map(function (row) { return { current: false, value: row.content }; }).concat([{ current: true, value: message }]);
+    let mode = null, questions = "AUTO", source = "current_conversation", currentEnd = false, seen = false;
+    rows.forEach(function (row) {
+      const outer = normalize(String(row.value || "").replace(/"[^"\n]*"|“[^”\n]*”|'[^'\n]*'/g, " "));
+      const clauses = outer.replace(/\b(?:mas|agora)\b/g, function (word) { return ";" + word; }).split(/[.!?;]/);
+      clauses.forEach(function (part) {
+        const clause = part.replace(/^(?:elo[, ]+)\s*/, "").trim();
+        if (!clause || /\b(?:ele|ela|colega|gerente|texto|pessoa)\b.{0,50}\b(?:disse|dizia|pediu|escreveu|falou)\b/.test(clause)) return;
+        let changed = false;
+        if (/^(?:nao me pergunte(?: nada| mais)?|nao (?:pode |deve )?me fazer perguntas|nao faca perguntas|sem perguntas)\b/.test(clause)) { questions = "DENY"; changed = true; }
+        else if (/^(?:pode me perguntar|pode perguntar|me faca perguntas|faca perguntas)\b/.test(clause)) { questions = "ALLOW"; changed = true; }
+        if (/^(?:responda em poucas palavras|seja objetiv[oa]|quero respostas (?:diretas|objetivas)|prefiro respostas (?:diretas|objetivas))\b/.test(clause)) { mode = "OBJECTIVE"; changed = true; }
+        else if (/^(?:quero apenas desabafar|so quero desabafar|quero so desabafar|nao preciso de conselho|apenas me escute)\b/.test(clause)) { mode = "LISTEN"; changed = true; }
+        else if (/^(?:(?:conversa|converse|fale) comigo|quero conversar|vamos conversar)\s*$/.test(clause)) { mode = "ACTIVE"; changed = true; }
+        if (/^(?:chega por hoje|nao quero conversar|vamos encerrar|pare de conversar)\b/.test(clause)) {
+          mode = "OBJECTIVE"; questions = "DENY"; changed = true;
+          if (row.current) currentEnd = true;
+        }
+        if (changed) { seen = true; if (row.current) source = "user_explicit"; }
+      });
+    });
+    return seen ? Object.freeze({ mode: mode || "OBJECTIVE", questions: questions, source: source, topicChange: false, endRequested: currentEnd }) : null;
+  }
+
+
   function buildTurnPrompt(message, metadata) {
-    const type = classifyInteraction(message, metadata);
+    const plan = metadata && metadata.proactiveReasoningPlan;
+    const specificContext = plan && plan.referenceGrounding && plan.referenceGrounding.taskType;
+    const type = ["RESOLVE_CONTEXT_REFERENCE", "CONTINUE_CONTEXT_OPERATION", "REWRITE_QUOTED_TEXT_ONLY"].indexOf(specificContext) >= 0 ? "CONVERSATION" : classifyInteraction(message, metadata);
+    const guidance = resolveConversationGuidance(message, metadata);
     if (isStructuredMode(metadata) || ["TECHNICAL", "CALCULATION", "REPORT", "FILE_ANALYSIS"].indexOf(type) >= 0 || /detalh|aprofund|passo a passo|analise completa|análise completa/.test(normalize(message))) {
       return "Neste turno, preserve os cálculos, explicações, limites e o formato solicitado. Desenvolva o que for necessário, sem introduções ou convites automáticos.";
+    }
+    if (guidance) {
+      if (guidance.endRequested) return "A pessoa pediu para encerrar. Responda apenas com uma despedida breve e proporcional, sem reabrir o assunto, propor tarefas ou fazer perguntas.";
+      const lines = [
+        "ORIENTAÇÃO DE ESTILO DESTA CONVERSA: responda primeiro ao conteúdo útil do turno, usando o diálogo autêntico recebido.",
+        "Não invente lembranças, fatos, preferências ou permissões. Não repita perguntas já respondidas nem acrescente perguntas mecânicas ou convites genéricos."
+      ];
+      const plan = metadata && metadata.proactiveReasoningPlan;
+      if (guidance.mode === "ACTIVE" && guidance.source !== "default" && plan && plan.intent === "SIMPLE_FACT" && plan.risk && plan.risk.level === "NONE" && plan.riskDetected !== true && plan.structured !== true) {
+        lines.push("PRECEDÊNCIA CONVERSACIONAL RESTRITA: a orientação ACTIVE atual, explicitamente autorizada nesta conversa, tem prioridade sobre as heurísticas SIMPLE_FACT, answer mode DIRECT, proactivity NONE e Value-add limiter 0 do plano interno. Aqui a contribuição específica e útil pedida é parte da resposta principal, não um alerta ou próximo passo adicional proibido por esse limitador. Desenvolva essa contribuição antes de uma pergunta opcional; se questions=DENY, contribua sem perguntas. Esta exceção não muda regras de risco, segurança, dado essencial, formato técnico ou operacional e não autoriza memória, ferramentas ou ações.");
+      }
+      if (guidance.topicChange) lines.push("Respeite a mudança de assunto solicitada; não retome o tema abandonado. Se a pessoa indicou um novo tema, já responda sobre ele. Se pediu para mudar sem escolher um tema, introduza você um assunto cotidiano neutro e concreto, com uma observação breve que já tenha conteúdo. Não devolva a escolha perguntando qual assunto ela quer ou se prefere um tema aleatório. A mudança solicitada tem prioridade sobre continuar o desabafo ou problema anterior.");
+      if (guidance.mode === "ACTIVE") lines.push("Conversa ativa: antes de perguntar, contribua com uma observação específica, distinção útil, critério ou opção pertinente ao que a pessoa contou, usando apenas o que ela informou. Um prefácio genérico que apenas diga que a decisão é grande, importante ou difícil não é contribuição suficiente. Acrescente algo que ajude a pessoa a pensar mesmo se ela não responder. Depois desse conteúdo, uma pergunta contextual e pertinente é opcional para aprofundar algo ainda não respondido; faça no máximo uma, sem repetir, e somente quando tiver valor. Não há obrigação de terminar com pergunta.");
+      else if (guidance.mode === "LISTEN") lines.push("Modo escuta: reconheça com atenção o que foi dito, sem transformar o desabafo em aconselhamento, diagnóstico ou interrogatório. Ofereça soluções somente se a pessoa pedir; uma pergunta sensível é opcional quando ajuda a compreender o que ela quer compartilhar. Não afirme emoções humanas próprias nem incentive dependência exclusiva.");
+      else lines.push("Modo objetivo: priorize a resposta ou tarefa direta, com detalhe proporcional e sem perguntas de acompanhamento desnecessárias ou assuntos paralelos.");
+      if (guidance.questions === "DENY") lines.push("Preferência explícita sem perguntas: não faça perguntas neste turno. Se faltar dado essencial, explique a limitação de forma afirmativa e responda apenas o que pode confirmar; não invente a informação faltante.");
+      else if (guidance.questions === "ALLOW") lines.push("A pessoa permite perguntas dentro desta conversa; isso não obriga a perguntar. Respeite o modo atual, o contexto, a segurança e qualquer pedido mais recente de parar.");
+      else lines.push("Perguntas são opcionais e proporcionais ao momento; sinais de encerramento ou desinteresse têm prioridade sobre continuar o assunto.");
+      return lines.join("\n");
     }
     return "Neste turno simples ou informal, responda diretamente em uma ou duas frases, mirando até 35 palavras quando bastarem. Para um acompanhamento curto, normalmente uma frase basta. Use o contexto, sem recapitular, avaliar a personalidade do usuário ou acrescentar um convite genérico para conversar mais. Amplie somente se necessário para precisão ou segurança; não corte texto após a geração.";
   }
@@ -223,6 +306,8 @@
     canonicalInstructions: CANONICAL_INSTRUCTIONS.slice(),
     buildPrompt: buildPrompt,
     buildTurnPrompt: buildTurnPrompt,
+    parseConversationGuidance: parseConversationGuidance,
+    resolveConversationGuidance: resolveConversationGuidance,
     isHumorRequest: isHumorRequest,
     classifyInteraction: classifyInteraction,
     isStructuredMode: isStructuredMode,
