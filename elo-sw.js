@@ -1,4 +1,4 @@
-const ELO_CACHE_NAME = "elo-web-offline-v40-20261017-ui-tenant-isolation-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v41-20261114-html008-release-v1";
 const ELO_CORE_ASSETS = [
   "./elo.html",
   "./elo.css?v=20261012-profile-diagnostics-v1",
