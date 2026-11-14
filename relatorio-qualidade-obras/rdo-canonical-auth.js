@@ -83,7 +83,7 @@
       const stored = {
         session: session,
         user: { id: clean(user.id), email: clean(user.email) || normalizedEmail },
-        profile: { institution_id: clean(profile.institution_id) },
+        profile: { institution_id: clean(profile.institution_id), company_id: clean(profile.company_id) },
         saved_at: new Date(now()).toISOString()
       };
       saveStored(stored);
@@ -123,6 +123,13 @@
 
     return {
       login: login,
+      getIdentity: function () {
+        const stored = readStored();
+        const user = stored && stored.user;
+        const profile = stored && stored.profile;
+        if (!user || !profile || !clean(user.id) || !clean(user.email) || !clean(profile.institution_id)) return null;
+        return { userId: clean(user.id), email: clean(user.email).toLowerCase(), institutionId: clean(profile.institution_id), companyId: clean(profile.company_id) };
+      },
       getValidAccessToken: getValidAccessToken,
       hasSession: function () { return Boolean(readStored()); },
       clear: function () {

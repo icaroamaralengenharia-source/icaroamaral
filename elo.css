@@ -1984,7 +1984,8 @@ html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-s
 }
 
 html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active {
-  height: clamp(260px, 42svh, 420px);
+  height: min(620px, calc(100svh - 90px));
+  max-height: calc(100svh - 90px);
   display: flex;
   flex-direction: column;
 }

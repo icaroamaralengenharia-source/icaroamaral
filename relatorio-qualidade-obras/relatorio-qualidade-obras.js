@@ -332,6 +332,13 @@
   let stockFullRemoteExits = [];
   let stockFullRemoteAuditLog = [];
   let currentUser = getCurrentUser_();
+  function getRdoWorkspaceCanonicalIdentity_() {
+    const email = clean(currentUser && currentUser.email).toLowerCase();
+    const identity = rdoCanonicalAuth && typeof rdoCanonicalAuth.getIdentity === "function" ? rdoCanonicalAuth.getIdentity() : null;
+    if (!email || !identity || clean(identity.email).toLowerCase() !== email) return null;
+    return { userId: clean(identity.userId), institutionId: clean(identity.institutionId), companyId: clean(identity.companyId), providerId: "rdo-stock-full" };
+  }
+
   const projectWorkspaceEnabled = Boolean(document.getElementById("activeProjectHistory"));
   const rdoProjectWorkspace = projectWorkspaceEnabled && rdoCloudAdapter && window.ObraReportProjectWorkspace
     ? window.ObraReportProjectWorkspace.create({
@@ -341,15 +348,12 @@
         setItem: function (key, value) { window.localStorage.setItem(key, value); },
         removeItem: function (key) { window.localStorage.removeItem(key); }
       },
-      getUserId: function () { return clean(currentUser && currentUser.id); },
+      getUserId: function () {
+        const identity = getRdoWorkspaceCanonicalIdentity_();
+        return identity ? identity.userId : "";
+      },
       getIdentity: function () {
-        const auth = buildEloSurfaceAuthContext_();
-        return {
-          userId: clean(currentUser && currentUser.id),
-          institutionId: clean(auth.institutionId || auth.tenantId),
-          companyId: clean(auth.companyId),
-          providerId: "rdo-stock-full"
-        };
+        return getRdoWorkspaceCanonicalIdentity_() || { userId: "", institutionId: "", companyId: "", providerId: "rdo-stock-full" };
       }
     }) : null;
   let canonicalWorkspaceLoadGeneration = 0;
@@ -360,6 +364,11 @@
   let dailyLogDraftSaveTimer = null;
   let localSaveTimer = null;
   let cloudSyncTimer = null;
+  let cloudSyncInFlight = null;
+  let cloudSyncQueued = false;
+  let cloudSyncRevision = 0;
+  let cloudSyncDraftOwner = "";
+  const cloudSyncPendingDrafts = new Map();
   let billingAlertTimer = null;
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
@@ -2912,7 +2921,7 @@
     bindAlmoxHistoryControls_();
 
     window.addEventListener("hashchange", function () {
-      if (hasRouteAccess_() && window.location.hash.indexOf("#app/") === 0) {
+      if (hasRouteAccess_() && (window.location.hash.indexOf("#app/") === 0 || window.location.hash === "#rdo-identificacao")) {
         currentUser = currentUser || getCurrentUser_();
         if (currentUser) {
           showDashboardPanel_(getRouteFromHash_());
@@ -3730,7 +3739,7 @@
 
     const last = appState.local;
     const hashReportId = getReportIdFromHash_();
-    const hasAppRouteHash = window.location.hash.indexOf("#app/") === 0;
+    const hasAppRouteHash = window.location.hash.indexOf("#app/") === 0 || window.location.hash === "#rdo-identificacao";
     const reportIdToRecover = hashReportId || (!hasAppRouteHash && last.lastView === "editor" ? last.lastReportId : "");
     const shouldRecoverEditor =
       reportIdToRecover &&
@@ -3743,7 +3752,7 @@
     }
 
     const routeFromHash = getRouteFromHash_();
-    const route = window.location.hash.indexOf("#app/") === 0 ? routeFromHash : last.lastRoute;
+    const route = hasAppRouteHash ? routeFromHash : last.lastRoute;
     showDashboardPanel_(route || "dashboard");
     restoreLastSelections_();
     setLocalStatus_("Salvo localmente", "success");
@@ -3797,15 +3806,26 @@
     loginAccessStatus.classList.toggle("is-hidden", !message);
   }
 
-  function scheduleCloudSync_(fullDraft) {
-    if (isApplyingCloudState || !appState.session || !appState.session.token) {
-      return;
+  function rememberCloudSyncDraft_(fullDraft, reportId) {
+    const userId = clean(appState.session && appState.session.userId);
+    if (cloudSyncDraftOwner !== userId) {
+      cloudSyncPendingDrafts.clear();
+      cloudSyncDraftOwner = userId;
     }
+    const targetId = reportId === undefined ? activeReportId : reportId;
+    if (fullDraft && targetId) cloudSyncPendingDrafts.set(targetId, fullDraft);
+  }
 
+  function scheduleCloudSync_(fullDraft, reportId) {
+    if (!appState.session || !appState.session.token) return;
+    rememberCloudSyncDraft_(fullDraft, reportId);
+    cloudSyncRevision += 1;
+    cloudSyncQueued = true;
+    if (isApplyingCloudState) return;
     window.clearTimeout(cloudSyncTimer);
     setCloudStatus_("Salvando na nuvem...", "info");
     cloudSyncTimer = window.setTimeout(function () {
-      syncCloudState_(fullDraft).catch(function (error) {
+      syncCloudState_().catch(function (error) {
         console.warn("Não foi possível sincronizar com a nuvem.", error);
         setCloudStatus_(error.message || "Falha ao sincronizar nuvem.", "error");
       });
@@ -3813,18 +3833,35 @@
   }
 
   async function syncCloudState_(fullDraft) {
-    if (!appState.session || !appState.session.token) {
-      return;
+    if (!appState.session || !appState.session.token) return;
+    rememberCloudSyncDraft_(fullDraft);
+    cloudSyncQueued = true;
+    if (cloudSyncInFlight) return cloudSyncInFlight;
+    const token = appState.session.token;
+    const userId = appState.session.userId;
+    function sameSession() { return appState.session && appState.session.token === token && appState.session.userId === userId; }
+    cloudSyncInFlight = (async function () {
+      while (cloudSyncQueued && sameSession()) {
+        window.clearTimeout(cloudSyncTimer);
+        cloudSyncQueued = false;
+        const drafts = new Map(cloudSyncPendingDrafts);
+        const state = buildCloudState_();
+        state.reports.forEach(function (report) { if (drafts.has(report.id)) report.draft = drafts.get(report.id); });
+        await cloudApi_("sync.save", { token: token, state: state });
+        if (!sameSession()) return;
+        drafts.forEach(function (draft, id) { if (cloudSyncPendingDrafts.get(id) === draft) cloudSyncPendingDrafts.delete(id); });
+        // A write ACK must not replace newer local records or IndexedDB drafts.
+        if (!cloudSyncQueued) setCloudStatus_("Sincronizado na nuvem", "success");
+      }
+    })();
+    try { return await cloudSyncInFlight; }
+    finally {
+      cloudSyncInFlight = null;
+      if (!sameSession()) {
+        if (appState.session && cloudSyncDraftOwner === appState.session.userId && cloudSyncQueued) scheduleCloudSync_();
+        else cloudSyncQueued = false;
+      }
     }
-
-    const state = buildCloudState_(fullDraft);
-    const result = await cloudApi_("sync.save", {
-      token: appState.session.token,
-      state: state
-    });
-
-    await applyCloudState_(result.state, appState.session.token);
-    setCloudStatus_("Sincronizado na nuvem", "success");
   }
 
   async function refreshCloudState_() {
@@ -3832,22 +3869,32 @@
       return;
     }
 
+    if (cloudSyncQueued || cloudSyncInFlight) return;
+    const revision = cloudSyncRevision;
+    const token = appState.session.token;
+    const userId = appState.session.userId;
     try {
       setCloudStatus_("Atualizando dados da nuvem...", "info");
       const identity = await cloudApi_("auth.me", {
-        token: appState.session.token
+        token: token
       });
+      if (!appState.session || appState.session.token !== token || appState.session.userId !== userId) return;
       if (!identity || identity.authenticated !== true || !identity.user || !hasExplicitAuthRole_(identity.user)) {
         throw new Error("Sessão sem identidade ou permissão válida. Entre novamente.");
       }
       const result = await cloudApiWithTransientRetry_("sync.get", {
-        token: appState.session.token
+        token: token
       }, 3);
-      await applyCloudState_(result.state, appState.session.token);
+      if (!appState.session || appState.session.token !== token || appState.session.userId !== userId) return;
+      if (await applyCloudState_(result.state, token, revision) === false) {
+        if (appState.session && appState.session.token === token && appState.session.userId === userId) scheduleCloudSync_();
+        return;
+      }
       await loadCanonicalRdoWorkspace_();
       renderSaasState_();
       setCloudStatus_("Sincronizado na nuvem", "success");
     } catch (error) {
+      if (!appState.session || appState.session.token !== token || appState.session.userId !== userId) return;
       console.warn("Não foi possível atualizar a nuvem.", error);
       if (isConfirmedAuthFailure_(error)) {
         appState.session = null;
@@ -4041,11 +4088,16 @@
     await applyCloudState_(result.state, result.token);
   }
 
-  async function applyCloudState_(state, token) {
+  async function applyCloudState_(state, token, expectedRevision) {
     if (!state || !Array.isArray(state.users)) {
       return;
     }
 
+    const expectedUserId = appState.session && appState.session.userId;
+    function isCurrentRead() {
+      return expectedRevision === undefined || (expectedRevision === cloudSyncRevision && appState.session && appState.session.token === token && appState.session.userId === expectedUserId);
+    }
+    if (!isCurrentRead()) return false;
     isApplyingCloudState = true;
 
     try {
@@ -4074,13 +4126,20 @@
         const report = JSON.parse(JSON.stringify(state.reports[index]));
 
         if (report.draft && report.draft.images && Object.keys(report.draft.images).length) {
+          if (!isCurrentRead()) return false;
           await putDraftRecordById_(getDraftIdForReport_(report.id), report.draft);
+          if (!isCurrentRead()) {
+            const pendingDraft = cloudSyncPendingDrafts.get(report.id);
+            if (pendingDraft && appState.session && appState.session.token === token && cloudSyncDraftOwner === expectedUserId) await putDraftRecordById_(getDraftIdForReport_(report.id), pendingDraft);
+            return false;
+          }
           report.draft = cloneDraftWithoutImages_(report.draft);
         }
 
         localState.reports.push(report);
       }
 
+      if (!isCurrentRead()) return false;
       appState = localState;
       currentUser = getCurrentUser_();
       window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
@@ -4197,14 +4256,14 @@
   }
 
   function getRouteFromHash_() {
-    const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
+    const value = String(window.location.hash || "").replace(/^#rdo-identificacao$/, "#app/diario").replace("#app/", "").split("/")[0];
     const route = getAllRoutes_().indexOf(value) >= 0 ? value : getDefaultRouteForRole_();
     return isStockAiPublicDemo_() && !isStockAiPublicRoute_(route) ? "almoxarifado" : route;
   }
 
   function isRestrictedRouteHash_() {
     const hash = String(window.location.hash || "");
-    return hash.indexOf("#app/") === 0 || hash.indexOf("#report/") === 0;
+    return hash.indexOf("#app/") === 0 || hash.indexOf("#report/") === 0 || hash === "#rdo-identificacao";
   }
 
   function getReportIdFromHash_() {
@@ -4491,7 +4550,7 @@
     }
 
     renderClientOptions_(workClientSelect, clients);
-    renderClientOptions_(reportClientSelect, clients);
+    renderClientOptions_(reportClientSelect, getReportClientOptions_(clients));
     renderReportWorkOptions_(reportClientSelect ? reportClientSelect.value : "");
     renderDailyLogWorkOptions_(works);
     renderClientsList_(clients);
@@ -4864,6 +4923,20 @@
     if (clients.some(function (client) { return client.id === previous; })) {
       select.value = previous;
     }
+  }
+
+  function getReportClientOptions_(clients) {
+    if (!projectWorkspaceEnabled) return clients;
+    const options = clients.slice();
+    const ids = new Set(options.map(function (client) { return clean(client && client.id); }).filter(Boolean));
+    getUserWorks_().forEach(function (work) {
+      const clientId = clean(work.clientId || work.client_id);
+      if (!clientId || ids.has(clientId)) return;
+      ids.add(clientId);
+      const workName = clean(work.name);
+      options.push({ id: clientId, name: "Cliente vinculado à obra (Stock)" + (workName ? " — " + workName : "") });
+    });
+    return options;
   }
 
   function renderReportWorkOptions_(clientId) {
@@ -22951,21 +23024,22 @@
     renderReviewSummary_();
   }
 
-  function saveActiveReportDraft_(draft) {
-    if (!activeReportId) {
+  function saveActiveReportDraft_(draft, reportId, reportStats) {
+    const targetId = reportId === undefined ? activeReportId : reportId;
+    if (!targetId) {
       return;
     }
 
-    const report = findReport_(activeReportId);
+    const report = findReport_(targetId);
     if (!report) {
       return;
     }
 
-    setLastOpened_("editor", report.clientId, report.workId, report.id);
+    if (targetId === activeReportId) setLastOpened_("editor", report.clientId, report.workId, report.id);
     report.draft = cloneDraftWithoutImages_(draft);
     report.updatedAt = draft.updatedAt;
     report.status = report.pdfUrl ? "PDF gerado · em edição" : "Em edição";
-    report.summary = getReportStats_();
+    report.summary = reportStats === undefined ? getReportStats_() : reportStats;
     report.imageCount = Object.keys(draft.images || {}).length;
     saveAppState_();
     renderSaasState_();
@@ -24652,10 +24726,15 @@
 
   async function saveDraft_() {
     const draft = buildDraft_();
+    const reportId = activeReportId;
+    const reportStats = getReportStats_();
+    const token = appState.session && appState.session.token;
+    const userId = appState.session && appState.session.userId;
     saveDraftTextFallback_(draft);
     await putDraftRecord_(draft);
-    saveActiveReportDraft_(draft);
-    scheduleCloudSync_(draft);
+    if (!appState.session || appState.session.token !== token || appState.session.userId !== userId) return;
+    saveActiveReportDraft_(draft, reportId, reportStats);
+    scheduleCloudSync_(draft, reportId);
     setDraftStatus_("Rascunho salvo automaticamente.", "success");
   }
 

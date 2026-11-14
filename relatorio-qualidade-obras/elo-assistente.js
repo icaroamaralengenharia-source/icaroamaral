@@ -904,8 +904,16 @@
     const hasStockContext = /\b(?:estoque|stock|stock\s+full|almoxarifado|unidade|un\.?|kg|saco|sacos|m2|m3|m²|m³|metro|metros)\b/.test(text);
     return Boolean(hasProductTerm && hasStockContext && (hasCreateVerb || hasNewProduct));
   }
-  function isEloRdoConfirmationPositive_(text) {
-    return /^(?:sim|s|confirmo|confirmar|pode criar|pode prosseguir|prossiga|pode executar)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
+  function isEloRdoConfirmationPositive_(text, pending) {
+    const normalized = canonicalizeEloSemanticText_(text || "");
+    if (/^(?:sim|s|confirmo|confirmar|pode criar|pode prosseguir|prossiga|pode executar)\.?$/i.test(normalized)) return true;
+    if (/[?]/.test(String(text || "")) || /\b(?:nao|nunca|mas|porem|antes|depois|apos|quando|se|caso|exceto|ainda|corrija|corrigir|altere|alterar|troque|trocar|mude|mudar|nova|novo|outra|outro|data|obra|servico|servicos|equipe|materiais)\b/.test(normalized)) return false;
+    const confirmation = /^confirmo (?:salvar|salve) (?:este|esse|o) rdo(?: ([a-z0-9_-]+(?: [a-z0-9_-]+){0,15}))?$/.exec(normalized);
+    if (!confirmation) return false;
+    if (!confirmation[1]) return true;
+    const draft = pending && pending.draft || {};
+    const references = [draft.rdoId, draft.title].concat(draft.rdoData && draft.rdoData.observations || [], draft.rdoData && draft.rdoData.generalNotes || "");
+    return references.some(function (reference) { return typeof reference === "string" && (" " + canonicalizeEloSemanticText_(reference) + " ").indexOf(" " + confirmation[1] + " ") >= 0; });
   }
   function isEloRdoConfirmationNegative_(text) {
     return /^(?:nao|cancelar|cancela|nao prossiga)\.?$/i.test(canonicalizeEloSemanticText_(text || ""));
@@ -939,7 +947,7 @@
     const pendingRdo = window.EloActionBusRdo && typeof window.EloActionBusRdo.readPending === "function" ? window.EloActionBusRdo.readPending() : null;
     const cancellation = window.EloActionBusRdo && typeof window.EloActionBusRdo.classifyCancellation === "function" ? window.EloActionBusRdo.classifyCancellation(raw, Boolean(pendingRdo)) : "";
     if (cancellation) return { module: "obrareport_rdo", action: cancellation === "cancel" ? "rdo_cancel" : cancellation === "hold" ? "rdo.hold" : "rdo.cancel.question", payload: payload };
-    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(text)) {
+    if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationPositive_(raw, pendingRdo)) {
       return { module: "obrareport_rdo", action: "rdo_confirm", payload: payload };
     }
     if (isEloRdoPendingConfirmation_(pendingRdo) && isEloRdoConfirmationNegative_(text)) {
@@ -1144,10 +1152,10 @@
     };
   }
 
-  async function openEloOfficialRdoPdf_(action) {
+  async function openEloOfficialRdoPdf_(action, downloadOnly) {
     const bus = window.EloActionBusRdo;
     if (!bus || typeof bus.fetchDocumentPdf !== "function") throw new Error("rdo_pdf_reader_unavailable");
-    const popup = window.open("about:blank", "_blank");
+    const popup = downloadOnly ? null : window.open("about:blank", "_blank");
     try {
       const pdf = await bus.fetchDocumentPdf(action.documentId);
       const url = window.URL.createObjectURL(pdf);
@@ -2334,6 +2342,20 @@
     return ["RELATORIO TECNICO SIMPLES", "", "IDENTIFICACAO DA OBRA/ARQUIVO", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Nao informado.", documentId ? "- Document ID: " + documentId : "", "", "DATA", "- " + (safe.createdAt ? String(safe.createdAt).slice(0, 10) : "Nao informada."), "", "OBJETIVO", "- Registrar em formato de relatorio a analise tecnica anterior feita pelo ELO, sem inventar dados ausentes.", "", "RESUMO EXECUTIVO", safe.summary || "Nao havia resumo estruturado; usei a ultima resposta tecnica valida como base.", "", "PROBLEMAS IDENTIFICADOS", findings.map(function (item) { return "- " + item; }).join("\n"), "", "IMPACTOS/RISCOS", risks.length ? risks.map(function (item) { return "- " + item; }).join("\n") : "- Nao informados na analise anterior.", "", "EVIDENCIAS", refs.length ? refs.map(function (ref) { return "- " + ref; }).join("\n") : "- Base: analise anterior registrada na conversa.", "", "RECOMENDACOES", recommendations.length ? recommendations.map(function (item) { return "- " + item; }).join("\n") : "- Revisar tecnicamente os pontos identificados antes de emitir documento formal.", "", "CONCLUSAO", "- O relatorio foi preparado a partir da analise anterior do ELO. Dados nao informados, como responsavel tecnico, ART/RRT, assinatura, endereco e identificacao completa da obra, nao foram inventados."].join("\n");
   }
 
+  function getEloSelectedRdoReportQuestion_() {
+    if (ELO_UI.attachments && ELO_UI.attachments.length) return "";
+    const context = getEloActiveAnalysisContext_();
+    const bus = window.EloActionBusRdo;
+    if (!context || !bus || typeof bus.parseIntent !== "function") return "";
+    const question = sanitizeEloUserMessage_(context.question || "");
+    const request = detectEloRdoCommandBridgeRequest_(question, { message: question }, true);
+    if (!request || request.action !== "rdo.get") return "";
+    const intent = bus.parseIntent(request);
+    const id = sanitizeUserText(intent && intent.rdoId || "");
+    if (!/^[A-Za-z0-9_-]{1,200}$/.test(id)) return "";
+    return "Gere o PDF do RDO ID " + id + ".";
+  }
+
   function buildEloReportFromAnalysisContextResponse_(message) {
     if (!isEloReportFromAnalysisContextRequest_(message)) return null;
     const context = getEloActiveAnalysisContext_();
@@ -2407,15 +2429,25 @@
       return false;
     }
     const context = applyEloBudgetRouteContext_();
-    if (!context.active) {
+    if (!context.active && context.intent !== "orcamento") {
       return false;
     }
     setEloBudgetRoutePending_(context);
     window.__eloBudgetRouteStarted = true;
-    if (!ELO_UI.messages || ELO_UI.messages.children.length) {
+    if (!ELO_UI.messages) {
       return true;
     }
-    appendAssistantMessage(buildEloBudgetRouteStartAnswer_(context));
+    const response = context.active ? buildEloBudgetRouteStartAnswer_(context) : buildCapabilitiesCardAnswer_();
+    const answer = formatResponse(response);
+    const existingBriefing = Array.from(ELO_UI.messages.querySelectorAll(".elo-message.assistant .elo-message-bubble")).find(function (bubble) {
+      return normalizeText(bubble.textContent || "") === normalizeText(answer);
+    });
+    if (existingBriefing) {
+      existingBriefing.scrollIntoView({ block: "nearest" });
+      return true;
+    }
+    appendAssistantMessage("Orçamentos", answer, false, response);
+    scrollEloConversationToBottom_({ force: true });
     recordEloCoreReliabilityEvent_("budget_route_started", { source: context.source, projectId: context.projectId, workId: context.workId });
     return true;
   }
@@ -3785,7 +3817,8 @@
     const count = Number(messageCount) || 0;
     const userCount = Number(userMessageCount) || 0;
     const panelActive = ELO_UI.corePanelState && ELO_UI.corePanelState !== "none";
-    const active = userCount > 0 || panelActive;
+    const budgetActive = count > 0 && getEloBudgetRouteContext_().intent === "orcamento";
+    const active = userCount > 0 || panelActive || budgetActive;
     const shortConversation = !panelActive && active && count <= 3;
     if (ELO_UI.panel) {
       ELO_UI.panel.classList.toggle("is-chat-active", active);
@@ -34563,6 +34596,25 @@ function isEloResidentialNewPipelineEnabled_() {
         }
       });
       actions.appendChild(pdfButton);
+      if (pdfAction.type === "rdo_official_pdf") {
+        const downloadPdfButton = createElement("button", "elo-inline-button", "Baixar PDF oficial");
+        downloadPdfButton.type = "button";
+        downloadPdfButton.setAttribute("data-elo-action-type", "rdo_pdf_download");
+        downloadPdfButton.addEventListener("click", async function () {
+          if (downloadPdfButton.dataset.loading === "true") return;
+          downloadPdfButton.dataset.loading = "true";
+          downloadPdfButton.disabled = true;
+          try {
+            await openEloOfficialRdoPdf_(pdfAction, true);
+          } catch (error) {
+            appendMessage("system", error && error.message ? error.message : "Nao consegui baixar o PDF agora.");
+          } finally {
+            downloadPdfButton.disabled = false;
+            downloadPdfButton.dataset.loading = "false";
+          }
+        });
+        actions.appendChild(downloadPdfButton);
+      }
     }
     message.appendChild(actions);
     scrollEloConversationToBottom_({ force: shouldFollowAnswer });
@@ -36739,6 +36791,8 @@ function isEloResidentialNewPipelineEnabled_() {
       reportButton.dataset.eloLocalReportBound = "true";
       reportButton.addEventListener("click", function (event) {
         if (event && event.preventDefault) event.preventDefault();
+        const rdoReportQuestion = getEloSelectedRdoReportQuestion_();
+        if (rdoReportQuestion) { askElo(rdoReportQuestion, [], "rdo_report_button"); return; }
         const reportContextResponse = buildEloReportFromAnalysisContextResponse_("faça um relatório disso");
         if (reportContextResponse && reportContextResponse.sessionIntent === "generate_report_from_context") {
           const reportContextAnswer = formatResponse(reportContextResponse);
@@ -36862,10 +36916,9 @@ function isEloResidentialNewPipelineEnabled_() {
     if (memoryButton && !memoryButton.dataset.eloCoreBound) { memoryButton.dataset.eloCoreBound = "true"; memoryButton.type = "button"; memoryButton.addEventListener("click", showEloCoreMemoryPanel_); }
     if (clearChatButton && !clearChatButton.dataset.eloCoreBound) { clearChatButton.dataset.eloCoreBound = "true"; clearChatButton.type = "button"; clearChatButton.addEventListener("click", function (event) { if (event) { event.preventDefault(); event.stopPropagation(); } confirmClearEloCoreCurrentConversation_(); }); }
     ELO_UI.coreSurfaceMounted = true;
-    maybeStartEloBudgetRoute_();
     initEloConnectivity_();
     setEloCoreWelcomeVisible_();
-    initEloCorePersistence_();
+    initEloCorePersistence_().then(maybeStartEloBudgetRoute_);
     maybeShowEloProactiveAttention_();
 
     return true;
