@@ -5768,6 +5768,10 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
     updated_at: new Date().toISOString()
   };
 
+  if (!update || Object.prototype.hasOwnProperty.call(body, "sku") || Object.prototype.hasOwnProperty.call(body, "fiscalCode")) {
+    payload.sku = clean_(body.sku ?? body.fiscalCode) || null;
+  }
+
   if (!payload.institution_id) {
     return { ok: false, error: "institution_id_required" };
   }
@@ -5810,6 +5814,7 @@ function mapStockFullItemFromDatabase_(item) {
     projectId: source.project_id || "",
     workId: source.project_id || "",
     name: source.name || "",
+    sku: clean_(source.sku),
     unit: source.unit || "un",
     category: source.category || "Geral",
     minQuantity: parsePositiveNumber_(source.min_quantity, 0),
