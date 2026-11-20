@@ -215,10 +215,12 @@
         }
         const relation = clause.match(/\b(?:porque|por isso|devido a|permite|possibilita|da acesso)\b/);
         const explicitMechanism = /\b(?:a causa|o mecanismo|a explicacao)\s+(?:e|foi)\s+(?!desconhecid|incert|nao|uma hipotese)[^.!?;]{8,}/.test(clause);
+        const temporalRelation = clause.match(/\b(?:depois que|depois de|apos)\b/);
+        const temporalReport = Boolean(temporalRelation && /\b(?:apresentou|apareceu|surgiu|ocorreu|aconteceu|caiu|reduziu|aumentou|piorou)\b/.test(clause.slice(0, temporalRelation.index)) && clause.slice(temporalRelation.index + temporalRelation[0].length).trim().split(/\s+/).length >= 3 && !/\b(?:se|caso|talvez|hipotese|suponha|imagine|nao apareceu|nao ocorreu|nao surgiu)\b/.test(clause));
         const relationIsAsserted = Boolean(relation && (clause.slice(0, relation.index).trim().split(/\s+/).length >= 3 || clause.slice(0, relation.index).trim().length === 0 && priorAffirmativeClause && /^(?:por isso|porque)/.test(relation[0])) && clause.slice(relation.index + relation[0].length).trim().split(/\s+/).length >= 3 && !/\b(?:nao sabemos|nao sei|nao foi demonstrado|nao foi confirmado|hipotese|talvez)\b/.test(clause.slice(Math.max(0, relation.index - 70), relation.index)));
-        if ((explicitMechanism || relationIsAsserted) && !/\b(?:a palavra|a frase|o termo|citacao|metalingu|gramatica|acento)\b/.test(clause)) {
+        if ((explicitMechanism || relationIsAsserted || temporalReport) && !/\b(?:a palavra|a frase|o termo|citacao|metalingu|gramatica|acento)\b/.test(clause)) {
           mechanismProvided = true;
-          effective = { status: "USER_REPORTED_MECHANISM_NOT_INDEPENDENTLY_VERIFIED", reason: "AFFIRMATIVE_UNQUOTED_MECHANISM_REPORT", source: { origin: row.origin, index: row.index, role: "user", excerpt: clamp(literal, 500) } };
+          effective = { status: "USER_REPORTED_MECHANISM_NOT_INDEPENDENTLY_VERIFIED", reason: temporalReport ? "USER_REPORTED_TEMPORAL_ASSOCIATION_NOT_PROVEN_CAUSAL" : "AFFIRMATIVE_UNQUOTED_MECHANISM_REPORT", ...(temporalReport ? { relationType: "TEMPORAL_ASSOCIATION", causalLinkEstablished: false } : {}), source: { origin: row.origin, index: row.index, role: "user", excerpt: clamp(literal, 500) } };
         }
         priorAffirmativeClause = clause.trim().split(/\s+/).length >= 3 && !/\b(?:hipotese|opiniao|a palavra|a frase|o termo)\b/.test(clause);
       });
@@ -237,7 +239,10 @@
     }
     if (effective && effective.status === "UNKNOWN_PARTICULAR_CAUSE") return effective;
     if (unknownSeen && effective) return effective; // A later affirmative report can supersede a prior retraction.
-    if (info.unidentifiedParticular && (lastUser || lastPriorUser) && !mechanismProvided) return { status: "UNKNOWN_PARTICULAR_CAUSE", reason: "NO_MECHANISM_SUPPLIED_FOR_PARTICULAR_REFERENCE", source: lastUser || lastPriorUser };
+    if (effective && effective.relationType === "TEMPORAL_ASSOCIATION") return effective;
+    const priorEffect = lastPriorUser ? normalize(unquotedEvidenceText(lastPriorUser.excerpt)) : "";
+    const reportedParticularEffect = info.elliptic && /^(?:a|o|essa|esse|esta|este|minha|meu|uma|um)\s+/.test(priorEffect) && /\b(?:apresentou|apareceu|surgiu|ocorreu|aconteceu|caiu|reduziu|aumentou|piorou)\b/.test(priorEffect) && !/\b(?:se|caso|talvez|hipotese|suponha|imagine)\b/.test(priorEffect);
+    if ((info.unidentifiedParticular || reportedParticularEffect) && (lastUser || lastPriorUser) && !mechanismProvided) return { status: "UNKNOWN_PARTICULAR_CAUSE", reason: "NO_MECHANISM_SUPPLIED_FOR_PARTICULAR_REFERENCE", source: lastUser || lastPriorUser };
     return null; // No new directive: preserve already-supported/general-knowledge prompt bytes.
   }
 
@@ -277,8 +282,14 @@
     const requested = elliptic || hypothesisRequested || /\b(?:por que|por qual motivo|qual (?:e |foi )?(?:a causa|a razao|o motivo)|o que causou|o que explica|explique a causa|explique o motivo)\b/.test(request);
     if (!requested) {
       const currentEvidenceUpdate = buildCurrentEvidenceUpdate(message, context);
-      if (!currentEvidenceUpdate) return null;
-      return { requested: true, questionType: "CURRENT_EVIDENCE_UPDATE_NOT_CAUSAL_QUESTION", hypothesisRequested: false, answerEvidenceContract: "ACKNOWLEDGE_WITHDRAWAL_WITHOUT_INVENTING_MOTIVE", currentEvidenceUpdate: currentEvidenceUpdate, specificMechanismVerified: false, userReportIsNotIndependentVerification: true };
+      if (currentEvidenceUpdate) return { requested: true, questionType: "CURRENT_EVIDENCE_UPDATE_NOT_CAUSAL_QUESTION", hypothesisRequested: false, answerEvidenceContract: "ACKNOWLEDGE_WITHDRAWAL_WITHOUT_INVENTING_MOTIVE", currentEvidenceUpdate: currentEvidenceUpdate, specificMechanismVerified: false, userReportIsNotIndependentVerification: true };
+      // An affirmative report of a particular past event is not a request to
+      // diagnose it. Bound the first reply too, before a guess enters history.
+      const particularEventReport = /^(?:a|o|essa|esse|esta|este|minha|meu|uma|um)\s+/.test(request) && /\b(?:apresentou|apareceu|surgiu|ocorreu|aconteceu|caiu|reduziu|aumentou|piorou)\b/.test(request) && !/[?]/.test(request) && !/\b(?:se|caso|talvez|hipotese|suponha|imagine|explique|analise|liste|calcule|gere)\b/.test(request);
+      if (!particularEventReport) return null;
+      const eventEvidence = effectiveUserCausalEvidence(message, {}, { elliptic: false, unidentifiedParticular: true });
+      if (!eventEvidence || eventEvidence.status !== "UNKNOWN_PARTICULAR_CAUSE" && eventEvidence.relationType !== "TEMPORAL_ASSOCIATION") return null;
+      return { requested: true, questionType: "CURRENT_PARTICULAR_EVENT_REPORT", hypothesisRequested: false, answerEvidenceContract: eventEvidence.relationType === "TEMPORAL_ASSOCIATION" ? "USER_REPORTED_TEMPORAL_SEQUENCE_ONLY_NO_ADDED_MECHANISM" : "UNKNOWN_PARTICULAR_CAUSE_NO_UNREQUESTED_HYPOTHESES", userCausalEvidence: eventEvidence, specificMechanismVerified: false, generalKnowledgeAllowed: false, userReportIsNotIndependentVerification: true, assistantAssertionIsNotEvidenceOfItsCause: true };
     }
     const safe = context && typeof context === "object" ? context : {};
     const archive = safe.conversationArchive && Array.isArray(safe.conversationArchive.messages) ? safe.conversationArchive.messages : [];
@@ -297,7 +308,7 @@
     const premise = elliptic && sources.length ? sources[sources.length - 1] : null;
     const unidentifiedParticular = Boolean(premise && /\b(?:a|essa|esta|uma|aquela|o|esse|este|um|aquele)\s+(?:solucao|opcao|alternativa|projeto|sistema|produto|material|resultado|efeito|intervencao)\b/.test(normalize(premise.content)));
     const userCausalEvidence = effectiveUserCausalEvidence(message, safe, { elliptic: elliptic, unidentifiedParticular: unidentifiedParticular });
-    const answerEvidenceContract = hypothesisRequested ? "EXPLICIT_HYPOTHESES_NOT_CASE_FACTS" : (userCausalEvidence && userCausalEvidence.status === "UNKNOWN_PARTICULAR_CAUSE") || unidentifiedParticular && !users.length ? "UNKNOWN_PARTICULAR_CAUSE_NO_UNREQUESTED_HYPOTHESES" : "ASSESS_KNOWN_GENERAL_USER_REPORTED_AND_UNKNOWN";
+    const answerEvidenceContract = hypothesisRequested ? "EXPLICIT_HYPOTHESES_NOT_CASE_FACTS" : (userCausalEvidence && userCausalEvidence.status === "UNKNOWN_PARTICULAR_CAUSE") || unidentifiedParticular && !users.length ? "UNKNOWN_PARTICULAR_CAUSE_NO_UNREQUESTED_HYPOTHESES" : userCausalEvidence && userCausalEvidence.relationType === "TEMPORAL_ASSOCIATION" ? "USER_REPORTED_TEMPORAL_SEQUENCE_ONLY_NO_ADDED_MECHANISM" : "ASSESS_KNOWN_GENERAL_USER_REPORTED_AND_UNKNOWN";
     const existingEffectFollowup = Boolean(premise && /^qual (?:e |foi )?(?:a causa|a razao|o motivo) (?:disso|disto)\s*[?!.]*$/.test(request));
     return {
       requested: true,
@@ -310,7 +321,7 @@
       premiseOrigin: premise ? premise.role === "assistant" ? "ASSISTANT_ASSERTION_UNVERIFIED" : "USER_REPORT_UNVERIFIED" : "CURRENT_USER_QUESTION",
       causalSupport: elliptic && assistants.length && !users.length ? "NOT_ESTABLISHED_BY_ASSISTANT_ASSERTIONS" : "ASSESS_RELEVANT_ROLE_PRESERVED_EVIDENCE",
       specificMechanismVerified: false,
-      generalKnowledgeAllowed: true,
+      generalKnowledgeAllowed: hypothesisRequested || ["UNKNOWN_PARTICULAR_CAUSE_NO_UNREQUESTED_HYPOTHESES", "USER_REPORTED_TEMPORAL_SEQUENCE_ONLY_NO_ADDED_MECHANISM"].indexOf(answerEvidenceContract) < 0,
       userReportIsNotIndependentVerification: true,
       assistantAssertionIsNotEvidenceOfItsCause: true,
       archiveUserReports: sources.filter(function (item) { return item.origin === "validated_literal_archive" && item.role === "user"; }).length,
@@ -457,6 +468,8 @@
       lines.push("CURRENT_CAUSAL_ANSWER_CONTRACT: " + JSON.stringify(causal));
       if (causal.currentEvidenceUpdate) {
         lines.push(buildCausalGroundingPrompt(causal));
+      } else if (!causal.hypothesisRequested && causal.userCausalEvidence && causal.userCausalEvidence.relationType === "TEMPORAL_ASSOCIATION") {
+        lines.push("The USER supplied only a temporal association. Attribute that reported sequence explicitly to the user. It is the entire available case evidence, not permission to explain a plausible physical mechanism. State that the specific causal mechanism is not established. Do not add material, resistance, curing, loads, structural or inspection facts absent from the USER report. Earlier ASSISTANT speculation supplies none of these facts and must not be defended. General knowledge is not authorized to complete this particular causal chain.");
       } else if (causal.answerEvidenceContract === "UNKNOWN_PARTICULAR_CAUSE_NO_UNREQUESTED_HYPOTHESES") {
         if (causal.userCausalEvidence && causal.userCausalEvidence.status === "UNKNOWN_PARTICULAR_CAUSE") {
           lines.push(causal.userCausalEvidence.reason === "NO_MECHANISM_SUPPLIED_FOR_PARTICULAR_REFERENCE" ? "No causal mechanism was supplied for this particular reference. This absence is derived from the available dialogue; do not attribute a declaration of ignorance to a USER who only asked a question. Answer the missing-evidence limit instead of imagining a cause." : "The USER explicitly reports missing causal evidence or discards a prior unproved explanation. Do not relabel that provenance as an ASSISTANT assertion. The reported effect and known linguistic referent do not supply the causal mechanism. Answer that evidentiary limit; do not invent a probable/general mechanism or rehabilitate a quoted/discarded story. Preserve the latest correction. If two referents were supplied, distinguish that ambiguity from the absent cause and ask only the minimum needed; never fill either gap with imagined facts.");
