@@ -5360,7 +5360,7 @@ async function getStockSaudeProfileByAuthUser_(supabase, authUserId) {
 async function getStockFullProfileByAuthUser_(supabase, authUserId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,institution_id,unit_id,name,email,role")
+    .select("id,institution_id,company_id,unit_id,name,email,role")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
