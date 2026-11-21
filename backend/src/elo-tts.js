@@ -175,6 +175,7 @@ export function registerEloTtsRoute(app, { env = process.env, fetchImpl = global
       usage,
       documentId: request.body && request.body.documentId,
       chunkIndex: request.body && request.body.chunkIndex,
+      requestId: request.body && request.body.requestId,
       text: validation.payload.text,
       voice: validation.payload.voice,
       format: validation.payload.format,

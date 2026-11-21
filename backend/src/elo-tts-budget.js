@@ -22,11 +22,15 @@ export function createTtsCostEstimate({ characters, env = {} } = {}) {
   return { ok: true, estimateUsd, estimateOnly: true, characters: count };
 }
 
-export function createTtsBudgetRequest({ userId, usage, documentId, chunkIndex, text, voice, format, instructions, env = {} } = {}) {
+export function createTtsBudgetRequest({ userId, usage, documentId, chunkIndex, requestId, text, voice, format, instructions, env = {} } = {}) {
   const safeUserId = clean_(userId, 128);
   const safeUsage = clean_(usage, 32);
   const safeDocumentId = clean_(documentId, 128);
   const safeText = String(text ?? "");
+  const conversationRequestId = safeUsage === "conversation" && requestId !== undefined ? requestId : null;
+  if (safeUsage === "conversation" && requestId !== undefined && (typeof conversationRequestId !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(conversationRequestId))) {
+    return { ok: false, status: 400, error: "tts_request_id_invalid" };
+  }
   if (!safeUserId || !USAGE.has(safeUsage) || !safeText) {
     return { ok: false, status: 400, error: "tts_budget_request_invalid" };
   }
@@ -49,7 +53,9 @@ export function createTtsBudgetRequest({ userId, usage, documentId, chunkIndex, 
     // v34 sends no stable conversation request ID. Deduplicate the canonical
     // synthesis payload; a repeated payload never triggers another paid call.
     : createHash("sha256").update(JSON.stringify([
-      safeUserId, "conversation", textHash, env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
+      safeUserId, conversationRequestId === null ? "conversation" : "conversation-intent-v2",
+      ...(conversationRequestId === null ? [] : [conversationRequestId]),
+      textHash, env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
       voice || "alloy", format || "mp3", instructions || ""
     ])).digest("hex");
 
